@@ -1,0 +1,18 @@
+name: oproto-fluent-dynamodb
+id: ari:cloud:compass:4f69bb16-c94c-4d53-8562-48cb09a5581c:component/bf8f69ab-ecde-485d-a776-f0df358ea2d1/bf2c2132-10c1-4270-b8fa-bfcecb5c0e61
+description: Oproto.FluentDynamoDb library
+configVersion: 1
+typeId: APPLICATION
+ownerId: ari:cloud:identity::team/71db4501-7898-493d-8f82-84e6a7ba7cf7
+fields:
+  tier: 4
+links:
+  - name: null
+    type: REPOSITORY
+    url: https://github.com/oproto/oproto-fluent-dynamodb
+relationships:
+  DEPENDS_ON: []
+labels:
+  - language:c#
+  - source:github
+customFields: null
