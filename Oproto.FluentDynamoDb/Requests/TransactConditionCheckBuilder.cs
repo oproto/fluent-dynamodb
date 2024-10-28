@@ -20,7 +20,7 @@ public class TransactConditionCheckBuilder:
         _req.ConditionCheck.Key = new() { {primaryKeyName, primaryKeyValue } };
         if (sortKeyName!= null && sortKeyValue != null)
         {
-            _req.Delete.Key.Add(sortKeyName, sortKeyValue);
+            _req.ConditionCheck.Key.Add(sortKeyName, sortKeyValue);
         }
         return this;
     }

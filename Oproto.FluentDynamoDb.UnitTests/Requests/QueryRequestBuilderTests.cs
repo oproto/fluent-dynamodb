@@ -28,6 +28,8 @@ public class QueryRequestBuilderTests
         req.IndexName.Should().Be("gsi1");
     }
     
+    #region Attributes
+    
     [Fact]
     public void UsingExpressionAttributeNamesSuccess()
     {
@@ -102,6 +104,8 @@ public class QueryRequestBuilderTests
         req.ExpressionAttributeValues[":pk"].BOOL.Should().BeTrue();
     }
 
+    #endregion Attributes
+    
     [Fact]
     public void WhereSuccess()
     {
@@ -132,6 +136,9 @@ public class QueryRequestBuilderTests
         req.ProjectionExpression.Should().Be("description, price");
     }
     
+    
+    #region ConsumedCapacity
+    
     [Fact]
     public void ReturnConsumedCapacitySuccess()
     {
@@ -161,6 +168,8 @@ public class QueryRequestBuilderTests
         req.Should().NotBeNull();
         req.ReturnConsumedCapacity.Should().Be(ReturnConsumedCapacity.INDEXES);
     }
+    
+    #endregion ConsumedCapacity
     
     [Fact]
     public void UsingConsistentReadSuccess()
