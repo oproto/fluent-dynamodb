@@ -34,7 +34,7 @@ public class QueryRequestBuilderTests
     public void UsingExpressionAttributeNamesSuccess()
     {
         var builder = new QueryRequestBuilder(Substitute.For<IAmazonDynamoDB>());
-        builder.UsingExpressionAttributeNames(new Dictionary<string, string>() { { "#pk", "pk" } });
+        builder.WithAttributes(new Dictionary<string, string>() { { "#pk", "pk" } });
         var req = builder.ToQueryRequest();
         req.Should().NotBeNull();
         req.ExpressionAttributeNames.Should().NotBeNull();
@@ -46,7 +46,19 @@ public class QueryRequestBuilderTests
     public void UsingExpressionAttributeNamesUsingLambdaSuccess()
     {
         var builder = new QueryRequestBuilder(Substitute.For<IAmazonDynamoDB>());
-        builder.UsingExpressionAttributeNames((attributes) => attributes.Add("#pk", "pk"));
+        builder.WithAttributes((attributes) => attributes.Add("#pk", "pk"));
+        var req = builder.ToQueryRequest();
+        req.Should().NotBeNull();
+        req.ExpressionAttributeNames.Should().NotBeNull();
+        req.ExpressionAttributeNames.Should().HaveCount(1);
+        req.ExpressionAttributeNames["#pk"].Should().Be("pk");
+    }
+    
+    [Fact]
+    public void UsingExpressionAttributeNameSuccess()
+    {
+        var builder = new QueryRequestBuilder(Substitute.For<IAmazonDynamoDB>());
+        builder.WithAttribute("#pk", "pk");
         var req = builder.ToQueryRequest();
         req.Should().NotBeNull();
         req.ExpressionAttributeNames.Should().NotBeNull();

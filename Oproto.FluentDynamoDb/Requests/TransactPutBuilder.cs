@@ -6,6 +6,8 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class TransactPutBuilder : IWithConditionExpression<TransactPutBuilder>, IWithAttributeNames<TransactPutBuilder>, IWithAttributeValues<TransactPutBuilder>
 {
     private readonly TransactWriteItem _req = new TransactWriteItem();
+    private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
+    private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     
     public TransactPutBuilder(string tableName)
     {
@@ -19,53 +21,69 @@ public class TransactPutBuilder : IWithConditionExpression<TransactPutBuilder>, 
         return this;
     }
     
-    public TransactPutBuilder UsingExpressionAttributeNames(Dictionary<string,string> attributeNames)
+    public TransactPutBuilder WithAttributes(Dictionary<string,string> attributeNames)
     {
-        _req.Put.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNames);
         return this;
     }
     
-    public TransactPutBuilder UsingExpressionAttributeNames(Action<Dictionary<string,string>> attributeNameFunc)
+    public TransactPutBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
     {
-        var attributeNames = new Dictionary<string, string>();
-        attributeNameFunc(attributeNames);
-        _req.Put.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNameFunc);
+        return this;
+    }
+
+    public TransactPutBuilder WithAttribute(string parameterName, string attributeName)
+    {
+        _attrN.WithAttribute(parameterName, attributeName);
         return this;
     }
 
     public TransactPutBuilder WithValues(
         Dictionary<string, AttributeValue> attributeValues)
     {
-        _req.Put.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValues);
         return this;
     }
     
     public TransactPutBuilder WithValues(
         Action<Dictionary<string, AttributeValue>> attributeValueFunc)
     {
-        var attributeValues = new Dictionary<string, AttributeValue>();
-        attributeValueFunc(attributeValues);
-        _req.Put.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValueFunc);
         return this;
     }
     
     public TransactPutBuilder WithValue(
-        string attributeName, string? attributeValue)
+        string attributeName, string? attributeValue, bool conditionalUse = true)
     {
-        _req.Put.ExpressionAttributeValues ??= new();
-        if (attributeValue != null)
-        {
-            _req.Put.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { S = attributeValue });
-        }
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactPutBuilder WithValue(
+        string attributeName, bool? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactPutBuilder WithValue(
+        string attributeName, decimal? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
 
+    public TransactPutBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
+        bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
-    public TransactPutBuilder WithValue(
-        string attributeName, bool attributeValue)
+    public TransactPutBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
     {
-        _req.Put.ExpressionAttributeValues ??= new();
-        _req.Put.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { BOOL = attributeValue });
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
@@ -89,6 +107,8 @@ public class TransactPutBuilder : IWithConditionExpression<TransactPutBuilder>, 
 
     public TransactWriteItem ToWriteItem()
     {
+        _req.Put.ExpressionAttributeNames = _attrN.AttributeNames;
+        _req.Put.ExpressionAttributeValues = _attrV.AttributeValues;
         return _req;
     }
 }

@@ -4,9 +4,11 @@ namespace Oproto.FluentDynamoDb.Requests.Interfaces;
 
 public interface IWithAttributeNames<out TBuilder>
 {
-    public TBuilder UsingExpressionAttributeNames(Dictionary<string, string> attributeNames);
+    public TBuilder WithAttributes(Dictionary<string, string> attributeNames);
 
-    public TBuilder UsingExpressionAttributeNames(Action<Dictionary<string, string>> attributeNameFunc);
+    public TBuilder WithAttributes(Action<Dictionary<string, string>> attributeNameFunc);
+
+    public TBuilder WithAttribute(string parameterName, string attributeName);
 }
 
 public interface IWithAttributeValues<out TBuilder>
@@ -18,8 +20,15 @@ public interface IWithAttributeValues<out TBuilder>
         Action<Dictionary<string, AttributeValue>> attributeValueFunc);
     
     public TBuilder WithValue(
-        string attributeName, string? attributeValue);
+        string attributeName, string? attributeValue, bool conditionalUse = true);
     
     public TBuilder WithValue(
-        string attributeName, bool attributeValue);
+        string attributeName, bool? attributeValue, bool conditionalUse = true);
+    
+    public TBuilder WithValue(
+        string attributeName, decimal? attributeValue, bool conditionalUse = true);
+
+    public TBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue, bool conditionalUse = true);
+    
+    public TBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true);
 }

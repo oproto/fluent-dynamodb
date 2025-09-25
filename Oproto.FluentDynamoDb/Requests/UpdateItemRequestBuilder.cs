@@ -14,6 +14,9 @@ public class UpdateItemRequestBuilder :
     
     private UpdateItemRequest _req = new();
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
+    private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+    
     public UpdateItemRequestBuilder ForTable(string tableName)
     {
         _req.TableName = tableName;
@@ -58,53 +61,69 @@ public class UpdateItemRequestBuilder :
     }
     
     
-    public UpdateItemRequestBuilder UsingExpressionAttributeNames(Dictionary<string,string> attributeNames)
+    public UpdateItemRequestBuilder WithAttributes(Dictionary<string,string> attributeNames)
     {
-        _req.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNames);
         return this;
     }
     
-    public UpdateItemRequestBuilder UsingExpressionAttributeNames(Action<Dictionary<string,string>> attributeNameFunc)
+    public UpdateItemRequestBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
     {
-        var attributeNames = new Dictionary<string, string>();
-        attributeNameFunc(attributeNames);
-        _req.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNameFunc);
+        return this;
+    }
+
+    public UpdateItemRequestBuilder WithAttribute(string parameterName, string attributeName)
+    {
+        _attrN.WithAttribute(parameterName, attributeName);
         return this;
     }
 
     public UpdateItemRequestBuilder WithValues(
         Dictionary<string, AttributeValue> attributeValues)
     {
-        _req.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValues);
         return this;
     }
     
     public UpdateItemRequestBuilder WithValues(
         Action<Dictionary<string, AttributeValue>> attributeValueFunc)
     {
-        var attributeValues = new Dictionary<string, AttributeValue>();
-        attributeValueFunc(attributeValues);
-        _req.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValueFunc);
         return this;
     }
     
     public UpdateItemRequestBuilder WithValue(
-        string attributeName, string? attributeValue)
+        string attributeName, string? attributeValue, bool conditionalUse = true)
     {
-        _req.ExpressionAttributeValues ??= new();
-        if (attributeValue != null)
-        {
-            _req.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { S = attributeValue });
-        }
-
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
     public UpdateItemRequestBuilder WithValue(
-        string attributeName, bool attributeValue)
+        string attributeName, bool? attributeValue, bool conditionalUse = true)
     {
-        _req.ExpressionAttributeValues ??= new();
-        _req.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { BOOL = attributeValue });
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public UpdateItemRequestBuilder WithValue(
+        string attributeName, decimal? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public UpdateItemRequestBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
+        bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public UpdateItemRequestBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
 
@@ -164,6 +183,8 @@ public class UpdateItemRequestBuilder :
     
     public UpdateItemRequest ToUpdateItemRequest()
     {
+        _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        _req.ExpressionAttributeValues = _attrV.AttributeValues;
         return _req;
     }
 

@@ -40,6 +40,8 @@ var table = new ToDoTable(...);
 var getItemResponse = await table.GetTodoAsync(todoId);
 ```
 
+## Queries
+
 ## Pagination
 Pagination features in FluentDynamoDb are optional.
 
@@ -54,6 +56,24 @@ var queryResponse = await table.Gsi1.Query
     .WithValue(":gsi1pk", "foo")
     .Paginate(paginationRequest)
     .ExecuteAsync();
+```
+
+## Transactions
+Transactions work slightly different.  Since they aren't tied to a single table, it starts from a TransactWriteItemsRequestBuilder or TransactGetItemsRequestBuilder.
+
+```csharp
+var transactionResult = await new TransactWriteItemsRequestBuilder(dynamoDbClient)
+    .WithClientRequestToken("1234")
+    .CheckCondition(table, condition =>
+        condition.WithKey("pk","1")
+                 .Where("isEnabled=1"))
+    .Update(table2, upd =>
+        upd.WithKey("pk","foo")
+           .Set("SET gsi1pk=:gsi1pk")
+           .WithValue(":gsi1Pk","abcd")
+        )
+    .ExecuteAsync();
+
 ```
 
 ## Stream Processing

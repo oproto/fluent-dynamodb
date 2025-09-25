@@ -5,7 +5,7 @@ namespace Oproto.FluentDynamoDb.Streams;
 public class DynamoDbStreamRecordEventProcessor
 {
     
-    public DynamoDBEvent.DynamodbStreamRecord Record { get; init; }
+    public required DynamoDBEvent.DynamodbStreamRecord Record { get; init; }
 
     public async Task<DynamoDbStreamRecordEventProcessor> Awaitable()
     {

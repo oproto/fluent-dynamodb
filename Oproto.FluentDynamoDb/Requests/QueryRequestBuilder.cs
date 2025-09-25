@@ -14,6 +14,8 @@ public class QueryRequestBuilder :
     
     private QueryRequest _req = new QueryRequest();
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
+    private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     
     public QueryRequestBuilder ForTable(string tableName)
     {
@@ -64,54 +66,69 @@ public class QueryRequestBuilder :
         return this;
     }
     
-    public QueryRequestBuilder UsingExpressionAttributeNames(Dictionary<string,string> attributeNames)
+    public QueryRequestBuilder WithAttributes(Dictionary<string,string> attributeNames)
     {
-        _req.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNames);
         return this;
     }
     
-    public QueryRequestBuilder UsingExpressionAttributeNames(Action<Dictionary<string,string>> attributeNameFunc)
+    public QueryRequestBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
     {
-        var attributeNames = new Dictionary<string, string>();
-        attributeNameFunc(attributeNames);
-        _req.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNameFunc);
+        return this;
+    }
+
+    public QueryRequestBuilder WithAttribute(string parameterName, string attributeName)
+    {
+        _attrN.WithAttribute(parameterName, attributeName);
         return this;
     }
 
     public QueryRequestBuilder WithValues(
         Dictionary<string, AttributeValue> attributeValues)
     {
-        _req.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValues);
         return this;
     }
     
     public QueryRequestBuilder WithValues(
         Action<Dictionary<string, AttributeValue>> attributeValueFunc)
     {
-        var attributeValues = new Dictionary<string, AttributeValue>();
-        attributeValueFunc(attributeValues);
-        _req.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValueFunc);
         return this;
     }
-
-
+    
     public QueryRequestBuilder WithValue(
-        string attributeName, string? attributeValue)
+        string attributeName, string? attributeValue, bool conditionalUse = true)
     {
-        _req.ExpressionAttributeValues ??= new();
-        if (attributeValue != null)
-        {
-            _req.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { S = attributeValue });
-        }
-
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
-
+    
     public QueryRequestBuilder WithValue(
-        string attributeName, bool attributeValue)
+        string attributeName, bool? attributeValue, bool conditionalUse = true)
     {
-        _req.ExpressionAttributeValues ??= new();
-        _req.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { BOOL = attributeValue });
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public QueryRequestBuilder WithValue(
+        string attributeName, decimal? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public QueryRequestBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
+        bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public QueryRequestBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
@@ -139,8 +156,28 @@ public class QueryRequestBuilder :
         return this;
     }
 
+    public QueryRequestBuilder OrderAscending()
+    {
+        _req.ScanIndexForward = true;
+        return this;
+    }
+
+    public QueryRequestBuilder OrderDescending()
+    {
+        _req.ScanIndexForward = false;
+        return this;
+    }
+
+    public QueryRequestBuilder ScanIndexForward(bool ascending = true)
+    {
+        _req.ScanIndexForward = ascending;
+        return this;
+    }
+
     public QueryRequest ToQueryRequest()
     {
+        _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        _req.ExpressionAttributeValues = _attrV.AttributeValues;
         return _req;
     }
 

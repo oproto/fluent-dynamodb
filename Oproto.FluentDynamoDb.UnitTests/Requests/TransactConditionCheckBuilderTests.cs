@@ -74,7 +74,7 @@ public class TransactConditionCheckBuilderTests
     public void UsingExpressionAttributeNamesSuccess()
     {
         var builder = new TransactConditionCheckBuilder("TestTable");
-        builder.UsingExpressionAttributeNames(new Dictionary<string, string>() { { "#pk", "pk" } });
+        builder.WithAttributes(new Dictionary<string, string>() { { "#pk", "pk" } });
         var req = builder.ToWriteItem();
         req.Should().NotBeNull();
         req.ConditionCheck.Should().NotBeNull();
@@ -87,7 +87,20 @@ public class TransactConditionCheckBuilderTests
     public void UsingExpressionAttributeNamesUsingLambdaSuccess()
     {
         var builder = new TransactConditionCheckBuilder("TestTable");
-        builder.UsingExpressionAttributeNames((attributes) => attributes.Add("#pk", "pk"));
+        builder.WithAttributes((attributes) => attributes.Add("#pk", "pk"));
+        var req = builder.ToWriteItem();
+        req.Should().NotBeNull();
+        req.ConditionCheck.Should().NotBeNull();
+        req.ConditionCheck.ExpressionAttributeNames.Should().NotBeNull();
+        req.ConditionCheck.ExpressionAttributeNames.Should().HaveCount(1);
+        req.ConditionCheck.ExpressionAttributeNames["#pk"].Should().Be("pk");
+    }
+    
+    [Fact]
+    public void UsingExpressionAttributeNameSuccess()
+    {
+        var builder = new TransactConditionCheckBuilder("TestTable");
+        builder.WithAttribute("#pk", "pk");
         var req = builder.ToWriteItem();
         req.Should().NotBeNull();
         req.ConditionCheck.Should().NotBeNull();

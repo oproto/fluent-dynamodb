@@ -71,7 +71,7 @@ public class UpdateItemRequestBuilderTests
     public void UsingExpressionAttributeNamesSuccess()
     {
         var builder = new UpdateItemRequestBuilder(Substitute.For<IAmazonDynamoDB>());
-        builder.UsingExpressionAttributeNames(new Dictionary<string, string>() { { "#pk", "pk" } });
+        builder.WithAttributes(new Dictionary<string, string>() { { "#pk", "pk" } });
         var req = builder.ToUpdateItemRequest();
         req.Should().NotBeNull();
         req.ExpressionAttributeNames.Should().NotBeNull();
@@ -83,7 +83,7 @@ public class UpdateItemRequestBuilderTests
     public void UsingExpressionAttributeNamesUsingLambdaSuccess()
     {
         var builder = new UpdateItemRequestBuilder(Substitute.For<IAmazonDynamoDB>());
-        builder.UsingExpressionAttributeNames((attributes) => attributes.Add("#pk", "pk"));
+        builder.WithAttributes((attributes) => attributes.Add("#pk", "pk"));
         var req = builder.ToUpdateItemRequest();
         req.Should().NotBeNull();
         req.ExpressionAttributeNames.Should().NotBeNull();
@@ -91,6 +91,17 @@ public class UpdateItemRequestBuilderTests
         req.ExpressionAttributeNames["#pk"].Should().Be("pk");
     }
 
+    [Fact]
+    public void UsingExpressionAttributeNameSuccess()
+    {
+        var builder = new UpdateItemRequestBuilder(Substitute.For<IAmazonDynamoDB>());
+        builder.WithAttribute("#pk", "pk");
+        var req = builder.ToUpdateItemRequest();
+        req.Should().NotBeNull();
+        req.ExpressionAttributeNames.Should().NotBeNull();
+        req.ExpressionAttributeNames.Should().HaveCount(1);
+        req.ExpressionAttributeNames["#pk"].Should().Be("pk");
+    }
     [Fact]
     public void UsingExpressionAttributeValuesSuccess()
     {

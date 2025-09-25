@@ -72,7 +72,7 @@ public class TransactDeleteBuilderTests
     public void UsingExpressionAttributeNamesSuccess()
     {
         var builder = new TransactDeleteBuilder("TestTable");
-        builder.UsingExpressionAttributeNames(new Dictionary<string, string>() { { "#pk", "pk" } });
+        builder.WithAttributes(new Dictionary<string, string>() { { "#pk", "pk" } });
         var req = builder.ToWriteItem();
         req.Should().NotBeNull();
         req.Delete.Should().NotBeNull();
@@ -85,7 +85,20 @@ public class TransactDeleteBuilderTests
     public void UsingExpressionAttributeNamesUsingLambdaSuccess()
     {
         var builder = new TransactDeleteBuilder("TestTable");
-        builder.UsingExpressionAttributeNames((attributes) => attributes.Add("#pk", "pk"));
+        builder.WithAttributes((attributes) => attributes.Add("#pk", "pk"));
+        var req = builder.ToWriteItem();
+        req.Should().NotBeNull();
+        req.Delete.Should().NotBeNull();
+        req.Delete.ExpressionAttributeNames.Should().NotBeNull();
+        req.Delete.ExpressionAttributeNames.Should().HaveCount(1);
+        req.Delete.ExpressionAttributeNames["#pk"].Should().Be("pk");
+    }
+    
+    [Fact]
+    public void UsingExpressionAttributeNameSuccess()
+    {
+        var builder = new TransactDeleteBuilder("TestTable");
+        builder.WithAttribute("#pk", "pk");
         var req = builder.ToWriteItem();
         req.Should().NotBeNull();
         req.Delete.Should().NotBeNull();

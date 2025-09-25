@@ -7,6 +7,8 @@ public class TransactUpdateBuilder :
     IWithKey<TransactUpdateBuilder>, IWithConditionExpression<TransactUpdateBuilder>, IWithAttributeNames<TransactUpdateBuilder>, IWithAttributeValues<TransactUpdateBuilder>
 {
     private readonly TransactWriteItem _req = new TransactWriteItem();
+    private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
+    private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     
     public TransactUpdateBuilder(string tableName)
     {
@@ -53,53 +55,70 @@ public class TransactUpdateBuilder :
     }
 
     
-    public TransactUpdateBuilder UsingExpressionAttributeNames(Dictionary<string,string> attributeNames)
+    public TransactUpdateBuilder WithAttributes(Dictionary<string,string> attributeNames)
     {
-        _req.Update.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNames);
         return this;
     }
     
-    public TransactUpdateBuilder UsingExpressionAttributeNames(Action<Dictionary<string,string>> attributeNameFunc)
+    public TransactUpdateBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
     {
-        var attributeNames = new Dictionary<string, string>();
-        attributeNameFunc(attributeNames);
-        _req.Update.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNameFunc);
+        return this;
+    }
+
+    public TransactUpdateBuilder WithAttribute(string parameterName, string attributeName)
+    {
+        _attrN.WithAttribute(parameterName, attributeName);
         return this;
     }
 
     public TransactUpdateBuilder WithValues(
         Dictionary<string, AttributeValue> attributeValues)
     {
-        _req.Update.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValues);
         return this;
     }
     
     public TransactUpdateBuilder WithValues(
         Action<Dictionary<string, AttributeValue>> attributeValueFunc)
     {
-        var attributeValues = new Dictionary<string, AttributeValue>();
-        attributeValueFunc(attributeValues);
-        _req.Update.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValueFunc);
         return this;
     }
     
     public TransactUpdateBuilder WithValue(
-        string attributeName, string? attributeValue)
+        string attributeName, string? attributeValue, bool conditionalUse = true)
     {
-        _req.Update.ExpressionAttributeValues ??= new();
-        if (attributeValue != null)
-        {
-            _req.Update.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { S = attributeValue });
-        }
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactUpdateBuilder WithValue(
+        string attributeName, bool? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactUpdateBuilder WithValue(
+        string attributeName, decimal? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
 
         return this;
     }
     
-    public TransactUpdateBuilder WithValue(
-        string attributeName, bool attributeValue)
+    public TransactUpdateBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
+        bool conditionalUse = true)
     {
-        _req.Update.ExpressionAttributeValues ??= new();
-        _req.Update.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { BOOL = attributeValue });
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactUpdateBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
@@ -111,6 +130,8 @@ public class TransactUpdateBuilder :
 
     public TransactWriteItem ToWriteItem()
     {
+        _req.Update.ExpressionAttributeNames = _attrN.AttributeNames;
+        _req.Update.ExpressionAttributeValues = _attrV.AttributeValues;
         return _req;
     }
 }

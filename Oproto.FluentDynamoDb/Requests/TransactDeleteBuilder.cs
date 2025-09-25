@@ -7,6 +7,8 @@ public class TransactDeleteBuilder :
     IWithKey<TransactDeleteBuilder>, IWithConditionExpression<TransactDeleteBuilder>, IWithAttributeNames<TransactDeleteBuilder>, IWithAttributeValues<TransactDeleteBuilder>
 {
     private readonly TransactWriteItem _req = new TransactWriteItem();
+    private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
+    private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     
     public TransactDeleteBuilder(string tableName)
     {
@@ -46,55 +48,73 @@ public class TransactDeleteBuilder :
         return this;
     }
     
-    public TransactDeleteBuilder UsingExpressionAttributeNames(Dictionary<string,string> attributeNames)
+    public TransactDeleteBuilder WithAttributes(Dictionary<string,string> attributeNames)
     {
-        _req.Delete.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNames);
         return this;
     }
     
-    public TransactDeleteBuilder UsingExpressionAttributeNames(Action<Dictionary<string,string>> attributeNameFunc)
+    public TransactDeleteBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
     {
-        var attributeNames = new Dictionary<string, string>();
-        attributeNameFunc(attributeNames);
-        _req.Delete.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNameFunc);
+        return this;
+    }
+
+    public TransactDeleteBuilder WithAttribute(string parameterName, string attributeName)
+    {
+        _attrN.WithAttribute(parameterName, attributeName);
         return this;
     }
 
     public TransactDeleteBuilder WithValues(
         Dictionary<string, AttributeValue> attributeValues)
     {
-        _req.Delete.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValues);
         return this;
     }
     
     public TransactDeleteBuilder WithValues(
         Action<Dictionary<string, AttributeValue>> attributeValueFunc)
     {
-        var attributeValues = new Dictionary<string, AttributeValue>();
-        attributeValueFunc(attributeValues);
-        _req.Delete.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValueFunc);
         return this;
     }
     
     public TransactDeleteBuilder WithValue(
-        string attributeName, string? attributeValue)
+        string attributeName, string? attributeValue, bool conditionalUse = true)
     {
-        _req.Delete.ExpressionAttributeValues ??= new();
-        if (attributeValue != null)
-        {
-            _req.Delete.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { S = attributeValue });
-        }
-
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
     public TransactDeleteBuilder WithValue(
-        string attributeName, bool attributeValue)
+        string attributeName, bool? attributeValue, bool conditionalUse = true)
     {
-        _req.Delete.ExpressionAttributeValues ??= new();
-        _req.Delete.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { BOOL = attributeValue });
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
+    
+    public TransactDeleteBuilder WithValue(
+        string attributeName, decimal? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactDeleteBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
+        bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactDeleteBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    
     
     public TransactDeleteBuilder ReturnOldValuesOnConditionCheckFailure()
     {
@@ -104,6 +124,8 @@ public class TransactDeleteBuilder :
 
     public TransactWriteItem ToWriteItem()
     {
+        _req.Delete.ExpressionAttributeNames = _attrN.AttributeNames;
+        _req.Delete.ExpressionAttributeValues = _attrV.AttributeValues;
         return _req;
     }
 }

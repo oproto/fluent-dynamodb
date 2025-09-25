@@ -7,6 +7,8 @@ public class TransactConditionCheckBuilder:
     IWithKey<TransactConditionCheckBuilder>, IWithConditionExpression<TransactConditionCheckBuilder>, IWithAttributeNames<TransactConditionCheckBuilder>, IWithAttributeValues<TransactConditionCheckBuilder>
 {
     private readonly TransactWriteItem _req = new TransactWriteItem();
+    private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
+    private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     
     public TransactConditionCheckBuilder(string tableName)
     {
@@ -46,54 +48,69 @@ public class TransactConditionCheckBuilder:
         return this;
     }
     
-    public TransactConditionCheckBuilder UsingExpressionAttributeNames(Dictionary<string,string> attributeNames)
+    public TransactConditionCheckBuilder WithAttributes(Dictionary<string,string> attributeNames)
     {
-        _req.ConditionCheck.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNames);
         return this;
     }
     
-    public TransactConditionCheckBuilder UsingExpressionAttributeNames(Action<Dictionary<string,string>> attributeNameFunc)
+    public TransactConditionCheckBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
     {
-        var attributeNames = new Dictionary<string, string>();
-        attributeNameFunc(attributeNames);
-        _req.ConditionCheck.ExpressionAttributeNames = attributeNames;
+        _attrN.WithAttributes(attributeNameFunc);
+        return this;
+    }
+
+    public TransactConditionCheckBuilder WithAttribute(string parameterName, string attributeName)
+    {
+        _attrN.WithAttribute(parameterName, attributeName);
         return this;
     }
 
     public TransactConditionCheckBuilder WithValues(
         Dictionary<string, AttributeValue> attributeValues)
     {
-        _req.ConditionCheck.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValues);
         return this;
     }
     
     public TransactConditionCheckBuilder WithValues(
         Action<Dictionary<string, AttributeValue>> attributeValueFunc)
     {
-        var attributeValues = new Dictionary<string, AttributeValue>();
-        attributeValueFunc(attributeValues);
-        _req.ConditionCheck.ExpressionAttributeValues = attributeValues;
+        _attrV.WithValues(attributeValueFunc);
         return this;
     }
     
     public TransactConditionCheckBuilder WithValue(
-        string attributeName, string? attributeValue)
+        string attributeName, string? attributeValue, bool conditionalUse = true)
     {
-        _req.ConditionCheck.ExpressionAttributeValues ??= new();
-        if (attributeValue != null)
-        {
-            _req.ConditionCheck.ExpressionAttributeValues.Add(attributeName,
-                new AttributeValue() { S = attributeValue });
-        }
-
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
     public TransactConditionCheckBuilder WithValue(
-        string attributeName, bool attributeValue)
+        string attributeName, bool? attributeValue, bool conditionalUse = true)
     {
-        _req.ConditionCheck.ExpressionAttributeValues ??= new();
-        _req.ConditionCheck.ExpressionAttributeValues.Add(attributeName, new AttributeValue() { BOOL = attributeValue });
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactConditionCheckBuilder WithValue(
+        string attributeName, decimal? attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactConditionCheckBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
+        bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
+        return this;
+    }
+    
+    public TransactConditionCheckBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
+    {
+        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
         return this;
     }
     
@@ -105,6 +122,8 @@ public class TransactConditionCheckBuilder:
 
     public TransactWriteItem ToWriteItem()
     {
+        _req.ConditionCheck.ExpressionAttributeNames = _attrN.AttributeNames;
+        _req.ConditionCheck.ExpressionAttributeValues = _attrV.AttributeValues;
         return _req;
     }
 }

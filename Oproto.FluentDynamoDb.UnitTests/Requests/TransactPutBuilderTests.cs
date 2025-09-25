@@ -23,7 +23,7 @@ public class TransactPutBuilderTests
     public void UsingExpressionAttributeNamesSuccess()
     {
         var builder = new TransactPutBuilder("TestTable");
-        builder.UsingExpressionAttributeNames(new Dictionary<string, string>() { { "#pk", "pk" } });
+        builder.WithAttributes(new Dictionary<string, string>() { { "#pk", "pk" } });
         var req = builder.ToWriteItem();
         req.Should().NotBeNull();
         req.Put.Should().NotBeNull();
@@ -36,7 +36,7 @@ public class TransactPutBuilderTests
     public void UsingExpressionAttributeNamesUsingLambdaSuccess()
     {
         var builder = new TransactPutBuilder("TestTable");
-        builder.UsingExpressionAttributeNames((attributes) => attributes.Add("#pk", "pk"));
+        builder.WithAttributes((attributes) => attributes.Add("#pk", "pk"));
         var req = builder.ToWriteItem();
         req.Should().NotBeNull();
         req.Put.Should().NotBeNull();
@@ -45,6 +45,18 @@ public class TransactPutBuilderTests
         req.Put.ExpressionAttributeNames["#pk"].Should().Be("pk");
     }
 
+    [Fact]
+    public void UsingExpressionAttributeNameSuccess()
+    {
+        var builder = new TransactPutBuilder("TestTable");
+        builder.WithAttribute("#pk", "pk");
+        var req = builder.ToWriteItem();
+        req.Should().NotBeNull();
+        req.Put.Should().NotBeNull();
+        req.Put.ExpressionAttributeNames.Should().NotBeNull();
+        req.Put.ExpressionAttributeNames.Should().HaveCount(1);
+        req.Put.ExpressionAttributeNames["#pk"].Should().Be("pk");
+    }
     [Fact]
     public void UsingExpressionAttributeValuesSuccess()
     {

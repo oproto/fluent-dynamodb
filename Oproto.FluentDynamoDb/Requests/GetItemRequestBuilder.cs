@@ -13,6 +13,8 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     
     private GetItemRequest _req = new GetItemRequest();
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+    
     public GetItemRequestBuilder ForTable(string tableName)
     {
         _req.TableName = tableName;
@@ -43,6 +45,24 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
         _req.Key.Add(sortKeyName, new AttributeValue { S = sortKeyValue });
         return this;
     }
+    
+    public GetItemRequestBuilder WithAttributes(Dictionary<string,string> attributeNames)
+    {
+        _attrN.WithAttributes(attributeNames);
+        return this;
+    }
+    
+    public GetItemRequestBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
+    {
+        _attrN.WithAttributes(attributeNameFunc);
+        return this;
+    }
+
+    public GetItemRequestBuilder WithAttribute(string parameterName, string attributeName)
+    {
+        _attrN.WithAttribute(parameterName, attributeName);
+        return this;
+    }
 
     public GetItemRequestBuilder UsingConsistentRead()
     {
@@ -53,20 +73,6 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     public GetItemRequestBuilder WithProjection(string projectionExpression)
     {
         _req.ProjectionExpression = projectionExpression;
-        return this;
-    }
-
-    public GetItemRequestBuilder UsingExpressionAttributeNames(Dictionary<string,string> attributeNames)
-    {
-        _req.ExpressionAttributeNames = attributeNames;
-        return this;
-    }
-    
-    public GetItemRequestBuilder UsingExpressionAttributeNames(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        var attributeNames = new Dictionary<string, string>();
-        attributeNameFunc(attributeNames);
-        _req.ExpressionAttributeNames = attributeNames;
         return this;
     }
 
@@ -84,6 +90,7 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
 
     public GetItemRequest ToGetItemRequest()
     {
+        _req.ExpressionAttributeNames = _attrN.AttributeNames;
         return _req;
     }
     

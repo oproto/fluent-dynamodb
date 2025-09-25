@@ -78,6 +78,7 @@ public class DynamoDbStreamRecordProcessorTests
             .OnMatch("pk", "5243", "sk", "foo#2", processor => processor.OnInsert(async (record) => { await Task.Run(() => { Assert.Fail(""); }); }));
     }
     
+    [Fact]
     public async Task OnSortKeyMatchSuccess()
     {
         var record = TestRecord1();
