@@ -42,13 +42,13 @@
   - Add `ExecuteAsync()` and `ToScanRequest()` methods
   - _Requirements: 1.5, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 3.2 Add Scan property to IScannableDynamoDbTable
+- [x] 3.2 Add Scan property to IScannableDynamoDbTable
   - Add `Scan` property to `IScannableDynamoDbTable` interface
   - Implement `Scan` property in `ScannableDynamoDbTable` that returns configured `ScanRequestBuilder`
   - Ensure scan operations are only accessible through `AsScannable()` method
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 3.3 Create unit tests for ScanRequestBuilder and scannable functionality
+- [x] 3.3 Create unit tests for ScanRequestBuilder and scannable functionality
   - Write comprehensive unit tests for `ScanRequestBuilder` covering all methods
   - Test filter expressions, projections, and index scanning
   - Test parallel scan functionality with segment parameters
