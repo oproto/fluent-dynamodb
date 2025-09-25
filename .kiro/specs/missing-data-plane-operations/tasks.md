@@ -17,13 +17,13 @@
   - Add `ExecuteAsync()` and `ToDeleteItemRequest()` methods
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 2.2 Add Delete property to DynamoDbTableBase
+- [x] 2.2 Add Delete property to DynamoDbTableBase
   - Add `Delete` property to `DynamoDbTableBase` that returns configured `DeleteItemRequestBuilder`
   - Add `Delete` property to `IDynamoDbTable` interface
   - Update `ScannableDynamoDbTable` to pass through Delete operation
   - _Requirements: 2.1, 6.5_
 
-- [ ] 2.3 Create unit tests for DeleteItemRequestBuilder
+- [x] 2.3 Create unit tests for DeleteItemRequestBuilder
   - Write comprehensive unit tests covering all builder methods
   - Test key specification patterns (single key, composite key, AttributeValue overloads)
   - Test condition expression functionality
