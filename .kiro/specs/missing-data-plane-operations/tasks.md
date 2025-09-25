@@ -8,7 +8,7 @@
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
 - [ ] 2. Implement DeleteItem operation
-- [ ] 2.1 Create DeleteItemRequestBuilder class
+- [x] 2.1 Create DeleteItemRequestBuilder class
   - Implement `DeleteItemRequestBuilder` class with fluent interface
   - Add support for key specification using `IWithKey<DeleteItemRequestBuilder>` interface
   - Add support for condition expressions using `IWithConditionExpression<DeleteItemRequestBuilder>` interface
