@@ -83,7 +83,7 @@
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
 - [ ] 5. Implement BatchWriteItem operations
-- [ ] 5.1 Create BatchWriteItemBuilder class
+- [x] 5.1 Create BatchWriteItemBuilder class
   - Implement `BatchWriteItemBuilder` class for individual table write operations
   - Add `PutItem(Dictionary<string, AttributeValue> item)` method for put operations
   - Add `PutItem<T>(T item, Func<T, Dictionary<string, AttributeValue>> mapper)` method with model mapping
