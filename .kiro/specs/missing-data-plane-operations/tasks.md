@@ -66,7 +66,7 @@
   - Implement `ToKeysAndAttributes()` method for internal use
   - _Requirements: 3.2, 3.3, 3.4, 6.1, 6.2, 6.4_
 
-- [ ] 4.2 Create BatchGetItemRequestBuilder class
+- [x] 4.2 Create BatchGetItemRequestBuilder class
   - Implement `BatchGetItemRequestBuilder` class following `TransactGetItemsRequestBuilder` pattern
   - Add `GetFromTable(string tableName, Action<BatchGetItemBuilder> builderAction)` method
   - Add support for consumed capacity options
