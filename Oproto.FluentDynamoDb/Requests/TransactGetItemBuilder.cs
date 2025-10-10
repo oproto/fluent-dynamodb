@@ -15,6 +15,29 @@ public class TransactGetItemBuilder : IWithKey<TransactGetItemBuilder>, IWithAtt
     private TransactGetItem _req = new TransactGetItem();
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets key values using a configuration action for extension method access.
+    /// </summary>
+    /// <param name="keyAction">An action that configures the key dictionary.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public TransactGetItemBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
+    {
+        if (_req.Get.Key == null) _req.Get.Key = new();
+        keyAction(_req.Get.Key);
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public TransactGetItemBuilder Self => this;
     
     public TransactGetItemBuilder ForTable(string tableName)
     {
@@ -22,48 +45,9 @@ public class TransactGetItemBuilder : IWithKey<TransactGetItemBuilder>, IWithAtt
         return this;
     }
 
-    public TransactGetItemBuilder WithKey(string primaryKeyName, AttributeValue primaryKeyValue, string? sortKeyName=null, AttributeValue? sortKeyValue = null)
-    {
-        _req.Get.Key = new() { {primaryKeyName, primaryKeyValue } };
-        if (sortKeyName!= null && sortKeyValue != null)
-        {
-            _req.Get.Key.Add(sortKeyName, sortKeyValue);
-        }
-        return this;
-    }
 
-    public TransactGetItemBuilder WithKey(string keyName, string keyValue)
-    {
-        if (_req.Get.Key == null) _req.Get.Key = new();
-        _req.Get.Key.Add(keyName, new AttributeValue { S = keyValue });
-        return this;
-    }
     
-    public TransactGetItemBuilder WithKey(string primaryKeyName, string primaryKeyValue, string sortKeyName, string sortKeyValue)
-    {
-        if (_req.Get.Key == null) _req.Get.Key = new();
-        _req.Get.Key.Add(primaryKeyName, new AttributeValue { S = primaryKeyValue });
-        _req.Get.Key.Add(sortKeyName, new AttributeValue { S = sortKeyValue });
-        return this;
-    }
-    
-    public TransactGetItemBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    public TransactGetItemBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
 
-    public TransactGetItemBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
     
     public TransactGetItemBuilder WithProjection(string projectionExpression)
     {

@@ -16,103 +16,54 @@ public class TransactConditionCheckBuilder:
         _req.ConditionCheck.TableName = tableName;
     }
 
-    
-    public TransactConditionCheckBuilder WithKey(string primaryKeyName, AttributeValue primaryKeyValue, string? sortKeyName=null, AttributeValue? sortKeyValue = null)
+    /// <summary>
+    /// Gets the internal attribute value helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeValueInternal instance used by this builder.</returns>
+    public AttributeValueInternal GetAttributeValueHelper() => _attrV;
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets the condition expression on the builder.
+    /// </summary>
+    /// <param name="expression">The processed condition expression to set.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public TransactConditionCheckBuilder SetConditionExpression(string expression)
     {
-        _req.ConditionCheck.Key = new() { {primaryKeyName, primaryKeyValue } };
-        if (sortKeyName!= null && sortKeyValue != null)
-        {
-            _req.ConditionCheck.Key.Add(sortKeyName, sortKeyValue);
-        }
+        _req.ConditionCheck.ConditionExpression = expression;
         return this;
     }
 
-    public TransactConditionCheckBuilder WithKey(string keyName, string keyValue)
+    /// <summary>
+    /// Sets key values using a configuration action for extension method access.
+    /// </summary>
+    /// <param name="keyAction">An action that configures the key dictionary.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public TransactConditionCheckBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
     {
         if (_req.ConditionCheck.Key == null) _req.ConditionCheck.Key = new();
-        _req.ConditionCheck.Key.Add(keyName, new AttributeValue { S = keyValue });
-        return this;
-    }
-    
-    public TransactConditionCheckBuilder WithKey(string primaryKeyName, string primaryKeyValue, string sortKeyName, string sortKeyValue)
-    {
-        if (_req.ConditionCheck.Key == null) _req.ConditionCheck.Key = new();
-        _req.ConditionCheck.Key.Add(primaryKeyName, new AttributeValue { S = primaryKeyValue });
-        _req.ConditionCheck.Key.Add(sortKeyName, new AttributeValue { S = sortKeyValue });
-        return this;
-    }
-    
-    public TransactConditionCheckBuilder Where(string conditionExpression)
-    {
-        _req.ConditionCheck.ConditionExpression = conditionExpression;
-        return this;
-    }
-    
-    public TransactConditionCheckBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    public TransactConditionCheckBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
+        keyAction(_req.ConditionCheck.Key);
         return this;
     }
 
-    public TransactConditionCheckBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public TransactConditionCheckBuilder Self => this;
 
-    public TransactConditionCheckBuilder WithValues(
-        Dictionary<string, AttributeValue> attributeValues)
-    {
-        _attrV.WithValues(attributeValues);
-        return this;
-    }
     
-    public TransactConditionCheckBuilder WithValues(
-        Action<Dictionary<string, AttributeValue>> attributeValueFunc)
-    {
-        _attrV.WithValues(attributeValueFunc);
-        return this;
-    }
+
     
-    public TransactConditionCheckBuilder WithValue(
-        string attributeName, string? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
+
     
-    public TransactConditionCheckBuilder WithValue(
-        string attributeName, bool? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactConditionCheckBuilder WithValue(
-        string attributeName, decimal? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactConditionCheckBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
-        bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactConditionCheckBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
+
+
+
     
     public TransactConditionCheckBuilder ReturnOldValuesOnConditionCheckFailure()
     {

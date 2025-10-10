@@ -5,7 +5,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// This class handles the collection and management of expression attribute names
 /// that are used to avoid conflicts with DynamoDB reserved words.
 /// </summary>
-internal class AttributeNameInternal
+public class AttributeNameInternal
 {
     /// <summary>
     /// Gets the dictionary of attribute name mappings that will be used in the DynamoDB request.

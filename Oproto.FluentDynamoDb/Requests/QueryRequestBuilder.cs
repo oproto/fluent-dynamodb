@@ -46,6 +46,34 @@ public class QueryRequestBuilder :
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the internal attribute value helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeValueInternal instance used by this builder.</returns>
+    public AttributeValueInternal GetAttributeValueHelper() => _attrV;
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets the condition expression on the builder.
+    /// </summary>
+    /// <param name="expression">The processed condition expression to set.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public QueryRequestBuilder SetConditionExpression(string expression)
+    {
+        _req.KeyConditionExpression = expression;
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public QueryRequestBuilder Self => this;
     
     /// <summary>
     /// Specifies the name of the table to query.
@@ -164,167 +192,11 @@ public class QueryRequestBuilder :
         return this;
     }
     
-    /// <summary>
-    /// Adds multiple attribute name mappings for use in expressions.
-    /// This is essential when attribute names conflict with DynamoDB reserved words.
-    /// </summary>
-    /// <param name="attributeNames">A dictionary mapping parameter names to actual attribute names.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds multiple attribute name mappings using a configuration action.
-    /// This is essential when attribute names conflict with DynamoDB reserved words.
-    /// </summary>
-    /// <param name="attributeNameFunc">An action that configures the attribute name mappings.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
 
-    /// <summary>
-    /// Adds a single attribute name mapping for use in expressions.
-    /// This is essential when attribute names conflict with DynamoDB reserved words.
-    /// </summary>
-    /// <param name="parameterName">The parameter name to use in expressions (e.g., "#name").</param>
-    /// <param name="attributeName">The actual attribute name in the table.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
 
-    /// <summary>
-    /// Adds multiple attribute values for use in key conditions and filter expressions.
-    /// These values are referenced in expressions using parameter names (e.g., ":value").
-    /// </summary>
-    /// <param name="attributeValues">A dictionary mapping parameter names to AttributeValue objects.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithValues(
-        Dictionary<string, AttributeValue> attributeValues)
-    {
-        _attrV.WithValues(attributeValues);
-        return this;
-    }
+
     
-    /// <summary>
-    /// Adds multiple attribute values using a configuration action.
-    /// These values are referenced in expressions using parameter names (e.g., ":value").
-    /// </summary>
-    /// <param name="attributeValueFunc">An action that configures the attribute value mappings.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithValues(
-        Action<Dictionary<string, AttributeValue>> attributeValueFunc)
-    {
-        _attrV.WithValues(attributeValueFunc);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a string attribute value for use in expressions.
-    /// The value is automatically converted to a DynamoDB string type.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":value").</param>
-    /// <param name="attributeValue">The string value to associate with the parameter.</param>
-    /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithValue(
-        string attributeName, string? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a boolean attribute value for use in expressions.
-    /// The value is automatically converted to a DynamoDB boolean type.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":active").</param>
-    /// <param name="attributeValue">The boolean value to associate with the parameter.</param>
-    /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithValue(
-        string attributeName, bool? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a numeric attribute value for use in expressions.
-    /// The value is automatically converted to a DynamoDB number type.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":amount").</param>
-    /// <param name="attributeValue">The decimal value to associate with the parameter.</param>
-    /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithValue(
-        string attributeName, decimal? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a map attribute value (string dictionary) for use in expressions.
-    /// The dictionary is automatically converted to a DynamoDB map type with string values.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":metadata").</param>
-    /// <param name="attributeValue">The string dictionary to associate with the parameter.</param>
-    /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
-        bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a map attribute value (AttributeValue dictionary) for use in expressions.
-    /// This provides full control over the DynamoDB map structure and types.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":complex").</param>
-    /// <param name="attributeValue">The AttributeValue dictionary to associate with the parameter.</param>
-    /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Specifies the key condition expression that determines which items to retrieve.
-    /// This is required for all Query operations and must specify the primary key condition.
-    /// For composite keys, you can also include sort key conditions.
-    /// </summary>
-    /// <param name="conditionExpression">The key condition expression (e.g., "pk = :pk" or "pk = :pk AND begins_with(sk, :prefix)").</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    /// <example>
-    /// <code>
-    /// // Simple primary key condition
-    /// .Where("pk = :pk")
-    /// .WithValue(":pk", "USER#123")
-    /// 
-    /// // Composite key with sort key condition
-    /// .Where("pk = :pk AND begins_with(sk, :prefix)")
-    /// .WithValue(":pk", "USER#123")
-    /// .WithValue(":prefix", "ORDER#")
-    /// </code>
-    /// </example>
-    public QueryRequestBuilder Where(string conditionExpression)
-    {
-        _req.KeyConditionExpression = conditionExpression;
-        return this;
-    }
+
     
     /// <summary>
     /// Configures the response to include total consumed capacity information.

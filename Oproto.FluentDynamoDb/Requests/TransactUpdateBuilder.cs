@@ -4,7 +4,7 @@ using Oproto.FluentDynamoDb.Requests.Interfaces;
 namespace Oproto.FluentDynamoDb.Requests;
 
 public class TransactUpdateBuilder : 
-    IWithKey<TransactUpdateBuilder>, IWithConditionExpression<TransactUpdateBuilder>, IWithAttributeNames<TransactUpdateBuilder>, IWithAttributeValues<TransactUpdateBuilder>
+    IWithKey<TransactUpdateBuilder>, IWithConditionExpression<TransactUpdateBuilder>, IWithAttributeNames<TransactUpdateBuilder>, IWithAttributeValues<TransactUpdateBuilder>, IWithUpdateExpression<TransactUpdateBuilder>
 {
     private readonly TransactWriteItem _req = new TransactWriteItem();
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
@@ -16,111 +16,66 @@ public class TransactUpdateBuilder :
         _req.Update.TableName = tableName;
     }
 
-    
-    public TransactUpdateBuilder WithKey(string primaryKeyName, AttributeValue primaryKeyValue, string? sortKeyName=null, AttributeValue? sortKeyValue = null)
+    /// <summary>
+    /// Gets the internal attribute value helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeValueInternal instance used by this builder.</returns>
+    public AttributeValueInternal GetAttributeValueHelper() => _attrV;
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets the condition expression on the builder.
+    /// </summary>
+    /// <param name="expression">The processed condition expression to set.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public TransactUpdateBuilder SetConditionExpression(string expression)
     {
-        _req.Update.Key = new() { {primaryKeyName, primaryKeyValue } };
-        if (sortKeyName!= null && sortKeyValue != null)
-        {
-            _req.Update.Key.Add(sortKeyName, sortKeyValue);
-        }
+        _req.Update.ConditionExpression = expression;
         return this;
     }
 
-    public TransactUpdateBuilder WithKey(string keyName, string keyValue)
+    /// <summary>
+    /// Sets key values using a configuration action for extension method access.
+    /// </summary>
+    /// <param name="keyAction">An action that configures the key dictionary.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public TransactUpdateBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
     {
         if (_req.Update.Key == null) _req.Update.Key = new();
-        _req.Update.Key.Add(keyName, new AttributeValue { S = keyValue });
+        keyAction(_req.Update.Key);
         return this;
     }
+
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public TransactUpdateBuilder Self => this;
+
     
-    public TransactUpdateBuilder WithKey(string primaryKeyName, string primaryKeyValue, string sortKeyName, string sortKeyValue)
-    {
-        if (_req.Update.Key == null) _req.Update.Key = new();
-        _req.Update.Key.Add(primaryKeyName, new AttributeValue { S = primaryKeyValue });
-        _req.Update.Key.Add(sortKeyName, new AttributeValue { S = sortKeyValue });
-        return this;
-    }
+
     
-    public TransactUpdateBuilder Where(string conditionExpression)
-    {
-        _req.Update.ConditionExpression = conditionExpression;
-        return this;
-    }
+
     
-    public TransactUpdateBuilder Set(string updateExpression)
+    /// <summary>
+    /// Sets the update expression on the builder.
+    /// </summary>
+    /// <param name="expression">The processed update expression to set.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public TransactUpdateBuilder SetUpdateExpression(string expression)
     {
-        _req.Update.UpdateExpression = updateExpression;
+        _req.Update.UpdateExpression = expression;
         return this;
     }
 
     
-    public TransactUpdateBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    public TransactUpdateBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
 
-    public TransactUpdateBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
 
-    public TransactUpdateBuilder WithValues(
-        Dictionary<string, AttributeValue> attributeValues)
-    {
-        _attrV.WithValues(attributeValues);
-        return this;
-    }
-    
-    public TransactUpdateBuilder WithValues(
-        Action<Dictionary<string, AttributeValue>> attributeValueFunc)
-    {
-        _attrV.WithValues(attributeValueFunc);
-        return this;
-    }
-    
-    public TransactUpdateBuilder WithValue(
-        string attributeName, string? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactUpdateBuilder WithValue(
-        string attributeName, bool? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactUpdateBuilder WithValue(
-        string attributeName, decimal? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
 
-        return this;
-    }
-    
-    public TransactUpdateBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
-        bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactUpdateBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
     
     public TransactUpdateBuilder ReturnOldValuesOnConditionCheckFailure()
     {

@@ -32,7 +32,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class UpdateItemRequestBuilder : 
-    IWithKey<UpdateItemRequestBuilder>, IWithConditionExpression<UpdateItemRequestBuilder>, IWithAttributeNames<UpdateItemRequestBuilder>, IWithAttributeValues<UpdateItemRequestBuilder>
+    IWithKey<UpdateItemRequestBuilder>, IWithConditionExpression<UpdateItemRequestBuilder>, IWithAttributeNames<UpdateItemRequestBuilder>, IWithAttributeValues<UpdateItemRequestBuilder>, IWithUpdateExpression<UpdateItemRequestBuilder>
 {
     public UpdateItemRequestBuilder(IAmazonDynamoDB dynamoDbClient)
     {
@@ -43,6 +43,46 @@ public class UpdateItemRequestBuilder :
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the internal attribute value helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeValueInternal instance used by this builder.</returns>
+    public AttributeValueInternal GetAttributeValueHelper() => _attrV;
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets the condition expression on the builder.
+    /// </summary>
+    /// <param name="expression">The processed condition expression to set.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public UpdateItemRequestBuilder SetConditionExpression(string expression)
+    {
+        _req.ConditionExpression = expression;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets key values using a configuration action for extension method access.
+    /// </summary>
+    /// <param name="keyAction">An action that configures the key dictionary.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public UpdateItemRequestBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
+    {
+        if (_req.Key == null) _req.Key = new();
+        keyAction(_req.Key);
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public UpdateItemRequestBuilder Self => this;
     
     public UpdateItemRequestBuilder ForTable(string tableName)
     {
@@ -50,131 +90,25 @@ public class UpdateItemRequestBuilder :
         return this;
     }
     
-    public UpdateItemRequestBuilder WithKey(string primaryKeyName, AttributeValue primaryKeyValue, string? sortKeyName=null, AttributeValue? sortKeyValue = null)
-    {
-        _req.Key = new() { {primaryKeyName, primaryKeyValue } };
-        if (sortKeyName!= null && sortKeyValue != null)
-        {
-            _req.Key.Add(sortKeyName, sortKeyValue);
-        }
-        return this;
-    }
 
-    public UpdateItemRequestBuilder WithKey(string keyName, string keyValue)
-    {
-        if (_req.Key == null) _req.Key = new();
-        _req.Key.Add(keyName, new AttributeValue { S = keyValue });
-        return this;
-    }
     
-    public UpdateItemRequestBuilder WithKey(string primaryKeyName, string primaryKeyValue, string sortKeyName, string sortKeyValue)
-    {
-        if (_req.Key == null) _req.Key = new();
-        _req.Key.Add(primaryKeyName, new AttributeValue { S = primaryKeyValue });
-        _req.Key.Add(sortKeyName, new AttributeValue { S = sortKeyValue });
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder Where(string conditionExpression)
-    {
-        _req.ConditionExpression = conditionExpression;
-        return this;
-    }
+
     
     /// <summary>
-    /// Specifies the update expression that defines how to modify the item.
-    /// Update expressions support SET, ADD, REMOVE, and DELETE actions.
-    /// Use attribute name parameters (e.g., "#name") and value parameters (e.g., ":value") in expressions.
+    /// Sets the update expression on the builder.
     /// </summary>
-    /// <param name="updateExpression">The update expression defining the modifications.</param>
+    /// <param name="expression">The processed update expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    /// <example>
-    /// <code>
-    /// // SET: Update or create attributes
-    /// .Set("SET #name = :name, #status = :status")
-    /// 
-    /// // ADD: Increment numbers or add to sets
-    /// .Set("ADD #count :inc, #tags :newTags")
-    /// 
-    /// // REMOVE: Delete attributes
-    /// .Set("REMOVE #oldField, #tempData")
-    /// 
-    /// // Combined operations
-    /// .Set("SET #name = :name ADD #count :inc REMOVE #oldField")
-    /// </code>
-    /// </example>
-    public UpdateItemRequestBuilder Set(string updateExpression)
+    public UpdateItemRequestBuilder SetUpdateExpression(string expression)
     {
-        _req.UpdateExpression = updateExpression;
+        _req.UpdateExpression = expression;
         return this;
     }
     
     
-    public UpdateItemRequestBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
 
-    public UpdateItemRequestBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
 
-    public UpdateItemRequestBuilder WithValues(
-        Dictionary<string, AttributeValue> attributeValues)
-    {
-        _attrV.WithValues(attributeValues);
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder WithValues(
-        Action<Dictionary<string, AttributeValue>> attributeValueFunc)
-    {
-        _attrV.WithValues(attributeValueFunc);
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder WithValue(
-        string attributeName, string? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder WithValue(
-        string attributeName, bool? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder WithValue(
-        string attributeName, decimal? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
-        bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public UpdateItemRequestBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
+
 
     public UpdateItemRequestBuilder ReturnUpdatedNewValues()
     {

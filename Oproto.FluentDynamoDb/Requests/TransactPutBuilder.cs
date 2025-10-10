@@ -15,77 +15,39 @@ public class TransactPutBuilder : IWithConditionExpression<TransactPutBuilder>, 
         _req.Put.TableName = tableName;
     }
 
-    public TransactPutBuilder Where(string conditionExpression)
+    /// <summary>
+    /// Gets the internal attribute value helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeValueInternal instance used by this builder.</returns>
+    public AttributeValueInternal GetAttributeValueHelper() => _attrV;
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets the condition expression on the builder.
+    /// </summary>
+    /// <param name="expression">The processed condition expression to set.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public TransactPutBuilder SetConditionExpression(string expression)
     {
-        _req.Put.ConditionExpression = conditionExpression;
-        return this;
-    }
-    
-    public TransactPutBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    public TransactPutBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
+        _req.Put.ConditionExpression = expression;
         return this;
     }
 
-    public TransactPutBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public TransactPutBuilder Self => this;
 
-    public TransactPutBuilder WithValues(
-        Dictionary<string, AttributeValue> attributeValues)
-    {
-        _attrV.WithValues(attributeValues);
-        return this;
-    }
-    
-    public TransactPutBuilder WithValues(
-        Action<Dictionary<string, AttributeValue>> attributeValueFunc)
-    {
-        _attrV.WithValues(attributeValueFunc);
-        return this;
-    }
-    
-    public TransactPutBuilder WithValue(
-        string attributeName, string? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactPutBuilder WithValue(
-        string attributeName, bool? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public TransactPutBuilder WithValue(
-        string attributeName, decimal? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
 
-    public TransactPutBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
-        bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
     
-    public TransactPutBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
+
+
+
     
     public TransactPutBuilder ReturnOldValuesOnConditionCheckFailure()
     {

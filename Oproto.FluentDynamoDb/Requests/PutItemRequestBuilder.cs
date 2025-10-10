@@ -40,6 +40,34 @@ public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>,
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the internal attribute value helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeValueInternal instance used by this builder.</returns>
+    public AttributeValueInternal GetAttributeValueHelper() => _attrV;
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets the condition expression on the builder.
+    /// </summary>
+    /// <param name="expression">The processed condition expression to set.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public PutItemRequestBuilder SetConditionExpression(string expression)
+    {
+        _req.ConditionExpression = expression;
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public PutItemRequestBuilder Self => this;
     
     public PutItemRequestBuilder ForTable(string tableName)
     {
@@ -47,77 +75,11 @@ public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>,
         return this;
     }
     
-    public PutItemRequestBuilder Where(string conditionExpression)
-    {
-        _req.ConditionExpression = conditionExpression;
-        return this;
-    }
 
-    public PutItemRequestBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    public PutItemRequestBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
 
-    public PutItemRequestBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
 
-    public PutItemRequestBuilder WithValues(
-        Dictionary<string, AttributeValue> attributeValues)
-    {
-        _attrV.WithValues(attributeValues);
-        return this;
-    }
-    
-    public PutItemRequestBuilder WithValues(
-        Action<Dictionary<string, AttributeValue>> attributeValueFunc)
-    {
-        _attrV.WithValues(attributeValueFunc);
-        return this;
-    }
-    
-    public PutItemRequestBuilder WithValue(
-        string attributeName, string? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public PutItemRequestBuilder WithValue(
-        string attributeName, bool? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public PutItemRequestBuilder WithValue(
-        string attributeName, decimal? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
 
-    public PutItemRequestBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
-        bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    public PutItemRequestBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
+
 
     
     public PutItemRequestBuilder ReturnUpdatedNewValues()

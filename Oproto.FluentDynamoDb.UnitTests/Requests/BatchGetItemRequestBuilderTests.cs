@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Requests;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 

@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using Oproto.FluentDynamoDb.Requests;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 

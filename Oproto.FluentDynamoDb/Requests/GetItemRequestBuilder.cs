@@ -40,6 +40,31 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     private GetItemRequest _req = new GetItemRequest();
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+
+
+    /// <summary>
+    /// Sets key values using a configuration action for extension method access.
+    /// </summary>
+    /// <param name="keyAction">An action that configures the key dictionary.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public GetItemRequestBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
+    {
+        if (_req.Key == null) _req.Key = new();
+        keyAction(_req.Key);
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public GetItemRequestBuilder Self => this;
     
     /// <summary>
     /// Specifies the name of the table to get the item from.
@@ -52,90 +77,9 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
         return this;
     }
 
-    /// <summary>
-    /// Specifies the primary key of the item to retrieve using AttributeValue objects.
-    /// </summary>
-    /// <param name="primaryKeyName">The name of the primary key attribute.</param>
-    /// <param name="primaryKeyValue">The value of the primary key attribute.</param>
-    /// <param name="sortKeyName">The name of the sort key attribute (optional for tables with composite keys).</param>
-    /// <param name="sortKeyValue">The value of the sort key attribute (optional for tables with composite keys).</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder WithKey(string primaryKeyName, AttributeValue primaryKeyValue, string? sortKeyName=null, AttributeValue? sortKeyValue = null)
-    {
-        _req.Key = new() { {primaryKeyName, primaryKeyValue } };
-        if (sortKeyName!= null && sortKeyValue != null)
-        {
-            _req.Key.Add(sortKeyName, sortKeyValue);
-        }
-        return this;
-    }
 
-    /// <summary>
-    /// Specifies a single key attribute using string values (automatically converted to DynamoDB string type).
-    /// </summary>
-    /// <param name="keyName">The name of the key attribute.</param>
-    /// <param name="keyValue">The string value of the key attribute.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder WithKey(string keyName, string keyValue)
-    {
-        if (_req.Key == null) _req.Key = new();
-        _req.Key.Add(keyName, new AttributeValue { S = keyValue });
-        return this;
-    }
     
-    /// <summary>
-    /// Specifies both primary key and sort key using string values (automatically converted to DynamoDB string type).
-    /// Use this method for tables with composite primary keys.
-    /// </summary>
-    /// <param name="primaryKeyName">The name of the primary key attribute.</param>
-    /// <param name="primaryKeyValue">The string value of the primary key attribute.</param>
-    /// <param name="sortKeyName">The name of the sort key attribute.</param>
-    /// <param name="sortKeyValue">The string value of the sort key attribute.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder WithKey(string primaryKeyName, string primaryKeyValue, string sortKeyName, string sortKeyValue)
-    {
-        if (_req.Key == null) _req.Key = new();
-        _req.Key.Add(primaryKeyName, new AttributeValue { S = primaryKeyValue });
-        _req.Key.Add(sortKeyName, new AttributeValue { S = sortKeyValue });
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds multiple attribute name mappings for use in projection expressions.
-    /// This is useful when attribute names conflict with DynamoDB reserved words.
-    /// </summary>
-    /// <param name="attributeNames">A dictionary mapping parameter names to actual attribute names.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder WithAttributes(Dictionary<string,string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds multiple attribute name mappings using a configuration action.
-    /// This is useful when attribute names conflict with DynamoDB reserved words.
-    /// </summary>
-    /// <param name="attributeNameFunc">An action that configures the attribute name mappings.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder WithAttributes(Action<Dictionary<string,string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
 
-    /// <summary>
-    /// Adds a single attribute name mapping for use in projection expressions.
-    /// This is useful when attribute names conflict with DynamoDB reserved words.
-    /// </summary>
-    /// <param name="parameterName">The parameter name to use in expressions (e.g., "#name").</param>
-    /// <param name="attributeName">The actual attribute name in the table.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
 
     /// <summary>
     /// Enables strongly consistent reads for this operation.

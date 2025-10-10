@@ -51,6 +51,23 @@ public class ScanRequestBuilder :
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the internal attribute value helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeValueInternal instance used by this builder.</returns>
+    public AttributeValueInternal GetAttributeValueHelper() => _attrV;
+
+    /// <summary>
+    /// Gets the internal attribute name helper for extension method access.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Gets the builder instance for method chaining.
+    /// </summary>
+    public ScanRequestBuilder Self => this;
     
     /// <summary>
     /// Specifies the table name for the scan operation.
@@ -207,132 +224,9 @@ public class ScanRequestBuilder :
         return this;
     }
     
-    /// <summary>
-    /// Adds multiple attribute name mappings for use in filter and projection expressions.
-    /// </summary>
-    /// <param name="attributeNames">Dictionary mapping expression parameter names to actual attribute names.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithAttributes(Dictionary<string, string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds multiple attribute name mappings using a configuration action.
-    /// </summary>
-    /// <param name="attributeNameFunc">Action to configure attribute name mappings.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithAttributes(Action<Dictionary<string, string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
 
-    /// <summary>
-    /// Adds a single attribute name mapping for use in expressions.
-    /// </summary>
-    /// <param name="parameterName">The parameter name to use in expressions (e.g., "#status").</param>
-    /// <param name="attributeName">The actual attribute name in the table.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
 
-    /// <summary>
-    /// Adds multiple attribute value mappings for use in filter expressions.
-    /// </summary>
-    /// <param name="attributeValues">Dictionary mapping expression parameter names to AttributeValue objects.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithValues(
-        Dictionary<string, AttributeValue> attributeValues)
-    {
-        _attrV.WithValues(attributeValues);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds multiple attribute value mappings using a configuration action.
-    /// </summary>
-    /// <param name="attributeValueFunc">Action to configure attribute value mappings.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithValues(
-        Action<Dictionary<string, AttributeValue>> attributeValueFunc)
-    {
-        _attrV.WithValues(attributeValueFunc);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a string attribute value mapping for use in filter expressions.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":value").</param>
-    /// <param name="attributeValue">The string value to map to the parameter.</param>
-    /// <param name="conditionalUse">Whether to add the mapping only if the value is not null.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithValue(
-        string attributeName, string? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a boolean attribute value mapping for use in filter expressions.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":active").</param>
-    /// <param name="attributeValue">The boolean value to map to the parameter.</param>
-    /// <param name="conditionalUse">Whether to add the mapping only if the value is not null.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithValue(
-        string attributeName, bool? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a decimal attribute value mapping for use in filter expressions.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions (e.g., ":price").</param>
-    /// <param name="attributeValue">The decimal value to map to the parameter.</param>
-    /// <param name="conditionalUse">Whether to add the mapping only if the value is not null.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithValue(
-        string attributeName, decimal? attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds a string dictionary attribute value mapping for use in filter expressions.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions.</param>
-    /// <param name="attributeValue">The string dictionary value to map to the parameter.</param>
-    /// <param name="conditionalUse">Whether to add the mapping only if the value is not null.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithValue(string attributeName, Dictionary<string, string> attributeValue,
-        bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
-    
-    /// <summary>
-    /// Adds an AttributeValue dictionary mapping for use in filter expressions.
-    /// </summary>
-    /// <param name="attributeName">The parameter name to use in expressions.</param>
-    /// <param name="attributeValue">The AttributeValue dictionary to map to the parameter.</param>
-    /// <param name="conditionalUse">Whether to add the mapping only if the value is not null.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder WithValue(string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
-    {
-        _attrV.WithValue(attributeName, attributeValue, conditionalUse);
-        return this;
-    }
+
 
     /// <summary>
     /// Builds and returns the configured ScanRequest.

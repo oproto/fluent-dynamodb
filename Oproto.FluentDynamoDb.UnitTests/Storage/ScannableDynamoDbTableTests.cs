@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using FluentAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 

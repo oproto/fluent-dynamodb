@@ -25,59 +25,30 @@ public class BatchGetItemBuilder : IWithKey<BatchGetItemBuilder>, IWithAttribute
     }
 
     /// <summary>
-    /// Adds a key for an item to retrieve using AttributeValue objects.
-    /// Call this method multiple times to retrieve multiple items from the table.
+    /// Gets the internal attribute name helper for extension method access.
     /// </summary>
-    /// <param name="primaryKeyName">The name of the primary key attribute.</param>
-    /// <param name="primaryKeyValue">The value of the primary key attribute.</param>
-    /// <param name="sortKeyName">The name of the sort key attribute (optional).</param>
-    /// <param name="sortKeyValue">The value of the sort key attribute (optional).</param>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    public AttributeNameInternal GetAttributeNameHelper() => _attrN;
+
+    /// <summary>
+    /// Sets key values using a configuration action for extension method access.
+    /// </summary>
+    /// <param name="keyAction">An action that configures the key dictionary.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public BatchGetItemBuilder WithKey(string primaryKeyName, AttributeValue primaryKeyValue, string? sortKeyName = null, AttributeValue? sortKeyValue = null)
+    public BatchGetItemBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
     {
-        var key = new Dictionary<string, AttributeValue> { { primaryKeyName, primaryKeyValue } };
-        if (sortKeyName != null && sortKeyValue != null)
-        {
-            key.Add(sortKeyName, sortKeyValue);
-        }
+        var key = new Dictionary<string, AttributeValue>();
+        keyAction(key);
         _keysAndAttributes.Keys.Add(key);
         return this;
     }
 
     /// <summary>
-    /// Adds a single key attribute for an item to retrieve using a string value.
+    /// Gets the builder instance for method chaining.
     /// </summary>
-    /// <param name="keyName">The name of the key attribute.</param>
-    /// <param name="keyValue">The string value of the key attribute.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public BatchGetItemBuilder WithKey(string keyName, string keyValue)
-    {
-        var key = new Dictionary<string, AttributeValue>
-        {
-            { keyName, new AttributeValue { S = keyValue } }
-        };
-        _keysAndAttributes.Keys.Add(key);
-        return this;
-    }
+    public BatchGetItemBuilder Self => this;
 
-    /// <summary>
-    /// Adds a composite primary key for an item to retrieve using string values.
-    /// </summary>
-    /// <param name="primaryKeyName">The name of the primary key attribute.</param>
-    /// <param name="primaryKeyValue">The string value of the primary key attribute.</param>
-    /// <param name="sortKeyName">The name of the sort key attribute.</param>
-    /// <param name="sortKeyValue">The string value of the sort key attribute.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public BatchGetItemBuilder WithKey(string primaryKeyName, string primaryKeyValue, string sortKeyName, string sortKeyValue)
-    {
-        var key = new Dictionary<string, AttributeValue>
-        {
-            { primaryKeyName, new AttributeValue { S = primaryKeyValue } },
-            { sortKeyName, new AttributeValue { S = sortKeyValue } }
-        };
-        _keysAndAttributes.Keys.Add(key);
-        return this;
-    }
+
 
     /// <summary>
     /// Specifies which attributes to retrieve from each item.
@@ -107,39 +78,7 @@ public class BatchGetItemBuilder : IWithKey<BatchGetItemBuilder>, IWithAttribute
         return this;
     }
 
-    /// <summary>
-    /// Adds multiple attribute name mappings for use in projection expressions.
-    /// </summary>
-    /// <param name="attributeNames">Dictionary mapping expression parameter names to actual attribute names.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public BatchGetItemBuilder WithAttributes(Dictionary<string, string> attributeNames)
-    {
-        _attrN.WithAttributes(attributeNames);
-        return this;
-    }
 
-    /// <summary>
-    /// Adds multiple attribute name mappings using a configuration action.
-    /// </summary>
-    /// <param name="attributeNameFunc">Action to configure attribute name mappings.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public BatchGetItemBuilder WithAttributes(Action<Dictionary<string, string>> attributeNameFunc)
-    {
-        _attrN.WithAttributes(attributeNameFunc);
-        return this;
-    }
-
-    /// <summary>
-    /// Adds a single attribute name mapping for use in projection expressions.
-    /// </summary>
-    /// <param name="parameterName">The parameter name to use in expressions (e.g., "#name").</param>
-    /// <param name="attributeName">The actual attribute name in the table.</param>
-    /// <returns>The builder instance for method chaining.</returns>
-    public BatchGetItemBuilder WithAttribute(string parameterName, string attributeName)
-    {
-        _attrN.WithAttribute(parameterName, attributeName);
-        return this;
-    }
 
     /// <summary>
     /// Builds and returns the configured KeysAndAttributes for this table.
