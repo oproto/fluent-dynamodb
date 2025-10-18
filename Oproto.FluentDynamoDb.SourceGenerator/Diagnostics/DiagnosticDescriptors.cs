@@ -366,4 +366,76 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "DynamoDB attribute names must follow naming conventions and cannot contain certain characters.");
+
+    /// <summary>
+    /// Error when a computed property references a non-existent source property.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidComputedKeySource = new(
+        "DYNDB031",
+        "Invalid computed key source",
+        "Computed property '{0}' references non-existent source property '{1}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Computed properties must reference existing properties in the same entity.");
+
+    /// <summary>
+    /// Error when an extracted property references a non-existent source property.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidExtractedKeySource = new(
+        "DYNDB032",
+        "Invalid extracted key source",
+        "Extracted property '{0}' references non-existent source property '{1}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Extracted properties must reference existing properties in the same entity.");
+
+    /// <summary>
+    /// Error when circular dependencies are detected between computed properties.
+    /// </summary>
+    public static readonly DiagnosticDescriptor CircularKeyDependency = new(
+        "DYNDB033",
+        "Circular key dependency",
+        "Circular dependency detected between computed properties: {0}",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Computed properties cannot have circular dependencies on each other.");
+
+    /// <summary>
+    /// Error when a computed property references itself as a source.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SelfReferencingComputedKey = new(
+        "DYNDB034",
+        "Self-referencing computed key",
+        "Computed property '{0}' cannot reference itself as a source property",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Computed properties cannot reference themselves as source properties.");
+
+    /// <summary>
+    /// Error when an extracted property has an invalid index.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidExtractedKeyIndex = new(
+        "DYNDB035",
+        "Invalid extracted key index",
+        "Extracted property '{0}' has invalid index {1} for source property '{2}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Extracted property index must be valid for the expected number of components in the source property.");
+
+    /// <summary>
+    /// Warning when a computed property format may produce invalid keys.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidComputedKeyFormat = new(
+        "DYNDB036",
+        "Invalid computed key format",
+        "Computed property '{0}' has format '{1}' that may produce invalid keys: {2}",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Computed key formats should produce valid DynamoDB key values.");
 }

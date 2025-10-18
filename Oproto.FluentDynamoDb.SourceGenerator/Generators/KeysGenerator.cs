@@ -31,6 +31,12 @@ public static class KeysGenerator
         // Generate main table key builders
         GenerateMainTableKeyBuilders(sb, entity);
         
+        // Generate computed composite key builders
+        GenerateComputedKeyBuilders(sb, entity);
+        
+        // Generate extraction helper methods
+        GenerateExtractionHelpers(sb, entity);
+        
         // Generate GSI key builder classes
         GenerateGsiKeyBuilderClasses(sb, entity);
         
@@ -62,6 +68,221 @@ public static class KeysGenerator
         {
             GenerateCompositeKeyBuilder(sb, entity.PartitionKeyProperty, entity.SortKeyProperty, "Key", isMainTable: true);
         }
+    }
+
+    /// <summary>
+    /// Generates key builder methods for computed composite keys.
+    /// </summary>
+    private static void GenerateComputedKeyBuilders(StringBuilder sb, EntityModel entity)
+    {
+        var computedProperties = entity.Properties.Where(p => p.IsComputed).ToArray();
+        
+        foreach (var computedProperty in computedProperties)
+        {
+            GenerateComputedKeyBuilder(sb, computedProperty, entity);
+        }
+    }
+
+    /// <summary>
+    /// Generates a key builder method for a computed composite key.
+    /// </summary>
+    private static void GenerateComputedKeyBuilder(StringBuilder sb, PropertyModel computedProperty, EntityModel entity)
+    {
+        var computedKey = computedProperty.ComputedKey!;
+        var methodName = $"Build{computedProperty.PropertyName}";
+        
+        // Get source property information
+        var sourceProperties = computedKey.SourceProperties
+            .Select(sp => entity.Properties.FirstOrDefault(p => p.PropertyName == sp))
+            .Where(p => p != null)
+            .ToArray();
+
+        if (sourceProperties.Length == 0)
+            return;
+
+        // Generate method signature
+        sb.AppendLine();
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Builds the computed composite key for {computedProperty.PropertyName}.");
+        sb.AppendLine($"        /// Combines: {string.Join(", ", computedKey.SourceProperties)}");
+        sb.AppendLine($"        /// </summary>");
+        
+        foreach (var sourceProperty in sourceProperties)
+        {
+            var paramName = GetParameterName(sourceProperty!.PropertyName);
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {sourceProperty.PropertyName} value.</param>");
+        }
+        
+        sb.AppendLine($"        /// <returns>The computed composite key value.</returns>");
+        
+        var parameters = sourceProperties.Select(p => $"{GetParameterType(p!.PropertyType)} {GetParameterName(p.PropertyName)}").ToArray();
+        sb.AppendLine($"        public static string {methodName}({string.Join(", ", parameters)})");
+        sb.AppendLine("        {");
+
+        // Generate parameter validation
+        foreach (var sourceProperty in sourceProperties)
+        {
+            var paramName = GetParameterName(sourceProperty!.PropertyName);
+            GenerateParameterValidation(sb, paramName, sourceProperty.PropertyType);
+        }
+
+        // Generate key construction logic
+        sb.AppendLine("            try");
+        sb.AppendLine("            {");
+
+        if (computedKey.HasCustomFormat)
+        {
+            // Use custom format string
+            var formatArgs = string.Join(", ", sourceProperties.Select(p => GetValueExpression(GetParameterName(p!.PropertyName), p.PropertyType)));
+            sb.AppendLine($"                var keyValue = string.Format(\"{computedKey.Format}\", {formatArgs});");
+        }
+        else
+        {
+            // Use separator-based concatenation
+            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", 
+                sourceProperties.Select(p => GetValueExpression(GetParameterName(p!.PropertyName), p.PropertyType)));
+            sb.AppendLine($"                var keyValue = {sourceValues};");
+        }
+
+        // Add key validation
+        sb.AppendLine();
+        sb.AppendLine("                // Validate generated key");
+        sb.AppendLine("                if (string.IsNullOrEmpty(keyValue))");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw new System.ArgumentException(\"Generated key cannot be null or empty. Check input parameters.\");");
+        sb.AppendLine("                }");
+        sb.AppendLine();
+        sb.AppendLine("                if (keyValue.Length > 2048)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw new System.ArgumentException($\"Generated key length ({{keyValue.Length}}) exceeds DynamoDB limit of 2048 bytes.\");");
+        sb.AppendLine("                }");
+        sb.AppendLine();
+        sb.AppendLine("                return keyValue;");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (System.ArgumentException)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                throw;");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (System.Exception ex)");
+        sb.AppendLine("            {");
+        
+        var parameterInfo = string.Join(", ", sourceProperties.Select(p => $"{GetParameterName(p!.PropertyName)}: {{{GetParameterName(p.PropertyName)}}}"));
+        sb.AppendLine($"                throw new System.InvalidOperationException(");
+        sb.AppendLine($"                    $\"Failed to generate computed key {computedProperty.PropertyName} with parameters: {parameterInfo}. {{ex.Message}}\", ex);");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+    }
+
+    /// <summary>
+    /// Generates helper methods for extracting components from composite keys.
+    /// </summary>
+    private static void GenerateExtractionHelpers(StringBuilder sb, EntityModel entity)
+    {
+        var extractedProperties = entity.Properties.Where(p => p.IsExtracted).ToArray();
+        
+        // Group by source property to avoid duplicate extraction methods
+        var extractionGroups = extractedProperties
+            .GroupBy(p => p.ExtractedKey!.SourceProperty)
+            .ToArray();
+
+        foreach (var group in extractionGroups)
+        {
+            GenerateExtractionHelper(sb, group.Key, group.ToArray(), entity);
+        }
+    }
+
+    /// <summary>
+    /// Generates an extraction helper method for a composite key.
+    /// </summary>
+    private static void GenerateExtractionHelper(StringBuilder sb, string sourcePropertyName, PropertyModel[] extractedProperties, EntityModel entity)
+    {
+        var sourceProperty = entity.Properties.FirstOrDefault(p => p.PropertyName == sourcePropertyName);
+        if (sourceProperty == null)
+            return;
+
+        var methodName = $"Extract{sourcePropertyName}Components";
+        var separator = extractedProperties.First().ExtractedKey!.Separator;
+        
+        // Determine return type based on extracted properties
+        var returnProperties = extractedProperties.OrderBy(p => p.ExtractedKey!.Index).ToArray();
+        var returnType = returnProperties.Length == 1 
+            ? GetParameterType(returnProperties[0].PropertyType)
+            : $"({string.Join(", ", returnProperties.Select(p => $"{GetParameterType(p.PropertyType)} {p.PropertyName}"))})";
+
+        sb.AppendLine();
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Extracts component values from the {sourcePropertyName} composite key.");
+        sb.AppendLine($"        /// Separator: '{separator}'");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"{GetParameterName(sourcePropertyName)}\">The composite key value to extract from.</param>");
+        sb.AppendLine($"        /// <returns>The extracted component values.</returns>");
+        sb.AppendLine($"        public static {returnType} {methodName}(string {GetParameterName(sourcePropertyName)})");
+        sb.AppendLine("        {");
+
+        // Parameter validation
+        sb.AppendLine($"            if (string.IsNullOrEmpty({GetParameterName(sourcePropertyName)}))");
+        sb.AppendLine($"                throw new System.ArgumentException(\"Composite key cannot be null or empty.\", nameof({GetParameterName(sourcePropertyName)}));");
+        sb.AppendLine();
+
+        // Extract components
+        sb.AppendLine($"            var parts = {GetParameterName(sourcePropertyName)}.Split('{separator}');");
+        sb.AppendLine();
+
+        if (returnProperties.Length == 1)
+        {
+            var extractedProperty = returnProperties[0];
+            var index = extractedProperty.ExtractedKey!.Index;
+            sb.AppendLine($"            if (parts.Length <= {index})");
+            sb.AppendLine($"                throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {index + 1}, got {{parts.Length}}.\");");
+            sb.AppendLine();
+            sb.AppendLine($"            return {GetExtractionExpression("parts[" + index + "]", extractedProperty.PropertyType)};");
+        }
+        else
+        {
+            var maxIndex = returnProperties.Max(p => p.ExtractedKey!.Index);
+            sb.AppendLine($"            if (parts.Length <= {maxIndex})");
+            sb.AppendLine($"                throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {maxIndex + 1}, got {{parts.Length}}.\");");
+            sb.AppendLine();
+
+            var returnValues = returnProperties.Select(p => 
+                $"{p.PropertyName}: {GetExtractionExpression($"parts[{p.ExtractedKey!.Index}]", p.PropertyType)}");
+            sb.AppendLine($"            return ({string.Join(", ", returnValues)});");
+        }
+
+        sb.AppendLine("        }");
+    }
+
+    /// <summary>
+    /// Gets the expression to convert a string component to the target property type.
+    /// </summary>
+    private static string GetExtractionExpression(string valueExpression, string propertyType)
+    {
+        var baseType = GetBaseType(propertyType);
+        
+        return baseType switch
+        {
+            "string" => valueExpression,
+            "int" or "System.Int32" => $"int.Parse({valueExpression})",
+            "long" or "System.Int64" => $"long.Parse({valueExpression})",
+            "double" or "System.Double" => $"double.Parse({valueExpression})",
+            "float" or "System.Single" => $"float.Parse({valueExpression})",
+            "decimal" or "System.Decimal" => $"decimal.Parse({valueExpression})",
+            "bool" or "System.Boolean" => $"bool.Parse({valueExpression})",
+            "DateTime" or "System.DateTime" => $"DateTime.Parse({valueExpression})",
+            "DateTimeOffset" or "System.DateTimeOffset" => $"DateTimeOffset.Parse({valueExpression})",
+            "Guid" or "System.Guid" => $"Guid.Parse({valueExpression})",
+            "Ulid" => $"Ulid.Parse({valueExpression})",
+            _ when IsEnumType(propertyType) => $"Enum.Parse<{baseType}>({valueExpression})",
+            _ => valueExpression
+        };
+    }
+
+    /// <summary>
+    /// Gets the base type name without nullable annotations.
+    /// </summary>
+    private static string GetBaseType(string propertyType)
+    {
+        return propertyType.TrimEnd('?');
     }
     
     /// <summary>

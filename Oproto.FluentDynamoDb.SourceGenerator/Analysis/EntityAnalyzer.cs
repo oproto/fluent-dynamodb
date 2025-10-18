@@ -158,6 +158,12 @@ public class EntityAnalyzer
         // Extract queryable attributes
         ExtractQueryableAttributes(propertyDecl, semanticModel, propertyModel);
 
+        // Extract computed key attributes
+        ExtractComputedKeyAttributes(propertyDecl, semanticModel, propertyModel);
+
+        // Extract extracted key attributes
+        ExtractExtractedKeyAttributes(propertyDecl, semanticModel, propertyModel);
+
         return propertyModel;
     }
 
@@ -271,6 +277,95 @@ public class EntityAnalyzer
         }
 
         propertyModel.Queryable = queryableModel;
+    }
+
+    private void ExtractComputedKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    {
+        var computedAttr = GetAttribute(propertyDecl, semanticModel, "ComputedAttribute");
+        if (computedAttr == null)
+            return;
+
+        var computedModel = new ComputedKeyModel();
+
+        // Extract source properties from constructor arguments
+        if (computedAttr.ArgumentList?.Arguments != null)
+        {
+            var sourceProperties = new List<string>();
+            
+            foreach (var arg in computedAttr.ArgumentList.Arguments)
+            {
+                // Skip named arguments for now, handle positional arguments (source properties)
+                if (arg.NameEquals == null && arg.Expression is LiteralExpressionSyntax literal)
+                {
+                    sourceProperties.Add(literal.Token.ValueText);
+                }
+            }
+
+            computedModel.SourceProperties = sourceProperties.ToArray();
+        }
+
+        // Extract named arguments
+        if (computedAttr.ArgumentList != null)
+        {
+            foreach (var arg in computedAttr.ArgumentList.Arguments)
+            {
+                switch (arg.NameEquals?.Name.Identifier.ValueText)
+                {
+                    case "Format" when arg.Expression is LiteralExpressionSyntax formatLiteral:
+                        computedModel.Format = formatLiteral.Token.ValueText;
+                        break;
+                    case "Separator" when arg.Expression is LiteralExpressionSyntax separatorLiteral:
+                        computedModel.Separator = separatorLiteral.Token.ValueText;
+                        break;
+                }
+            }
+        }
+
+        propertyModel.ComputedKey = computedModel;
+    }
+
+    private void ExtractExtractedKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    {
+        var extractedAttr = GetAttribute(propertyDecl, semanticModel, "ExtractedAttribute");
+        if (extractedAttr == null)
+            return;
+
+        var extractedModel = new ExtractedKeyModel();
+
+        // Extract constructor arguments (source property and index)
+        if (extractedAttr.ArgumentList?.Arguments != null && extractedAttr.ArgumentList.Arguments.Count >= 2)
+        {
+            var args = extractedAttr.ArgumentList.Arguments;
+            
+            // First argument: source property
+            if (args[0].Expression is LiteralExpressionSyntax sourcePropertyLiteral)
+            {
+                extractedModel.SourceProperty = sourcePropertyLiteral.Token.ValueText;
+            }
+
+            // Second argument: index
+            if (args[1].Expression is LiteralExpressionSyntax indexLiteral && 
+                int.TryParse(indexLiteral.Token.ValueText, out var index))
+            {
+                extractedModel.Index = index;
+            }
+        }
+
+        // Extract named arguments
+        if (extractedAttr.ArgumentList != null)
+        {
+            foreach (var arg in extractedAttr.ArgumentList.Arguments)
+            {
+                switch (arg.NameEquals?.Name.Identifier.ValueText)
+                {
+                    case "Separator" when arg.Expression is LiteralExpressionSyntax separatorLiteral:
+                        extractedModel.Separator = separatorLiteral.Token.ValueText;
+                        break;
+                }
+            }
+        }
+
+        propertyModel.ExtractedKey = extractedModel;
     }
 
     private void ExtractIndexes(EntityModel entityModel)
@@ -397,6 +492,9 @@ public class EntityAnalyzer
         {
             ValidateRelatedEntityConfiguration(entityModel);
         }
+
+        // Validate computed and extracted keys
+        ValidateComputedAndExtractedKeys(entityModel);
 
         // Additional comprehensive validations
         ValidateEntityComplexity(entityModel);
@@ -873,6 +971,214 @@ public class EntityAnalyzer
         return !string.IsNullOrWhiteSpace(entityType) && 
                !entityType.Contains(" ") && 
                char.IsUpper(entityType[0]);
+    }
+
+    private void ValidateComputedAndExtractedKeys(EntityModel entityModel)
+    {
+        var propertyNames = new HashSet<string>(entityModel.Properties.Select(p => p.PropertyName));
+        var computedProperties = entityModel.Properties.Where(p => p.IsComputed).ToArray();
+        var extractedProperties = entityModel.Properties.Where(p => p.IsExtracted).ToArray();
+
+        // Validate computed properties
+        foreach (var computedProperty in computedProperties)
+        {
+            ValidateComputedProperty(computedProperty, propertyNames, entityModel);
+        }
+
+        // Validate extracted properties
+        foreach (var extractedProperty in extractedProperties)
+        {
+            ValidateExtractedProperty(extractedProperty, propertyNames, entityModel);
+        }
+
+        // Check for circular dependencies between computed properties
+        ValidateComputedKeyCircularDependencies(computedProperties, entityModel);
+    }
+
+    private void ValidateComputedProperty(PropertyModel computedProperty, HashSet<string> propertyNames, EntityModel entityModel)
+    {
+        var computedKey = computedProperty.ComputedKey!;
+
+        // Check if property references itself
+        if (computedKey.SourceProperties.Contains(computedProperty.PropertyName))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.SelfReferencingComputedKey,
+                computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                computedProperty.PropertyName);
+            return;
+        }
+
+        // Validate all source properties exist
+        foreach (var sourceProperty in computedKey.SourceProperties)
+        {
+            if (!propertyNames.Contains(sourceProperty))
+            {
+                ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeySource,
+                    computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                    computedProperty.PropertyName, sourceProperty);
+            }
+        }
+
+        // Validate format if specified
+        if (!string.IsNullOrEmpty(computedKey.Format))
+        {
+            ValidateComputedKeyFormat(computedProperty, computedKey);
+        }
+    }
+
+    private void ValidateExtractedProperty(PropertyModel extractedProperty, HashSet<string> propertyNames, EntityModel entityModel)
+    {
+        var extractedKey = extractedProperty.ExtractedKey!;
+
+        // Validate source property exists
+        if (!propertyNames.Contains(extractedKey.SourceProperty))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.InvalidExtractedKeySource,
+                extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                extractedProperty.PropertyName, extractedKey.SourceProperty);
+            return;
+        }
+
+        // Validate index is non-negative
+        if (extractedKey.Index < 0)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.InvalidExtractedKeyIndex,
+                extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                extractedProperty.PropertyName, extractedKey.Index, extractedKey.SourceProperty);
+        }
+
+        // Check if source property is also computed (potential circular dependency)
+        var sourceProperty = entityModel.Properties.FirstOrDefault(p => p.PropertyName == extractedKey.SourceProperty);
+        if (sourceProperty?.IsComputed == true)
+        {
+            // This is allowed but we should check for circular dependencies
+            var computedSourceProperties = sourceProperty.ComputedKey?.SourceProperties ?? Array.Empty<string>();
+            if (computedSourceProperties.Contains(extractedProperty.PropertyName))
+            {
+                ReportDiagnostic(DiagnosticDescriptors.CircularKeyDependency,
+                    extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                    $"{extractedProperty.PropertyName} -> {extractedKey.SourceProperty} -> {extractedProperty.PropertyName}");
+            }
+        }
+    }
+
+    private void ValidateComputedKeyFormat(PropertyModel computedProperty, ComputedKeyModel computedKey)
+    {
+        var format = computedKey.Format!;
+
+        try
+        {
+            // Basic format validation - check for valid placeholder syntax
+            var placeholderCount = 0;
+            for (int i = 0; i < format.Length; i++)
+            {
+                if (format[i] == '{')
+                {
+                    var endIndex = format.IndexOf('}', i);
+                    if (endIndex == -1)
+                    {
+                        ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,
+                            computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                            computedProperty.PropertyName, format, "Unclosed placeholder");
+                        return;
+                    }
+
+                    var placeholderText = format.Substring(i + 1, endIndex - i - 1);
+                    if (int.TryParse(placeholderText, out var placeholderIndex))
+                    {
+                        placeholderCount = Math.Max(placeholderCount, placeholderIndex + 1);
+                    }
+                    else if (!string.IsNullOrEmpty(placeholderText) && !placeholderText.Contains(':'))
+                    {
+                        // Invalid placeholder format
+                        ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,
+                            computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                            computedProperty.PropertyName, format, $"Invalid placeholder: {{{placeholderText}}}");
+                        return;
+                    }
+
+                    i = endIndex;
+                }
+            }
+
+            // Check if placeholder count matches source property count
+            if (placeholderCount > computedKey.SourceProperties.Length)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,
+                    computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                    computedProperty.PropertyName, format, 
+                    $"Format requires {placeholderCount} parameters but only {computedKey.SourceProperties.Length} source properties provided");
+            }
+        }
+        catch (Exception)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,
+                computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                computedProperty.PropertyName, format, "Invalid format string");
+        }
+    }
+
+    private void ValidateComputedKeyCircularDependencies(PropertyModel[] computedProperties, EntityModel entityModel)
+    {
+        var dependencyGraph = new Dictionary<string, HashSet<string>>();
+
+        // Build dependency graph
+        foreach (var computedProperty in computedProperties)
+        {
+            var dependencies = new HashSet<string>();
+            foreach (var sourceProperty in computedProperty.ComputedKey!.SourceProperties)
+            {
+                dependencies.Add(sourceProperty);
+            }
+            dependencyGraph[computedProperty.PropertyName] = dependencies;
+        }
+
+        // Check for circular dependencies using DFS
+        var visited = new HashSet<string>();
+        var recursionStack = new HashSet<string>();
+
+        foreach (var computedProperty in computedProperties)
+        {
+            if (HasCircularDependency(computedProperty.PropertyName, dependencyGraph, visited, recursionStack, out var cycle))
+            {
+                ReportDiagnostic(DiagnosticDescriptors.CircularKeyDependency,
+                    computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                    cycle);
+                break;
+            }
+        }
+    }
+
+    private bool HasCircularDependency(string propertyName, Dictionary<string, HashSet<string>> dependencyGraph, 
+        HashSet<string> visited, HashSet<string> recursionStack, out string cycle)
+    {
+        cycle = string.Empty;
+
+        if (recursionStack.Contains(propertyName))
+        {
+            cycle = string.Join(" -> ", recursionStack) + " -> " + propertyName;
+            return true;
+        }
+
+        if (visited.Contains(propertyName))
+            return false;
+
+        visited.Add(propertyName);
+        recursionStack.Add(propertyName);
+
+        if (dependencyGraph.TryGetValue(propertyName, out var dependencies))
+        {
+            foreach (var dependency in dependencies)
+            {
+                if (HasCircularDependency(dependency, dependencyGraph, visited, recursionStack, out cycle))
+                {
+                    return true;
+                }
+            }
+        }
+
+        recursionStack.Remove(propertyName);
+        return false;
     }
 
     private void ValidateEntityComplexity(EntityModel entityModel)

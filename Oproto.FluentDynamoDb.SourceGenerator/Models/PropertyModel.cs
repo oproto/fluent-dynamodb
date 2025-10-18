@@ -58,6 +58,16 @@ public class PropertyModel
     public GlobalSecondaryIndexModel[] GlobalSecondaryIndexes { get; set; } = Array.Empty<GlobalSecondaryIndexModel>();
 
     /// <summary>
+    /// Gets or sets the computed key information for this property.
+    /// </summary>
+    public ComputedKeyModel? ComputedKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the extracted key information for this property.
+    /// </summary>
+    public ExtractedKeyModel? ExtractedKey { get; set; }
+
+    /// <summary>
     /// Gets or sets the original property declaration syntax node.
     /// </summary>
     public PropertyDeclarationSyntax? PropertyDeclaration { get; set; }
@@ -71,4 +81,14 @@ public class PropertyModel
     /// Gets a value indicating whether this property is part of any GSI.
     /// </summary>
     public bool IsPartOfGsi => GlobalSecondaryIndexes.Length > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether this property is computed from other properties.
+    /// </summary>
+    public bool IsComputed => ComputedKey != null;
+
+    /// <summary>
+    /// Gets a value indicating whether this property is extracted from another property.
+    /// </summary>
+    public bool IsExtracted => ExtractedKey != null;
 }

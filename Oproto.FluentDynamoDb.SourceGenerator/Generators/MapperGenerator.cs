@@ -76,6 +76,19 @@ public static class MapperGenerator
         sb.AppendLine($"            if (entity is not {entity.ClassName} typedEntity)");
         sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{entity.GetType().Name}}\", nameof(entity));");
         sb.AppendLine();
+
+        // Generate computed key logic before mapping
+        var computedProperties = entity.Properties.Where(p => p.IsComputed).ToArray();
+        if (computedProperties.Length > 0)
+        {
+            sb.AppendLine("            // Compute composite keys before mapping");
+            foreach (var computedProperty in computedProperties)
+            {
+                GenerateComputedKeyLogic(sb, computedProperty);
+            }
+            sb.AppendLine();
+        }
+
         sb.AppendLine("            var item = new Dictionary<string, AttributeValue>();");
         sb.AppendLine();
 
@@ -212,6 +225,18 @@ public static class MapperGenerator
         foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
         {
             GeneratePropertyFromAttributeValue(sb, property, entity);
+        }
+
+        // Generate extracted key logic after mapping from DynamoDB
+        var extractedProperties = entity.Properties.Where(p => p.IsExtracted).ToArray();
+        if (extractedProperties.Length > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("            // Extract component properties from composite keys");
+            foreach (var extractedProperty in extractedProperties)
+            {
+                GenerateExtractedKeyLogic(sb, extractedProperty);
+            }
         }
 
         // For single-item entities with relationships, related entities would be null
@@ -1019,5 +1044,42 @@ public static class MapperGenerator
             // Exact pattern matching
             sb.AppendLine($"                    if (sortKey == \"{sortKeyPattern}\" || sortKey.StartsWith(\"{sortKeyPattern}#\"))");
         }
+    }
+
+    private static void GenerateComputedKeyLogic(StringBuilder sb, PropertyModel computedProperty)
+    {
+        var computedKey = computedProperty.ComputedKey!;
+        var propertyName = computedProperty.PropertyName;
+
+        if (computedKey.HasCustomFormat)
+        {
+            // Use custom format string
+            var formatArgs = string.Join(", ", computedKey.SourceProperties.Select(sp => $"typedEntity.{sp}"));
+            sb.AppendLine($"            typedEntity.{propertyName} = string.Format(\"{computedKey.Format}\", {formatArgs});");
+        }
+        else
+        {
+            // Use separator-based concatenation
+            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", computedKey.SourceProperties.Select(sp => $"typedEntity.{sp}"));
+            sb.AppendLine($"            typedEntity.{propertyName} = {sourceValues};");
+        }
+    }
+
+    private static void GenerateExtractedKeyLogic(StringBuilder sb, PropertyModel extractedProperty)
+    {
+        var extractedKey = extractedProperty.ExtractedKey!;
+        var propertyName = extractedProperty.PropertyName;
+        var sourceProperty = extractedKey.SourceProperty;
+        var index = extractedKey.Index;
+        var separator = extractedKey.Separator;
+
+        sb.AppendLine($"            if (!string.IsNullOrEmpty(entity.{sourceProperty}))");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                var {sourceProperty.ToLowerInvariant()}Parts = entity.{sourceProperty}.Split('{separator}');");
+        sb.AppendLine($"                if ({sourceProperty.ToLowerInvariant()}Parts.Length > {index})");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    entity.{propertyName} = {sourceProperty.ToLowerInvariant()}Parts[{index}];");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
     }
 }

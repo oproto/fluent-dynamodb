@@ -253,7 +253,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Fix missing partition key detection (DYNDB001)
   - _Requirements: 14.1, 14.2, 14.3, 14.4_
 
-- [ ] 27. Implement computed and composite key support
+- [x] 27. Implement computed and composite key support
   - Create ComputedAttribute and ExtractedAttribute classes
   - Add ComputedKeyModel and ExtractedKeyModel to PropertyModel
   - Extend EntityAnalyzer to detect and validate computed key attributes
