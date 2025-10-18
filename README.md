@@ -3,6 +3,15 @@ Oproto.FluentDynamoDb library
 
 A fluent-style API wrapper for Amazon DynamoDB that provides a type-safe, intuitive interface for all DynamoDB operations. This implementation is safe for use in AOT (Ahead-of-Time) compilation projects and follows fluent design patterns for enhanced developer experience.
 
+## 📚 Documentation
+
+- **[Developer Guide](docs/DeveloperGuide.md)** - Comprehensive guide to using the DynamoDB source generator
+- **[Migration Guide](docs/MigrationGuide.md)** - Step-by-step migration from manual mapping to generated code
+- **[Code Examples](docs/CodeExamples.md)** - Real-world examples for common scenarios
+- **[STS Integration Guide](docs/STSIntegrationGuide.md)** - Secure multi-tenant patterns with AWS STS
+- **[Troubleshooting Guide](docs/TroubleshootingGuide.md)** - Solutions for common issues and error messages
+- **[Source Generator Guide](docs/SourceGeneratorGuide.md)** - Getting started with automatic code generation
+
 ## 🚀 New Format String Support
 
 The library now supports string.Format-style parameter syntax in condition expressions, eliminating the ceremony of manual parameter naming and separate `.WithValue()` calls.
