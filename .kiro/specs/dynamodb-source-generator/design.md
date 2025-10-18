@@ -266,7 +266,31 @@ public class PropertyMetadata
 }
 ```
 
-#### 3. Enhanced ExecuteAsync Methods
+#### 3. Enhanced Query Methods (EF/LINQ-Style)
+
+**API Design Philosophy:**
+The Query API uses EF/LINQ-style method names to make the intent clear at the call site:
+
+- **`ToListAsync<T>()`** - Each DynamoDB item becomes a separate `T` instance (1:1 mapping)
+- **`ToCompositeEntityAsync<T>()`** - Multiple DynamoDB items combined into one `T` instance (N:1 mapping)
+
+**Usage Examples:**
+```csharp
+// Scenario 1: Query returns List<T> - all items are same entity type
+var transactions = await Query
+    .Where("pk = :pk AND begins_with(sk, :prefix)", tenantId, "TXN#")
+    .ToListAsync<Transaction>();
+
+// Scenario 2: Query returns single composite entity - primary + related entities
+var order = await Query
+    .Where("pk = :pk", orderId)
+    .ToCompositeEntityAsync<Order>(); // Order with populated OrderItems, Payments, etc.
+```
+
+**Data Storage (NO JSON):**
+- All data stored as native DynamoDB attributes (S, N, SS, NS, etc.)
+- Related entities identified by sort key patterns and mapped to properties using `[RelatedEntity]` attributes
+- Collections are either separate DynamoDB items OR native DynamoDB lists
 
 **Enhanced Request Builder Extensions:**
 ```csharp
@@ -309,32 +333,41 @@ public static class EnhancedExecuteAsyncExtensions
         };
     }
     
-    // Enhanced ExecuteAsync methods automatically use the builder's client
-    // No need for separate overloads - client is set via WithClient() extension
+    // EF/LINQ-style Query methods with clear intent
+    // Enhanced methods automatically use the builder's client - no need for separate overloads
     
-    public static async Task<QueryResponse<T>> ExecuteAsync<T>(
+    public static async Task<List<T>> ToListAsync<T>(
         this QueryRequestBuilder builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
         var response = await builder.ExecuteAsync(cancellationToken);
         
-        // Group items by partition key and filter by entity type
+        // Each DynamoDB item becomes a separate T instance (1:1 mapping)
         var entityItems = response.Items
             .Where(T.MatchesEntity)
-            .GroupBy(T.GetPartitionKey)
-            .Select(group => T.FromDynamoDb<T>(group.ToList()))
+            .Select(item => T.FromDynamoDb<T>(item))
             .ToList();
         
-        return new QueryResponse<T>
-        {
-            Items = entityItems,
-            LastEvaluatedKey = response.LastEvaluatedKey,
-            ConsumedCapacity = response.ConsumedCapacity,
-            Count = entityItems.Count,
-            ScannedCount = response.ScannedCount,
-            ResponseMetadata = response.ResponseMetadata
-        };
+        return entityItems;
+    }
+    
+    public static async Task<T?> ToCompositeEntityAsync<T>(
+        this QueryRequestBuilder builder,
+        CancellationToken cancellationToken = default)
+        where T : class, IDynamoDbEntity
+    {
+        var response = await builder.ExecuteAsync(cancellationToken);
+        
+        // Multiple DynamoDB items combined into one T instance (N:1 mapping)
+        // Primary entity identified by sort key pattern, related entities populate properties
+        var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+        
+        if (matchingItems.Count == 0)
+            return null;
+            
+        // Use multi-item FromDynamoDb to combine all items into single entity
+        return T.FromDynamoDb<T>(matchingItems);
     }
     
     public static PutItemRequestBuilder WithItem<T>(
@@ -386,7 +419,7 @@ public partial class TransactionsTable : DynamoDbTableBase
         return await Query
             .WithClient(client)  // Use scoped client for this operation
             .Where("{0} = {1}", TransactionFields.Pk, TransactionKeys.Pk(tenantId, transactionId))
-            .ExecuteAsync<TransactionEntry>(cancellationToken);
+            .ToCompositeEntityAsync<TransactionEntry>(cancellationToken);
     }
 }
 ```

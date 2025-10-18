@@ -102,6 +102,7 @@ public class MapperGeneratorTests
             ClassName = "TestEntity",
             Namespace = "TestNamespace",
             TableName = "test-table",
+            IsMultiItemEntity = true, // Make this a multi-item entity to test related entity mapping
             Properties = new[]
             {
                 new PropertyModel
@@ -338,9 +339,9 @@ public class MapperGeneratorTests
         // Check FromDynamoDb conversions
         result.Should().Contain("entity.Id = idValue.S");
         result.Should().Contain("entity.Count = int.Parse(countValue.N)");
-        result.Should().Contain("entity.IsActive = isActiveValue.BOOL");
-        result.Should().Contain("entity.CreatedDate = DateTime.Parse(createdDateValue.S)");
-        result.Should().Contain("entity.UniqueId = Guid.Parse(uniqueIdValue.S)");
+        result.Should().Contain("entity.IsActive = isactiveValue.BOOL");
+        result.Should().Contain("entity.CreatedDate = DateTime.Parse(createddateValue.S)");
+        result.Should().Contain("entity.UniqueId = Guid.Parse(uniqueidValue.S)");
     }
 
     [Fact]

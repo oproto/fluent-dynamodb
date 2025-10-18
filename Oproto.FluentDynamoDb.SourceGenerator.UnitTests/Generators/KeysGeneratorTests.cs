@@ -34,7 +34,7 @@ public class KeysGeneratorTests
         // Assert
         result.Should().Contain("public static partial class TestEntityKeys");
         result.Should().Contain("public static string Pk(string id)");
-        result.Should().Contain("return \"tenant#\" + id;");
+        result.Should().Contain("var keyValue = \"tenant#\" + id;");
         result.Should().Contain("/// <summary>");
         result.Should().Contain("/// Builds the partition key value for Id.");
     }
@@ -77,11 +77,11 @@ public class KeysGeneratorTests
         
         // Partition key builder
         result.Should().Contain("public static string Pk(string tenantId)");
-        result.Should().Contain("return \"tenant#\" + tenantId;");
+        result.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
         
         // Sort key builder
         result.Should().Contain("public static string Sk(System.Guid transactionId)");
-        result.Should().Contain("return \"txn#\" + transactionId.ToString();");
+        result.Should().Contain("var keyValue = \"txn#\" + transactionId.ToString();");
         
         // Composite key builder
         result.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, System.Guid transactionId)");
@@ -191,7 +191,7 @@ public class KeysGeneratorTests
         // Assert
         result.Should().Contain("public static string Pk(string? id)");
         result.Should().Contain("if (id == null)");
-        result.Should().Contain("throw new System.ArgumentNullException(nameof(id));");
+        result.Should().Contain("throw new System.ArgumentNullException(nameof(id), \"Key parameter cannot be null.\");");
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public class KeysGeneratorTests
 
         // Assert
         result.Should().Contain("public static string Pk(System.Guid id)");
-        result.Should().Contain("return id.ToString();");
+        result.Should().Contain("var keyValue = id.ToString();");
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class KeysGeneratorTests
 
         // Assert
         result.Should().Contain("public static string Pk(System.DateTime createdDate)");
-        result.Should().Contain("return createdDate.ToString(\"yyyy-MM-ddTHH:mm:ss.fffZ\");");
+        result.Should().Contain("var keyValue = createdDate.ToString(\"yyyy-MM-ddTHH:mm:ss.fffZ\");");
     }
 
     [Fact]
@@ -327,6 +327,6 @@ public class KeysGeneratorTests
         result.Should().Contain("public static partial class CustomIndexKeys");
         result.Should().Contain("public static string Pk(string id)");
         // The key format parsing should handle the custom format
-        result.Should().Contain("return \"custom_\" + id;");
+        result.Should().Contain("var keyValue = \"custom_\" + id;");
     }
 }

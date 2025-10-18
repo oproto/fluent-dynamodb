@@ -203,7 +203,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Fix multiple partition key detection (DYNDB002)
   - _Requirements: 14.1, 14.2, 14.3_
 
-- [ ] 22. Fix code generation content validation tests
+- [x] 22. Fix code generation content validation tests
   - Fix tests that expect specific generated code content but don't find it
   - Update tests for MapperGenerator to match actual generated code structure
   - Update tests for KeysGenerator to match actual generated code structure
@@ -211,20 +211,41 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Ensure generated code matches expected patterns for type conversions
   - _Requirements: 2.1, 2.2, 3.1, 3.2, 4.1, 4.2_
 
-- [ ] 23. Fix RelationshipModel test logic issues
+- [ ] 23. **PRIORITY: Fix Query operation architecture and introduce EF-style methods**
+  - **ARCHITECTURAL ISSUE:** Current Query operation behavior doesn't match intended design
+  - **Problem:** Single `ExecuteAsync<T>()` method can't return both `List<T>` and `T` - compile-time incompatible
+  - **Root Cause:** Confusion about when to return lists vs single entities with related entities
+  - **NEW API DESIGN (EF/LINQ-style):**
+    - **`ToListAsync<T>()`** - Each DynamoDB item becomes a separate `T` instance (1:1 mapping)
+    - **`ToCompositeEntityAsync<T>()`** - Multiple DynamoDB items combined into one `T` instance (N:1 mapping)
+    - **All data stored as native DynamoDB attributes** (S, N, SS, NS, etc.) - NO JSON anywhere
+    - **Related entities identified by sort key patterns** and mapped to properties using `[RelatedEntity]` attributes
+  - **Implementation Required:**
+    - **REPLACE** existing `ExecuteAsync<T>()` with new `ToListAsync<T>()` extension method for QueryRequestBuilder
+    - **ADD** new `ToCompositeEntityAsync<T>()` extension method for QueryRequestBuilder  
+    - Implement primary entity detection based on sort key patterns in composite entities
+    - Implement related entity population from multiple items into primary entity properties
+    - Remove any JSON serialization logic - everything uses native DynamoDB attributes
+    - Update all test expectations to use new methods with correct behavior
+    - Update internal project to use new API (single project, manageable change)
+  - **Breaking Change Strategy:** Hard break - remove old method, replace with new EF-style methods
+  - **Impact:** This is foundational - must be fixed before continuing with unit test fixes
+  - _Requirements: 4.2, 6.1, 6.2, 7.1, 7.2, 7.3, 8.1, 8.2_
+
+- [ ] 24. Fix RelationshipModel test logic issues
   - Fix HasSpecificEntityType test with whitespace-only entity type
   - Review and fix entity type detection logic for edge cases
   - Ensure proper handling of null, empty, and whitespace entity types
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 24. Fix multi-item entity generation tests
+- [ ] 25. Fix multi-item entity generation tests
   - Fix tests expecting specific JSON serialization comments in generated code
   - Update multi-item entity generation to match expected patterns
   - Fix collection handling in multi-item entities
   - Ensure proper type name resolution in generated code (fix "tring" vs "string" issues)
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 25. Fix error scenario diagnostic tests
+- [ ] 26. Fix error scenario diagnostic tests
   - Fix tests that expect specific error diagnostics but get none
   - Ensure source generator properly reports errors for invalid configurations
   - Fix non-partial class detection (DYNDB010)
@@ -232,7 +253,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Fix missing partition key detection (DYNDB001)
   - _Requirements: 14.1, 14.2, 14.3, 14.4_
 
-- [ ] 26. Implement computed and composite key support
+- [ ] 27. Implement computed and composite key support
   - Create ComputedAttribute and ExtractedAttribute classes
   - Add ComputedKeyModel and ExtractedKeyModel to PropertyModel
   - Extend EntityAnalyzer to detect and validate computed key attributes
@@ -245,7 +266,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
 
 ## Optional Enhancement Tasks
 
-- [ ]* 26. Create comprehensive documentation and examples
+- [ ]* 28. Create comprehensive documentation and examples
   - Write developer guide for using DynamoDB source generator
   - Create migration guide from manual mapping to generated code
   - Add code examples for common scenarios (single entities, multi-item, related entities)
@@ -253,7 +274,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Create troubleshooting guide for common issues and error messages
   - _Requirements: 10.4, 14.5_
 
-- [ ]* 27. Performance optimization and advanced features
+- [ ]* 29. Performance optimization and advanced features
   - Optimize generated code for performance (minimize allocations, efficient mapping)
   - Add caching for expensive operations like EntityMetadata generation
   - Implement incremental source generation for better build performance
