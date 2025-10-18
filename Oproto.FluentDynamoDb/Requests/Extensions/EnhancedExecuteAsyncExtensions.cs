@@ -117,6 +117,53 @@ public static class EnhancedExecuteAsyncExtensions
     }
 
     /// <summary>
+    /// Executes a Scan operation and maps the results to strongly-typed entities.
+    /// For multi-item entities, items with the same partition key are automatically grouped.
+    /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
+    /// </summary>
+    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <param name="builder">The ScanRequestBuilder instance.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A ScanResponse containing the mapped entities.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
+    public static async Task<ScanResponse<T>> ExecuteAsync<T>(
+        this ScanRequestBuilder builder,
+        CancellationToken cancellationToken = default)
+        where T : class, IDynamoDbEntity
+    {
+        try
+        {
+            var response = await builder.ExecuteAsync(cancellationToken);
+            
+            // Filter items that match the entity type
+            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            
+            // Group items by partition key for multi-item entities
+            var entityItems = matchingItems
+                .GroupBy(T.GetPartitionKey)
+                .Select(group => group.Count() == 1 
+                    ? T.FromDynamoDb<T>(group.First()) 
+                    : T.FromDynamoDb<T>(group.ToList()))
+                .ToList();
+            
+            return new ScanResponse<T>
+            {
+                Items = entityItems,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                ConsumedCapacity = response.ConsumedCapacity,
+                Count = entityItems.Count,
+                ScannedCount = response.ScannedCount ?? 0,
+                ResponseMetadata = response.ResponseMetadata
+            };
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException))
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to execute Scan operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
     /// Gets all DynamoDB items for a multi-item entity.
     /// This is useful for batch operations or when you need to work with individual items.
     /// </summary>

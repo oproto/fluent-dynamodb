@@ -78,7 +78,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Add filtering logic to MatchesEntity methods for proper entity type identification
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 10. Add STS scoped client support
+- [x] 10. Add STS scoped client support
   - Add WithClient extension methods to all request builders (Get, Put, Update, Query, Delete)
   - Modify generated table methods to accept optional IAmazonDynamoDB scopedClient parameter
   - Update enhanced ExecuteAsync methods to use builder's client automatically
