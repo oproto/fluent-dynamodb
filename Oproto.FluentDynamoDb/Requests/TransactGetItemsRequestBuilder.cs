@@ -30,7 +30,7 @@ public class TransactGetItemsRequestBuilder
     }
     
     private readonly IAmazonDynamoDB _dynamoDbClient;
-    private readonly TransactGetItemsRequest _req = new();
+    private readonly TransactGetItemsRequest _req = new() { TransactItems = new List<TransactGetItem>() };
     
     
     public TransactGetItemsRequestBuilder ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)

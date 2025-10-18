@@ -42,7 +42,7 @@ public class QueryRequestBuilder :
         _dynamoDbClient = dynamoDbClient;
     }
     
-    private QueryRequest _req = new QueryRequest();
+    private QueryRequest _req = new QueryRequest() { ExclusiveStartKey = new Dictionary<string, AttributeValue>() };
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();

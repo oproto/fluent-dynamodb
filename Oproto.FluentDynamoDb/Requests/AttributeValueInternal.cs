@@ -47,8 +47,17 @@ public class AttributeValueInternal()
     {
         if (conditionalUse)
         {
-            AttributeValues.Add(attributeName,
-                new AttributeValue() { BOOL = attributeValue ?? false, IsBOOLSet = attributeValue != null });
+            var attrValue = new AttributeValue();
+            if (attributeValue != null)
+            {
+                attrValue.BOOL = attributeValue.Value;
+            }
+            else
+            {
+                attrValue.BOOL = false;
+                attrValue.IsBOOLSet = false;
+            }
+            AttributeValues.Add(attributeName, attrValue);
         }
     }
     

@@ -34,7 +34,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class BatchWriteItemRequestBuilder
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
-    private readonly BatchWriteItemRequest _req = new();
+    private readonly BatchWriteItemRequest _req = new() { RequestItems = new Dictionary<string, List<WriteRequest>>() };
 
     /// <summary>
     /// Initializes a new instance of the BatchWriteItemRequestBuilder.

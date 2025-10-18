@@ -116,7 +116,7 @@ public class WithAttributeValuesExtensionsTests
         // Assert
         result.Should().BeSameAs(_builder);
         _builder.AttributeValueHelper.AttributeValues.Should().HaveCount(1);
-        _builder.AttributeValueHelper.AttributeValues[":active"].BOOL.Should().BeFalse();
+        _builder.AttributeValueHelper.AttributeValues[":active"].BOOL.Should().BeNull();
         _builder.AttributeValueHelper.AttributeValues[":active"].IsBOOLSet.Should().BeFalse();
     }
 

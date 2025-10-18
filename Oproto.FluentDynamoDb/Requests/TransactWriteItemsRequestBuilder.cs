@@ -25,7 +25,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class TransactWriteItemsRequestBuilder
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
-    private readonly TransactWriteItemsRequest _req = new();
+    private readonly TransactWriteItemsRequest _req = new() { TransactItems = new List<TransactWriteItem>() };
 
     /// <summary>
     /// Initializes a new instance of the TransactWriteItemsRequestBuilder.

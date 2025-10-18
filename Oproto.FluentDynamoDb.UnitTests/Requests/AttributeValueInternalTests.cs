@@ -141,7 +141,7 @@ public class AttributeValueInternalTests
 
         // Assert
         _helper.AttributeValues.Should().HaveCount(1);
-        _helper.AttributeValues[":active"].BOOL.Should().BeFalse();
+        _helper.AttributeValues[":active"].BOOL.Should().BeNull();
         _helper.AttributeValues[":active"].IsBOOLSet.Should().BeFalse();
     }
 

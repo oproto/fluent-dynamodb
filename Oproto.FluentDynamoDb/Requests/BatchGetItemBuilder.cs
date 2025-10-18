@@ -10,7 +10,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </summary>
 public class BatchGetItemBuilder : IWithKey<BatchGetItemBuilder>, IWithAttributeNames<BatchGetItemBuilder>
 {
-    private readonly KeysAndAttributes _keysAndAttributes = new KeysAndAttributes();
+    private readonly KeysAndAttributes _keysAndAttributes = new KeysAndAttributes() { ConsistentRead = false };
     private readonly string _tableName;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 

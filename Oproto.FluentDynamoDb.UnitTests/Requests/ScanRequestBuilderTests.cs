@@ -378,7 +378,7 @@ public class ScanRequestBuilderTests
         req.Should().NotBeNull();
         req.ExpressionAttributeValues.Should().NotBeNull();
         req.ExpressionAttributeValues.Should().HaveCount(1);
-        req.ExpressionAttributeValues[":active"].BOOL.Should().BeFalse(); // null bool becomes false
+        req.ExpressionAttributeValues[":active"].BOOL.Should().BeNull(); // null bool becomes null in SDK v4
         req.ExpressionAttributeValues[":active"].IsBOOLSet.Should().BeFalse(); // IsBOOLSet indicates it was null
     }
 

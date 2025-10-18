@@ -6,7 +6,7 @@
 - **AOT Compatible**: Library is trimmer-safe and AOT-compatible
 
 ## Dependencies
-- **AWSSDK.DynamoDBv2**: AWS SDK for DynamoDB operations (version 3.7.402.4+)
+- **AWSSDK.DynamoDBv2**: AWS SDK for DynamoDB operations (version 4.0.0+)
 - **Amazon.Lambda.DynamoDBEvents**: For DynamoDB stream processing in Lambda (version 3.1.1+)
 
 ## Testing Framework

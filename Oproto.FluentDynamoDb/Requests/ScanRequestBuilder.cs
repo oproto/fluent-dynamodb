@@ -47,7 +47,7 @@ public class ScanRequestBuilder :
         _dynamoDbClient = dynamoDbClient;
     }
     
-    private ScanRequest _req = new ScanRequest();
+    private ScanRequest _req = new ScanRequest() { ConsistentRead = false };
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
