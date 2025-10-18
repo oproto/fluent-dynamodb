@@ -188,7 +188,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Fix tests that expect empty diagnostics but get scalability warnings
   - _Requirements: 14.1, 14.2, 14.3, 14.4_
 
-- [ ] 20. Fix source generator execution issues
+- [x] 20. Fix source generator execution issues
   - Investigate tests that expect generated sources but get none (0 generated files)
   - Fix tests where source generator fails to run properly
   - Debug compilation issues that prevent source generation

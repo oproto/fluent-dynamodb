@@ -28,10 +28,16 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static bool IsDynamoDbEntity(SyntaxNode node)
     {
-        return node is ClassDeclarationSyntax classDecl &&
-               classDecl.AttributeLists.Any(al =>
-                   al.Attributes.Any(a =>
-                       a.Name.ToString().Contains("DynamoDbTable")));
+        if (node is not ClassDeclarationSyntax classDecl)
+            return false;
+
+        return classDecl.AttributeLists.Any(al =>
+            al.Attributes.Any(a =>
+            {
+                var attributeName = a.Name.ToString();
+                return attributeName.Contains("DynamoDbTable") ||
+                       attributeName.Contains("DynamoDbTableAttribute");
+            }));
     }
 
     private static (EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics) GetEntityModel(GeneratorSyntaxContext context)
@@ -39,10 +45,18 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         if (context.Node is not ClassDeclarationSyntax classDecl)
             return (null, Array.Empty<Diagnostic>());
 
-        var analyzer = new EntityAnalyzer();
-        var entityModel = analyzer.AnalyzeEntity(classDecl, context.SemanticModel);
+        try
+        {
+            var analyzer = new EntityAnalyzer();
+            var entityModel = analyzer.AnalyzeEntity(classDecl, context.SemanticModel);
 
-        return (entityModel, analyzer.Diagnostics);
+            return (entityModel, analyzer.Diagnostics);
+        }
+        catch (Exception)
+        {
+            // If there's an exception during analysis, return null to skip this entity
+            return (null, Array.Empty<Diagnostic>());
+        }
     }
 
     private static void Execute(SourceProductionContext context, ImmutableArray<(EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics)> entities)

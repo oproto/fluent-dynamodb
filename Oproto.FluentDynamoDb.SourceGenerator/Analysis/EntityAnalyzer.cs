@@ -702,14 +702,26 @@ public class EntityAnalyzer
             .SelectMany(al => al.Attributes)
             .Where(attr => 
             {
+                // First try semantic model resolution
                 var symbolInfo = semanticModel.GetSymbolInfo(attr);
                 if (symbolInfo.Symbol is IMethodSymbol method)
                 {
                     var containingType = method.ContainingType.ToDisplayString();
-                    return containingType.EndsWith(attributeName) || 
-                           containingType.EndsWith(attributeName.Replace("Attribute", ""));
+                    if (containingType.EndsWith(attributeName) || 
+                        containingType.EndsWith(attributeName.Replace("Attribute", "")))
+                    {
+                        return true;
+                    }
                 }
-                return false;
+
+                // Fallback to syntax-based matching for cases where semantic model can't resolve
+                var attributeNameText = attr.Name.ToString();
+                var targetName = attributeName.Replace("Attribute", "");
+                
+                return attributeNameText == attributeName ||
+                       attributeNameText == targetName ||
+                       attributeNameText.EndsWith("." + attributeName) ||
+                       attributeNameText.EndsWith("." + targetName);
             });
     }
 
@@ -870,25 +882,61 @@ public class EntityAnalyzer
     {
         // Check for potential hot partition issues
         var partitionKeyProperty = entityModel.PartitionKeyProperty;
-        if (partitionKeyProperty?.KeyFormat != null)
+        if (partitionKeyProperty != null)
         {
-            var keyFormat = partitionKeyProperty.KeyFormat;
-            
-            // Warn if partition key doesn't include tenant/user/time-based distribution
-            if (string.IsNullOrEmpty(keyFormat.Prefix) && 
-                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("tenant") &&
-                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("user") &&
-                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("date") &&
-                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("time"))
+            var shouldWarn = false;
+            var warningReason = "";
+
+            // Only warn for obviously problematic patterns
+            if (partitionKeyProperty.KeyFormat != null)
+            {
+                var keyFormat = partitionKeyProperty.KeyFormat;
+                
+                // Good: Has prefix or separator indicating composite key structure
+                // Note: Default separator is "#", so we need to check if it's meaningful
+                var hasCompositeStructure = !string.IsNullOrEmpty(keyFormat.Prefix) || 
+                                          (!string.IsNullOrEmpty(keyFormat.Separator) && keyFormat.Separator != "#");
+                
+                if (!hasCompositeStructure)
+                {
+                    // Check for obviously sequential patterns
+                    var propertyName = partitionKeyProperty.PropertyName.ToLowerInvariant();
+                    if (propertyName.Contains("id") && 
+                        (propertyName.Contains("sequence") || 
+                         propertyName.Contains("counter") || 
+                         propertyName.Contains("increment") ||
+                         propertyName == "id"))
+                    {
+                        shouldWarn = true;
+                        warningReason = "Sequential ID patterns may create hot partitions";
+                    }
+                }
+            }
+            else
+            {
+                // No key format - check for simple sequential ID patterns
+                var propertyName = partitionKeyProperty.PropertyName.ToLowerInvariant();
+                var attributeName = partitionKeyProperty.AttributeName?.ToLowerInvariant() ?? "";
+                
+                if ((propertyName == "id" || attributeName == "id") ||
+                    (propertyName.Contains("sequence") || attributeName.Contains("sequence")) ||
+                    (propertyName.Contains("counter") || attributeName.Contains("counter")))
+                {
+                    shouldWarn = true;
+                    warningReason = "Simple sequential keys may create hot partitions. Consider composite keys for better distribution";
+                }
+            }
+
+            if (shouldWarn)
             {
                 ReportDiagnostic(DiagnosticDescriptors.ScalabilityWarning,
                     entityModel.ClassDeclaration?.Identifier.GetLocation(),
                     entityModel.ClassName,
-                    "Partition key may not distribute load evenly across partitions");
+                    warningReason);
             }
         }
 
-        // Check for GSI overuse
+        // Check for GSI overuse (keep this check as it's valid)
         if (entityModel.Indexes.Length > 5)
         {
             ReportDiagnostic(DiagnosticDescriptors.ScalabilityWarning,
