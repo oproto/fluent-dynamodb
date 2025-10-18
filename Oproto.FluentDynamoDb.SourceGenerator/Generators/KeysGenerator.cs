@@ -267,20 +267,19 @@ public static class KeysGenerator
     }
     
     /// <summary>
-    /// Generates the method body for a key builder.
+    /// Generates the method body for a key builder with comprehensive validation and error handling.
     /// </summary>
     private static void GenerateKeyBuilderBody(StringBuilder sb, KeyFormatInfo keyFormat, (string parameterName, string propertyType)[] parameters)
     {
-        // Add null checks for nullable parameters
+        // Add comprehensive parameter validation
         foreach (var (parameterName, propertyType) in parameters)
         {
-            if (IsNullableType(propertyType))
-            {
-                sb.AppendLine($"            if ({parameterName} == null)");
-                sb.AppendLine($"                throw new System.ArgumentNullException(nameof({parameterName}));");
-                sb.AppendLine();
-            }
+            GenerateParameterValidation(sb, parameterName, propertyType);
         }
+        
+        // Add try-catch for key generation errors
+        sb.AppendLine("            try");
+        sb.AppendLine("            {");
         
         // Generate the key construction logic
         if (parameters.Length == 1)
@@ -290,11 +289,11 @@ public static class KeysGenerator
             
             if (!string.IsNullOrEmpty(keyFormat.Prefix))
             {
-                sb.AppendLine($"            return \"{keyFormat.Prefix}{keyFormat.Separator}\" + {valueExpression};");
+                sb.AppendLine($"                var keyValue = \"{keyFormat.Prefix}{keyFormat.Separator}\" + {valueExpression};");
             }
             else
             {
-                sb.AppendLine($"            return {valueExpression};");
+                sb.AppendLine($"                var keyValue = {valueExpression};");
             }
         }
         else
@@ -305,12 +304,92 @@ public static class KeysGenerator
             
             if (!string.IsNullOrEmpty(keyFormat.Prefix))
             {
-                sb.AppendLine($"            return \"{keyFormat.Prefix}{separator}\" + string.Join(\"{separator}\", {string.Join(", ", valueExpressions)});");
+                sb.AppendLine($"                var keyValue = \"{keyFormat.Prefix}{separator}\" + string.Join(\"{separator}\", {string.Join(", ", valueExpressions)});");
             }
             else
             {
-                sb.AppendLine($"            return string.Join(\"{separator}\", {string.Join(", ", valueExpressions)});");
+                sb.AppendLine($"                var keyValue = string.Join(\"{separator}\", {string.Join(", ", valueExpressions)});");
             }
+        }
+        
+        // Add key validation
+        sb.AppendLine();
+        sb.AppendLine("                // Validate generated key");
+        sb.AppendLine("                if (string.IsNullOrEmpty(keyValue))");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw new System.ArgumentException(\"Generated key cannot be null or empty. Check input parameters.\");");
+        sb.AppendLine("                }");
+        sb.AppendLine();
+        sb.AppendLine("                if (keyValue.Length > 2048)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw new System.ArgumentException($\"Generated key length ({{keyValue.Length}}) exceeds DynamoDB limit of 2048 bytes.\");");
+        sb.AppendLine("                }");
+        sb.AppendLine();
+        sb.AppendLine("                return keyValue;");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (System.ArgumentException)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                // Re-throw argument exceptions as-is");
+        sb.AppendLine("                throw;");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (System.Exception ex)");
+        sb.AppendLine("            {");
+        
+        // Generate specific error message based on parameters
+        var parameterInfo = string.Join(", ", parameters.Select(p => $"{p.parameterName}: {{{p.parameterName}}}"));
+        sb.AppendLine($"                throw new System.InvalidOperationException(");
+        sb.AppendLine($"                    $\"Failed to generate key with parameters: {parameterInfo}. {{ex.Message}}\", ex);");
+        sb.AppendLine("            }");
+    }
+
+    /// <summary>
+    /// Generates comprehensive parameter validation for key builder methods.
+    /// </summary>
+    private static void GenerateParameterValidation(StringBuilder sb, string parameterName, string propertyType)
+    {
+        // Null checks for nullable parameters
+        if (IsNullableType(propertyType))
+        {
+            sb.AppendLine($"            if ({parameterName} == null)");
+            sb.AppendLine($"                throw new System.ArgumentNullException(nameof({parameterName}), \"Key parameter cannot be null.\");");
+            sb.AppendLine();
+        }
+        
+        // String-specific validation
+        if (propertyType == "string" || propertyType == "string?")
+        {
+            sb.AppendLine($"            if (string.IsNullOrWhiteSpace({parameterName}))");
+            sb.AppendLine($"                throw new System.ArgumentException(\"String key parameter cannot be null, empty, or whitespace.\", nameof({parameterName}));");
+            sb.AppendLine();
+            
+            // Check for problematic characters in string keys
+            sb.AppendLine($"            if ({parameterName}.Contains('\\0'))");
+            sb.AppendLine($"                throw new System.ArgumentException(\"Key parameter cannot contain null characters.\", nameof({parameterName}));");
+            sb.AppendLine();
+        }
+        
+        // Guid-specific validation
+        if (propertyType.Contains("Guid"))
+        {
+            sb.AppendLine($"            if ({parameterName} == System.Guid.Empty)");
+            sb.AppendLine($"                throw new System.ArgumentException(\"Guid key parameter cannot be empty.\", nameof({parameterName}));");
+            sb.AppendLine();
+        }
+        
+        // DateTime-specific validation
+        if (propertyType.Contains("DateTime"))
+        {
+            sb.AppendLine($"            if ({parameterName} == default)");
+            sb.AppendLine($"                throw new System.ArgumentException(\"DateTime key parameter cannot be default value.\", nameof({parameterName}));");
+            sb.AppendLine();
+        }
+        
+        // Numeric validation for negative values that might be problematic
+        if (IsNumericType(propertyType) && !propertyType.Contains("uint") && !propertyType.Contains("UInt"))
+        {
+            sb.AppendLine($"            if ({parameterName} < 0)");
+            sb.AppendLine($"                System.Diagnostics.Debug.WriteLine($\"Warning: Negative value {{{{parameterName}}}} used in key generation may cause sorting issues.\");");
+            sb.AppendLine();
         }
     }
     

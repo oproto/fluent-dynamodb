@@ -210,4 +210,160 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Related entity patterns should be distinct to avoid mapping conflicts.");
+
+    /// <summary>
+    /// Error when key format contains invalid placeholders or syntax.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidKeyFormatSyntax = new(
+        "DYNDB018",
+        "Invalid key format syntax",
+        "Key format '{0}' on property '{1}' contains invalid syntax or placeholders",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Key formats must use valid placeholder syntax like {0}, {1}, etc. and cannot contain reserved characters.");
+
+    /// <summary>
+    /// Warning when key format may produce non-unique keys.
+    /// </summary>
+    public static readonly DiagnosticDescriptor PotentialKeyCollision = new(
+        "DYNDB019",
+        "Potential key collision",
+        "Key format '{0}' on property '{1}' may produce non-unique keys for different values",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Key formats should ensure uniqueness to avoid DynamoDB key collisions.");
+
+    /// <summary>
+    /// Error when entity has circular references that cannot be serialized.
+    /// </summary>
+    public static readonly DiagnosticDescriptor CircularReferenceDetected = new(
+        "DYNDB020",
+        "Circular reference detected",
+        "Entity '{0}' has circular references that cannot be serialized to DynamoDB",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Entities with circular references cannot be properly serialized to DynamoDB format.");
+
+    /// <summary>
+    /// Warning when property name conflicts with DynamoDB reserved words.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ReservedWordUsage = new(
+        "DYNDB021",
+        "Reserved word usage",
+        "Property '{0}' uses DynamoDB reserved word '{1}' as attribute name",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Using DynamoDB reserved words as attribute names may cause query issues. Consider using a different attribute name.");
+
+    /// <summary>
+    /// Error when entity configuration would result in invalid DynamoDB operations.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidDynamoDbConfiguration = new(
+        "DYNDB022",
+        "Invalid DynamoDB configuration",
+        "Entity '{0}' configuration is invalid: {1}",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Entity configuration must comply with DynamoDB constraints and limitations.");
+
+    /// <summary>
+    /// Warning when property type may cause performance issues.
+    /// </summary>
+    public static readonly DiagnosticDescriptor PerformanceWarning = new(
+        "DYNDB023",
+        "Performance warning",
+        "Property '{0}' of type '{1}' may cause performance issues: {2}",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Certain property types or configurations may impact DynamoDB performance.");
+
+    /// <summary>
+    /// Error when required attribute is missing from entity definition.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MissingRequiredAttribute = new(
+        "DYNDB024",
+        "Missing required attribute",
+        "Property '{0}' in entity '{1}' is missing required attribute '{2}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Properties used in DynamoDB operations must have appropriate attributes defined.");
+
+    /// <summary>
+    /// Warning when attribute configuration may cause data loss.
+    /// </summary>
+    public static readonly DiagnosticDescriptor PotentialDataLoss = new(
+        "DYNDB025",
+        "Potential data loss",
+        "Property '{0}' configuration may cause data loss during serialization: {1}",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Certain property configurations may result in data loss during DynamoDB serialization.");
+
+    /// <summary>
+    /// Error when GSI projection is invalid or incomplete.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidGsiProjection = new(
+        "DYNDB026",
+        "Invalid GSI projection",
+        "Global Secondary Index '{0}' has invalid projection configuration: {1}",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "GSI projections must be properly configured to include all necessary attributes.");
+
+    /// <summary>
+    /// Warning when entity design may not scale well.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ScalabilityWarning = new(
+        "DYNDB027",
+        "Scalability warning",
+        "Entity '{0}' design may not scale well: {1}",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Entity design should follow DynamoDB best practices for scalability.");
+
+    /// <summary>
+    /// Error when property type conversion is not supported.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnsupportedTypeConversion = new(
+        "DYNDB028",
+        "Unsupported type conversion",
+        "Cannot convert property '{0}' of type '{1}' to DynamoDB format: {2}",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Property types must be convertible to DynamoDB AttributeValue format.");
+
+    /// <summary>
+    /// Warning when entity has too many attributes for efficient operations.
+    /// </summary>
+    public static readonly DiagnosticDescriptor TooManyAttributes = new(
+        "DYNDB029",
+        "Too many attributes",
+        "Entity '{0}' has {1} attributes, which may impact performance",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Entities with many attributes may impact DynamoDB performance and costs.");
+
+    /// <summary>
+    /// Error when attribute name is invalid or contains illegal characters.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidAttributeName = new(
+        "DYNDB030",
+        "Invalid attribute name",
+        "Attribute name '{0}' on property '{1}' is invalid: {2}",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "DynamoDB attribute names must follow naming conventions and cannot contain certain characters.");
 }

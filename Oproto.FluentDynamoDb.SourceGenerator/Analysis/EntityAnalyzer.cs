@@ -383,6 +383,11 @@ public class EntityAnalyzer
         {
             ValidateRelatedEntityConfiguration(entityModel);
         }
+
+        // Additional comprehensive validations
+        ValidateEntityComplexity(entityModel);
+        ValidateEntityScalability(entityModel);
+        ValidateCircularReferences(entityModel);
     }
 
     private void ValidatePropertyModel(PropertyModel propertyModel)
@@ -403,6 +408,233 @@ public class EntityAnalyzer
                 propertyModel.PropertyDeclaration?.Identifier.GetLocation(), 
                 propertyModel.PropertyName, propertyModel.PropertyType);
         }
+
+        // Validate attribute name
+        if (!string.IsNullOrEmpty(propertyModel.AttributeName))
+        {
+            ValidateAttributeName(propertyModel);
+        }
+
+        // Validate key format if present
+        if (propertyModel.KeyFormat != null)
+        {
+            ValidateKeyFormat(propertyModel);
+        }
+
+        // Check for collection properties used as keys
+        if (propertyModel.IsCollection && (propertyModel.IsPartitionKey || propertyModel.IsSortKey))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.CollectionPropertyCannotBeKey,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName, "Entity");
+        }
+
+        // Performance warnings for large types
+        ValidatePropertyPerformance(propertyModel);
+    }
+
+    private void ValidateAttributeName(PropertyModel propertyModel)
+    {
+        var attributeName = propertyModel.AttributeName;
+        
+        // Check for invalid characters
+        if (attributeName.Contains('\0') || attributeName.Contains('\n') || attributeName.Contains('\r'))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.InvalidAttributeName,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                attributeName, propertyModel.PropertyName, "Contains invalid control characters");
+        }
+
+        // Check for reserved words
+        var reservedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "ABORT", "ABSOLUTE", "ACTION", "ADD", "AFTER", "AGENT", "AGGREGATE", "ALL", "ALLOCATE", "ALTER",
+            "ANALYZE", "AND", "ANY", "ARCHIVE", "ARE", "ARRAY", "AS", "ASC", "ASCII", "ASENSITIVE", "ASSERTION",
+            "ASYMMETRIC", "AT", "ATOMIC", "ATTACH", "ATTRIBUTE", "AUTH", "AUTHORIZATION", "AUTHORIZE", "AUTO",
+            "AVG", "BACK", "BACKUP", "BASE", "BATCH", "BEFORE", "BEGIN", "BETWEEN", "BIGINT", "BINARY", "BIT",
+            "BLOB", "BLOCK", "BOOLEAN", "BOTH", "BREADTH", "BUCKET", "BULK", "BY", "BYTE", "CALL", "CALLED",
+            "CALLING", "CAPACITY", "CASCADE", "CASCADED", "CASE", "CAST", "CATALOG", "CHAR", "CHARACTER",
+            "CHECK", "CLASS", "CLOB", "CLOSE", "CLUSTER", "CLUSTERED", "CLUSTERING", "CLUSTERS", "COALESCE",
+            "COLLATE", "COLLATION", "COLLECTION", "COLUMN", "COLUMNS", "COMBINE", "COMMENT", "COMMIT",
+            "COMPACT", "COMPILE", "COMPRESS", "CONDITION", "CONFLICT", "CONNECT", "CONNECTION", "CONSISTENCY",
+            "CONSISTENT", "CONSTRAINT", "CONSTRAINTS", "CONSTRUCTOR", "CONSUMED", "CONTAINS", "CONTINUE",
+            "CONVERT", "COPY", "CORRESPONDING", "COUNT", "COUNTER", "CREATE", "CROSS", "CUBE", "CURRENT",
+            "CURSOR", "CYCLE", "DATA", "DATABASE", "DATE", "DATETIME", "DAY", "DEALLOCATE", "DEC", "DECIMAL",
+            "DECLARE", "DEFAULT", "DEFERRABLE", "DEFERRED", "DEFINE", "DEFINED", "DEFINITION", "DELETE",
+            "DELIMITED", "DEPTH", "DEREF", "DESC", "DESCRIBE", "DESCRIPTOR", "DETACH", "DETERMINISTIC",
+            "DIAGNOSTICS", "DIRECTORIES", "DISABLE", "DISCONNECT", "DISTINCT", "DISTRIBUTE", "DO", "DOMAIN",
+            "DOUBLE", "DROP", "DUMP", "DURATION", "DYNAMIC", "EACH", "ELEMENT", "ELSE", "ELSEIF", "EMPTY",
+            "ENABLE", "END", "EQUAL", "EQUALS", "ERROR", "ESCAPE", "ESCAPED", "EVAL", "EVALUATE", "EXCEEDED",
+            "EXCEPT", "EXCEPTION", "EXCEPTIONS", "EXCLUSIVE", "EXEC", "EXECUTE", "EXISTS", "EXIT", "EXPLAIN",
+            "EXPLODE", "EXPORT", "EXPRESSION", "EXTENDED", "EXTERNAL", "EXTRACT", "FAIL", "FALSE", "FAMILY",
+            "FETCH", "FIELDS", "FILE", "FILTER", "FILTERING", "FINAL", "FINISH", "FIRST", "FIXED", "FLATTERN",
+            "FLOAT", "FOR", "FORCE", "FOREIGN", "FORMAT", "FORWARD", "FOUND", "FREE", "FROM", "FULL",
+            "FUNCTION", "FUNCTIONS", "GENERAL", "GENERATE", "GET", "GLOB", "GLOBAL", "GO", "GOTO", "GRANT",
+            "GREATER", "GROUP", "GROUPING", "HANDLER", "HASH", "HAVE", "HAVING", "HEAP", "HIDDEN", "HOLD",
+            "HOUR", "IDENTIFIED", "IDENTITY", "IF", "IGNORE", "IMMEDIATE", "IMPORT", "IN", "INCLUDING",
+            "INCLUSIVE", "INCREMENT", "INCREMENTAL", "INDEX", "INDEXED", "INDEXES", "INDICATOR", "INFINITE",
+            "INITIALLY", "INLINE", "INNER", "INNTER", "INOUT", "INPUT", "INSENSITIVE", "INSERT", "INSTEAD",
+            "INT", "INTEGER", "INTERSECT", "INTERVAL", "INTO", "INVALIDATE", "IS", "ISOLATION", "ITEM",
+            "ITEMS", "ITERATE", "JOIN", "KEY", "KEYS", "LAG", "LANGUAGE", "LARGE", "LAST", "LATERAL", "LEAD",
+            "LEADING", "LEAVE", "LEFT", "LENGTH", "LESS", "LEVEL", "LIKE", "LIMIT", "LIMITED", "LINES", "LIST",
+            "LOAD", "LOCAL", "LOCALTIME", "LOCALTIMESTAMP", "LOCATION", "LOCATOR", "LOCK", "LOCKS", "LOG",
+            "LOGED", "LONG", "LOOP", "LOWER", "MAP", "MATCH", "MATERIALIZED", "MAX", "MAXLEN", "MEMBER",
+            "MERGE", "METHOD", "METRICS", "MIN", "MINUS", "MINUTE", "MISSING", "MOD", "MODE", "MODIFIES",
+            "MODIFY", "MODULE", "MONTH", "MULTI", "MULTISET", "NAME", "NAMES", "NATIONAL", "NATURAL", "NCHAR",
+            "NCLOB", "NEW", "NEXT", "NO", "NONE", "NOT", "NULL", "NULLIF", "NUMBER", "NUMERIC", "OBJECT",
+            "OF", "OFFLINE", "OFFSET", "OLD", "ON", "ONLINE", "ONLY", "OPAQUE", "OPEN", "OPERATOR", "OPTION",
+            "OR", "ORDER", "ORDINALITY", "OTHER", "OTHERS", "OUT", "OUTER", "OUTPUT", "OVER", "OVERLAPS",
+            "OVERRIDE", "OWNER", "PAD", "PARALLEL", "PARAMETER", "PARAMETERS", "PARTIAL", "PARTITION",
+            "PARTITIONED", "PARTITIONS", "PATH", "PERCENT", "PERCENTILE", "PERMISSION", "PERMISSIONS", "PIPE",
+            "PIPELINED", "PLAN", "POOL", "POSITION", "PRECISION", "PREPARE", "PRESERVE", "PRIMARY", "PRIOR",
+            "PRIVATE", "PRIVILEGES", "PROCEDURE", "PROCESSED", "PROJECT", "PROJECTION", "PROPERTY", "PROVISIONING",
+            "PUBLIC", "PUT", "QUERY", "QUIT", "QUORUM", "RAISE", "RANDOM", "RANGE", "RANK", "RAW", "READ",
+            "READS", "REAL", "REBUILD", "RECORD", "RECURSIVE", "REDUCE", "REF", "REFERENCE", "REFERENCES",
+            "REFERENCING", "REGEXP", "REGION", "REINDEX", "RELATIVE", "RELEASE", "REMAINDER", "RENAME",
+            "REPEAT", "REPLACE", "REQUEST", "RESET", "RESIGNAL", "RESOURCE", "RESPONSE", "RESTORE", "RESTRICT",
+            "RESULT", "RETURN", "RETURNING", "RETURNS", "REVERSE", "REVOKE", "RIGHT", "ROLE", "ROLES",
+            "ROLLBACK", "ROLLUP", "ROUTINE", "ROW", "ROWS", "RULE", "RULES", "SAMPLE", "SATISFIES", "SAVE",
+            "SAVEPOINT", "SCAN", "SCHEMA", "SCOPE", "SCROLL", "SEARCH", "SECOND", "SECTION", "SEGMENT",
+            "SELECT", "SELF", "SEMI", "SENSITIVE", "SEPARATE", "SEQUENCE", "SERIALIZABLE", "SESSION", "SET",
+            "SETS", "SHARD", "SHARE", "SHARED", "SHORT", "SHOW", "SIGNAL", "SIMILAR", "SIZE", "SKEWED",
+            "SMALLINT", "SNAPSHOT", "SOME", "SOURCE", "SPACE", "SPACES", "SPARSE", "SPECIFIC", "SPECIFICTYPE",
+            "SPLIT", "SQL", "SQLCODE", "SQLERROR", "SQLEXCEPTION", "SQLSTATE", "SQLWARNING", "START", "STATE",
+            "STATIC", "STATUS", "STORAGE", "STORE", "STORED", "STREAM", "STRING", "STRUCT", "STYLE", "SUB",
+            "SUBMULTISET", "SUBPARTITION", "SUBSTRING", "SUBTYPE", "SUM", "SUPER", "SYMMETRIC", "SYNONYM",
+            "SYSTEM", "TABLE", "TABLESAMPLE", "TEMP", "TEMPORARY", "TERMINATED", "TEXT", "THAN", "THEN",
+            "THROUGHPUT", "TIME", "TIMESTAMP", "TIMEZONE", "TINYINT", "TO", "TOKEN", "TOTAL", "TOUCH",
+            "TRAILING", "TRANSACTION", "TRANSFORM", "TRANSLATE", "TRANSLATION", "TREAT", "TRIGGER", "TRIM",
+            "TRUE", "TRUNCATE", "TTL", "TUPLE", "TYPE", "UNDER", "UNDO", "UNION", "UNIQUE", "UNIT", "UNKNOWN",
+            "UNLOGGED", "UNNEST", "UNPROCESSED", "UNSIGNED", "UNTIL", "UPDATE", "UPPER", "URL", "USAGE",
+            "USE", "USER", "USERS", "USING", "UUID", "VACUUM", "VALUE", "VALUED", "VALUES", "VARCHAR",
+            "VARIABLE", "VARIANCE", "VARINT", "VARYING", "VIEW", "VIEWS", "VIRTUAL", "VOID", "WAIT", "WHEN",
+            "WHENEVER", "WHERE", "WHILE", "WINDOW", "WITH", "WITHIN", "WITHOUT", "WORK", "WRAPPED", "WRITE",
+            "YEAR", "ZONE"
+        };
+
+        if (reservedWords.Contains(attributeName))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ReservedWordUsage,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName, attributeName);
+        }
+
+        // Check attribute name length
+        if (attributeName.Length > 255)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.InvalidAttributeName,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                attributeName, propertyModel.PropertyName, "Attribute name exceeds 255 character limit");
+        }
+    }
+
+    private void ValidateKeyFormat(PropertyModel propertyModel)
+    {
+        var keyFormat = propertyModel.KeyFormat;
+        if (keyFormat == null) return;
+
+        // Validate separator
+        if (!string.IsNullOrEmpty(keyFormat.Separator))
+        {
+            if (keyFormat.Separator.Contains('\0') || keyFormat.Separator.Length > 10)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.InvalidKeyFormatSyntax,
+                    propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                    $"Separator: '{keyFormat.Separator}'", propertyModel.PropertyName);
+            }
+        }
+
+        // Validate prefix
+        if (!string.IsNullOrEmpty(keyFormat.Prefix))
+        {
+            if (keyFormat.Prefix.Contains('\0') || keyFormat.Prefix.Length > 100)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.InvalidKeyFormatSyntax,
+                    propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                    $"Prefix: '{keyFormat.Prefix}'", propertyModel.PropertyName);
+            }
+
+            // Check for potential key collision patterns
+            if (keyFormat.Prefix.EndsWith(keyFormat.Separator ?? "#"))
+            {
+                ReportDiagnostic(DiagnosticDescriptors.PotentialKeyCollision,
+                    propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                    $"{keyFormat.Prefix}{keyFormat.Separator}{{value}}", propertyModel.PropertyName);
+            }
+        }
+    }
+
+    private void ValidatePropertyPerformance(PropertyModel propertyModel)
+    {
+        // Warn about potentially large string properties
+        if (propertyModel.PropertyType == "string" && !propertyModel.IsCollection)
+        {
+            // This is a heuristic - in practice, you'd need more context
+            if (propertyModel.PropertyName.ToLowerInvariant().Contains("description") ||
+                propertyModel.PropertyName.ToLowerInvariant().Contains("content") ||
+                propertyModel.PropertyName.ToLowerInvariant().Contains("body"))
+            {
+                ReportDiagnostic(DiagnosticDescriptors.PerformanceWarning,
+                    propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                    propertyModel.PropertyName, propertyModel.PropertyType,
+                    "Large string properties may impact DynamoDB performance and costs");
+            }
+        }
+
+        // Warn about complex collection types
+        if (propertyModel.IsCollection && IsComplexCollectionType(propertyModel.PropertyType))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.PerformanceWarning,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName, propertyModel.PropertyType,
+                "Complex collection types require JSON serialization which may impact performance");
+        }
+    }
+
+    private bool IsComplexCollectionType(string collectionType)
+    {
+        // Check if collection contains complex types
+        var elementType = GetCollectionElementType(collectionType);
+        return !IsPrimitiveType(elementType);
+    }
+
+    private bool IsPrimitiveType(string typeName)
+    {
+        var primitiveTypes = new HashSet<string>
+        {
+            "string", "int", "long", "double", "float", "decimal", "bool", "DateTime", "DateTimeOffset",
+            "Guid", "byte", "short", "uint", "ulong", "ushort", "sbyte", "char",
+            "System.String", "System.Int32", "System.Int64", "System.Double", "System.Single",
+            "System.Decimal", "System.Boolean", "System.DateTime", "System.DateTimeOffset",
+            "System.Guid", "System.Byte", "System.Int16", "System.UInt32", "System.UInt64",
+            "System.UInt16", "System.SByte", "System.Char", "Ulid"
+        };
+
+        var baseType = typeName.TrimEnd('?');
+        return primitiveTypes.Contains(baseType);
+    }
+
+    private string GetCollectionElementType(string collectionType)
+    {
+        // Extract element type from collection types
+        if (collectionType.StartsWith("List<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(5, collectionType.Length - 6);
+        }
+        if (collectionType.StartsWith("IList<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(6, collectionType.Length - 7);
+        }
+        if (collectionType.StartsWith("ICollection<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(12, collectionType.Length - 13);
+        }
+        if (collectionType.StartsWith("IEnumerable<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(12, collectionType.Length - 13);
+        }
+        
+        return "object";
     }
 
     private bool IsCollectionType(ITypeSymbol type)
@@ -610,6 +842,94 @@ public class EntityAnalyzer
         return !string.IsNullOrWhiteSpace(entityType) && 
                !entityType.Contains(" ") && 
                char.IsUpper(entityType[0]);
+    }
+
+    private void ValidateEntityComplexity(EntityModel entityModel)
+    {
+        // Check for too many attributes
+        var attributeCount = entityModel.Properties.Count(p => p.HasAttributeMapping);
+        if (attributeCount > 50)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.TooManyAttributes,
+                entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                entityModel.ClassName, attributeCount);
+        }
+
+        // Check for complex nested structures
+        var complexProperties = entityModel.Properties.Count(p => !IsPrimitiveType(p.PropertyType) && !p.IsCollection);
+        if (complexProperties > 10)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.PerformanceWarning,
+                entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                entityModel.ClassName, "Complex nested structure",
+                $"Entity has {complexProperties} complex properties which may impact serialization performance");
+        }
+    }
+
+    private void ValidateEntityScalability(EntityModel entityModel)
+    {
+        // Check for potential hot partition issues
+        var partitionKeyProperty = entityModel.PartitionKeyProperty;
+        if (partitionKeyProperty?.KeyFormat != null)
+        {
+            var keyFormat = partitionKeyProperty.KeyFormat;
+            
+            // Warn if partition key doesn't include tenant/user/time-based distribution
+            if (string.IsNullOrEmpty(keyFormat.Prefix) && 
+                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("tenant") &&
+                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("user") &&
+                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("date") &&
+                !partitionKeyProperty.PropertyName.ToLowerInvariant().Contains("time"))
+            {
+                ReportDiagnostic(DiagnosticDescriptors.ScalabilityWarning,
+                    entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                    entityModel.ClassName,
+                    "Partition key may not distribute load evenly across partitions");
+            }
+        }
+
+        // Check for GSI overuse
+        if (entityModel.Indexes.Length > 5)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ScalabilityWarning,
+                entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                entityModel.ClassName,
+                $"Entity has {entityModel.Indexes.Length} GSIs which may impact write performance and costs");
+        }
+    }
+
+    private void ValidateCircularReferences(EntityModel entityModel)
+    {
+        // Basic circular reference detection for related entities
+        var entityTypeName = entityModel.ClassName;
+        
+        foreach (var relationship in entityModel.Relationships)
+        {
+            if (!string.IsNullOrEmpty(relationship.EntityType))
+            {
+                // Check if related entity references back to this entity
+                if (relationship.EntityType == entityTypeName)
+                {
+                    ReportDiagnostic(DiagnosticDescriptors.CircularReferenceDetected,
+                        entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                        entityModel.ClassName);
+                    break;
+                }
+            }
+        }
+
+        // Check for self-referencing collection properties
+        foreach (var property in entityModel.Properties.Where(p => p.IsCollection))
+        {
+            var elementType = GetCollectionElementType(property.PropertyType);
+            if (elementType == entityTypeName)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.CircularReferenceDetected,
+                    entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                    entityModel.ClassName);
+                break;
+            }
+        }
     }
 
     private void ReportDiagnostic(DiagnosticDescriptor descriptor, Location? location, params object[] messageArgs)
