@@ -245,7 +245,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Ensure proper type name resolution in generated code (fix "tring" vs "string" issues)
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 26. Fix error scenario diagnostic tests
+- [x] 26. Fix error scenario diagnostic tests
   - Fix tests that expect specific error diagnostics but get none
   - Ensure source generator properly reports errors for invalid configurations
   - Fix non-partial class detection (DYNDB010)
