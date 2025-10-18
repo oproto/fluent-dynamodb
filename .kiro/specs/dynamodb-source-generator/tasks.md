@@ -62,7 +62,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Create strongly-typed response classes (GetItemResponse<T>, QueryResponse<T>)
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 5.1, 5.2_
 
-- [ ] 8. Implement multi-item entity support
+- [x] 8. Implement multi-item entity support
   - Extend MapperGenerator to handle entities that span multiple DynamoDB items
   - Implement grouping logic in QueryResponse<T> to combine related items by partition key
   - Generate multi-item ToDynamoDb methods that return multiple AttributeValue dictionaries

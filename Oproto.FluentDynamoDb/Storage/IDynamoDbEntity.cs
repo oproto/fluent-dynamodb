@@ -10,11 +10,23 @@ public interface IDynamoDbEntity
 {
     /// <summary>
     /// Converts an entity instance to a DynamoDB AttributeValue dictionary.
+    /// For multi-item entities, returns the first item from the multi-item conversion.
     /// </summary>
     /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>
     /// <param name="entity">The entity instance to convert.</param>
     /// <returns>A dictionary of attribute names to AttributeValue objects.</returns>
     static abstract Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity) 
+        where TSelf : IDynamoDbEntity;
+
+    /// <summary>
+    /// Converts a multi-item entity instance to multiple DynamoDB AttributeValue dictionaries.
+    /// Each collection item becomes a separate DynamoDB item with the same partition key.
+    /// For single-item entities, returns a list with one item.
+    /// </summary>
+    /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>
+    /// <param name="entity">The entity instance to convert.</param>
+    /// <returns>A list of dictionaries representing multiple DynamoDB items.</returns>
+    static abstract List<Dictionary<string, AttributeValue>> ToDynamoDbMultiple<TSelf>(TSelf entity) 
         where TSelf : IDynamoDbEntity;
     
     /// <summary>

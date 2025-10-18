@@ -126,4 +126,52 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "DynamoDB entity classes must be declared as partial to allow the source generator to add implementation code.");
+
+    /// <summary>
+    /// Error when a multi-item entity is missing a partition key.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MultiItemEntityMissingPartitionKey = new(
+        "DYNDB011",
+        "Multi-item entity missing partition key",
+        "Multi-item entity '{0}' must have a partition key for grouping related items",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Multi-item entities require a partition key to group related DynamoDB items together.");
+
+    /// <summary>
+    /// Warning when a multi-item entity is missing a sort key.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MultiItemEntityMissingSortKey = new(
+        "DYNDB012",
+        "Multi-item entity missing sort key",
+        "Multi-item entity '{0}' should have a sort key for proper item ordering",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Multi-item entities should have a sort key to ensure consistent ordering of related items.");
+
+    /// <summary>
+    /// Error when a collection property is marked as a key.
+    /// </summary>
+    public static readonly DiagnosticDescriptor CollectionPropertyCannotBeKey = new(
+        "DYNDB013",
+        "Collection property cannot be key",
+        "Collection property '{0}' in entity '{1}' cannot be marked as partition key or sort key",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Collection properties represent multiple values and cannot be used as DynamoDB keys.");
+
+    /// <summary>
+    /// Warning about partition key format for multi-item entities.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MultiItemEntityPartitionKeyFormat = new(
+        "DYNDB014",
+        "Multi-item entity partition key format",
+        "Partition key '{0}' in multi-item entity '{1}' should have a consistent format for proper grouping",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Multi-item entities should use consistent partition key formats to ensure related items are properly grouped.");
 }

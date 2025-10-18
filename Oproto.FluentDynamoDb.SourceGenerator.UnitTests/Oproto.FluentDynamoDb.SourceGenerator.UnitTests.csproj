@@ -26,6 +26,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj" />
+        <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
     </ItemGroup>
 
 </Project>

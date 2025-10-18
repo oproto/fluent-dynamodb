@@ -92,6 +92,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <summary>
     /// Configures the PutItem operation to use a strongly-typed entity.
     /// The entity is automatically converted to DynamoDB AttributeValue format.
+    /// For multi-item entities, only the first item is used for PutItem operations.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The PutItemRequestBuilder instance.</param>
@@ -112,6 +113,28 @@ public static class EnhancedExecuteAsyncExtensions
         {
             throw new DynamoDbMappingException(
                 $"Failed to convert {typeof(T).Name} entity to DynamoDB format. Error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Gets all DynamoDB items for a multi-item entity.
+    /// This is useful for batch operations or when you need to work with individual items.
+    /// </summary>
+    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <param name="entity">The entity instance to convert.</param>
+    /// <returns>A list of DynamoDB items representing the entity.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when entity conversion fails.</exception>
+    public static List<Dictionary<string, AttributeValue>> GetDynamoDbItems<T>(T entity) 
+        where T : class, IDynamoDbEntity
+    {
+        try
+        {
+            return T.ToDynamoDbMultiple(entity);
+        }
+        catch (Exception ex)
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to convert {typeof(T).Name} entity to multiple DynamoDB items. Error: {ex.Message}", ex);
         }
     }
 }

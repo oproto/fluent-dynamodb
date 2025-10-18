@@ -371,6 +371,12 @@ public class EntityAnalyzer
 
         // Check if entity is multi-item (has collection properties with DynamoDB attributes)
         entityModel.IsMultiItemEntity = entityModel.Properties.Any(p => p.IsCollection && p.HasAttributeMapping);
+        
+        // Validate multi-item entity consistency
+        if (entityModel.IsMultiItemEntity)
+        {
+            ValidateMultiItemEntityConsistency(entityModel);
+        }
     }
 
     private void ValidatePropertyModel(PropertyModel propertyModel)
@@ -467,6 +473,61 @@ public class EntityAnalyzer
                 }
                 return false;
             });
+    }
+
+    private void ValidateMultiItemEntityConsistency(EntityModel entityModel)
+    {
+        // Multi-item entities must have a partition key for grouping
+        if (entityModel.PartitionKeyProperty == null)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.MultiItemEntityMissingPartitionKey, 
+                entityModel.ClassDeclaration?.Identifier.GetLocation(), 
+                entityModel.ClassName);
+            return;
+        }
+
+        // Multi-item entities should have a sort key for item ordering
+        if (entityModel.SortKeyProperty == null)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.MultiItemEntityMissingSortKey, 
+                entityModel.ClassDeclaration?.Identifier.GetLocation(), 
+                entityModel.ClassName);
+        }
+
+        // Validate that collection properties have appropriate attribute mappings
+        var collectionProperties = entityModel.Properties.Where(p => p.IsCollection && p.HasAttributeMapping).ToArray();
+        
+        foreach (var collectionProperty in collectionProperties)
+        {
+            // Collection properties in multi-item entities should not conflict with key attributes
+            if (collectionProperty.IsPartitionKey || collectionProperty.IsSortKey)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.CollectionPropertyCannotBeKey, 
+                    collectionProperty.PropertyDeclaration?.Identifier.GetLocation(), 
+                    collectionProperty.PropertyName, entityModel.ClassName);
+            }
+        }
+
+        // Ensure partition key generation is consistent
+        ValidatePartitionKeyGeneration(entityModel);
+    }
+
+    private void ValidatePartitionKeyGeneration(EntityModel entityModel)
+    {
+        var partitionKeyProperty = entityModel.PartitionKeyProperty;
+        if (partitionKeyProperty?.KeyFormat != null)
+        {
+            // If partition key has a format, ensure it's suitable for multi-item entities
+            var keyFormat = partitionKeyProperty.KeyFormat;
+            
+            // Warn if partition key format might not be suitable for grouping
+            if (string.IsNullOrEmpty(keyFormat.Prefix) && string.IsNullOrEmpty(keyFormat.Separator))
+            {
+                ReportDiagnostic(DiagnosticDescriptors.MultiItemEntityPartitionKeyFormat, 
+                    partitionKeyProperty.PropertyDeclaration?.Identifier.GetLocation(), 
+                    partitionKeyProperty.PropertyName, entityModel.ClassName);
+            }
+        }
     }
 
     private void ReportDiagnostic(DiagnosticDescriptor descriptor, Location? location, params object[] messageArgs)

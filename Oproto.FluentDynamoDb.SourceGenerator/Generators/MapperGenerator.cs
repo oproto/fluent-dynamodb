@@ -47,6 +47,18 @@ public static class MapperGenerator
 
     private static void GenerateToDynamoDbMethod(StringBuilder sb, EntityModel entity)
     {
+        if (entity.IsMultiItemEntity)
+        {
+            GenerateMultiItemToDynamoDbMethod(sb, entity);
+        }
+        else
+        {
+            GenerateSingleItemToDynamoDbMethod(sb, entity);
+        }
+    }
+
+    private static void GenerateSingleItemToDynamoDbMethod(StringBuilder sb, EntityModel entity)
+    {
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// Converts an entity instance to a DynamoDB AttributeValue dictionary.");
@@ -59,7 +71,7 @@ public static class MapperGenerator
         sb.AppendLine("            var item = new Dictionary<string, AttributeValue>();");
         sb.AppendLine();
 
-        // Generate property mappings
+        // Generate property mappings for all properties (including collections as serialized data)
         foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
         {
             GeneratePropertyToAttributeValue(sb, property);
@@ -68,12 +80,154 @@ public static class MapperGenerator
         sb.AppendLine();
         sb.AppendLine("            return item;");
         sb.AppendLine("        }");
+        
+        // Generate ToDynamoDbMultiple method for single-item entities
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Converts a single-item entity to a list containing one DynamoDB item.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static List<Dictionary<string, AttributeValue>> ToDynamoDbMultiple<TSelf>(TSelf entity) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine("            return new List<Dictionary<string, AttributeValue>> { ToDynamoDb<TSelf>(entity) };");
+        sb.AppendLine("        }");
+    }
+
+    private static void GenerateMultiItemToDynamoDbMethod(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Converts an entity instance to multiple DynamoDB AttributeValue dictionaries.");
+        sb.AppendLine("        /// For multi-item entities, this creates one item per collection element plus the base entity.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine("            // For backward compatibility, return the first item from multi-item conversion");
+        sb.AppendLine("            var items = ToDynamoDbMultiple<TSelf>(entity);");
+        sb.AppendLine("            return items.FirstOrDefault() ?? new Dictionary<string, AttributeValue>();");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Converts a multi-item entity instance to multiple DynamoDB AttributeValue dictionaries.");
+        sb.AppendLine("        /// Each collection item becomes a separate DynamoDB item with the same partition key.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static List<Dictionary<string, AttributeValue>> ToDynamoDbMultiple<TSelf>(TSelf entity) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            if (entity is not {entity.ClassName} typedEntity)");
+        sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{entity.GetType().Name}}\", nameof(entity));");
+        sb.AppendLine();
+        sb.AppendLine("            var items = new List<Dictionary<string, AttributeValue>>();");
+        sb.AppendLine();
+
+        // Generate base partition key value
+        var partitionKeyProperty = entity.PartitionKeyProperty;
+        if (partitionKeyProperty != null)
+        {
+            sb.AppendLine("            // Generate base partition key");
+            sb.AppendLine($"            var partitionKeyValue = {GetToAttributeValueExpression(partitionKeyProperty, $"typedEntity.{partitionKeyProperty.PropertyName}")};");
+            sb.AppendLine();
+        }
+
+        // Generate items for each collection property
+        var collectionProperties = entity.Properties.Where(p => p.IsCollection && p.HasAttributeMapping).ToArray();
+        
+        if (collectionProperties.Length > 0)
+        {
+            foreach (var collectionProperty in collectionProperties)
+            {
+                GenerateCollectionItemsMapping(sb, entity, collectionProperty, partitionKeyProperty);
+            }
+        }
+        else
+        {
+            // If no collection properties, create a single item with non-collection properties
+            sb.AppendLine("            // No collection properties found, create single item");
+            sb.AppendLine("            var item = new Dictionary<string, AttributeValue>();");
+            
+            foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping && !p.IsCollection))
+            {
+                GeneratePropertyToAttributeValue(sb, property);
+            }
+            
+            sb.AppendLine("            items.Add(item);");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("            return items;");
+        sb.AppendLine("        }");
+    }
+
+    private static void GenerateCollectionItemsMapping(StringBuilder sb, EntityModel entity, PropertyModel collectionProperty, PropertyModel? partitionKeyProperty)
+    {
+        var collectionElementType = GetCollectionElementType(collectionProperty.PropertyType);
+        
+        sb.AppendLine($"            // Process {collectionProperty.PropertyName} collection");
+        sb.AppendLine($"            if (typedEntity.{collectionProperty.PropertyName} != null)");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                var {collectionProperty.PropertyName.ToLowerInvariant()}Index = 0;");
+        sb.AppendLine($"                foreach (var {collectionProperty.PropertyName.ToLowerInvariant()}Item in typedEntity.{collectionProperty.PropertyName})");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    var item = new Dictionary<string, AttributeValue>();");
+        sb.AppendLine();
+        
+        // Add partition key to each item
+        if (partitionKeyProperty != null)
+        {
+            sb.AppendLine("                    // Add partition key");
+            sb.AppendLine($"                    item[\"{partitionKeyProperty.AttributeName}\"] = partitionKeyValue;");
+            sb.AppendLine();
+        }
+        
+        // Generate sort key for collection item (using index or item properties)
+        var sortKeyProperty = entity.SortKeyProperty;
+        if (sortKeyProperty != null)
+        {
+            sb.AppendLine("                    // Generate sort key for collection item");
+            if (IsComplexType(collectionElementType))
+            {
+                // For complex types, try to use a property from the collection item
+                sb.AppendLine($"                    // TODO: Extract sort key from {collectionElementType} properties");
+                sb.AppendLine($"                    item[\"{sortKeyProperty.AttributeName}\"] = new AttributeValue {{ S = $\"{collectionProperty.AttributeName}#{{++{collectionProperty.PropertyName.ToLowerInvariant()}Index:D3}}\" }};");
+            }
+            else
+            {
+                // For primitive types, use the value directly with index
+                sb.AppendLine($"                    item[\"{sortKeyProperty.AttributeName}\"] = new AttributeValue {{ S = $\"{collectionProperty.AttributeName}#{{++{collectionProperty.PropertyName.ToLowerInvariant()}Index:D3}}\" }};");
+            }
+            sb.AppendLine();
+        }
+        
+        // Add the collection item data
+        if (IsComplexType(collectionElementType))
+        {
+            sb.AppendLine("                    // Add complex object properties");
+            sb.AppendLine($"                    // TODO: Implement complex type mapping for {collectionElementType}");
+            sb.AppendLine($"                    item[\"{collectionProperty.AttributeName}\"] = new AttributeValue {{ S = {collectionProperty.PropertyName.ToLowerInvariant()}Item?.ToString() ?? \"\" }};");
+        }
+        else
+        {
+            // For primitive collection items
+            sb.AppendLine("                    // Add collection item value");
+            sb.AppendLine($"                    item[\"{collectionProperty.AttributeName}\"] = {GetToAttributeValueExpression(new PropertyModel { PropertyType = collectionElementType, IsNullable = false }, $"{collectionProperty.PropertyName.ToLowerInvariant()}Item")};");
+        }
+        
+        sb.AppendLine();
+        sb.AppendLine("                    items.Add(item);");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+        sb.AppendLine();
     }
 
     private static void GeneratePropertyToAttributeValue(StringBuilder sb, PropertyModel property)
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        
+        // Handle collection properties differently for single-item entities
+        if (property.IsCollection)
+        {
+            GenerateCollectionPropertyToAttributeValue(sb, property);
+            return;
+        }
         
         // Handle nullable properties
         if (property.IsNullable)
@@ -87,6 +241,19 @@ public static class MapperGenerator
         {
             sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{propertyName}")};");
         }
+    }
+
+    private static void GenerateCollectionPropertyToAttributeValue(StringBuilder sb, PropertyModel property)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        
+        sb.AppendLine($"            // Serialize collection {propertyName} as JSON for single-item storage");
+        sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                var {propertyName.ToLowerInvariant()}Json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{propertyName});");
+        sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = {propertyName.ToLowerInvariant()}Json }};");
+        sb.AppendLine("            }");
     }
 
     private static string GetToAttributeValueExpression(PropertyModel property, string valueExpression)
@@ -142,9 +309,35 @@ public static class MapperGenerator
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         
+        if (property.IsCollection)
+        {
+            GenerateCollectionPropertyFromAttributeValue(sb, property);
+            return;
+        }
+        
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         sb.AppendLine($"                entity.{propertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
+        sb.AppendLine("            }");
+    }
+
+    private static void GenerateCollectionPropertyFromAttributeValue(StringBuilder sb, PropertyModel property)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        
+        sb.AppendLine($"            // Deserialize collection {propertyName} from JSON");
+        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value) && !string.IsNullOrEmpty({propertyName.ToLowerInvariant()}Value.S))");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    entity.{propertyName} = System.Text.Json.JsonSerializer.Deserialize<{property.PropertyType}>({propertyName.ToLowerInvariant()}Value.S);");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (System.Text.Json.JsonException)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    // Handle JSON deserialization errors gracefully");
+        sb.AppendLine($"                    entity.{propertyName} = new {property.PropertyType}();");
+        sb.AppendLine("                }");
         sb.AppendLine("            }");
     }
 
@@ -189,9 +382,7 @@ public static class MapperGenerator
         
         if (entity.IsMultiItemEntity)
         {
-            sb.AppendLine("            // Multi-item entity: combine all items into a single entity");
-            sb.AppendLine("            // For now, use the first item as the base and handle collections in future tasks");
-            sb.AppendLine("            return FromDynamoDb<TSelf>(items[0]);");
+            GenerateMultiItemFromDynamoDb(sb, entity);
         }
         else
         {
@@ -200,6 +391,79 @@ public static class MapperGenerator
         }
         
         sb.AppendLine("        }");
+    }
+
+    private static void GenerateMultiItemFromDynamoDb(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine("            // Multi-item entity: combine all items into a single entity");
+        sb.AppendLine($"            var entity = new {entity.ClassName}();");
+        sb.AppendLine();
+        
+        // First, populate non-collection properties from the first item (or any item that has them)
+        var nonCollectionProperties = entity.Properties.Where(p => p.HasAttributeMapping && !p.IsCollection).ToArray();
+        if (nonCollectionProperties.Length > 0)
+        {
+            sb.AppendLine("            // Populate non-collection properties from first available item");
+            sb.AppendLine("            foreach (var item in items)");
+            sb.AppendLine("            {");
+            
+            foreach (var property in nonCollectionProperties)
+            {
+                sb.AppendLine($"                if (item.TryGetValue(\"{property.AttributeName}\", out var {property.PropertyName.ToLowerInvariant()}Value))");
+                sb.AppendLine("                {");
+                sb.AppendLine($"                    entity.{property.PropertyName} = {GetFromAttributeValueExpression(property, $"{property.PropertyName.ToLowerInvariant()}Value")};");
+                sb.AppendLine("                }");
+            }
+            
+            sb.AppendLine("                break; // Use first item for non-collection properties");
+            sb.AppendLine("            }");
+            sb.AppendLine();
+        }
+        
+        // Then, populate collection properties by grouping items
+        var collectionProperties = entity.Properties.Where(p => p.IsCollection && p.HasAttributeMapping).ToArray();
+        foreach (var collectionProperty in collectionProperties)
+        {
+            GenerateCollectionPropertyFromItems(sb, entity, collectionProperty);
+        }
+        
+        sb.AppendLine("            return (TSelf)(object)entity;");
+    }
+
+    private static void GenerateCollectionPropertyFromItems(StringBuilder sb, EntityModel entity, PropertyModel collectionProperty)
+    {
+        var elementType = GetCollectionElementType(collectionProperty.PropertyType);
+        
+        sb.AppendLine($"            // Populate {collectionProperty.PropertyName} collection from items");
+        sb.AppendLine($"            var {collectionProperty.PropertyName.ToLowerInvariant()}List = new List<{elementType}>();");
+        sb.AppendLine();
+        
+        // Filter items that contain this collection's attribute
+        sb.AppendLine("            foreach (var item in items)");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                if (item.TryGetValue(\"{collectionProperty.AttributeName}\", out var {collectionProperty.PropertyName.ToLowerInvariant()}Value))");
+        sb.AppendLine("                {");
+        
+        if (IsComplexType(elementType))
+        {
+            // For complex types, we'd need to reconstruct the object
+            sb.AppendLine($"                    // TODO: Implement complex type reconstruction for {elementType}");
+            sb.AppendLine($"                    // For now, create default instance");
+            sb.AppendLine($"                    var {collectionProperty.PropertyName.ToLowerInvariant()}Item = new {elementType}();");
+            sb.AppendLine($"                    {collectionProperty.PropertyName.ToLowerInvariant()}List.Add({collectionProperty.PropertyName.ToLowerInvariant()}Item);");
+        }
+        else
+        {
+            // For primitive types, convert directly
+            sb.AppendLine($"                    var {collectionProperty.PropertyName.ToLowerInvariant()}Item = {GetFromAttributeValueExpression(new PropertyModel { PropertyType = elementType, IsNullable = false }, $"{collectionProperty.PropertyName.ToLowerInvariant()}Value")};");
+            sb.AppendLine($"                    {collectionProperty.PropertyName.ToLowerInvariant()}List.Add({collectionProperty.PropertyName.ToLowerInvariant()}Item);");
+        }
+        
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        sb.AppendLine($"            entity.{collectionProperty.PropertyName} = {collectionProperty.PropertyName.ToLowerInvariant()}List;");
+        sb.AppendLine();
     }
 
     private static void GenerateGetPartitionKeyMethod(StringBuilder sb, EntityModel entity)
@@ -471,5 +735,47 @@ public static class MapperGenerator
                !baseType.StartsWith("IList<") &&
                !baseType.StartsWith("ICollection<") &&
                !baseType.StartsWith("IEnumerable<");
+    }
+
+    private static string GetCollectionElementType(string collectionType)
+    {
+        // Extract element type from collection types
+        if (collectionType.StartsWith("List<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(5, collectionType.Length - 6);
+        }
+        if (collectionType.StartsWith("IList<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(6, collectionType.Length - 7);
+        }
+        if (collectionType.StartsWith("ICollection<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(12, collectionType.Length - 13);
+        }
+        if (collectionType.StartsWith("IEnumerable<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(12, collectionType.Length - 13);
+        }
+        if (collectionType.StartsWith("System.Collections.Generic.List<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(33, collectionType.Length - 34);
+        }
+        
+        // Default to object if we can't determine the element type
+        return "object";
+    }
+
+    private static bool IsComplexType(string typeName)
+    {
+        var baseType = GetBaseType(typeName);
+        var primitiveTypes = new[]
+        {
+            "string", "int", "long", "double", "float", "decimal", "bool", "DateTime", "DateTimeOffset",
+            "Guid", "byte[]", "System.String", "System.Int32", "System.Int64", "System.Double", 
+            "System.Single", "System.Decimal", "System.Boolean", "System.DateTime", "System.DateTimeOffset",
+            "System.Guid", "System.Byte[]", "Ulid", "object"
+        };
+        
+        return !primitiveTypes.Contains(baseType);
     }
 }
