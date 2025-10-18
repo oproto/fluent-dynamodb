@@ -144,7 +144,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Add comprehensive documentation and examples for using generated code
   - _Requirements: 10.4, 10.5, 11.3, 11.4, 11.5, 14.5_
 
-- [ ] 17. Fix source generator property type resolution bug
+- [x] 17. Fix source generator property type resolution bug
   - Debug and fix the compilation error where property names are treated as types (CS0246 errors)
   - Root cause: Generated code uses property names like "Id", "Name" as types instead of actual types like "string", "int"
   - Investigate EntityAnalyzer.cs property type resolution and MapperGenerator.cs type usage
@@ -153,7 +153,16 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Add regression tests to prevent similar issues
   - _Requirements: 1.1, 1.2, 1.4, 2.1, 3.1, 5.3, 5.4_
 
-- [ ]* 18. Create comprehensive documentation and examples
+- [x] 18. Fix integration test diagnostic expectations
+  - Update integration tests to have proper expectations for source generator diagnostics
+  - Tests currently expect no diagnostics but source generator correctly generates legitimate warnings
+  - Fix tests that expect empty diagnostics when warnings about reserved words (DYNDB021) and scalability (DYNDB027) are appropriate
+  - Update test assertions to expect specific diagnostic types rather than empty collections
+  - Ensure tests validate that source generator produces correct warnings for problematic configurations
+  - Add test cases that verify diagnostic messages are helpful and actionable
+  - _Requirements: 14.1, 14.2, 14.3, 14.4_
+
+- [ ]* 19. Create comprehensive documentation and examples
   - Write developer guide for using DynamoDB source generator
   - Create migration guide from manual mapping to generated code
   - Add code examples for common scenarios (single entities, multi-item, related entities)
@@ -161,7 +170,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Create troubleshooting guide for common issues and error messages
   - _Requirements: 10.4, 14.5_
 
-- [ ]* 19. Performance optimization and advanced features
+- [ ]* 20. Performance optimization and advanced features
   - Optimize generated code for performance (minimize allocations, efficient mapping)
   - Add caching for expensive operations like EntityMetadata generation
   - Implement incremental source generation for better build performance

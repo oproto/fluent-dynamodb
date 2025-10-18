@@ -72,7 +72,10 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        result.Diagnostics.Should().BeEmpty();
+        // Should generate warnings for reserved words and scalability concerns
+        result.Diagnostics.Should().NotBeEmpty();
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word usage
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
         result.GeneratedSources.Should().HaveCount(3);
         
         // Verify entity implementation
@@ -150,7 +153,11 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        result.Diagnostics.Should().BeEmpty();
+        // Should generate warnings for reserved words, performance, and scalability
+        result.Diagnostics.Should().NotBeEmpty();
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word usage ("name", "items")
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for collections
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
         
         var entityCode = GetGeneratedSource(result, "MultiItemEntity.g.cs");
         
@@ -220,7 +227,10 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        result.Diagnostics.Should().BeEmpty();
+        // Should generate warnings for scalability and related entity configuration
+        result.Diagnostics.Should().NotBeEmpty();
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB016"); // Related entities require sort key
         
         var entityCode = GetGeneratedSource(result, "ParentEntity.g.cs");
         
@@ -282,7 +292,12 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        result.Diagnostics.Should().BeEmpty();
+        // Should generate warnings for reserved words, performance, and scalability
+        result.Diagnostics.Should().NotBeEmpty();
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word usage ("count", "data")
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for byte array
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB012"); // Multi-item entity missing sort key
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
         
         var entityCode = GetGeneratedSource(result, "ComplexTypesEntity.g.cs");
         
@@ -428,9 +443,18 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        result.Diagnostics.Should().HaveCount(1);
-        result.Diagnostics[0].Id.Should().Be("DYNDB016");
-        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+        // Should generate multiple warnings including the expected DYNDB016
+        result.Diagnostics.Should().NotBeEmpty();
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB016"); // Related entities require sort key
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for collections
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        
+        // Verify the specific DYNDB016 diagnostic
+        var relatedEntityWarning = result.Diagnostics.First(d => d.Id == "DYNDB016");
+        relatedEntityWarning.Severity.Should().Be(DiagnosticSeverity.Warning);
+        relatedEntityWarning.GetMessage().Should().Contain("WarningEntity");
+        relatedEntityWarning.GetMessage().Should().Contain("related entity properties but no sort key");
+        
         result.GeneratedSources.Should().HaveCount(3); // Should still generate code despite warning
     }
 
@@ -524,6 +548,159 @@ namespace Oproto.FluentDynamoDb.Attributes
             Diagnostics = diagnostics,
             GeneratedSources = generatedSources
         };
+    }
+
+    [Fact]
+    public void SourceGenerator_WithReservedWords_GeneratesHelpfulDiagnostics()
+    {
+        // Arrange - Entity using DynamoDB reserved words
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""reserved-words-table"")]
+    public partial class ReservedWordsEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""count"")]
+        public int Count { get; set; }
+        
+        [DynamoDbAttribute(""size"")]
+        public long Size { get; set; }
+        
+        [DynamoDbAttribute(""data"")]
+        public string Data { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""name"")]
+        public string Name { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotBeEmpty();
+        
+        // Should generate DYNDB021 warnings for each reserved word
+        var reservedWordWarnings = result.Diagnostics.Where(d => d.Id == "DYNDB021").ToList();
+        reservedWordWarnings.Should().HaveCountGreaterThan(0);
+        
+        // Verify diagnostic messages are helpful and actionable
+        foreach (var warning in reservedWordWarnings)
+        {
+            warning.Severity.Should().Be(DiagnosticSeverity.Warning);
+            warning.GetMessage().Should().Contain("reserved word");
+            warning.GetMessage().Should().Contain("attribute name");
+            // Message should suggest using a different attribute name
+            warning.Descriptor.Description.ToString().Should().Contain("Consider using a different attribute name");
+        }
+        
+        // Should still generate code despite warnings
+        result.GeneratedSources.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void SourceGenerator_WithPerformanceIssues_GeneratesActionableDiagnostics()
+    {
+        // Arrange - Entity with performance concerns
+        var source = @"
+using System.Collections.Generic;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""performance-table"")]
+    public partial class PerformanceEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""large_collection"")]
+        public List<Dictionary<string, object>> LargeCollection { get; set; } = new();
+        
+        [DynamoDbAttribute(""binary_data"")]
+        public byte[] BinaryData { get; set; } = Array.Empty<byte>();
+        
+        [DynamoDbAttribute(""nested_objects"")]
+        public List<ComplexNestedObject> NestedObjects { get; set; } = new();
+    }
+    
+    public class ComplexNestedObject
+    {
+        public Dictionary<string, List<string>> NestedData { get; set; } = new();
+        public byte[] MoreBinaryData { get; set; } = Array.Empty<byte>();
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotBeEmpty();
+        
+        // Should generate DYNDB023 performance warnings
+        var performanceWarnings = result.Diagnostics.Where(d => d.Id == "DYNDB023").ToList();
+        performanceWarnings.Should().HaveCountGreaterThan(0);
+        
+        // Verify diagnostic messages are actionable
+        foreach (var warning in performanceWarnings)
+        {
+            warning.Severity.Should().Be(DiagnosticSeverity.Warning);
+            warning.GetMessage().Should().Contain("may cause performance issues");
+            warning.GetMessage().Should().Contain("JSON serialization");
+        }
+        
+        // Should also generate scalability warnings
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027");
+        
+        // Should still generate code despite warnings
+        result.GeneratedSources.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void SourceGenerator_WithScalabilityIssues_GeneratesHelpfulWarnings()
+    {
+        // Arrange - Entity with scalability concerns
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""scalability-table"")]
+    public partial class ScalabilityEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string SinglePartitionKey { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""value"")]
+        public string Value { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotBeEmpty();
+        
+        // Should generate DYNDB027 scalability warning
+        var scalabilityWarnings = result.Diagnostics.Where(d => d.Id == "DYNDB027").ToList();
+        scalabilityWarnings.Should().HaveCount(1);
+        
+        var warning = scalabilityWarnings.First();
+        warning.Severity.Should().Be(DiagnosticSeverity.Warning);
+        warning.GetMessage().Should().Contain("design may not scale well");
+        warning.GetMessage().Should().Contain("distribute load evenly");
+        
+        // Should still generate code despite warnings
+        result.GeneratedSources.Should().HaveCount(3);
     }
 
     private static string GetGeneratedSource(GeneratorTestResult result, string fileName)

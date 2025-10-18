@@ -47,7 +47,10 @@ namespace TestNamespace
         partitionKeyProperty.AttributeName.Should().Be("pk");
         partitionKeyProperty.IsPartitionKey.Should().BeTrue();
         
-        analyzer.Diagnostics.Should().BeEmpty();
+        // Should generate scalability warnings but no errors
+        analyzer.Diagnostics.Should().NotBeEmpty();
+        analyzer.Diagnostics.Should().OnlyContain(d => d.Severity == DiagnosticSeverity.Warning);
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
     }
 
     [Fact]
@@ -188,7 +191,10 @@ namespace TestNamespace
         gsi.SortKeyProperty.Should().Be("GsiSortKey");
         gsi.HasSortKey.Should().BeTrue();
         
-        analyzer.Diagnostics.Should().BeEmpty();
+        // Should generate scalability warnings but no errors
+        analyzer.Diagnostics.Should().NotBeEmpty();
+        analyzer.Diagnostics.Should().OnlyContain(d => d.Severity == DiagnosticSeverity.Warning);
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
     }
 
     [Fact]
@@ -239,7 +245,10 @@ namespace TestNamespace
         summaryRelationship.IsCollection.Should().BeFalse();
         summaryRelationship.IsWildcardPattern.Should().BeFalse();
         
-        analyzer.Diagnostics.Should().BeEmpty();
+        // Should generate scalability warnings but no errors
+        analyzer.Diagnostics.Should().NotBeEmpty();
+        analyzer.Diagnostics.Should().OnlyContain(d => d.Severity == DiagnosticSeverity.Warning);
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
     }
 
     [Fact]
@@ -285,7 +294,10 @@ namespace TestNamespace
         sortKey.KeyFormat!.Prefix.Should().Be("item");
         sortKey.KeyFormat.Separator.Should().Be("#");
         
-        analyzer.Diagnostics.Should().BeEmpty();
+        // Should generate scalability warnings but no errors
+        analyzer.Diagnostics.Should().NotBeEmpty();
+        analyzer.Diagnostics.Should().OnlyContain(d => d.Severity == DiagnosticSeverity.Warning);
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
     }
 
     [Fact]

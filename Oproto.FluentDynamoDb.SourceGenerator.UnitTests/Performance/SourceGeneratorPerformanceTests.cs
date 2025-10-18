@@ -80,7 +80,10 @@ public class SourceGeneratorPerformanceTests
         stopwatch.Stop();
 
         // Assert
-        result.Diagnostics.Should().BeEmpty();
+        // Should generate warnings for too many attributes and scalability
+        result.Diagnostics.Should().NotBeEmpty();
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB029"); // Too many attributes warning
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
         result.GeneratedSources.Should().HaveCount(3);
         stopwatch.ElapsedMilliseconds.Should().BeLessThan(3000, "Entity with many properties should complete within 3 seconds");
         

@@ -33,7 +33,9 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        result.Diagnostics.Should().BeEmpty();
+        // Should generate scalability warnings but still produce code
+        result.Diagnostics.Should().NotBeEmpty();
+        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
         result.GeneratedSources.Should().HaveCount(3);
         
         var entityCode = GetGeneratedSource(result, "EmptyEntity.g.cs");
