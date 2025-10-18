@@ -46,7 +46,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Ensure type safety for all key builder method parameters
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 6. Implement basic entity mapping generation
+- [x] 6. Implement basic entity mapping generation
   - Create MapperGenerator for ToDynamoDb and FromDynamoDb methods
   - Generate single-item entity mapping (one C# object to one DynamoDB item)
   - Handle property type conversions (primitives, enums, nullable types)
