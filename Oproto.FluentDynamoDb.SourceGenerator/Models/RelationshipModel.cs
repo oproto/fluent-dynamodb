@@ -38,5 +38,5 @@ public class RelationshipModel
     /// <summary>
     /// Gets a value indicating whether this relationship has a specific entity type.
     /// </summary>
-    public bool HasSpecificEntityType => !string.IsNullOrEmpty(EntityType);
+    public bool HasSpecificEntityType => !string.IsNullOrWhiteSpace(EntityType);
 }

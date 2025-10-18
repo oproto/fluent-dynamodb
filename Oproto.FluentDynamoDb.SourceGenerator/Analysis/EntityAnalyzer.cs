@@ -842,7 +842,7 @@ public class EntityAnalyzer
         }
 
         // Validate entity type if specified
-        if (!string.IsNullOrEmpty(relationship.EntityType))
+        if (!string.IsNullOrWhiteSpace(relationship.EntityType))
         {
             // Basic validation - in a real implementation, we'd check if the type exists
             if (!IsValidEntityType(relationship.EntityType))

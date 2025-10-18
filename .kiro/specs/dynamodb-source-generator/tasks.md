@@ -232,7 +232,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - **Impact:** This is foundational - must be fixed before continuing with unit test fixes
   - _Requirements: 4.2, 6.1, 6.2, 7.1, 7.2, 7.3, 8.1, 8.2_
 
-- [ ] 24. Fix RelationshipModel test logic issues
+- [x] 24. Fix RelationshipModel test logic issues
   - Fix HasSpecificEntityType test with whitespace-only entity type
   - Review and fix entity type detection logic for edge cases
   - Ensure proper handling of null, empty, and whitespace entity types
