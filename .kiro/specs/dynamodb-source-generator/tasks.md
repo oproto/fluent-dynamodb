@@ -14,7 +14,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Create basic unit test project for source generator testing
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
 
-- [ ] 2. Define core attribute classes and interfaces
+- [x] 2. Define core attribute classes and interfaces
   - Create DynamoDbTableAttribute, DynamoDbAttributeAttribute, PartitionKeyAttribute, SortKeyAttribute
   - Create GlobalSecondaryIndexAttribute, RelatedEntityAttribute, QueryableAttribute
   - Define IDynamoDbEntity interface with static abstract methods
