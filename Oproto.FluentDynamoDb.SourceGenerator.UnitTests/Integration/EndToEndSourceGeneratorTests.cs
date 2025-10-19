@@ -675,7 +675,7 @@ namespace TestNamespace
     [Fact]
     public void SourceGenerator_WithScalabilityIssues_GeneratesHelpfulWarnings()
     {
-        // Arrange - Entity with scalability concerns
+        // Arrange - Entity with too many GSIs (scalability concern)
         var source = @"
 using Oproto.FluentDynamoDb.Attributes;
 
@@ -688,6 +688,30 @@ namespace TestNamespace
         [DynamoDbAttribute(""pk"")]
         public string Id { get; set; } = string.Empty;
         
+        [GlobalSecondaryIndex(""GSI1"", IsPartitionKey = true)]
+        [DynamoDbAttribute(""gsi1_pk"")]
+        public string Gsi1Pk { get; set; } = string.Empty;
+        
+        [GlobalSecondaryIndex(""GSI2"", IsPartitionKey = true)]
+        [DynamoDbAttribute(""gsi2_pk"")]
+        public string Gsi2Pk { get; set; } = string.Empty;
+        
+        [GlobalSecondaryIndex(""GSI3"", IsPartitionKey = true)]
+        [DynamoDbAttribute(""gsi3_pk"")]
+        public string Gsi3Pk { get; set; } = string.Empty;
+        
+        [GlobalSecondaryIndex(""GSI4"", IsPartitionKey = true)]
+        [DynamoDbAttribute(""gsi4_pk"")]
+        public string Gsi4Pk { get; set; } = string.Empty;
+        
+        [GlobalSecondaryIndex(""GSI5"", IsPartitionKey = true)]
+        [DynamoDbAttribute(""gsi5_pk"")]
+        public string Gsi5Pk { get; set; } = string.Empty;
+        
+        [GlobalSecondaryIndex(""GSI6"", IsPartitionKey = true)]
+        [DynamoDbAttribute(""gsi6_pk"")]
+        public string Gsi6Pk { get; set; } = string.Empty;
+        
         [DynamoDbAttribute(""value"")]
         public string Value { get; set; } = string.Empty;
     }
@@ -699,14 +723,13 @@ namespace TestNamespace
         // Assert
         result.Diagnostics.Should().NotBeEmpty();
         
-        // Should generate DYNDB027 scalability warning
+        // Should generate DYNDB027 scalability warning for too many GSIs
         var scalabilityWarnings = result.Diagnostics.Where(d => d.Id == "DYNDB027").ToList();
         scalabilityWarnings.Should().HaveCount(1);
         
         var warning = scalabilityWarnings.First();
         warning.Severity.Should().Be(DiagnosticSeverity.Warning);
-        warning.GetMessage().Should().Contain("design may not scale well");
-        warning.GetMessage().Should().Contain("distribute load evenly");
+        warning.GetMessage().Should().Contain("6 GSIs which may impact write performance and costs");
         
         // Should still generate code despite warnings
         result.GeneratedSources.Should().HaveCount(3);

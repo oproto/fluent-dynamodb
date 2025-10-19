@@ -47,10 +47,9 @@ namespace TestNamespace
         partitionKeyProperty.AttributeName.Should().Be("pk");
         partitionKeyProperty.IsPartitionKey.Should().BeTrue();
         
-        // Should generate scalability warnings but no errors
+        // Should generate warning for reserved word "name"
         analyzer.Diagnostics.Should().NotBeEmpty();
-        analyzer.Diagnostics.Should().OnlyContain(d => d.Severity == DiagnosticSeverity.Warning);
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning
     }
 
     [Fact]
@@ -194,10 +193,8 @@ namespace TestNamespace
         gsi.SortKeyProperty.Should().Be("GsiSortKey");
         gsi.HasSortKey.Should().BeTrue();
         
-        // Should generate scalability warnings but no errors
-        analyzer.Diagnostics.Should().NotBeEmpty();
-        analyzer.Diagnostics.Should().OnlyContain(d => d.Severity == DiagnosticSeverity.Warning);
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should not generate any diagnostics for basic GSI configuration
+        analyzer.Diagnostics.Should().BeEmpty();
     }
 
     [Fact]
@@ -247,9 +244,6 @@ namespace TestNamespace
         
         // Should report performance warning for complex collection type
         analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB023");
-        
-        // Should report scalability warning for simple ID pattern
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027");
     }
 
     [Fact]
@@ -339,9 +333,6 @@ namespace TestNamespace
         
         // Should report performance warning for complex collection type
         analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB023");
-        
-        // Should report scalability warning for simple ID pattern
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027");
     }
 
     [Fact]
@@ -394,9 +385,6 @@ namespace TestNamespace
         
         // Should report unsupported type error for AuditSummary
         analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB009");
-        
-        // Should report scalability warning for simple ID pattern
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027");
     }
 
     [Fact]
@@ -441,9 +429,6 @@ namespace TestNamespace
         
         // Should report performance warning for complex collection type
         analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB023");
-        
-        // Should report scalability warning for simple ID pattern
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB027");
     }
 
     private static (ClassDeclarationSyntax ClassDecl, SemanticModel SemanticModel) ParseSource(string source)

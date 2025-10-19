@@ -33,9 +33,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate warnings for scalability concerns but still produce code
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for basic entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3); // Entity + Fields + Keys
         
         // Check entity implementation
@@ -107,9 +106,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate warnings for scalability and reserved word usage
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for GSI entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3); // Entity + Fields + Keys
         
         var fieldsCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityFields.g.cs")).SourceText.ToString();

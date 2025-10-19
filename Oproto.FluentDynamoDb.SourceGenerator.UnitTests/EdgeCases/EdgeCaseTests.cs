@@ -33,9 +33,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate scalability warnings but still produce code
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for basic entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3);
         
         var entityCode = GetGeneratedSource(result, "EmptyEntity.g.cs");
@@ -77,9 +76,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate scalability warning for partition key
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for basic entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3);
         
         var fieldsCode = GetGeneratedSource(result, "SpecialCharsEntityFields.g.cs");
@@ -126,10 +124,9 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate warnings for reserved words and scalability
+        // Should generate warnings for reserved words only
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warnings
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
         result.GeneratedSources.Should().HaveCount(3);
         
         var fieldsCode = GetGeneratedSource(result, "ReservedKeywordsEntityFields.g.cs");
@@ -168,9 +165,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate scalability warning for partition key
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for basic entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3);
         
         var fieldsCode = GetGeneratedSource(result, "LongNamesEntityFields.g.cs");
@@ -202,10 +198,9 @@ namespace Very.Deeply.Nested.Namespace.Structure
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate warnings for reserved word "name" and scalability
+        // Should generate warnings for reserved word "name" only
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "name"
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
         result.GeneratedSources.Should().HaveCount(3);
         
         var entityCode = GetGeneratedSource(result, "NestedNamespaceEntity.g.cs");
@@ -325,9 +320,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate scalability warning for partition key
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for basic entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3);
         
         var fieldsCode = GetGeneratedSource(result, "UnicodeEntityFields.g.cs");
@@ -408,9 +402,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate scalability warning for partition key
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for basic entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3);
         
         var fieldsCode = GetGeneratedSource(result, "EmptyAttributesEntityFields.g.cs");
@@ -447,9 +440,8 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate code but may have warnings about duplicate attribute names and scalability
-        result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB027"); // Scalability warning
+        // Should generate code without any diagnostics for basic entity
+        result.Diagnostics.Should().BeEmpty();
         result.GeneratedSources.Should().HaveCount(3);
         
         var fieldsCode = GetGeneratedSource(result, "DuplicateAttributesEntityFields.g.cs");
