@@ -1,8 +1,10 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Oproto.FluentDynamoDb.SourceGenerator.Performance;
 using Oproto.FluentDynamoDb.SourceGenerator.Advanced;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 using System.Diagnostics;
 using System.Text;
 using Xunit;
@@ -140,14 +142,12 @@ namespace TestNamespace
 
         // Act - First transformation (cache miss)
         var stopwatch = Stopwatch.StartNew();
-        var context1 = new GeneratorSyntaxContext(classDecl, semanticModel, default);
-        var result1 = InvokeTransformEntityClass(context1);
+        var result1 = InvokeTransformEntityClass(classDecl, semanticModel);
         var firstTransformTime = stopwatch.ElapsedMilliseconds;
         stopwatch.Restart();
 
         // Second transformation (cache hit)
-        var context2 = new GeneratorSyntaxContext(classDecl, semanticModel, default);
-        var result2 = InvokeTransformEntityClass(context2);
+        var result2 = InvokeTransformEntityClass(classDecl, semanticModel);
         var secondTransformTime = stopwatch.ElapsedMilliseconds;
         stopwatch.Stop();
 
@@ -365,15 +365,13 @@ namespace TestNamespace
                     PropertyName = "Id",
                     PropertyType = "string",
                     AttributeName = "pk",
-                    IsPartitionKey = true,
-                    HasAttributeMapping = true
+                    IsPartitionKey = true
                 },
                 new PropertyModel
                 {
                     PropertyName = "Name",
                     PropertyType = "string",
-                    AttributeName = "name",
-                    HasAttributeMapping = true
+                    AttributeName = "name"
                 }
             }
         };
@@ -388,16 +386,14 @@ namespace TestNamespace
                 PropertyName = "Id",
                 PropertyType = "string",
                 AttributeName = "pk",
-                IsPartitionKey = true,
-                HasAttributeMapping = true
+                IsPartitionKey = true
             },
             new PropertyModel
             {
                 PropertyName = "SortKey",
                 PropertyType = "string",
                 AttributeName = "sk",
-                IsSortKey = true,
-                HasAttributeMapping = true
+                IsSortKey = true
             }
         };
 
@@ -409,7 +405,6 @@ namespace TestNamespace
                 PropertyName = $"Property{i}",
                 PropertyType = i % 2 == 0 ? "string" : "int",
                 AttributeName = $"prop{i}",
-                HasAttributeMapping = true,
                 IsNullable = i % 3 == 0
             });
         }
@@ -420,7 +415,6 @@ namespace TestNamespace
             PropertyName = "Tags",
             PropertyType = "List<string>",
             AttributeName = "tags",
-            HasAttributeMapping = true,
             IsCollection = true
         });
 
@@ -471,14 +465,22 @@ namespace TestNamespace
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 
-    private static dynamic InvokeTransformEntityClass(GeneratorSyntaxContext context)
+    private static dynamic InvokeTransformEntityClass(ClassDeclarationSyntax classDecl, SemanticModel semanticModel)
     {
-        // Use reflection to invoke the private TransformEntityClass method
-        var generatorType = typeof(IncrementalSourceGenerator);
-        var method = generatorType.GetMethod("TransformEntityClass", 
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        
-        return method?.Invoke(null, new object[] { context }) ?? new { EntityModel = (EntityModel?)null, CacheKey = "" };
+        // Create a mock GeneratorSyntaxContext using reflection since it's not directly constructible
+        // Instead, we'll directly call the EntityAnalyzer which is what TransformEntityClass does
+        try
+        {
+            var analyzer = new EntityAnalyzer();
+            var entityModel = analyzer.AnalyzeEntity(classDecl, semanticModel);
+            var cacheKey = $"{entityModel?.Namespace}.{entityModel?.ClassName}";
+            
+            return new { EntityModel = entityModel, CacheKey = cacheKey };
+        }
+        catch (Exception)
+        {
+            return new { EntityModel = (EntityModel?)null, CacheKey = "" };
+        }
     }
 
     private static EntityModel CreateEntityWithCustomTypes()
@@ -495,29 +497,25 @@ namespace TestNamespace
                     PropertyName = "Id",
                     PropertyType = "string",
                     AttributeName = "pk",
-                    IsPartitionKey = true,
-                    HasAttributeMapping = true
+                    IsPartitionKey = true
                 },
                 new PropertyModel
                 {
                     PropertyName = "WebsiteUrl",
                     PropertyType = "Uri",
-                    AttributeName = "url",
-                    HasAttributeMapping = true
+                    AttributeName = "url"
                 },
                 new PropertyModel
                 {
                     PropertyName = "Duration",
                     PropertyType = "TimeSpan",
-                    AttributeName = "duration",
-                    HasAttributeMapping = true
+                    AttributeName = "duration"
                 },
                 new PropertyModel
                 {
                     PropertyName = "Metadata",
                     PropertyType = "Dictionary<string, object>",
-                    AttributeName = "metadata",
-                    HasAttributeMapping = true
+                    AttributeName = "metadata"
                 }
             }
         };

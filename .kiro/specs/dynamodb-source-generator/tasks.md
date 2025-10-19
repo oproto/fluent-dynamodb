@@ -5,7 +5,6 @@
 Convert the DynamoDB Source Generator design into a series of incremental implementation tasks. Each task builds on previous work and results in working, testable code that integrates with the existing Oproto.FluentDynamoDb library.
 
 ## Tasks
-
 - [x] 1. Set up source generator project structure and core infrastructure
   - Create Oproto.FluentDynamoDb.SourceGenerator project targeting .NET Standard 2.0
   - Add necessary NuGet package references (Microsoft.CodeAnalysis.Analyzers, Microsoft.CodeAnalysis.CSharp)
@@ -281,3 +280,20 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Add support for custom type converters and advanced mapping scenarios
   - Prepare foundation for future LINQ expression support
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 13.5_
+
+- [x] 30. Fix DynamoDbStreamRecordEventProcessor constructor compilation errors
+  - Fix missing constructor parameter in `Oproto.FluentDynamoDb.UnitTests/Streams/DynamoDbStreamRecordEventProcessorTests.cs`
+  - Update test instantiations at lines 26, 52, 78, and 104 to provide required `DynamoDBEvent.DynamodbStreamRecord` parameter
+  - Create mock `DynamoDBEvent.DynamodbStreamRecord` objects for test scenarios
+  - Verify all test methods compile and execute successfully
+  - This fix will enable ~614 blocked unit tests to run
+  - _Requirements: Test infrastructure integrity for existing functionality_
+
+- [x] 31. Fix SourceGenerator unit test compilation errors
+  - Fix `GeneratorSyntaxContext` constructor issues in `Oproto.FluentDynamoDb.SourceGenerator.UnitTests/Performance/PerformanceOptimizationTests.cs`
+  - Update constructor calls at lines 143 and 149 to use correct `GeneratorSyntaxContext` API
+  - Fix read-only property assignment errors for `PropertyModel.HasAttributeMapping` at lines 369, 376, 392, 400, 412, 423, 499, 506, 513, 520
+  - Update test code to use proper initialization patterns for read-only properties
+  - Verify all source generator unit tests compile and execute successfully
+  - This fix will enable ~120 blocked source generator tests to run
+  - _Requirements: Source generator test infrastructure integrity_

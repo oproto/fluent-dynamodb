@@ -23,7 +23,7 @@ public class DynamoDbStreamRecordEventProcessorTests
             }
         };
         
-        var processor = new DynamoDbStreamRecordEventProcessor() { Record = record };
+        var processor = new DynamoDbStreamRecordEventProcessor(record);
         await processor.Awaitable()
             .OnInsert(async envt => await Task.Run(() => { envt.Should().NotBeNull(); }))
             .OnUpdate(async envt => await Task.Run(() => { Assert.Fail(""); }))
@@ -49,7 +49,7 @@ public class DynamoDbStreamRecordEventProcessorTests
             }
         };
         
-        var processor = new DynamoDbStreamRecordEventProcessor() { Record = record };
+        var processor = new DynamoDbStreamRecordEventProcessor(record);
         await processor.Awaitable()
             .OnInsert(async envt => await Task.Run(() => { Assert.Fail(""); }))
             .OnUpdate(async envt => await Task.Run(() => { envt.Should().NotBeNull(); }))
@@ -75,7 +75,7 @@ public class DynamoDbStreamRecordEventProcessorTests
             }
         };
         
-        var processor = new DynamoDbStreamRecordEventProcessor() { Record = record };
+        var processor = new DynamoDbStreamRecordEventProcessor(record);
         await processor.Awaitable()
             .OnInsert(async envt => await Task.Run(() => { Assert.Fail(""); }))
             .OnUpdate(async envt => await Task.Run(() => { Assert.Fail(""); }))
@@ -101,7 +101,7 @@ public class DynamoDbStreamRecordEventProcessorTests
             }
         };
         
-        var processor = new DynamoDbStreamRecordEventProcessor() { Record = record };
+        var processor = new DynamoDbStreamRecordEventProcessor(record);
         await processor.Awaitable()
             .OnInsert(async envt => await Task.Run(() => { Assert.Fail(""); }))
             .OnUpdate(async envt => await Task.Run(() => { Assert.Fail(""); }))
