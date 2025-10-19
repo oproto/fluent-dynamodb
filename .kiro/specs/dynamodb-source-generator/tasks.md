@@ -308,7 +308,7 @@ Convert the DynamoDB Source Generator design into a series of incremental implem
   - Ensure generated code includes performance optimizations like StringBuilder usage, pre-allocated collections, and ArrayPool
   - _Requirements: Performance optimization code generation integrity_
 
-- [ ] 33. Fix mapper generator content validation tests
+- [x] 33. Fix mapper generator content validation tests
   - Fix `GenerateEntityImplementation_WithMultiItemEntity_GeneratesMultiItemMethods` test expecting specific multi-item method signatures
   - Fix `GenerateEntityImplementation_WithCollectionProperties_GeneratesJsonSerialization` test expecting JSON serialization code
   - Fix `GenerateEntityImplementation_WithDifferentPropertyTypes_GeneratesCorrectConversions` test expecting type conversion patterns

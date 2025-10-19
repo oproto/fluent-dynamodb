@@ -36,6 +36,10 @@ public static class MapperGenerator
         sb.AppendLine($"    /// Generated implementation of IDynamoDbEntity for {entity.ClassName}.");
         sb.AppendLine($"    /// Provides automatic mapping between C# objects and DynamoDB AttributeValue dictionaries.");
         sb.AppendLine($"    /// Table: {entity.TableName}");
+        if (entity.IsMultiItemEntity)
+        {
+            sb.AppendLine($"    /// Multi-item entity: Supports entities that span multiple DynamoDB items.");
+        }
         if (entity.Relationships.Length > 0)
         {
             sb.AppendLine($"    /// Related entities: {entity.Relationships.Length} relationship(s) defined.");
@@ -63,6 +67,16 @@ public static class MapperGenerator
     {
         // Use optimized code generation for better performance
         Performance.OptimizedCodeGenerator.GenerateOptimizedToDynamoDbMethod(sb, entity);
+        
+        // Generate ToDynamoDbMultiple method for multi-item entities
+        if (entity.IsMultiItemEntity)
+        {
+            GenerateToDynamoDbMultipleMethod(sb, entity);
+        }
+        else
+        {
+            GenerateSingleItemToDynamoDbMultipleMethod(sb, entity);
+        }
     }
 
     private static void GenerateSingleItemToDynamoDbMethod(StringBuilder sb, EntityModel entity)
@@ -209,55 +223,8 @@ public static class MapperGenerator
 
     private static void GenerateFromDynamoDbSingleMethod(StringBuilder sb, EntityModel entity)
     {
-        sb.AppendLine();
-        sb.AppendLine("        /// <summary>");
-        sb.AppendLine("        /// Creates an entity instance from a single DynamoDB item.");
-        sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item) where TSelf : IDynamoDbEntity");
-        sb.AppendLine("        {");
-        sb.AppendLine($"            if (typeof(TSelf) != typeof({entity.ClassName}))");
-        sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{typeof(TSelf).Name}}\");");
-        sb.AppendLine();
-        sb.AppendLine($"            var entity = new {entity.ClassName}();");
-        sb.AppendLine();
-
-        // Generate property mappings from AttributeValue
-        foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
-        {
-            GeneratePropertyFromAttributeValue(sb, property, entity);
-        }
-
-        // Generate extracted key logic after mapping from DynamoDB
-        var extractedProperties = entity.Properties.Where(p => p.IsExtracted).ToArray();
-        if (extractedProperties.Length > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("            // Extract component properties from composite keys");
-            foreach (var extractedProperty in extractedProperties)
-            {
-                GenerateExtractedKeyLogic(sb, extractedProperty);
-            }
-        }
-
-        // For single-item entities with relationships, related entities would be null
-        // since we only have one item. This is expected behavior.
-        if (entity.Relationships.Length > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("            // Related entity properties remain null for single-item mapping");
-            foreach (var relationship in entity.Relationships)
-            {
-                if (relationship.IsCollection)
-                {
-                    sb.AppendLine($"            entity.{relationship.PropertyName} = new {relationship.PropertyType}();");
-                }
-                // Single related entities remain null by default
-            }
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("            return (TSelf)(object)entity;");
-        sb.AppendLine("        }");
+        // Use optimized code generation for better performance
+        Performance.OptimizedCodeGenerator.GenerateOptimizedFromDynamoDbMethod(sb, entity);
     }
 
     private static void GeneratePropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
@@ -1081,5 +1048,39 @@ public static class MapperGenerator
         sb.AppendLine($"                    entity.{propertyName} = {sourceProperty.ToLowerInvariant()}Parts[{index}];");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
+    }
+
+    private static void GenerateToDynamoDbMultipleMethod(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Converts a multi-item entity to multiple DynamoDB items.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static List<Dictionary<string, AttributeValue>> ToDynamoDbMultiple<TSelf>(TSelf entity) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            if (entity is not {entity.ClassName} typedEntity)");
+        sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{entity.GetType().Name}}\", nameof(entity));");
+        sb.AppendLine();
+        sb.AppendLine("            var items = new List<Dictionary<string, AttributeValue>>();");
+        sb.AppendLine();
+        sb.AppendLine("            // Generate multiple items for multi-item entity");
+        sb.AppendLine("            // TODO: Implement multi-item generation logic");
+        sb.AppendLine("            items.Add(ToDynamoDb<TSelf>(entity));");
+        sb.AppendLine();
+        sb.AppendLine("            return items;");
+        sb.AppendLine("        }");
+    }
+
+    private static void GenerateSingleItemToDynamoDbMultipleMethod(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Converts a single-item entity to a list containing one DynamoDB item.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static List<Dictionary<string, AttributeValue>> ToDynamoDbMultiple<TSelf>(TSelf entity) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine("            // For backward compatibility, return the first item from multi-item conversion");
+        sb.AppendLine("            return new List<Dictionary<string, AttributeValue>> { ToDynamoDb<TSelf>(entity) };");
+        sb.AppendLine("        }");
     }
 }

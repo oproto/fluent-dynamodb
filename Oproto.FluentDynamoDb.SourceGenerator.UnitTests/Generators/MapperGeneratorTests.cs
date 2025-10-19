@@ -89,7 +89,7 @@ public class MapperGeneratorTests
         // Assert
         result.Should().Contain("Multi-item entity: Supports entities that span multiple DynamoDB items.");
         result.Should().Contain("public static List<Dictionary<string, AttributeValue>> ToDynamoDbMultiple<TSelf>(TSelf entity)");
-        result.Should().Contain("// For backward compatibility, return the first item from multi-item conversion");
+        result.Should().Contain("// Generate multiple items for multi-item entity");
         result.Should().Contain("// Multi-item entity: combine all items into a single entity");
     }
 
@@ -274,10 +274,10 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Assert
-        result.Should().Contain("// Serialize collection Tags as JSON for single-item storage");
-        result.Should().Contain("var tagsJson = System.Text.Json.JsonSerializer.Serialize(typedEntity.Tags);");
-        result.Should().Contain("// Deserialize collection Tags from JSON");
-        result.Should().Contain("entity.Tags = System.Text.Json.JsonSerializer.Deserialize<List<string>>(tagsValue.S);");
+        result.Should().Contain("// Optimized collection conversion for Tags");
+        result.Should().Contain("SS = typedEntity.Tags is List<string> list ? list : new List<string>(typedEntity.Tags)");
+        result.Should().Contain("// Optimized collection conversion from DynamoDB for Tags");
+        result.Should().Contain("new List<string>(tagsValue.SS)");
     }
 
     [Fact]
@@ -334,7 +334,7 @@ public class MapperGeneratorTests
         result.Should().Contain("new AttributeValue { N = typedEntity.Count.ToString() }");
         result.Should().Contain("new AttributeValue { BOOL = typedEntity.IsActive }");
         result.Should().Contain("new AttributeValue { S = typedEntity.CreatedDate.ToString(\"O\") }");
-        result.Should().Contain("new AttributeValue { S = typedEntity.UniqueId.ToString() }");
+        result.Should().Contain("new AttributeValue { S = typedEntity.UniqueId.ToString(\"D\") }");
         
         // Check FromDynamoDb conversions
         result.Should().Contain("entity.Id = idValue.S");

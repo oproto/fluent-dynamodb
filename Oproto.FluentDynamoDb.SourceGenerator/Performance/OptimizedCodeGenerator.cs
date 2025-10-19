@@ -239,10 +239,22 @@ public static class OptimizedCodeGenerator
             return;
         }
         
-        // Use TryGetValue pattern for better performance
+        // Use TryGetValue pattern for better performance with error handling
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
-        sb.AppendLine($"                entity.{propertyName} = {GetOptimizedFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    entity.{propertyName} = {GetOptimizedFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                        ex);");
+        sb.AppendLine("                }");
         sb.AppendLine("            }");
     }
 
@@ -562,5 +574,25 @@ public static class OptimizedCodeGenerator
                propertyType.Contains("Type") || 
                propertyType.Contains("Kind") ||
                propertyType.Contains("State");
+    }
+
+    private static string GetTypeForMetadata(string typeName)
+    {
+        // For metadata, we need the actual type without nullable annotations
+        var baseType = GetBaseType(typeName);
+        
+        // Convert common type aliases to full type names for typeof()
+        return baseType switch
+        {
+            "string" => "string",
+            "int" => "int",
+            "long" => "long", 
+            "double" => "double",
+            "float" => "float",
+            "decimal" => "decimal",
+            "bool" => "bool",
+            "byte[]" => "byte[]",
+            _ => baseType
+        };
     }
 }
