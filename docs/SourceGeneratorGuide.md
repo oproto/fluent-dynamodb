@@ -1,6 +1,18 @@
-# DynamoDB Source Generator Guide
+---
+title: "Source Generator Guide"
+category: "guide"
+order: 2
+keywords: ["source generator", "code generation", "entities", "attributes"]
+related: ["EntityDefinition.md", "FirstEntity.md", "BasicOperations.md"]
+---
+
+[Documentation](README.md) > Source Generator Guide
+
+# Source Generator Guide
 
 The Oproto.FluentDynamoDb source generator automatically creates entity mapping code, field constants, key builders, and enhanced ExecuteAsync methods to reduce boilerplate and provide a more EF/LINQ-like experience.
+
+> **Quick Links**: [Quick Start](getting-started/QuickStart.md) | [First Entity](getting-started/FirstEntity.md) | [Entity Definition](core-features/EntityDefinition.md)
 
 ## Getting Started
 
@@ -495,3 +507,19 @@ Generated files are available in your IDE:
 5. Replace manual key construction with generated key builders
 
 The fluent API remains fully compatible, so you can migrate incrementally.
+
+See [Adoption Guide](reference/AdoptionGuide.md) for detailed migration strategies.
+
+## See Also
+
+- [Quick Start](getting-started/QuickStart.md) - Get started in 5 minutes
+- [First Entity](getting-started/FirstEntity.md) - Deep dive into entity definition
+- [Entity Definition](core-features/EntityDefinition.md) - Complete entity definition guide
+- [Basic Operations](core-features/BasicOperations.md) - CRUD operations
+- [Expression Formatting](core-features/ExpressionFormatting.md) - Format string reference
+- [Adoption Guide](reference/AdoptionGuide.md) - Migration strategies
+- [Troubleshooting](reference/Troubleshooting.md) - Common issues and solutions
+
+---
+
+[Back to Documentation Hub](README.md)

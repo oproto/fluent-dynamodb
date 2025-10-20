@@ -1,154 +1,109 @@
 # Oproto.FluentDynamoDb Documentation
 
-Welcome to the comprehensive documentation for Oproto.FluentDynamoDb, a fluent-style API wrapper for Amazon DynamoDB with automatic code generation capabilities.
+Welcome to the documentation hub for Oproto.FluentDynamoDb - a fluent-style API wrapper for Amazon DynamoDB with automatic code generation capabilities.
 
-## 📖 Documentation Overview
+## 📖 Documentation Structure
 
-### Getting Started
-- **[Source Generator Guide](SourceGeneratorGuide.md)** - Quick start guide for the DynamoDB source generator
-- **[Developer Guide](DeveloperGuide.md)** - Complete developer reference with all features and patterns
+This documentation is organized into four main sections to help you find what you need quickly:
 
-### Migration and Examples
-- **[Migration Guide](MigrationGuide.md)** - Step-by-step migration from manual mapping to generated code
-- **[Code Examples](CodeExamples.md)** - Comprehensive examples for all scenarios:
-  - Single entity operations
-  - Multi-item entities
-  - Related entities
-  - Composite keys
-  - Global Secondary Indexes
-  - Real-world e-commerce system
+### 🚀 Getting Started
+New to the library? Start here to get up and running quickly.
 
-### Advanced Topics
-- **[STS Integration Guide](STSIntegrationGuide.md)** - Secure multi-tenant patterns with AWS STS:
-  - Service-layer token generation
-  - Middleware-based integration
-  - Fine-grained access control
-  - Performance optimization
+- **[Quick Start](getting-started/QuickStart.md)** - Get productive in 5 minutes
+- **[Installation](getting-started/Installation.md)** - Detailed installation and setup
+- **[First Entity](getting-started/FirstEntity.md)** - Deep dive into entity definition
 
-### Support
-- **[Troubleshooting Guide](TroubleshootingGuide.md)** - Solutions for common issues:
-  - Source generator problems
-  - Compilation errors
-  - Runtime errors
-  - Performance issues
-  - Diagnostic messages
+### 🔧 Core Features
+Learn the essential features you'll use every day.
+
+- **[Entity Definition](core-features/EntityDefinition.md)** - Define entities with attributes and keys
+- **[Basic Operations](core-features/BasicOperations.md)** - CRUD operations (Put, Get, Update, Delete)
+- **[Querying Data](core-features/QueryingData.md)** - Query and scan operations
+- **[Expression Formatting](core-features/ExpressionFormatting.md)** - String.Format-style expressions
+- **[Batch Operations](core-features/BatchOperations.md)** - Batch get and write operations
+- **[Transactions](core-features/Transactions.md)** - DynamoDB transactions
+
+### 🎯 Advanced Topics
+Explore advanced patterns and optimizations.
+
+- **[Composite Entities](advanced-topics/CompositeEntities.md)** - Multi-item and related entities
+- **[Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md)** - GSI configuration and querying
+- **[STS Integration](advanced-topics/STSIntegration.md)** - Custom client support for multi-tenancy
+- **[Performance Optimization](advanced-topics/PerformanceOptimization.md)** - Performance tuning guide
+- **[Manual Patterns](advanced-topics/ManualPatterns.md)** - Lower-level manual approaches
+
+### 📚 Reference
+Detailed reference documentation for attributes, format specifiers, and troubleshooting.
+
+- **[Attribute Reference](reference/AttributeReference.md)** - Complete attribute documentation
+- **[Format Specifiers](reference/FormatSpecifiers.md)** - Format specifier reference
+- **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
+- **[Troubleshooting](reference/Troubleshooting.md)** - Common issues and solutions
+
+### 📑 Additional Resources
+
+- **[INDEX](INDEX.md)** - Alphabetical index of all topics
+- **[QUICK_REFERENCE](QUICK_REFERENCE.md)** - Quick lookup for common operations
+
+## 🎯 Quick Navigation
+
+### I want to...
+
+**Get started quickly**
+→ [Quick Start Guide](getting-started/QuickStart.md)
+
+**Define my first entity**
+→ [First Entity Guide](getting-started/FirstEntity.md)
+
+**Perform CRUD operations**
+→ [Basic Operations](core-features/BasicOperations.md)
+
+**Query data efficiently**
+→ [Querying Data](core-features/QueryingData.md)
+
+**Use expression formatting**
+→ [Expression Formatting](core-features/ExpressionFormatting.md)
+
+**Work with complex entities**
+→ [Composite Entities](advanced-topics/CompositeEntities.md)
+
+**Implement multi-tenancy**
+→ [STS Integration](advanced-topics/STSIntegration.md)
+
+**Optimize performance**
+→ [Performance Optimization](advanced-topics/PerformanceOptimization.md)
+
+**Troubleshoot an issue**
+→ [Troubleshooting Guide](reference/Troubleshooting.md)
+
+**Find a specific topic**
+→ [Documentation Index](INDEX.md)
 
 ## 🚀 Key Features
 
 ### Automatic Code Generation
-The source generator eliminates boilerplate code by automatically creating:
-- **Entity mapping methods** - Convert between C# objects and DynamoDB items
-- **Field name constants** - Type-safe attribute name references
-- **Key builder methods** - Construct partition and sort keys safely
-- **Enhanced ExecuteAsync methods** - Strongly-typed query results
+The source generator eliminates boilerplate by automatically creating:
+- Entity mapping methods (C# ↔ DynamoDB)
+- Field name constants for type safety
+- Key builder methods for partition and sort keys
+- Strongly-typed query results
 
-### Multi-Tenant Support
-Built-in support for secure multi-tenant applications:
-- **STS token integration** - Generate tenant-scoped credentials
-- **Automatic tenant isolation** - Enforce data boundaries at the IAM level
-- **Flexible authentication** - Support various tenant identification methods
+### Expression Formatting
+Write concise, readable expressions using string.Format-style syntax:
+```csharp
+.Where($"{UserFields.Status} = {0} AND {UserFields.CreatedAt} > {1:o}", "active", DateTime.UtcNow.AddDays(-30))
+```
 
 ### Advanced Entity Patterns
-Support for complex DynamoDB patterns:
 - **Single entities** - Traditional one-to-one mapping
 - **Multi-item entities** - Entities spanning multiple DynamoDB items
 - **Related entities** - Automatic population based on sort key patterns
 - **Composite keys** - Computed and extracted key components
 
-### Performance Optimized
-- **Zero runtime reflection** - All mapping code generated at compile time
-- **AOT compatible** - Works with Native AOT and trimming
-- **Efficient queries** - Optimized for DynamoDB best practices
-
-## 📋 Quick Reference
-
-### Basic Entity Definition
-```csharp
-[DynamoDbTable("users")]
-public partial class User
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string UserId { get; set; } = string.Empty;
-
-    [DynamoDbAttribute("email")]
-    public string Email { get; set; } = string.Empty;
-
-    [DynamoDbAttribute("name")]
-    public string Name { get; set; } = string.Empty;
-}
-```
-
-### Basic Operations
-```csharp
-// Create
-await table.Put.WithItem(user).ExecuteAsync();
-
-// Read
-var response = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
-
-// Query with format strings (modern approach)
-var users = await table.Query
-    .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
-    .ToListAsync<User>();
-```
-
-### Multi-Item Entity
-```csharp
-[DynamoDbTable("orders")]
-public partial class OrderWithItems
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string OrderId { get; set; } = string.Empty;
-
-    // Collection mapped to separate DynamoDB items
-    public List<OrderItem> Items { get; set; } = new();
-}
-
-// Query automatically groups items by partition key
-var order = await table.Query
-    .Where($"{OrderWithItemsFields.OrderId} = {{0}}", OrderWithItemsKeys.Pk("order123"))
-    .ToCompositeEntityAsync<OrderWithItems>();
-```
-
-### Related Entities
-```csharp
-[DynamoDbTable("customers")]
-public partial class CustomerWithRelated
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string CustomerId { get; set; } = string.Empty;
-
-    // Automatically populated based on query results
-    [RelatedEntity(SortKeyPattern = "address#*")]
-    public List<Address>? Addresses { get; set; }
-
-    [RelatedEntity(SortKeyPattern = "preferences")]
-    public CustomerPreferences? Preferences { get; set; }
-}
-```
-
-### STS Integration
-```csharp
-public class UserService
-{
-    public async Task<User?> GetUserAsync(string tenantId, string userId, ClaimsPrincipal user)
-    {
-        var scopedClient = await _stsService.CreateClientForTenantAsync(tenantId, user.Claims);
-        
-        var response = await _table.Get
-            .WithClient(scopedClient)  // Use tenant-scoped client
-            .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-            .ExecuteAsync<User>();
-
-        return response.Item;
-    }
-}
-```
+### Performance & Compatibility
+- Zero runtime reflection - all code generated at compile time
+- AOT compatible - works with Native AOT and trimming
+- Optimized for DynamoDB best practices
 
 ## 🔧 Installation
 
@@ -158,27 +113,29 @@ dotnet add package Oproto.FluentDynamoDb
 
 The source generator is automatically included and runs during compilation.
 
-## 📚 Learning Path
+## 📚 Learning Paths
 
 ### For New Users
-1. Start with the **[Source Generator Guide](SourceGeneratorGuide.md)** for a quick introduction
-2. Review **[Code Examples](CodeExamples.md)** for your specific use case
-3. Consult the **[Developer Guide](DeveloperGuide.md)** for comprehensive coverage
+1. **[Quick Start](getting-started/QuickStart.md)** - Get up and running in 5 minutes
+2. **[Entity Definition](core-features/EntityDefinition.md)** - Learn how to define entities
+3. **[Basic Operations](core-features/BasicOperations.md)** - Master CRUD operations
+4. **[Querying Data](core-features/QueryingData.md)** - Learn to query efficiently
 
-### For Existing Users
-1. Check the **[Migration Guide](MigrationGuide.md)** for upgrading existing code
-2. Explore **[Advanced Topics](STSIntegrationGuide.md)** for multi-tenant scenarios
-3. Use the **[Troubleshooting Guide](TroubleshootingGuide.md)** when issues arise
+### For Experienced Users
+1. **[Composite Entities](advanced-topics/CompositeEntities.md)** - Work with complex data patterns
+2. **[Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md)** - Optimize access patterns
+3. **[Performance Optimization](advanced-topics/PerformanceOptimization.md)** - Tune for production
+4. **[STS Integration](advanced-topics/STSIntegration.md)** - Implement secure multi-tenancy
 
-### For Complex Scenarios
-1. Study the **[Real-World Examples](CodeExamples.md#real-world-scenarios)** section
-2. Implement **[STS Integration](STSIntegrationGuide.md)** for secure multi-tenancy
-3. Follow **[Performance Best Practices](DeveloperGuide.md#performance-considerations)**
+### For Troubleshooting
+1. **[Troubleshooting Guide](reference/Troubleshooting.md)** - Common issues and solutions
+2. **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
+3. **[Attribute Reference](reference/AttributeReference.md)** - Verify attribute usage
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our contributing guidelines and feel free to:
-- Report issues and bugs
+We welcome contributions! Please:
+- Report issues and bugs on GitHub
 - Suggest new features
 - Submit pull requests
 - Improve documentation
@@ -189,11 +146,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🆘 Getting Help
 
-- **Documentation Issues**: Check the [Troubleshooting Guide](TroubleshootingGuide.md)
+- **Documentation Issues**: Check the [Troubleshooting Guide](reference/Troubleshooting.md)
 - **Feature Requests**: Open an issue on GitHub
 - **Bug Reports**: Include a minimal reproduction case
 - **Questions**: Use GitHub Discussions for community support
 
 ---
 
-*This documentation covers Oproto.FluentDynamoDb v0.2.0 and later. For earlier versions, please refer to the legacy documentation.*
+*Documentation for Oproto.FluentDynamoDb v0.3.0 and later. The library uses source generation with expression formatting as the recommended approach.*

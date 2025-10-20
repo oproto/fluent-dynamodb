@@ -1,10 +1,25 @@
-# DynamoDB Source Generator Developer Guide
+---
+title: "Developer Guide"
+category: "guide"
+order: 1
+keywords: ["developer", "guide", "source generation", "entities", "operations"]
+related: ["EntityDefinition.md", "BasicOperations.md", "QueryingData.md"]
+---
+
+[Documentation](README.md) > Developer Guide
+
+# Developer Guide
+
+Comprehensive guide to using Oproto.FluentDynamoDb with source generation and expression formatting.
+
+> **Quick Links**: [Getting Started](getting-started/QuickStart.md) | [Entity Definition](core-features/EntityDefinition.md) | [Basic Operations](core-features/BasicOperations.md) | [Querying Data](core-features/QueryingData.md)
 
 ## Table of Contents
 - [Overview](#overview)
 - [Getting Started](#getting-started)
 - [Entity Definition](#entity-definition)
 - [Generated Code](#generated-code)
+- [Expression Formatting](#expression-formatting)
 - [Usage Patterns](#usage-patterns)
 - [Advanced Features](#advanced-features)
 - [Best Practices](#best-practices)
@@ -233,22 +248,13 @@ public partial class User : IDynamoDbEntity
 }
 ```
 
-## Format String Support
+## Expression Formatting
 
-The library supports string.Format-style parameter syntax in condition expressions and update expressions, eliminating the need for manual parameter naming and separate `.WithValue()` calls.
+The library supports string.Format-style parameter syntax for concise, readable expressions.
 
-### Supported Format Specifiers
+> **Detailed Guide**: See [Expression Formatting](core-features/ExpressionFormatting.md) for complete documentation.
 
-| Format | Description | Example Input | Example Output |
-|--------|-------------|---------------|----------------|
-| `o` | ISO 8601 DateTime | `DateTime.Now` | `2024-01-15T10:30:00.000Z` |
-| `F2` | Fixed-point with 2 decimals | `99.999m` | `100.00` |
-| `X` | Hexadecimal uppercase | `255` | `FF` |
-| `x` | Hexadecimal lowercase | `255` | `ff` |
-| `D` | Decimal integer | `123` | `123` |
-| `P2` | Percentage with 2 decimals | `0.1234m` | `12.34%` |
-
-### Format String Examples
+### Quick Examples
 
 ```csharp
 // Basic query with format strings
@@ -257,11 +263,9 @@ var response = await table.Query
     .ToListAsync<User>();
 
 // Date range query with format specifiers
-var startDate = DateTime.UtcNow.AddDays(-30);
-var endDate = DateTime.UtcNow;
 var response = await table.Query
     .Where($"{UserFields.UserId} = {{0}} AND {UserFields.CreatedAt} BETWEEN {{1:o}} AND {{2:o}}", 
-           UserKeys.Pk("user123"), startDate, endDate)
+           UserKeys.Pk("user123"), DateTime.UtcNow.AddDays(-30), DateTime.UtcNow)
     .ToListAsync<User>();
 
 // Update with format strings
@@ -270,27 +274,9 @@ await table.Update
     .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
          "New Name", DateTime.UtcNow)
     .ExecuteAsync();
-
-// Conditional operations with format strings
-await table.Put
-    .WithItem(user)
-    .Where($"attribute_not_exists({{0}})", UserFields.UserId)
-    .ExecuteAsync();
 ```
 
-### Backward Compatibility
-
-All existing code continues to work. You can mix format strings with traditional parameters:
-
-```csharp
-// Mix format strings with traditional parameters
-var result = await table.Query
-    .Where($"{UserFields.UserId} = {{0}} AND {UserFields.Status} BETWEEN :startStatus AND :endStatus", 
-           UserKeys.Pk("user123"))
-    .WithValue(":startStatus", "active")
-    .WithValue(":endStatus", "pending")
-    .ToListAsync<User>();
-```
+See [Expression Formatting](core-features/ExpressionFormatting.md) for supported format specifiers and advanced usage.
 
 ## Usage Patterns
 
@@ -336,16 +322,13 @@ await table.Delete
 
 ### Query Operations
 
+> **Detailed Guide**: See [Querying Data](core-features/QueryingData.md) for comprehensive query examples.
+
 #### Basic Query
 ```csharp
 var queryResponse = await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
     .ToListAsync<User>();
-
-foreach (var user in queryResponse)
-{
-    Console.WriteLine($"User: {user.Name}");
-}
 ```
 
 #### GSI Query
@@ -365,6 +348,8 @@ var recentProducts = await table.Query
 ```
 
 ### Batch Operations
+
+> **Detailed Guide**: See [Batch Operations](core-features/BatchOperations.md) for comprehensive batch examples.
 
 ```csharp
 // Batch get
@@ -396,6 +381,12 @@ await table.BatchWrite
 
 ## Advanced Features
 
+> **Detailed Guides**: 
+> - [Composite Entities](advanced-topics/CompositeEntities.md) - Multi-item and related entities
+> - [Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md) - GSI patterns
+> - [STS Integration](advanced-topics/STSIntegration.md) - Multi-tenant patterns
+> - [Performance Optimization](advanced-topics/PerformanceOptimization.md) - Performance tuning
+
 ### Multi-Item Entities
 
 Entities that span multiple DynamoDB items with the same partition key:
@@ -421,10 +412,12 @@ public partial class TransactionWithEntries
 
 // Query automatically groups items by partition key
 var transaction = await table.Query
-    .Where($"{TransactionWithEntriesFields.TransactionId} = :pk", 
-           new { pk = TransactionWithEntriesKeys.Pk("txn123") })
+    .Where($"{TransactionWithEntriesFields.TransactionId} = {{0}}", 
+           TransactionWithEntriesKeys.Pk("txn123"))
     .ToCompositeEntityAsync<TransactionWithEntries>();
 ```
+
+See [Composite Entities](advanced-topics/CompositeEntities.md) for detailed documentation.
 
 ### Related Entities
 
@@ -458,13 +451,12 @@ public partial class OrderWithRelated
 
 // Query brings back all related data
 var order = await table.Query
-    .Where($"{OrderWithRelatedFields.OrderId} = :pk", 
-           new { pk = OrderWithRelatedKeys.Pk("order123") })
+    .Where($"{OrderWithRelatedFields.OrderId} = {{0}}", 
+           OrderWithRelatedKeys.Pk("order123"))
     .ToCompositeEntityAsync<OrderWithRelated>();
-
-// order.Items, order.Payments, and order.Summary are automatically populated
-// based on what data the query returns
 ```
+
+See [Composite Entities](advanced-topics/CompositeEntities.md) for detailed documentation.
 
 ### Conditional Operations
 
@@ -483,7 +475,11 @@ await table.Update
     .ExecuteAsync();
 ```
 
+See [Basic Operations](core-features/BasicOperations.md) for more conditional examples.
+
 ### Transactions
+
+> **Detailed Guide**: See [Transactions](core-features/Transactions.md) for comprehensive transaction examples.
 
 ```csharp
 await new TransactWriteItemsRequestBuilder(dynamoDbClient)
@@ -622,4 +618,16 @@ var response = await table.Query
 Console.WriteLine($"Consumed RCU: {response.ConsumedCapacity?.ReadCapacityUnits}");
 ```
 
-This developer guide provides comprehensive coverage of the DynamoDB source generator features and usage patterns. The next step would be to create specific migration and troubleshooting guides.
+## See Also
+
+- [Getting Started](getting-started/QuickStart.md) - Quick start guide
+- [Entity Definition](core-features/EntityDefinition.md) - Complete entity definition guide
+- [Basic Operations](core-features/BasicOperations.md) - CRUD operations
+- [Querying Data](core-features/QueryingData.md) - Query and scan operations
+- [Expression Formatting](core-features/ExpressionFormatting.md) - Format string reference
+- [Composite Entities](advanced-topics/CompositeEntities.md) - Multi-item entities
+- [Troubleshooting](reference/Troubleshooting.md) - Common issues and solutions
+
+---
+
+[Back to Documentation Hub](README.md)

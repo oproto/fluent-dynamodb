@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <LangVersion>12.0</LangVersion>
         <IsPackable>true</IsPackable>
-        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         
         <!-- Package metadata -->
         <PackageId>Oproto.FluentDynamoDb.Attributes</PackageId>
@@ -18,7 +18,7 @@
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <Version>0.2.0</Version>
+        <Version>0.3.0</Version>
     </PropertyGroup>
 
 </Project>
