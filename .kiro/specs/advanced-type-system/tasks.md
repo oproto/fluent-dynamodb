@@ -59,15 +59,15 @@
     - _Requirements: 15.2_
 
 
-- [ ] 4. Create blob storage provider interface and S3 implementation
-  - [ ] 4.1 Define IBlobStorageProvider interface in core library
+- [x] 4. Create blob storage provider interface and S3 implementation
+  - [x] 4.1 Define IBlobStorageProvider interface in core library
     - Define StoreAsync method with stream parameter
     - Define RetrieveAsync method returning stream
     - Define DeleteAsync method
     - Define ExistsAsync method
     - _Requirements: 9.1, 9.3_
   
-  - [ ] 4.2 Create Oproto.FluentDynamoDb.BlobStorage.S3 package
+  - [x] 4.2 Create Oproto.FluentDynamoDb.BlobStorage.S3 package
     - Create new .NET 8 project
     - Reference AWSSDK.S3 package
     - Implement S3BlobProvider class
