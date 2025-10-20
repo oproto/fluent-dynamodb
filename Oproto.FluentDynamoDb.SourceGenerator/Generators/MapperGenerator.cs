@@ -266,6 +266,13 @@ public static class MapperGenerator
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
 
+        // Handle combined JSON blob + blob reference (serialize to JSON, then store as external blob)
+        if (property.AdvancedType?.IsJsonBlob == true && property.AdvancedType?.IsBlobReference == true)
+        {
+            GenerateCombinedJsonBlobAndBlobReferenceToAttributeValue(sb, property, entity);
+            return;
+        }
+
         // Handle blob reference properties (async)
         if (property.AdvancedType?.IsBlobReference == true)
         {
@@ -387,6 +394,87 @@ public static class MapperGenerator
         sb.AppendLine($"                        new AttributeValue {{ S = \"<blob data>\" }},");
         sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
         sb.AppendLine("                        ex);");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+    }
+
+    private static void GenerateCombinedJsonBlobAndBlobReferenceToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var propertyType = property.PropertyType;
+        var baseType = GetBaseType(propertyType);
+        var serializerType = property.AdvancedType?.JsonSerializerType;
+
+        sb.AppendLine($"            // Combined JSON blob + blob reference: serialize to JSON, then store as external blob");
+        sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+
+        // Step 1: Serialize property to JSON
+        sb.AppendLine($"                    // Step 1: Serialize property to JSON");
+        if (serializerType == "SystemTextJson")
+        {
+            // Use System.Text.Json with generated JsonSerializerContext
+            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(");
+            sb.AppendLine($"                        typedEntity.{propertyName},");
+            sb.AppendLine($"                        {entity.ClassName}JsonContext.Default.{baseType});");
+        }
+        else if (serializerType == "NewtonsoftJson")
+        {
+            // Use Newtonsoft.Json
+            sb.AppendLine($"                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{propertyName});");
+        }
+        else
+        {
+            // Fallback to System.Text.Json without context
+            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{propertyName});");
+        }
+
+        // Step 2: Convert JSON string to stream
+        sb.AppendLine();
+        sb.AppendLine($"                    // Step 2: Convert JSON string to stream");
+        sb.AppendLine("                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
+        sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
+        sb.AppendLine();
+
+        // Step 3: Generate suggested key based on entity keys
+        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
+
+        if (partitionKeyProperty != null)
+        {
+            if (sortKeyProperty != null)
+            {
+                sb.AppendLine($"                    var suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}.json\";");
+            }
+            else
+            {
+                sb.AppendLine($"                    var suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}.json\";");
+            }
+        }
+        else
+        {
+            sb.AppendLine($"                    var suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}.json\";");
+        }
+
+        // Step 4: Store blob and save reference in DynamoDB
+        sb.AppendLine();
+        sb.AppendLine($"                    // Step 3: Store JSON blob externally and save reference");
+        sb.AppendLine("                    var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken);");
+        sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
+
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        new AttributeValue {{ S = \"<json blob data>\" }},");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                        ex)");
+        sb.AppendLine($"                        .WithContext(\"CombinedJsonBlobAndBlobReference\", \"Failed during JSON serialization or blob storage\");");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
     }
@@ -941,6 +1029,13 @@ public static class MapperGenerator
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
 
+        // Handle combined JSON blob + blob reference (retrieve blob, then deserialize from JSON)
+        if (property.AdvancedType?.IsJsonBlob == true && property.AdvancedType?.IsBlobReference == true)
+        {
+            GenerateCombinedJsonBlobAndBlobReferenceFromAttributeValue(sb, property, entity);
+            return;
+        }
+
         // Handle blob reference properties (async)
         if (property.AdvancedType?.IsBlobReference == true)
         {
@@ -1050,6 +1145,70 @@ public static class MapperGenerator
         sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
         sb.AppendLine($"                        ex)");
         sb.AppendLine($"                        .WithContext(\"BlobReference\", {propertyName.ToLowerInvariant()}Value.S ?? \"<null>\");");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+    }
+
+    private static void GenerateCombinedJsonBlobAndBlobReferenceFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var propertyType = property.PropertyType;
+        var baseType = GetBaseType(propertyType);
+        var serializerType = property.AdvancedType?.JsonSerializerType;
+
+        sb.AppendLine($"            // Combined JSON blob + blob reference: retrieve blob, then deserialize from JSON");
+        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.S != null)");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        var reference = {propertyName.ToLowerInvariant()}Value.S;");
+        sb.AppendLine();
+
+        // Step 1: Retrieve blob using reference
+        sb.AppendLine($"                        // Step 1: Retrieve blob from external storage");
+        sb.AppendLine("                        var stream = await blobProvider.RetrieveAsync(reference, cancellationToken);");
+        sb.AppendLine();
+
+        // Step 2: Read stream as JSON string
+        sb.AppendLine($"                        // Step 2: Read stream as JSON string");
+        sb.AppendLine("                        using var reader = new StreamReader(stream);");
+        sb.AppendLine("                        var json = await reader.ReadToEndAsync();");
+        sb.AppendLine();
+
+        // Step 3: Deserialize JSON to property type
+        sb.AppendLine($"                        // Step 3: Deserialize JSON to property type");
+        if (serializerType == "SystemTextJson")
+        {
+            // Use System.Text.Json with generated JsonSerializerContext
+            sb.AppendLine($"                        entity.{propertyName} = System.Text.Json.JsonSerializer.Deserialize(");
+            sb.AppendLine("                            json,");
+            sb.AppendLine($"                            {entity.ClassName}JsonContext.Default.{baseType});");
+        }
+        else if (serializerType == "NewtonsoftJson")
+        {
+            // Use Newtonsoft.Json
+            sb.AppendLine($"                        entity.{propertyName} = Newtonsoft.Json.JsonConvert.DeserializeObject<{baseType}>(json);");
+        }
+        else
+        {
+            // Fallback to System.Text.Json without context
+            sb.AppendLine($"                        entity.{propertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
+        }
+
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine($"                        ex)");
+        sb.AppendLine($"                        .WithContext(\"CombinedJsonBlobAndBlobReference\", $\"Failed to retrieve or deserialize blob. Reference: {{{propertyName.ToLowerInvariant()}Value.S ?? \"<null>\"}}\");");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
     }

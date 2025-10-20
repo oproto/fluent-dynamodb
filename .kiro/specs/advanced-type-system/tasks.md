@@ -279,22 +279,22 @@
     - _Requirements: 7.3, 7.5, 18.4_
 
 
-- [ ] 13. Generate mapping code for combined JSON blob + blob reference
-  - [ ] 13.1 Generate ToDynamoDb code for combined attributes
+- [x] 13. Generate mapping code for combined JSON blob + blob reference
+  - [x] 13.1 Generate ToDynamoDb code for combined attributes
     - Serialize property to JSON first
     - Convert JSON string to stream
     - Store stream as blob
     - Store blob reference in DynamoDB
     - _Requirements: 10.1, 10.2_
   
-  - [ ] 13.2 Generate FromDynamoDb code for combined attributes
+  - [x] 13.2 Generate FromDynamoDb code for combined attributes
     - Retrieve blob using reference
     - Read stream as JSON string
     - Deserialize JSON to property type
     - Handle errors at each step with clear messages
     - _Requirements: 10.2, 10.5_
   
-  - [ ] 13.3 Validate attribute compatibility
+  - [x] 13.3 Validate attribute compatibility
     - Ensure JsonBlob and BlobReference can be combined
     - Generate error for invalid combinations
     - _Requirements: 10.4_

@@ -110,6 +110,10 @@ public class AdvancedTypeValidator
                 property.PropertyName,
                 "[TimeToLive] cannot be used on collection types");
         }
+
+        // JsonBlob and BlobReference can be combined - this is a valid pattern
+        // When both are present, the property is serialized to JSON then stored as an external blob
+        // No validation error needed for this combination
     }
 
     /// <summary>
