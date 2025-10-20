@@ -39,21 +39,21 @@
     - Add null handling
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 3. Enhance format string support for advanced types
-  - [ ] 3.1 Update AttributeValueInternal.ConvertToAttributeValue method
+- [x] 3. Enhance format string support for advanced types
+  - [x] 3.1 Update AttributeValueInternal.ConvertToAttributeValue method
     - Add pattern matching for Dictionary types
     - Add pattern matching for HashSet types
     - Add pattern matching for List types
     - Add TTL detection based on format hints
     - _Requirements: 16.1, 16.2, 16.3, 16.4_
   
-  - [ ] 3.2 Add empty collection validation
+  - [x] 3.2 Add empty collection validation
     - Detect null or empty collections in format string parameters
     - Throw ArgumentException with clear message about DynamoDB limitation
     - Include parameter name and type in error message
     - _Requirements: 15.3, 16.5_
   
-  - [ ] 3.3 Update WithValue methods to handle empty collections
+  - [x] 3.3 Update WithValue methods to handle empty collections
     - Skip adding attribute if collection is null or empty
     - Apply to all WithValue overloads
     - _Requirements: 15.2_

@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2.Model;
 using System.Globalization;
+using Oproto.FluentDynamoDb.Utility;
 
 namespace Oproto.FluentDynamoDb.Requests;
 
@@ -71,46 +72,195 @@ public class AttributeValueInternal
     }
 
     public void WithValue(
-        string attributeName, Dictionary<string, string> attributeValue, bool conditionalUse = true)
+        string attributeName, Dictionary<string, string>? attributeValue, bool conditionalUse = true)
     {
-        if (conditionalUse)
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
         {
             AttributeValues.Add(attributeName, new AttributeValue() { M = attributeValue.ToDictionary(x => x.Key, x => new AttributeValue() { S = x.Value }) });
         }
     }
 
     public void WithValue(
-        string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
+        string attributeName, Dictionary<string, AttributeValue>? attributeValue, bool conditionalUse = true)
     {
-        if (conditionalUse)
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
         {
             AttributeValues.Add(attributeName, new AttributeValue() { M = attributeValue });
+        }
+    }
+
+    public void WithValue(
+        string attributeName, HashSet<string>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToStringSet(attributeValue);
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, HashSet<int>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToNumberSet(attributeValue);
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, HashSet<long>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToNumberSet(attributeValue);
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, HashSet<decimal>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToNumberSet(attributeValue);
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, HashSet<byte[]>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToBinarySet(attributeValue);
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, List<string>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToList(attributeValue, s => new AttributeValue { S = s });
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, List<int>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToList(attributeValue, i => new AttributeValue { N = i.ToString() });
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, List<long>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToList(attributeValue, l => new AttributeValue { N = l.ToString() });
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, List<decimal>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToList(attributeValue, d => new AttributeValue { N = d.ToString() });
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
+        }
+    }
+
+    public void WithValue(
+        string attributeName, List<bool>? attributeValue, bool conditionalUse = true)
+    {
+        if (conditionalUse && attributeValue != null && attributeValue.Count > 0)
+        {
+            var converted = AttributeValueConverter.ToList(attributeValue, b => new AttributeValue { BOOL = b, IsBOOLSet = true });
+            if (converted != null)
+            {
+                AttributeValues.Add(attributeName, converted);
+            }
         }
     }
 
     /// <summary>
     /// Adds a formatted value to the attribute values collection and returns the generated parameter name.
     /// This method supports standard .NET format strings and automatically converts values to appropriate AttributeValue types.
+    /// Supports advanced DynamoDB types: Maps (Dictionary), Sets (HashSet), Lists, and TTL fields.
     /// </summary>
     /// <param name="value">The value to format and add.</param>
-    /// <param name="format">Optional format string (e.g., "o" for DateTime, "F2" for decimals).</param>
+    /// <param name="format">Optional format string (e.g., "o" for DateTime, "F2" for decimals, "ttl" for TTL conversion).</param>
     /// <returns>The generated parameter name that can be used in expressions.</returns>
+    /// <exception cref="ArgumentException">Thrown when an empty collection is provided (DynamoDB does not support empty collections).</exception>
     public string AddFormattedValue(object? value, string? format = null)
     {
         var paramName = _parameterGenerator.GenerateParameterName();
-        var formattedValue = FormatValue(value, format);
-        AttributeValues.Add(paramName, formattedValue);
-        return paramName;
+        
+        try
+        {
+            var formattedValue = FormatValue(value, format);
+            AttributeValues.Add(paramName, formattedValue);
+            return paramName;
+        }
+        catch (ArgumentException ex) when (ex.Message.Contains("empty"))
+        {
+            // Enhance error message with parameter name for better debugging
+            var valueTypeName = value?.GetType().Name ?? "null";
+            throw new ArgumentException(
+                $"Cannot use empty collection in format string parameter '{paramName}'. " +
+                $"DynamoDB does not support empty Maps, Sets, or Lists. " +
+                $"Type: {valueTypeName}. " +
+                $"Original error: {ex.Message}",
+                ex);
+        }
     }
 
     /// <summary>
     /// Converts and formats a value to an appropriate AttributeValue type.
     /// Supports standard .NET format strings and handles null values gracefully.
+    /// Supports advanced DynamoDB types: Maps (Dictionary), Sets (HashSet), Lists, and TTL fields.
     /// </summary>
     /// <param name="value">The value to convert.</param>
-    /// <param name="format">Optional format string.</param>
+    /// <param name="format">Optional format string. Use "ttl" for DateTime/DateTimeOffset to convert to Unix epoch seconds.</param>
     /// <returns>An AttributeValue representing the formatted value.</returns>
     /// <exception cref="FormatException">Thrown when the format string is invalid for the given value type.</exception>
+    /// <exception cref="ArgumentException">Thrown when an empty collection is provided (DynamoDB does not support empty collections).</exception>
     private static AttributeValue FormatValue(object? value, string? format)
     {
         if (value == null)
@@ -123,8 +273,56 @@ public class AttributeValueInternal
             // Handle different value types with optional formatting
             return value switch
             {
+                // Advanced Types: Maps (Dictionary)
+                Dictionary<string, string> dict => AttributeValueConverter.ToMap(dict) 
+                    ?? throw new ArgumentException($"Cannot use empty Dictionary<string, string> in format string. DynamoDB does not support empty Maps."),
+                
+                Dictionary<string, AttributeValue> dictAv => AttributeValueConverter.ToMap(dictAv)
+                    ?? throw new ArgumentException($"Cannot use empty Dictionary<string, AttributeValue> in format string. DynamoDB does not support empty Maps."),
+
+                // Advanced Types: Sets (HashSet)
+                HashSet<string> stringSet => AttributeValueConverter.ToStringSet(stringSet)
+                    ?? throw new ArgumentException($"Cannot use empty HashSet<string> in format string. DynamoDB does not support empty Sets."),
+                
+                HashSet<int> intSet => AttributeValueConverter.ToNumberSet(intSet)
+                    ?? throw new ArgumentException($"Cannot use empty HashSet<int> in format string. DynamoDB does not support empty Sets."),
+                
+                HashSet<long> longSet => AttributeValueConverter.ToNumberSet(longSet)
+                    ?? throw new ArgumentException($"Cannot use empty HashSet<long> in format string. DynamoDB does not support empty Sets."),
+                
+                HashSet<decimal> decimalSet => AttributeValueConverter.ToNumberSet(decimalSet)
+                    ?? throw new ArgumentException($"Cannot use empty HashSet<decimal> in format string. DynamoDB does not support empty Sets."),
+                
+                HashSet<byte[]> binarySet => AttributeValueConverter.ToBinarySet(binarySet)
+                    ?? throw new ArgumentException($"Cannot use empty HashSet<byte[]> in format string. DynamoDB does not support empty Sets."),
+
+                // Advanced Types: Lists
+                List<string> stringList => AttributeValueConverter.ToList(stringList, s => new AttributeValue { S = s })
+                    ?? throw new ArgumentException($"Cannot use empty List<string> in format string. DynamoDB does not support empty Lists."),
+                
+                List<int> intList => AttributeValueConverter.ToList(intList, i => new AttributeValue { N = i.ToString() })
+                    ?? throw new ArgumentException($"Cannot use empty List<int> in format string. DynamoDB does not support empty Lists."),
+                
+                List<long> longList => AttributeValueConverter.ToList(longList, l => new AttributeValue { N = l.ToString() })
+                    ?? throw new ArgumentException($"Cannot use empty List<long> in format string. DynamoDB does not support empty Lists."),
+                
+                List<decimal> decimalList => AttributeValueConverter.ToList(decimalList, d => new AttributeValue { N = d.ToString() })
+                    ?? throw new ArgumentException($"Cannot use empty List<decimal> in format string. DynamoDB does not support empty Lists."),
+                
+                List<bool> boolList => AttributeValueConverter.ToList(boolList, b => new AttributeValue { BOOL = b, IsBOOLSet = true })
+                    ?? throw new ArgumentException($"Cannot use empty List<bool> in format string. DynamoDB does not support empty Lists."),
+
+                // Advanced Types: TTL conversion (when format hint is "ttl")
+                DateTime dt when format?.Equals("ttl", StringComparison.OrdinalIgnoreCase) == true => 
+                    AttributeValueConverter.ToTtl(dt) ?? new AttributeValue { NULL = true },
+                
+                DateTimeOffset dto when format?.Equals("ttl", StringComparison.OrdinalIgnoreCase) == true => 
+                    AttributeValueConverter.ToTtl(dto) ?? new AttributeValue { NULL = true },
+
+                // Standard Types: String
                 string str => new AttributeValue { S = str },
 
+                // Standard Types: DateTime (without TTL format)
                 DateTime dt => new AttributeValue
                 {
                     S = string.IsNullOrEmpty(format) ? dt.ToString("o", CultureInfo.InvariantCulture) : dt.ToString(format, CultureInfo.InvariantCulture)
@@ -166,6 +364,11 @@ public class AttributeValueInternal
                 _ when !string.IsNullOrEmpty(format) => throw new FormatException($"Type {value.GetType().Name} does not support format strings. Format '{format}' is not valid for this type."),
                 _ => new AttributeValue { S = value.ToString() ?? string.Empty }
             };
+        }
+        catch (ArgumentException)
+        {
+            // Re-throw ArgumentExceptions as-is (empty collection errors)
+            throw;
         }
         catch (FormatException)
         {
