@@ -10,15 +10,15 @@
   - Define BlobProvider and JsonSerializerType enums
   - _Requirements: 4.1, 5.1, 7.1, 11.2, 11.3_
 
-- [ ] 2. Enhance core library with advanced type conversion utilities
-  - [ ] 2.1 Add Map conversion methods to AttributeValueConverter
+- [x] 2. Enhance core library with advanced type conversion utilities
+  - [x] 2.1 Add Map conversion methods to AttributeValueConverter
     - Implement ToMap for Dictionary<string, string>
     - Implement ToMap for Dictionary<string, AttributeValue>
     - Implement FromMap for reconstructing dictionaries
     - Add null and empty collection handling
     - _Requirements: 1.1, 1.2, 1.4, 15.1_
   
-  - [ ] 2.2 Add Set conversion methods to AttributeValueConverter
+  - [x] 2.2 Add Set conversion methods to AttributeValueConverter
     - Implement ToStringSet for HashSet<string>
     - Implement ToNumberSet for HashSet<int> and HashSet<decimal>
     - Implement ToBinarySet for HashSet<byte[]>
@@ -26,13 +26,13 @@
     - Add null and empty collection handling
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 15.1_
   
-  - [ ] 2.3 Add List conversion methods to AttributeValueConverter
+  - [x] 2.3 Add List conversion methods to AttributeValueConverter
     - Implement ToList with generic element converter
     - Implement FromList with generic element converter
     - Add null and empty collection handling
     - _Requirements: 3.1, 3.2, 3.4, 15.1_
   
-  - [ ] 2.4 Add TTL conversion methods to AttributeValueConverter
+  - [x] 2.4 Add TTL conversion methods to AttributeValueConverter
     - Implement ToTtl for DateTime with Unix epoch conversion
     - Implement ToTtl for DateTimeOffset with Unix epoch conversion
     - Implement FromTtl for reconstructing DateTime
