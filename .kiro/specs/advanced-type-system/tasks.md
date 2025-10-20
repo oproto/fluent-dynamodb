@@ -419,49 +419,49 @@
     - _Requirements: 5.3, 6.2_
 
 
-- [ ] 19. Write source generator tests
-  - [ ] 19.1 Test Map property generation
+- [x] 19. Write source generator tests
+  - [x] 19.1 Test Map property generation
     - Test Dictionary<string, string> generates correct code
     - Test custom object with [DynamoDbMap] generates nested map
     - Test empty collection handling
     - Test null handling
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
   
-  - [ ] 19.2 Test Set property generation
+  - [x] 19.2 Test Set property generation
     - Test HashSet<string> generates SS code
     - Test HashSet<int> generates NS code
     - Test HashSet<byte[]> generates BS code
     - Test empty collection handling
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
   
-  - [ ] 19.3 Test List property generation
+  - [x] 19.3 Test List property generation
     - Test List<T> generates L code
     - Test various element types
     - Test empty collection handling
     - _Requirements: 3.1, 3.2, 3.4_
   
-  - [ ] 19.4 Test TTL property generation
+  - [x] 19.4 Test TTL property generation
     - Test DateTime generates Unix epoch conversion
     - Test DateTimeOffset generates Unix epoch conversion
     - Test null handling
     - Test FromDynamoDb reconstruction
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [ ] 19.5 Test JSON blob property generation
+  - [x] 19.5 Test JSON blob property generation
     - Test System.Text.Json generates JsonSerializerContext
     - Test System.Text.Json generates correct serialization code
     - Test Newtonsoft.Json generates correct serialization code
     - Test assembly attribute detection
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 6.1_
   
-  - [ ] 19.6 Test blob reference property generation
+  - [x] 19.6 Test blob reference property generation
     - Test generates async method signatures
     - Test generates blob storage calls
     - Test generates reference storage in DynamoDB
     - Test generates blob retrieval code
     - _Requirements: 7.1, 7.2, 7.3_
   
-  - [ ] 19.7 Test compilation error diagnostics
+  - [x] 19.7 Test compilation error diagnostics
     - Test DYNDB101: Invalid TTL type
     - Test DYNDB102: Missing JSON serializer
     - Test DYNDB103: Missing blob provider
