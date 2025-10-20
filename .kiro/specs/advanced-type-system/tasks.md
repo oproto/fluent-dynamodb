@@ -381,24 +381,24 @@
     - Test error message includes parameter info
     - _Requirements: 16.1, 16.2, 16.3, 16.5_
 
-- [ ] 17. Write unit tests for blob storage
-  - [ ] 17.1 Test S3BlobProvider StoreAsync
+- [x] 17. Write unit tests for blob storage
+  - [x] 17.1 Test S3BlobProvider StoreAsync
     - Test stores data and returns reference key
     - Test respects bucket name configuration
     - Test respects key prefix configuration
     - Test generates unique key when not provided
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 17.2 Test S3BlobProvider RetrieveAsync
+  - [x] 17.2 Test S3BlobProvider RetrieveAsync
     - Test retrieves data by reference key
     - Test throws clear error for missing blob
     - _Requirements: 8.4_
   
-  - [ ] 17.3 Test S3BlobProvider DeleteAsync
+  - [x] 17.3 Test S3BlobProvider DeleteAsync
     - Test deletes blob by reference key
     - _Requirements: 8.5_
   
-  - [ ] 17.4 Test S3BlobProvider ExistsAsync
+  - [x] 17.4 Test S3BlobProvider ExistsAsync
     - Test returns true for existing blob
     - Test returns false for missing blob
     - _Requirements: 9.4_

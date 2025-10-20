@@ -1,5 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb", "Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj", "{988B3792-D039-496B-99D7-5362FC913AF0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.UnitTests", "Oproto.FluentDynamoDb.UnitTests\Oproto.FluentDynamoDb.UnitTests.csproj", "{950913A4-B4B1-42B0-97B3-FDBE7B692004}"
@@ -20,6 +21,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Files", "Solution 
 		LICENSE = LICENSE
 		compass.yml = compass.yml
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.BlobStorage.S3.UnitTests", "Oproto.FluentDynamoDb.BlobStorage.S3.UnitTests\Oproto.FluentDynamoDb.BlobStorage.S3.UnitTests.csproj", "{8846EF52-5B56-45A2-B449-D7CD0CAD8180}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -55,5 +58,9 @@ Global
 		{E5F6G7H8-I9J0-1234-EFGH-567890123456}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5F6G7H8-I9J0-1234-EFGH-567890123456}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E5F6G7H8-I9J0-1234-EFGH-567890123456}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8846EF52-5B56-45A2-B449-D7CD0CAD8180}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8846EF52-5B56-45A2-B449-D7CD0CAD8180}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8846EF52-5B56-45A2-B449-D7CD0CAD8180}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8846EF52-5B56-45A2-B449-D7CD0CAD8180}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
