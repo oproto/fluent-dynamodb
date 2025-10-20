@@ -149,6 +149,13 @@ public static class MapperGenerator
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
 
+        // Handle TTL properties (Time-To-Live)
+        if (property.AdvancedType?.IsTtl == true)
+        {
+            GenerateTtlPropertyToAttributeValue(sb, property);
+            return;
+        }
+
         // Handle Map properties (Dictionary types)
         if (property.AdvancedType?.IsMap == true)
         {
@@ -175,6 +182,100 @@ public static class MapperGenerator
         {
             sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{propertyName}")};");
         }
+    }
+
+    private static void GenerateTtlPropertyToAttributeValue(StringBuilder sb, PropertyModel property)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var propertyType = property.PropertyType;
+        var baseType = GetBaseType(propertyType);
+
+        sb.AppendLine($"            // Convert TTL property {propertyName} to Unix epoch seconds");
+
+        if (baseType == "DateTime" || baseType == "System.DateTime")
+        {
+            // DateTime TTL conversion
+            if (property.IsNullable)
+            {
+                sb.AppendLine($"            if (typedEntity.{propertyName}.HasValue)");
+                sb.AppendLine("            {");
+                sb.AppendLine("                var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);");
+                sb.AppendLine($"                var seconds = (long)(typedEntity.{propertyName}.Value.ToUniversalTime() - epoch).TotalSeconds;");
+                sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
+                sb.AppendLine("            }");
+            }
+            else
+            {
+                sb.AppendLine("            {");
+                sb.AppendLine("                var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);");
+                sb.AppendLine($"                var seconds = (long)(typedEntity.{propertyName}.ToUniversalTime() - epoch).TotalSeconds;");
+                sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
+                sb.AppendLine("            }");
+            }
+        }
+        else if (baseType == "DateTimeOffset" || baseType == "System.DateTimeOffset")
+        {
+            // DateTimeOffset TTL conversion
+            if (property.IsNullable)
+            {
+                sb.AppendLine($"            if (typedEntity.{propertyName}.HasValue)");
+                sb.AppendLine("            {");
+                sb.AppendLine($"                var seconds = typedEntity.{propertyName}.Value.ToUnixTimeSeconds();");
+                sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
+                sb.AppendLine("            }");
+            }
+            else
+            {
+                sb.AppendLine("            {");
+                sb.AppendLine($"                var seconds = typedEntity.{propertyName}.ToUnixTimeSeconds();");
+                sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
+                sb.AppendLine("            }");
+            }
+        }
+    }
+
+    private static void GenerateTtlPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var propertyType = property.PropertyType;
+        var baseType = GetBaseType(propertyType);
+
+        sb.AppendLine($"            // Convert TTL property {propertyName} from Unix epoch seconds");
+        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.N != null)");
+        sb.AppendLine("                    {");
+
+        if (baseType == "DateTime" || baseType == "System.DateTime")
+        {
+            // DateTime TTL reconstruction
+            sb.AppendLine($"                        var seconds = long.Parse({propertyName.ToLowerInvariant()}Value.N);");
+            sb.AppendLine("                        var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);");
+            sb.AppendLine($"                        entity.{propertyName} = epoch.AddSeconds(seconds);");
+        }
+        else if (baseType == "DateTimeOffset" || baseType == "System.DateTimeOffset")
+        {
+            // DateTimeOffset TTL reconstruction
+            sb.AppendLine($"                        var seconds = long.Parse({propertyName.ToLowerInvariant()}Value.N);");
+            sb.AppendLine($"                        entity.{propertyName} = DateTimeOffset.FromUnixTimeSeconds(seconds);");
+        }
+
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                        ex);");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
     }
 
     private static void GenerateMapPropertyToAttributeValue(StringBuilder sb, PropertyModel property)
@@ -377,6 +478,13 @@ public static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+
+        // Handle TTL properties (Time-To-Live)
+        if (property.AdvancedType?.IsTtl == true)
+        {
+            GenerateTtlPropertyFromAttributeValue(sb, property, entity);
+            return;
+        }
 
         // Handle Map properties (Dictionary types)
         if (property.AdvancedType?.IsMap == true)

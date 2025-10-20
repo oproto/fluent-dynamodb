@@ -175,22 +175,22 @@
     - Handle missing attributes gracefully
     - _Requirements: 3.5, 12.2_
 
-- [ ] 9. Generate mapping code for TTL properties
-  - [ ] 9.1 Generate ToDynamoDb code for DateTime TTL
+- [x] 9. Generate mapping code for TTL properties
+  - [x] 9.1 Generate ToDynamoDb code for DateTime TTL
     - Check for null values
     - Convert to Unix epoch seconds
     - Create N AttributeValue
     - Omit attribute if null
     - _Requirements: 4.1, 4.3, 15.1_
   
-  - [ ] 9.2 Generate ToDynamoDb code for DateTimeOffset TTL
+  - [x] 9.2 Generate ToDynamoDb code for DateTimeOffset TTL
     - Check for null values
     - Convert to Unix epoch seconds using ToUnixTimeSeconds
     - Create N AttributeValue
     - Omit attribute if null
     - _Requirements: 4.2, 4.3, 15.1_
   
-  - [ ] 9.3 Generate FromDynamoDb code for TTL properties
+  - [x] 9.3 Generate FromDynamoDb code for TTL properties
     - Parse Unix epoch seconds from N attribute
     - Convert back to DateTime or DateTimeOffset
     - Handle missing attributes gracefully
