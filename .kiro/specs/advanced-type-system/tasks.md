@@ -160,15 +160,15 @@
     - Handle missing attributes gracefully
     - _Requirements: 2.5, 12.2_
 
-- [ ] 8. Generate mapping code for List properties
-  - [ ] 8.1 Generate ToDynamoDb code for List<T>
+- [x] 8. Generate mapping code for List properties
+  - [x] 8.1 Generate ToDynamoDb code for List<T>
     - Check for null and empty lists
     - Create L AttributeValue with element conversion
     - Support string, numeric, and complex element types
     - Omit attribute if list is empty
     - _Requirements: 3.1, 3.2, 3.4, 15.1_
   
-  - [ ] 8.2 Generate FromDynamoDb code for List<T>
+  - [x] 8.2 Generate FromDynamoDb code for List<T>
     - Reconstruct List<T> from L attribute
     - Convert elements back to appropriate types
     - Maintain element order

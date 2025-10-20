@@ -274,9 +274,11 @@ public class MapperGeneratorTests
 
         // Assert
         result.Should().Contain("// Convert collection Tags to native DynamoDB type");
-        result.Should().Contain("SS = typedEntity.Tags.ToList()");
+        result.Should().Contain("// Convert List<string> to DynamoDB List (L)");
+        result.Should().Contain("L = typedEntity.Tags.Select(x => new AttributeValue { S = x }).ToList()");
         result.Should().Contain("// Convert collection Tags from native DynamoDB type");
-        result.Should().Contain("entity.Tags = new List<string>(tagsValue.SS)");
+        result.Should().Contain("// Convert DynamoDB List (L) to List<string>");
+        result.Should().Contain("entity.Tags = new List<string>(tagsValue.L.Select(x => x.S))");
     }
 
     [Fact]
