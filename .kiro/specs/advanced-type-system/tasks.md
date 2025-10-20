@@ -343,15 +343,15 @@
     - _Requirements: 7.2_
 
 
-- [ ] 16. Write unit tests for core library enhancements
-  - [ ] 16.1 Test AttributeValueConverter Map methods
+- [x] 16. Write unit tests for core library enhancements
+  - [x] 16.1 Test AttributeValueConverter Map methods
     - Test ToMap with non-empty Dictionary<string, string>
     - Test ToMap with empty dictionary returns null
     - Test ToMap with null returns null
     - Test FromMap reconstructs dictionary correctly
     - _Requirements: 1.1, 1.4, 1.5_
   
-  - [ ] 16.2 Test AttributeValueConverter Set methods
+  - [x] 16.2 Test AttributeValueConverter Set methods
     - Test ToStringSet with non-empty HashSet
     - Test ToNumberSet with int and decimal HashSets
     - Test ToBinarySet with byte[] HashSet
@@ -359,13 +359,13 @@
     - Test FromStringSet/FromNumberSet/FromBinarySet
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
   
-  - [ ] 16.3 Test AttributeValueConverter List methods
+  - [x] 16.3 Test AttributeValueConverter List methods
     - Test ToList with various element types
     - Test empty lists return null
     - Test FromList reconstructs list correctly
     - _Requirements: 3.1, 3.4, 3.5_
   
-  - [ ] 16.4 Test AttributeValueConverter TTL methods
+  - [x] 16.4 Test AttributeValueConverter TTL methods
     - Test ToTtl converts DateTime to Unix epoch
     - Test ToTtl converts DateTimeOffset to Unix epoch
     - Test ToTtl with null returns null
@@ -373,7 +373,7 @@
     - Test round-trip preserves value within tolerance
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [ ] 16.5 Test format string support for advanced types
+  - [x] 16.5 Test format string support for advanced types
     - Test Dictionary in format string parameter
     - Test HashSet in format string parameter
     - Test List in format string parameter
