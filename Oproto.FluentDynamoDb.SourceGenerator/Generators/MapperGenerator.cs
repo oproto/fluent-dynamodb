@@ -237,12 +237,32 @@ public static class MapperGenerator
         sb.AppendLine($"            if (typedEntity.{propertyName} != null && typedEntity.{propertyName}.Count > 0)");
         sb.AppendLine("            {");
 
-        // Determine the appropriate DynamoDB collection type based on element type
+        // Check if this is a Set type (HashSet)
+        var isSet = property.PropertyType.Contains("HashSet<") || 
+                    property.PropertyType.Contains("System.Collections.Generic.HashSet<");
+
+        if (isSet)
+        {
+            // Generate Set-specific code (SS, NS, or BS)
+            GenerateSetPropertyToAttributeValue(sb, property, attributeName, propertyName, collectionElementType);
+        }
+        else
+        {
+            // Generate List-specific code (L)
+            GenerateListPropertyToAttributeValue(sb, property, attributeName, propertyName, collectionElementType);
+        }
+
+        sb.AppendLine("            }");
+    }
+
+    private static void GenerateSetPropertyToAttributeValue(StringBuilder sb, PropertyModel property, string attributeName, string propertyName, string collectionElementType)
+    {
         var baseElementType = GetBaseType(collectionElementType);
 
-        if (baseElementType == "string")
+        if (baseElementType == "string" || baseElementType == "System.String")
         {
-            // Use String Set (SS) for string collections
+            // String Set (SS)
+            sb.AppendLine($"                // Convert HashSet<string> to DynamoDB String Set (SS)");
             sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue");
             sb.AppendLine("                {");
             sb.AppendLine($"                    SS = typedEntity.{propertyName}.ToList()");
@@ -250,22 +270,41 @@ public static class MapperGenerator
         }
         else if (IsNumericType(baseElementType))
         {
-            // Use Number Set (NS) for numeric collections
+            // Number Set (NS)
+            sb.AppendLine($"                // Convert HashSet<{baseElementType}> to DynamoDB Number Set (NS)");
             sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue");
             sb.AppendLine("                {");
             sb.AppendLine($"                    NS = typedEntity.{propertyName}.Select(x => x.ToString()).ToList()");
             sb.AppendLine("                };");
         }
-        else
+        else if (baseElementType == "byte[]" || baseElementType == "System.Byte[]")
         {
-            // Use List (L) for complex types or mixed collections
+            // Binary Set (BS)
+            sb.AppendLine($"                // Convert HashSet<byte[]> to DynamoDB Binary Set (BS)");
             sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue");
             sb.AppendLine("                {");
-            sb.AppendLine($"                    L = typedEntity.{propertyName}.Select(x => {GetToAttributeValueExpressionForCollectionElement(collectionElementType, "x")}).ToList()");
+            sb.AppendLine($"                    BS = typedEntity.{propertyName}.Select(x => new MemoryStream(x)).ToList()");
             sb.AppendLine("                };");
         }
+        else
+        {
+            // Unsupported Set element type - this should be caught by validation
+            sb.AppendLine($"                // ERROR: Unsupported Set element type: {baseElementType}");
+            sb.AppendLine($"                // DynamoDB Sets only support string, number, and binary types");
+            sb.AppendLine($"                throw new NotSupportedException($\"HashSet<{baseElementType}> is not supported. Use HashSet<string>, HashSet<int>, HashSet<decimal>, or HashSet<byte[]>\");");
+        }
+    }
 
-        sb.AppendLine("            }");
+    private static void GenerateListPropertyToAttributeValue(StringBuilder sb, PropertyModel property, string attributeName, string propertyName, string collectionElementType)
+    {
+        var baseElementType = GetBaseType(collectionElementType);
+
+        // Use List (L) for all List types
+        sb.AppendLine($"                // Convert List<{baseElementType}> to DynamoDB List (L)");
+        sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    L = typedEntity.{propertyName}.Select(x => {GetToAttributeValueExpressionForCollectionElement(collectionElementType, "x")}).ToList()");
+        sb.AppendLine("                };");
     }
 
     private static string GetToAttributeValueExpression(PropertyModel property, string valueExpression)
@@ -436,41 +475,19 @@ public static class MapperGenerator
         sb.AppendLine($"                try");
         sb.AppendLine("                {");
 
-        if (baseElementType == "string")
+        // Check if this is a Set type (HashSet)
+        var isSet = property.PropertyType.Contains("HashSet<") || 
+                    property.PropertyType.Contains("System.Collections.Generic.HashSet<");
+
+        if (isSet)
         {
-            // Handle String Set (SS)
-            sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.SS != null && {propertyName.ToLowerInvariant()}Value.SS.Count > 0)");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}({propertyName.ToLowerInvariant()}Value.SS);");
-            sb.AppendLine("                    }");
-            sb.AppendLine("                    else");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}();");
-            sb.AppendLine("                    }");
-        }
-        else if (IsNumericType(baseElementType))
-        {
-            // Handle Number Set (NS)
-            sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.NS != null && {propertyName.ToLowerInvariant()}Value.NS.Count > 0)");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}({propertyName.ToLowerInvariant()}Value.NS.Select({GetNumericConversionExpression(baseElementType)}));");
-            sb.AppendLine("                    }");
-            sb.AppendLine("                    else");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}();");
-            sb.AppendLine("                    }");
+            // Generate Set-specific code (SS, NS, or BS)
+            GenerateSetPropertyFromAttributeValue(sb, property, propertyName, baseElementType);
         }
         else
         {
-            // Handle List (L) for complex types
-            sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.L != null && {propertyName.ToLowerInvariant()}Value.L.Count > 0)");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}({propertyName.ToLowerInvariant()}Value.L.Select({GetFromAttributeValueExpressionForCollectionElement(collectionElementType)}));");
-            sb.AppendLine("                    }");
-            sb.AppendLine("                    else");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}();");
-            sb.AppendLine("                    }");
+            // Generate List-specific code (L)
+            GenerateListPropertyFromAttributeValue(sb, property, propertyName, collectionElementType);
         }
 
         sb.AppendLine("                }");
@@ -484,11 +501,74 @@ public static class MapperGenerator
         sb.AppendLine("                        ex);");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
-            sb.AppendLine("            else");
-            sb.AppendLine("            {");
-            sb.AppendLine($"                // Initialize empty collection if no data found");
-            sb.AppendLine($"                entity.{propertyName} = new {property.PropertyType}();");
-            sb.AppendLine("            }");
+        sb.AppendLine("            else");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                // Initialize empty collection if no data found");
+        sb.AppendLine($"                entity.{propertyName} = new {property.PropertyType}();");
+        sb.AppendLine("            }");
+    }
+
+    private static void GenerateSetPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, string propertyName, string baseElementType)
+    {
+        if (baseElementType == "string" || baseElementType == "System.String")
+        {
+            // String Set (SS)
+            sb.AppendLine($"                    // Convert DynamoDB String Set (SS) to HashSet<string>");
+            sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.SS != null && {propertyName.ToLowerInvariant()}Value.SS.Count > 0)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}({propertyName.ToLowerInvariant()}Value.SS);");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}();");
+            sb.AppendLine("                    }");
+        }
+        else if (IsNumericType(baseElementType))
+        {
+            // Number Set (NS)
+            sb.AppendLine($"                    // Convert DynamoDB Number Set (NS) to HashSet<{baseElementType}>");
+            sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.NS != null && {propertyName.ToLowerInvariant()}Value.NS.Count > 0)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}({propertyName.ToLowerInvariant()}Value.NS.Select({GetNumericConversionExpression(baseElementType)}));");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}();");
+            sb.AppendLine("                    }");
+        }
+        else if (baseElementType == "byte[]" || baseElementType == "System.Byte[]")
+        {
+            // Binary Set (BS)
+            sb.AppendLine($"                    // Convert DynamoDB Binary Set (BS) to HashSet<byte[]>");
+            sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.BS != null && {propertyName.ToLowerInvariant()}Value.BS.Count > 0)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}({propertyName.ToLowerInvariant()}Value.BS.Select(x => x.ToArray()));");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}();");
+            sb.AppendLine("                    }");
+        }
+        else
+        {
+            // Unsupported Set element type
+            sb.AppendLine($"                    // ERROR: Unsupported Set element type: {baseElementType}");
+            sb.AppendLine($"                    throw new NotSupportedException($\"HashSet<{baseElementType}> is not supported. Use HashSet<string>, HashSet<int>, HashSet<decimal>, or HashSet<byte[]>\");");
+        }
+    }
+
+    private static void GenerateListPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, string propertyName, string collectionElementType)
+    {
+        // Handle List (L) for all List types
+        sb.AppendLine($"                    // Convert DynamoDB List (L) to List<{collectionElementType}>");
+        sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.L != null && {propertyName.ToLowerInvariant()}Value.L.Count > 0)");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}({propertyName.ToLowerInvariant()}Value.L.Select({GetFromAttributeValueExpressionForCollectionElement(collectionElementType)}));");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    else");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        entity.{propertyName} = new {property.PropertyType}();");
+        sb.AppendLine("                    }");
     }
 
     private static string GetFromAttributeValueExpression(PropertyModel property, string valueExpression)
@@ -944,6 +1024,14 @@ public static class MapperGenerator
     private static string GetCollectionElementType(string collectionType)
     {
         // Extract element type from collection types
+        if (collectionType.StartsWith("HashSet<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(8, collectionType.Length - 9);
+        }
+        if (collectionType.StartsWith("System.Collections.Generic.HashSet<") && collectionType.EndsWith(">"))
+        {
+            return collectionType.Substring(36, collectionType.Length - 37);
+        }
         if (collectionType.StartsWith("List<") && collectionType.EndsWith(">"))
         {
             return collectionType.Substring(5, collectionType.Length - 6);

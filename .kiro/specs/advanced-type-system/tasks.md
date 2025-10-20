@@ -134,26 +134,26 @@
     - _Requirements: 1.5, 12.2_
 
 
-- [ ] 7. Generate mapping code for Set properties
-  - [ ] 7.1 Generate ToDynamoDb code for HashSet<string>
+- [x] 7. Generate mapping code for Set properties
+  - [x] 7.1 Generate ToDynamoDb code for HashSet<string>
     - Check for null and empty sets
     - Create SS AttributeValue
     - Omit attribute if set is empty
     - _Requirements: 2.1, 2.4, 15.1_
   
-  - [ ] 7.2 Generate ToDynamoDb code for HashSet<int> and HashSet<decimal>
+  - [x] 7.2 Generate ToDynamoDb code for HashSet<int> and HashSet<decimal>
     - Check for null and empty sets
     - Create NS AttributeValue with string conversion
     - Omit attribute if set is empty
     - _Requirements: 2.2, 2.4, 15.1_
   
-  - [ ] 7.3 Generate ToDynamoDb code for HashSet<byte[]>
+  - [x] 7.3 Generate ToDynamoDb code for HashSet<byte[]>
     - Check for null and empty sets
     - Create BS AttributeValue
     - Omit attribute if set is empty
     - _Requirements: 2.3, 2.4, 15.1_
   
-  - [ ] 7.4 Generate FromDynamoDb code for all Set types
+  - [x] 7.4 Generate FromDynamoDb code for all Set types
     - Reconstruct HashSet<string> from SS attribute
     - Reconstruct HashSet<int> and HashSet<decimal> from NS attribute
     - Reconstruct HashSet<byte[]> from BS attribute
