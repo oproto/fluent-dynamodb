@@ -330,14 +330,14 @@
     - Throw DynamoDbMappingException with context
     - _Requirements: 18.5_
 
-- [ ] 15. Update enhanced ExecuteAsync methods
-  - [ ] 15.1 Update ExecuteAsync<T> for entities with blob references
+- [x] 15. Update enhanced ExecuteAsync methods
+  - [x] 15.1 Update ExecuteAsync<T> for entities with blob references
     - Detect if entity has blob reference properties
     - Require IBlobStorageProvider parameter
     - Call async ToDynamoDb/FromDynamoDb methods
     - _Requirements: 7.2, 7.3_
   
-  - [ ] 15.2 Update WithItem<T> for entities with blob references
+  - [x] 15.2 Update WithItem<T> for entities with blob references
     - Store entity for later async conversion
     - Validate blob provider is available when needed
     - _Requirements: 7.2_
