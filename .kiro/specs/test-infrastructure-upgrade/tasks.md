@@ -140,14 +140,14 @@
     - Verify correct behavior
     - _Requirements: 3.4, 3.5_
 
-- [ ] 7. Create test entity builders
-  - [ ] 7.1 Create AdvancedTypesEntityBuilder class
+- [x] 7. Create test entity builders
+  - [x] 7.1 Create AdvancedTypesEntityBuilder class
     - Add fluent methods for each property
     - Implement Build() method
     - Provide sensible defaults
     - _Requirements: 9.1, 9.2_
   
-  - [ ] 7.2 Create BasicEntityBuilder class
+  - [x] 7.2 Create BasicEntityBuilder class
     - Add fluent methods for basic properties
     - Implement Build() method
     - _Requirements: 9.1_
