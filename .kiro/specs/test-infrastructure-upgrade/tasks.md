@@ -31,22 +31,22 @@
     - Ensure fixture is shared across test classes
     - _Requirements: 1.4_
 
-- [ ] 3. Create integration test base class
-  - [ ] 3.1 Implement IntegrationTestBase class
+- [x] 3. Create integration test base class
+  - [x] 3.1 Implement IntegrationTestBase class
     - Accept DynamoDbLocalFixture in constructor
     - Generate unique table name per test class
     - Implement IAsyncLifetime for setup/cleanup
     - Track tables created during tests
     - _Requirements: 2.2, 12.1, 12.3_
   
-  - [ ] 3.2 Add table management methods
+  - [x] 3.2 Add table management methods
     - Implement CreateTableAsync<TEntity>() using entity metadata
     - Add WaitForTableActive helper
     - Implement cleanup in DisposeAsync
     - Handle ResourceNotFoundException gracefully
     - _Requirements: 2.2, 12.1, 12.2_
   
-  - [ ] 3.3 Add SaveAndLoadAsync helper method
+  - [x] 3.3 Add SaveAndLoadAsync helper method
     - Convert entity to DynamoDB item using ToDynamoDb
     - Save item with PutItemAsync
     - Load item back with GetItemAsync
