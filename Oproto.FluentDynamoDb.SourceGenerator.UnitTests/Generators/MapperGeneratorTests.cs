@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
@@ -35,6 +36,9 @@ public class MapperGeneratorTests
 
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("namespace TestNamespace");
@@ -85,6 +89,9 @@ public class MapperGeneratorTests
 
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("Multi-item entity: Supports entities that span multiple DynamoDB items.");
@@ -143,6 +150,9 @@ public class MapperGeneratorTests
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("Related entities: 2 relationship(s) defined.");
         result.Should().Contain("// Populate related entity properties based on sort key patterns");
@@ -198,6 +208,9 @@ public class MapperGeneratorTests
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("public static EntityMetadata GetEntityMetadata()");
         result.Should().Contain("Indexes = new IndexMetadata[]");
@@ -236,6 +249,9 @@ public class MapperGeneratorTests
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("if (typedEntity.OptionalField != null)");
         result.Should().Contain("item[\"optional_field\"] = new AttributeValue { S = typedEntity.OptionalField };");
@@ -271,6 +287,9 @@ public class MapperGeneratorTests
 
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("// Convert collection Tags to native DynamoDB type");
@@ -329,6 +348,9 @@ public class MapperGeneratorTests
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         // Check ToDynamoDb conversions
         result.Should().Contain("new AttributeValue { S = typedEntity.Id }");
@@ -377,6 +399,9 @@ public class MapperGeneratorTests
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("// Check entity discriminator");
         result.Should().Contain("return entityTypeValue.S == \"TEST_ENTITY\";");
@@ -413,6 +438,9 @@ public class MapperGeneratorTests
 
         // Act
         var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("try");

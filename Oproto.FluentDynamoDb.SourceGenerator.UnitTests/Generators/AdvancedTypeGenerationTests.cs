@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator;
+using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 using System.Collections.Immutable;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
@@ -40,6 +41,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check ToDynamoDb generates map conversion
         entityCode.Should().Contain("if (typedEntity.Metadata != null && typedEntity.Metadata.Count > 0)");
@@ -96,6 +100,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "Product.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb uses nested type's generated method
         entityCode.Should().Contain("if (typedEntity.Attributes != null)");
         entityCode.Should().Contain("var attributesMap = ProductAttributes.ToDynamoDb(typedEntity.Attributes);");
@@ -138,6 +145,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify empty collection check exists
         entityCode.Should().Contain("if (typedEntity.Metadata != null && typedEntity.Metadata.Count > 0)");
     }
@@ -172,6 +182,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Verify null check exists in ToDynamoDb
         entityCode.Should().Contain("if (typedEntity.Metadata != null && typedEntity.Metadata.Count > 0)");
@@ -215,6 +228,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb generates SS conversion
         entityCode.Should().Contain("if (typedEntity.Tags != null && typedEntity.Tags.Count > 0)");
         entityCode.Should().Contain("item[\"tags\"] = new AttributeValue { SS = typedEntity.Tags.ToList() };");
@@ -254,6 +270,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check ToDynamoDb generates NS conversion
         entityCode.Should().Contain("if (typedEntity.CategoryIds != null && typedEntity.CategoryIds.Count > 0)");
@@ -296,6 +315,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb generates BS conversion
         entityCode.Should().Contain("if (typedEntity.BinaryData != null && typedEntity.BinaryData.Count > 0)");
         entityCode.Should().Contain("item[\"binary_data\"] = new AttributeValue");
@@ -337,6 +359,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify empty collection check exists
         entityCode.Should().Contain("if (typedEntity.Tags != null && typedEntity.Tags.Count > 0)");
     }
@@ -375,6 +400,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check ToDynamoDb generates L conversion
         entityCode.Should().Contain("if (typedEntity.ItemIds != null && typedEntity.ItemIds.Count > 0)");
@@ -417,6 +445,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb generates L conversion with numeric elements
         entityCode.Should().Contain("if (typedEntity.Quantities != null && typedEntity.Quantities.Count > 0)");
         entityCode.Should().Contain("item[\"quantities\"] = new AttributeValue");
@@ -457,6 +488,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check ToDynamoDb generates L conversion with decimal elements
         entityCode.Should().Contain("if (typedEntity.Prices != null && typedEntity.Prices.Count > 0)");
@@ -499,6 +533,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify empty collection check exists
         entityCode.Should().Contain("if (typedEntity.Items != null && typedEntity.Items.Count > 0)");
     }
@@ -537,6 +574,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check ToDynamoDb generates Unix epoch conversion
         entityCode.Should().Contain("if (typedEntity.ExpiresAt.HasValue)");
@@ -582,6 +622,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb generates Unix epoch conversion using ToUnixTimeSeconds
         entityCode.Should().Contain("if (typedEntity.ExpiresAt.HasValue)");
         entityCode.Should().Contain("var seconds = typedEntity.ExpiresAt.Value.ToUnixTimeSeconds();");
@@ -624,6 +667,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify null check exists
         entityCode.Should().Contain("if (typedEntity.ExpiresAt.HasValue)");
     }
@@ -658,6 +704,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Verify FromDynamoDb handles missing TTL attribute
         entityCode.Should().Contain("if (item.TryGetValue(\"ttl\", out var ttlValue) && ttlValue.N != null)");
@@ -716,6 +765,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb uses System.Text.Json serialization
         entityCode.Should().Contain("if (typedEntity.Content != null)");
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
@@ -764,6 +816,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check ToDynamoDb uses Newtonsoft.Json serialization
         entityCode.Should().Contain("if (typedEntity.Content != null)");
@@ -849,6 +904,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify System.Text.Json is used based on assembly attribute
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
         entityCode.Should().NotContain("Newtonsoft.Json");
@@ -892,6 +950,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check FromDynamoDb deserializes JSON
         entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue))");
@@ -937,6 +998,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb serializes JSON
         entityCode.Should().Contain("if (typedEntity.Content != null)");
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
@@ -981,6 +1045,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify null check exists
         entityCode.Should().Contain("if (typedEntity.Content != null)");
     }
@@ -1022,6 +1089,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Verify serialization happens even for empty objects
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
@@ -1069,6 +1139,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify complex type serialization
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Deserialize");
@@ -1115,6 +1188,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Verify both JsonBlob and TTL are handled
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
@@ -1164,6 +1240,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify JsonBlob works in multi-item entity
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
         // Note: Multi-item entity comment may not be present if entity doesn't have relationships
@@ -1203,6 +1282,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check async ToDynamoDb method signature
         entityCode.Should().Contain("public static async Task<Dictionary<string, AttributeValue>> ToDynamoDbAsync<TSelf>");
@@ -1246,6 +1328,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Check ToDynamoDb calls StoreAsync
         entityCode.Should().Contain("if (typedEntity.Data != null)");
         entityCode.Should().Contain("using var stream = new MemoryStream(typedEntity.Data);");
@@ -1285,6 +1370,9 @@ namespace TestNamespace
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
+        
         // Verify reference is stored as string in DynamoDB
         entityCode.Should().Contain("item[\"file_ref\"] = new AttributeValue { S = reference };");
     }
@@ -1319,6 +1407,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Check FromDynamoDb calls RetrieveAsync
         entityCode.Should().Contain("if (item.TryGetValue(\"data_ref\", out var dataValue))");
@@ -1362,6 +1453,9 @@ namespace TestNamespace
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode);
         
         // Verify FromDynamoDb retrieves blob from storage
         entityCode.Should().Contain("if (item.TryGetValue(\"file_ref\", out var filedataValue))");

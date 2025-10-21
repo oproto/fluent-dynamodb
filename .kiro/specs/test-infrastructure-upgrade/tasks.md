@@ -171,21 +171,21 @@
     - Handle external type references
     - _Requirements: 4.5_
 
-- [ ] 9. Add compilation verification to existing generator tests
-  - [ ] 9.1 Update AdvancedTypeGenerationTests
+- [x] 9. Add compilation verification to existing generator tests
+  - [x] 9.1 Update AdvancedTypeGenerationTests
     - Add CompilationVerifier.AssertGeneratedCodeCompiles to each test
     - Verify no compilation errors
     - _Requirements: 4.1, 4.3_
   
-  - [ ] 9.2 Update MapperGeneratorTests
+  - [x] 9.2 Update MapperGeneratorTests
     - Add compilation verification to each test
     - _Requirements: 4.1_
   
-  - [ ] 9.3 Update FieldsGeneratorTests
+  - [x] 9.3 Update FieldsGeneratorTests
     - Add compilation verification to each test
     - _Requirements: 4.1_
   
-  - [ ] 9.4 Update KeysGeneratorTests
+  - [x] 9.4 Update KeysGeneratorTests
     - Add compilation verification to each test
     - _Requirements: 4.1_
 

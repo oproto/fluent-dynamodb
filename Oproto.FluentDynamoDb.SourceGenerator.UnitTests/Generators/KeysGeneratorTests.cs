@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
@@ -30,6 +31,9 @@ public class KeysGeneratorTests
 
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("public static partial class TestEntityKeys");
@@ -71,6 +75,9 @@ public class KeysGeneratorTests
 
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("public static partial class TestEntityKeys");
@@ -149,6 +156,9 @@ public class KeysGeneratorTests
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("public static partial class TestEntityKeys");
 
@@ -188,6 +198,9 @@ public class KeysGeneratorTests
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("public static string Pk(string? id)");
         result.Should().Contain("if (id == null)");
@@ -218,6 +231,9 @@ public class KeysGeneratorTests
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("public static string Pk(System.Guid id)");
         result.Should().Contain("var keyValue = id.ToString();");
@@ -247,6 +263,9 @@ public class KeysGeneratorTests
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("public static string Pk(System.DateTime createdDate)");
         result.Should().Contain("var keyValue = createdDate.ToString(\"yyyy-MM-ddTHH:mm:ss.fffZ\");");
@@ -274,6 +293,9 @@ public class KeysGeneratorTests
 
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("public static partial class TestEntityKeys");
@@ -322,6 +344,9 @@ public class KeysGeneratorTests
 
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("public static partial class CustomIndexKeys");

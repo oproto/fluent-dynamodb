@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
@@ -33,6 +34,9 @@ public class FieldsGeneratorTests
 
         // Act
         var result = FieldsGenerator.GenerateFieldsClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("namespace TestNamespace");
@@ -102,6 +106,9 @@ public class FieldsGeneratorTests
         // Act
         var result = FieldsGenerator.GenerateFieldsClass(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("public static partial class TestGSIFields");
         result.Should().Contain("public const string PartitionKey = \"gsi_pk\";");
@@ -136,6 +143,9 @@ public class FieldsGeneratorTests
         // Act
         var result = FieldsGenerator.GenerateFieldsClass(entity);
 
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+
         // Assert
         result.Should().Contain("public const string @class = \"class_attr\";");
         result.Should().Contain("public const string @COUNT = \"count_attr\";");
@@ -163,6 +173,9 @@ public class FieldsGeneratorTests
 
         // Act
         var result = FieldsGenerator.GenerateFieldsClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("public static partial class TestEntityFields");
@@ -212,6 +225,9 @@ public class FieldsGeneratorTests
 
         // Act
         var result = FieldsGenerator.GenerateFieldsClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("public static partial class test_gsi_with_dashesFields");
@@ -279,6 +295,9 @@ public class FieldsGeneratorTests
 
         // Act
         var result = FieldsGenerator.GenerateFieldsClass(entity);
+
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert
         result.Should().Contain("public static partial class GSI1Fields");
