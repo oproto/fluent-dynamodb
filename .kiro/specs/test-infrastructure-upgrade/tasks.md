@@ -90,32 +90,32 @@
     - _Requirements: 3.5_
 
 
-- [ ] 5. Write integration tests for List types
-  - [ ] 5.1 Create ListIntegrationTests class
+- [x] 5. Write integration tests for List types
+  - [x] 5.1 Create ListIntegrationTests class
     - Inherit from IntegrationTestBase
     - Add Collection attribute
     - Create test table in InitializeAsync
     - _Requirements: 2.1, 3.2_
   
-  - [ ] 5.2 Test List<string> round-trip
+  - [x] 5.2 Test List<string> round-trip
     - Create entity with List<string> values
     - Save and load entity
     - Verify all values and order preserved
     - _Requirements: 3.2_
   
-  - [ ] 5.3 Test List<int> round-trip
+  - [x] 5.3 Test List<int> round-trip
     - Create entity with List<int> values
     - Save and load entity
     - Verify all values and order preserved
     - _Requirements: 3.2_
   
-  - [ ] 5.4 Test List<decimal> round-trip
+  - [x] 5.4 Test List<decimal> round-trip
     - Create entity with List<decimal> values
     - Save and load entity
     - Verify all values and order preserved
     - _Requirements: 3.2_
   
-  - [ ] 5.5 Test List null and empty handling
+  - [x] 5.5 Test List null and empty handling
     - Test null List property
     - Test empty List property
     - Verify correct behavior

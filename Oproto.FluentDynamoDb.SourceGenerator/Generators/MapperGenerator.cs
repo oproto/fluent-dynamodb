@@ -1479,20 +1479,26 @@ public static class MapperGenerator
         sb.AppendLine($"                        typeof({property.PropertyType}),");
         sb.AppendLine("                        ex);");
         sb.AppendLine("                }");
+        sb.AppendLine("                }");
         sb.AppendLine("            }");
         sb.AppendLine("            else");
         sb.AppendLine("            {");
         sb.AppendLine($"                // Initialize empty collection if no data found");
-        // Strip nullable marker from property type for instantiation
-        var nonNullablePropertyType = property.PropertyType.TrimEnd('?');
+        // Strip nullable markers from both the property type and element type for instantiation
+        var nonNullableElementType = collectionElementType.TrimEnd('?');
+        var collectionTypeName = GetCollectionTypeName(property.PropertyType);
+        var nonNullablePropertyType = $"{collectionTypeName}<{nonNullableElementType}>";
         sb.AppendLine($"                entity.{propertyName} = new {nonNullablePropertyType}();");
         sb.AppendLine("            }");
     }
 
     private static void GenerateSetPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, string propertyName, string baseElementType)
     {
-        // Strip nullable marker from property type for instantiation
-        var nonNullablePropertyType = property.PropertyType.TrimEnd('?');
+        // Strip nullable markers from both the property type and element type for instantiation
+        // We need to rebuild the collection type with non-nullable element type
+        var collectionElementType = GetCollectionElementType(property.PropertyType);
+        var nonNullableElementType = collectionElementType.TrimEnd('?');
+        var nonNullablePropertyType = $"HashSet<{nonNullableElementType}>";
         
         if (baseElementType == "string" || baseElementType == "System.String")
         {
@@ -1550,8 +1556,12 @@ public static class MapperGenerator
         sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.L != null && {propertyName.ToLowerInvariant()}Value.L.Count > 0)");
         sb.AppendLine("                    {");
         
-        // Strip nullable marker from property type for instantiation
-        var nonNullablePropertyType = property.PropertyType.TrimEnd('?');
+        // Strip nullable markers from both the property type and element type for instantiation
+        // We need to rebuild the collection type with non-nullable element type
+        var nonNullableElementType = collectionElementType.TrimEnd('?');
+        var collectionTypeName = GetCollectionTypeName(property.PropertyType);
+        var nonNullablePropertyType = $"{collectionTypeName}<{nonNullableElementType}>";
+        
         var conversionExpression = GetFromAttributeValueExpressionForCollectionElement(baseElementType);
         sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.L.Select({conversionExpression}));");
         sb.AppendLine("                    }");
@@ -2104,6 +2114,37 @@ public static class MapperGenerator
 
         // Default to object if we can't determine the element type
         return "object";
+    }
+
+    private static string GetCollectionTypeName(string collectionType)
+    {
+        // Remove nullable annotation if present
+        var baseType = collectionType.TrimEnd('?');
+        
+        // Extract just the collection type name without the element type
+        if (baseType.StartsWith("HashSet<") || baseType.StartsWith("System.Collections.Generic.HashSet<"))
+        {
+            return "HashSet";
+        }
+        if (baseType.StartsWith("List<") || baseType.StartsWith("System.Collections.Generic.List<"))
+        {
+            return "List";
+        }
+        if (baseType.StartsWith("IList<"))
+        {
+            return "List"; // Use concrete List for IList
+        }
+        if (baseType.StartsWith("ICollection<"))
+        {
+            return "List"; // Use concrete List for ICollection
+        }
+        if (baseType.StartsWith("IEnumerable<"))
+        {
+            return "List"; // Use concrete List for IEnumerable
+        }
+
+        // Default to List if we can't determine the collection type
+        return "List";
     }
 
     private static bool IsComplexType(string typeName)
