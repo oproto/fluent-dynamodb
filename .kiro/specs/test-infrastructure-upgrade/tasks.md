@@ -152,21 +152,21 @@
     - Implement Build() method
     - _Requirements: 9.1_
 
-- [ ] 8. Create compilation verifier utility
-  - [ ] 8.1 Create CompilationVerifier class in unit test project
+- [x] 8. Create compilation verifier utility
+  - [x] 8.1 Create CompilationVerifier class in unit test project
     - Implement AssertGeneratedCodeCompiles method
     - Create CSharpCompilation from source code
     - Add necessary assembly references
     - Check for compilation errors
     - _Requirements: 4.1, 4.3_
   
-  - [ ] 8.2 Add detailed error reporting
+  - [x] 8.2 Add detailed error reporting
     - Format compilation errors with line numbers
     - Include generated source in error message
     - Provide clear error messages
     - _Requirements: 4.2, 4.4_
   
-  - [ ] 8.3 Add support for multiple source files
+  - [x] 8.3 Add support for multiple source files
     - Accept additional source files parameter
     - Handle external type references
     - _Requirements: 4.5_
