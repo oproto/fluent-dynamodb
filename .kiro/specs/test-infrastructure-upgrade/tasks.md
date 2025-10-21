@@ -121,20 +121,20 @@
     - Verify correct behavior
     - _Requirements: 3.4, 3.5_
 
-- [ ] 6. Write integration tests for Dictionary types
-  - [ ] 6.1 Create DictionaryIntegrationTests class
+- [x] 6. Write integration tests for Dictionary types
+  - [x] 6.1 Create DictionaryIntegrationTests class
     - Inherit from IntegrationTestBase
     - Add Collection attribute
     - Create test table in InitializeAsync
     - _Requirements: 2.1, 3.3_
   
-  - [ ] 6.2 Test Dictionary<string, string> round-trip
+  - [x] 6.2 Test Dictionary<string, string> round-trip
     - Create entity with Dictionary values
     - Save and load entity
     - Verify all key-value pairs preserved
     - _Requirements: 3.3_
   
-  - [ ] 6.3 Test Dictionary null and empty handling
+  - [x] 6.3 Test Dictionary null and empty handling
     - Test null Dictionary property
     - Test empty Dictionary property
     - Verify correct behavior
