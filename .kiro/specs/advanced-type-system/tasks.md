@@ -534,3 +534,119 @@
   - Document empty collection handling
   - Add migration guide for existing entities
   - _Requirements: All_
+
+## Bug Fixes
+
+- [x] 22. Fix diagnostic category for advanced type diagnostics
+  - [x] 22.1 Update DYNDB101-DYNDB107 diagnostic descriptors to use "DynamoDb" category
+    - Change category from "DynamoDb.AdvancedTypes" to "DynamoDb" for consistency
+    - Update all advanced type diagnostic descriptors in DiagnosticDescriptors class
+    - _Requirements: 11.2, 11.3, 11.4_
+
+- [x] 23. Fix advanced type support in source generator
+  - [x] 23.1 Enable Dictionary<string, string> mapping without errors
+    - Remove or suppress DYNDB009 error for Dictionary<string, string> types
+    - Ensure Dictionary<string, string> is recognized as a supported type
+    - Generate proper Map conversion code for Dictionary properties
+    - _Requirements: 1.1, 1.2_
+  
+  - [x] 23.2 Enable HashSet<T> mapping without errors
+    - Remove or suppress DYNDB009 error for HashSet<string>, HashSet<int>, HashSet<byte[]>
+    - Ensure HashSet types are recognized as supported types
+    - Generate proper Set conversion code for HashSet properties
+    - _Requirements: 2.1, 2.2, 2.3_
+  
+  - [x] 23.3 Enable List<T> mapping without errors
+    - Ensure List<string>, List<int>, List<decimal> are recognized as supported types
+    - Generate proper List conversion code for List properties
+    - _Requirements: 3.1, 3.2_
+  
+  - [x] 23.4 Fix TTL property code generation
+    - Generate correct Unix epoch conversion code (using N attribute, not S)
+    - Fix ToDynamoDb to use: `new AttributeValue { N = seconds.ToString() }`
+    - Fix FromDynamoDb to parse from N attribute, not S attribute
+    - Ensure null handling works correctly
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  
+  - [x] 23.5 Fix JSON blob support detection
+    - Update diagnostic message to say "serializer" instead of full package names
+    - Ensure DYNDB102 error is only generated when JsonBlob is used without serializer package
+    - Remove DYNDB009 error when JsonBlob attribute is present with valid serializer
+    - _Requirements: 5.1, 5.2, 5.3, 11.3_
+  
+  - [x] 23.6 Fix blob reference support detection
+    - Ensure DYNDB103 error is only generated when BlobReference is used without provider package
+    - Remove DYNDB009 error when BlobReference attribute is present with valid provider
+    - _Requirements: 7.1, 7.2, 11.4_
+  
+  - [x] 23.7 Fix DynamoDbMap nested type support
+    - Ensure DYNDB009 error is not generated for types with [DynamoDbMap] attribute
+    - Generate proper nested map conversion using the nested type's ToDynamoDb/FromDynamoDb methods
+    - Validate nested type has [DynamoDbEntity] attribute and generate DYNDB107 if missing
+    - _Requirements: 1.3, 1.4, 1.5_
+
+- [x] 24. Fix empty collection handling in WithValue
+  - [x] 24.1 Update WithValue to skip empty Dictionary<string, string>
+    - Check if dictionary is null or empty before adding to AttributeValues
+    - Return without adding attribute if empty
+    - _Requirements: 15.2, 15.3_
+  
+  - [x] 24.2 Update WithValue to skip empty collections for all advanced types
+    - Apply empty check to HashSet, List, and Dictionary types
+    - Ensure consistent behavior across all collection types
+    - _Requirements: 15.2, 15.3_
+
+- [x] 25. Fix advanced type code generation to match test expectations
+  - [x] 25.1 Fix Dictionary<string, string> FromDynamoDb generation
+    - Move null check to TryGetValue condition: `if (item.TryGetValue("x", out var xValue) && xValue.M != null)`
+    - Remove inner null check and adjust indentation
+    - Ensure generated code matches test expectations exactly
+    - _Requirements: 1.1, 1.5_
+  
+  - [x] 25.2 Fix nested [DynamoDbMap] type code generation
+    - Generate correct nested type reference without namespace prefix in method call
+    - Should generate: `var attributesMap = ProductAttributes.ToDynamoDb(typedEntity.Attributes);`
+    - Not: `var attributesMap = TestNamespace.ProductAttributes?.ToDynamoDb(typedEntity.Attributes);`
+    - Fix both ToDynamoDb and FromDynamoDb generation
+    - _Requirements: 1.3, 1.4, 1.5_
+  
+  - [x] 25.3 Fix TTL FromDynamoDb generation to include null check in condition
+    - Change from: `if (item.TryGetValue("ttl", out var ttlValue))`
+    - To: `if (item.TryGetValue("ttl", out var ttlValue) && ttlValue.N != null)`
+    - Remove inner null check and adjust indentation
+    - _Requirements: 4.3, 4.4_
+  
+  - [x] 25.4 Fix JsonBlob and BlobReference diagnostic suppression
+    - Ensure DYNDB102 error is NOT generated when JSON serializer package is referenced
+    - Ensure DYNDB103 error is NOT generated when blob provider package is referenced
+    - Tests expect no errors when packages are properly referenced
+    - _Requirements: 11.3, 11.4_
+
+- [x] 26. Fix remaining advanced type test failures
+  - [x] 26.1 Run all AdvancedTypeGenerationTests and identify remaining failures
+    - Execute: `dotnet test --filter "FullyQualifiedName~AdvancedTypeGenerationTests"`
+    - Document which tests are still failing
+    - Identify patterns in the failures
+  
+  - [x] 26.2 Fix HashSet (Set) code generation issues
+    - Review test expectations for Set property generation
+    - Ensure null checks are in the correct location
+    - Fix any indentation or formatting issues
+    - _Requirements: 2.1, 2.2, 2.3, 2.5_
+  
+  - [x] 26.3 Fix List code generation issues
+    - Review test expectations for List property generation
+    - Ensure null checks are in the correct location
+    - Fix any indentation or formatting issues
+    - _Requirements: 3.1, 3.5_
+  
+  - [x] 26.4 Fix empty collection handling in generated code
+    - Ensure empty Dictionary is handled correctly in FromDynamoDb
+    - Ensure empty HashSet is handled correctly in FromDynamoDb
+    - Ensure empty List is handled correctly in FromDynamoDb
+    - _Requirements: 15.1, 15.2_
+  
+  - [x] 26.5 Verify all 30 AdvancedTypeGenerationTests pass
+    - Run full test suite: `dotnet test --filter "FullyQualifiedName~AdvancedTypeGenerationTests"`
+    - Confirm all tests pass
+    - Document any remaining issues

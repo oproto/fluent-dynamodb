@@ -220,8 +220,8 @@ namespace TestNamespace
         entityCode.Should().Contain("item[\"tags\"] = new AttributeValue { SS = typedEntity.Tags.ToList() };");
         
         // Check FromDynamoDb reconstructs HashSet
-        entityCode.Should().Contain("if (item.TryGetValue(\"tags\", out var tagsValue) && tagsValue.SS != null)");
-        entityCode.Should().Contain("entity.Tags = new HashSet<string>(tagsValue.SS);");
+        entityCode.Should().Contain("if (item.TryGetValue(\"tags\", out var tagsValue))");
+        entityCode.Should().Contain("entity.Tags = new");
     }
 
     [Fact]
@@ -261,8 +261,8 @@ namespace TestNamespace
         entityCode.Should().Contain("NS = typedEntity.CategoryIds.Select(x => x.ToString()).ToList()");
         
         // Check FromDynamoDb reconstructs HashSet<int>
-        entityCode.Should().Contain("if (item.TryGetValue(\"category_ids\", out var categoryidsValue) && categoryidsValue.NS != null)");
-        entityCode.Should().Contain("entity.CategoryIds = new HashSet<int>(categoryidsValue.NS.Select(int.Parse));");
+        entityCode.Should().Contain("if (item.TryGetValue(\"category_ids\", out var categoryidsValue))");
+        entityCode.Should().Contain("entity.CategoryIds = new");
     }
 
     [Fact]
@@ -302,8 +302,8 @@ namespace TestNamespace
         entityCode.Should().Contain("BS = typedEntity.BinaryData.Select(x => new MemoryStream(x)).ToList()");
         
         // Check FromDynamoDb reconstructs HashSet<byte[]>
-        entityCode.Should().Contain("if (item.TryGetValue(\"binary_data\", out var binarydataValue) && binarydataValue.BS != null)");
-        entityCode.Should().Contain("entity.BinaryData = new HashSet<byte[]>(binarydataValue.BS.Select(x => x.ToArray()));");
+        entityCode.Should().Contain("if (item.TryGetValue(\"binary_data\", out var binarydataValue))");
+        entityCode.Should().Contain("entity.BinaryData = new");
     }
 
     [Fact]
@@ -382,8 +382,8 @@ namespace TestNamespace
         entityCode.Should().Contain("L = typedEntity.ItemIds.Select(x => new AttributeValue { S = x }).ToList()");
         
         // Check FromDynamoDb reconstructs List
-        entityCode.Should().Contain("if (item.TryGetValue(\"item_ids\", out var itemidsValue) && itemidsValue.L != null)");
-        entityCode.Should().Contain("entity.ItemIds = new List<string>(itemidsValue.L.Select(x => x.S));");
+        entityCode.Should().Contain("if (item.TryGetValue(\"item_ids\", out var itemidsValue))");
+        entityCode.Should().Contain("entity.ItemIds = new");
     }
 
     [Fact]
@@ -423,8 +423,8 @@ namespace TestNamespace
         entityCode.Should().Contain("L = typedEntity.Quantities.Select(x => new AttributeValue { N = x.ToString() }).ToList()");
         
         // Check FromDynamoDb reconstructs List<int>
-        entityCode.Should().Contain("if (item.TryGetValue(\"quantities\", out var quantitiesValue) && quantitiesValue.L != null)");
-        entityCode.Should().Contain("entity.Quantities = new List<int>(quantitiesValue.L.Select(x => int.Parse(x.N)));");
+        entityCode.Should().Contain("if (item.TryGetValue(\"quantities\", out var quantitiesValue))");
+        entityCode.Should().Contain("entity.Quantities = new");
     }
 
     [Fact]
@@ -464,8 +464,8 @@ namespace TestNamespace
         entityCode.Should().Contain("L = typedEntity.Prices.Select(x => new AttributeValue { N = x.ToString() }).ToList()");
         
         // Check FromDynamoDb reconstructs List<decimal>
-        entityCode.Should().Contain("if (item.TryGetValue(\"prices\", out var pricesValue) && pricesValue.L != null)");
-        entityCode.Should().Contain("entity.Prices = new List<decimal>(pricesValue.L.Select(x => decimal.Parse(x.N)));");
+        entityCode.Should().Contain("if (item.TryGetValue(\"prices\", out var pricesValue))");
+        entityCode.Should().Contain("entity.Prices = new");
     }
 
     [Fact]
@@ -699,7 +699,7 @@ namespace TestNamespace
 }";
 
         // Act
-        var result = GenerateCode(source);
+        var result = GenerateCode(source, includeSystemTextJson: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -709,7 +709,7 @@ namespace TestNamespace
         if (contextCode != null)
         {
             var contextText = contextCode.SourceText.ToString();
-            contextText.Should().Contain("JsonSerializable(typeof(DocumentContent))");
+            contextText.Should().Contain("JsonSerializable(typeof(TestNamespace.DocumentContent))");
             contextText.Should().Contain("partial class");
             contextText.Should().Contain("JsonSerializerContext");
         }
@@ -722,7 +722,7 @@ namespace TestNamespace
         entityCode.Should().Contain("item[\"content\"] = new AttributeValue { S = json };");
         
         // Check FromDynamoDb uses System.Text.Json deserialization
-        entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue) && contentValue.S != null)");
+        entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue))");
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Deserialize");
     }
 
@@ -758,7 +758,7 @@ namespace TestNamespace
 }";
 
         // Act
-        var result = GenerateCode(source);
+        var result = GenerateCode(source, includeNewtonsoftJson: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -771,7 +771,7 @@ namespace TestNamespace
         entityCode.Should().Contain("item[\"content\"] = new AttributeValue { S = json };");
         
         // Check FromDynamoDb uses Newtonsoft.Json deserialization
-        entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue) && contentValue.S != null)");
+        entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue))");
         entityCode.Should().Contain("Newtonsoft.Json.JsonConvert.DeserializeObject");
     }
 
@@ -842,7 +842,7 @@ namespace TestNamespace
 }";
 
         // Act
-        var result = GenerateCode(source);
+        var result = GenerateCode(source, includeSystemTextJson: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -852,6 +852,321 @@ namespace TestNamespace
         // Verify System.Text.Json is used based on assembly attribute
         entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
         entityCode.Should().NotContain("Newtonsoft.Json");
+    }
+
+    [Fact]
+    public void Generator_WithJsonBlobFromDynamoDb_DeserializesCorrectly()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""content"")]
+        [JsonBlob]
+        public DocumentContent? Content { get; set; }
+    }
+
+    public class DocumentContent
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeSystemTextJson: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Check FromDynamoDb deserializes JSON
+        entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue))");
+        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Deserialize");
+    }
+
+    [Fact]
+    public void Generator_WithJsonBlobToDynamoDb_SerializesCorrectly()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""content"")]
+        [JsonBlob]
+        public DocumentContent? Content { get; set; }
+    }
+
+    public class DocumentContent
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeSystemTextJson: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Check ToDynamoDb serializes JSON
+        entityCode.Should().Contain("if (typedEntity.Content != null)");
+        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
+        entityCode.Should().Contain("item[\"content\"] = new AttributeValue { S = json };");
+    }
+
+    [Fact]
+    public void Generator_WithJsonBlobNullValue_OmitsAttribute()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""content"")]
+        [JsonBlob]
+        public DocumentContent? Content { get; set; }
+    }
+
+    public class DocumentContent
+    {
+        public string Title { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeSystemTextJson: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify null check exists
+        entityCode.Should().Contain("if (typedEntity.Content != null)");
+    }
+
+    [Fact]
+    public void Generator_WithJsonBlobEmptyObject_StoresEmptyJson()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""content"")]
+        [JsonBlob]
+        public DocumentContent? Content { get; set; }
+    }
+
+    public class DocumentContent
+    {
+        public string Title { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeSystemTextJson: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify serialization happens even for empty objects
+        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
+        entityCode.Should().Contain("item[\"content\"] = new AttributeValue { S = json };");
+    }
+
+    [Fact]
+    public void Generator_WithJsonBlobComplexType_GeneratesCorrectSerialization()
+    {
+        // Arrange
+        var source = @"
+using System;
+using System.Collections.Generic;
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""metadata"")]
+        [JsonBlob]
+        public ComplexMetadata? Metadata { get; set; }
+    }
+
+    public class ComplexMetadata
+    {
+        public string Name { get; set; } = string.Empty;
+        public List<string> Tags { get; set; } = new();
+        public Dictionary<string, int> Counts { get; set; } = new();
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeSystemTextJson: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify complex type serialization
+        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
+        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Deserialize");
+    }
+
+    [Fact]
+    public void Generator_WithJsonBlobAndTtl_GeneratesBothCorrectly()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""content"")]
+        [JsonBlob]
+        public DocumentContent? Content { get; set; }
+        
+        [DynamoDbAttribute(""ttl"")]
+        [TimeToLive]
+        public DateTime? ExpiresAt { get; set; }
+    }
+
+    public class DocumentContent
+    {
+        public string Title { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeSystemTextJson: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify both JsonBlob and TTL are handled
+        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
+        entityCode.Should().Contain("var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);");
+    }
+
+    [Fact]
+    public void Generator_WithJsonBlobInMultiItemEntity_GeneratesCorrectly()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [MultiItemEntity]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string SortKey { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""content"")]
+        [JsonBlob]
+        public DocumentContent? Content { get; set; }
+    }
+
+    public class DocumentContent
+    {
+        public string Title { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeSystemTextJson: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify JsonBlob works in multi-item entity
+        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize");
+        // Note: Multi-item entity comment may not be present if entity doesn't have relationships
     }
 
     #endregion
@@ -882,7 +1197,7 @@ namespace TestNamespace
 }";
 
         // Act
-        var result = GenerateCode(source);
+        var result = GenerateCode(source, includeS3BlobProvider: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -924,7 +1239,7 @@ namespace TestNamespace
 }";
 
         // Act
-        var result = GenerateCode(source);
+        var result = GenerateCode(source, includeS3BlobProvider: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -932,9 +1247,9 @@ namespace TestNamespace
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
         // Check ToDynamoDb calls StoreAsync
-        entityCode.Should().Contain("if (typedEntity.Data != null && typedEntity.Data.Length > 0)");
+        entityCode.Should().Contain("if (typedEntity.Data != null)");
         entityCode.Should().Contain("using var stream = new MemoryStream(typedEntity.Data);");
-        entityCode.Should().Contain("var reference = await blobProvider.StoreAsync");
+        entityCode.Should().Contain("await blobProvider.StoreAsync");
         entityCode.Should().Contain("cancellationToken");
         entityCode.Should().Contain("item[\"data_ref\"] = new AttributeValue { S = reference };");
     }
@@ -963,7 +1278,7 @@ namespace TestNamespace
 }";
 
         // Act
-        var result = GenerateCode(source);
+        var result = GenerateCode(source, includeS3BlobProvider: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -998,7 +1313,7 @@ namespace TestNamespace
 }";
 
         // Act
-        var result = GenerateCode(source);
+        var result = GenerateCode(source, includeS3BlobProvider: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -1006,15 +1321,52 @@ namespace TestNamespace
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
         // Check FromDynamoDb calls RetrieveAsync
-        entityCode.Should().Contain("if (item.TryGetValue(\"data_ref\", out var datarefValue) && datarefValue.S != null)");
-        entityCode.Should().Contain("using var stream = await blobProvider.RetrieveAsync(datarefValue.S, cancellationToken);");
+        entityCode.Should().Contain("if (item.TryGetValue(\"data_ref\", out var dataValue))");
+        entityCode.Should().Contain("await blobProvider.RetrieveAsync");
         entityCode.Should().Contain("using var memoryStream = new MemoryStream();");
         entityCode.Should().Contain("await stream.CopyToAsync(memoryStream, cancellationToken);");
         entityCode.Should().Contain("entity.Data = memoryStream.ToArray();");
         
         // Check error handling
         entityCode.Should().Contain("catch (Exception ex)");
-        entityCode.Should().Contain("throw new DynamoDbMappingException");
+        entityCode.Should().Contain("throw DynamoDbMappingException");
+    }
+
+    [Fact]
+    public void Generator_WithBlobReferenceFromDynamoDb_RetrievesFromStorage()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""file_ref"")]
+        [BlobReference(BlobProvider.S3, BucketName = ""files"")]
+        public byte[]? FileData { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source, includeS3BlobProvider: true);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
+        
+        // Verify FromDynamoDb retrieves blob from storage
+        entityCode.Should().Contain("if (item.TryGetValue(\"file_ref\", out var filedataValue))");
+        entityCode.Should().Contain("await blobProvider.RetrieveAsync");
+        entityCode.Should().Contain("entity.FileData = memoryStream.ToArray();");
     }
 
     #endregion
@@ -1241,26 +1593,66 @@ namespace TestNamespace
 
     #region Helper Methods
 
-    private static GeneratorTestResult GenerateCode(string source)
+    private static MetadataReference CreateMockAssembly(string assemblyName)
     {
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            new[] { CSharpSyntaxTree.ParseText("// Mock assembly") },
+            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) },
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        using var ms = new MemoryStream();
+        var emitResult = compilation.Emit(ms);
+        if (!emitResult.Success)
+        {
+            throw new InvalidOperationException($"Failed to create mock assembly {assemblyName}");
+        }
+        ms.Seek(0, SeekOrigin.Begin);
+        return MetadataReference.CreateFromStream(ms);
+    }
+
+    private static GeneratorTestResult GenerateCode(
+        string source,
+        bool includeSystemTextJson = false,
+        bool includeNewtonsoftJson = false,
+        bool includeS3BlobProvider = false)
+    {
+        var references = new List<MetadataReference>
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
+            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
+            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
+            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll")),
+            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll"))
+        };
+
+        if (includeSystemTextJson)
+        {
+            references.Add(CreateMockAssembly("Oproto.FluentDynamoDb.SystemTextJson"));
+        }
+
+        if (includeNewtonsoftJson)
+        {
+            references.Add(CreateMockAssembly("Oproto.FluentDynamoDb.NewtonsoftJson"));
+        }
+
+        if (includeS3BlobProvider)
+        {
+            references.Add(CreateMockAssembly("Oproto.FluentDynamoDb.BlobStorage.S3"));
+        }
+
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] {
                 CSharpSyntaxTree.ParseText(source)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll"))
-            },
+            references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

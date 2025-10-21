@@ -23,11 +23,13 @@ public class AdvancedTypeValidator
     /// <param name="advancedType">The advanced type information.</param>
     /// <param name="hasJsonSerializerPackage">Whether a JSON serializer package is referenced.</param>
     /// <param name="hasBlobProviderPackage">Whether a blob provider package is referenced.</param>
+    /// <param name="semanticModel">The semantic model for type resolution.</param>
     public void ValidateProperty(
         PropertyModel property,
         AdvancedTypeInfo advancedType,
         bool hasJsonSerializerPackage,
-        bool hasBlobProviderPackage)
+        bool hasBlobProviderPackage,
+        SemanticModel semanticModel)
     {
         // Validate TTL property type
         if (advancedType.IsTtl)
@@ -60,6 +62,12 @@ public class AdvancedTypeValidator
         if (advancedType.IsSet)
         {
             ValidateSetType(property, advancedType);
+        }
+
+        // Validate nested map types have [DynamoDbEntity] for AOT compatibility
+        if (advancedType.IsMap)
+        {
+            ValidateNestedMapType(property, semanticModel);
         }
     }
 
@@ -144,6 +152,51 @@ public class AdvancedTypeValidator
                 property.PropertyDeclaration?.Identifier.GetLocation(),
                 property.PropertyName,
                 $"HashSet<{advancedType.ElementType}>");
+        }
+    }
+
+    /// <summary>
+    /// Validates that nested map types have [DynamoDbEntity] attribute for AOT compatibility.
+    /// </summary>
+    private void ValidateNestedMapType(PropertyModel property, SemanticModel semanticModel)
+    {
+        // Only validate custom object maps (not Dictionary<string, string> or Dictionary<string, AttributeValue>)
+        var propertyType = property.PropertyType;
+        
+        // Skip Dictionary types - they don't need [DynamoDbEntity]
+        if (propertyType.Contains("Dictionary<"))
+            return;
+
+        // For custom types with [DynamoDbMap], verify the nested type has [DynamoDbEntity]
+        // This is required for AOT compatibility - we need the nested type's generated ToDynamoDb/FromDynamoDb methods
+        
+        // Get the type symbol for the property
+        if (property.PropertyDeclaration == null)
+            return;
+
+        var propertySymbol = semanticModel.GetDeclaredSymbol(property.PropertyDeclaration) as IPropertySymbol;
+        if (propertySymbol == null)
+            return;
+
+        var nestedTypeSymbol = propertySymbol.Type;
+        
+        // Check if the nested type has [DynamoDbEntity] or [DynamoDbTable] attribute
+        var hasEntityAttribute = nestedTypeSymbol.GetAttributes().Any(attr =>
+        {
+            var attrName = attr.AttributeClass?.Name;
+            return attrName == "DynamoDbEntityAttribute" || 
+                   attrName == "DynamoDbEntity" ||
+                   attrName == "DynamoDbTableAttribute" ||
+                   attrName == "DynamoDbTable";
+        });
+
+        if (!hasEntityAttribute)
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.NestedMapTypeMissingEntity,
+                property.PropertyDeclaration?.Identifier.GetLocation(),
+                property.PropertyName,
+                propertyType);
         }
     }
 

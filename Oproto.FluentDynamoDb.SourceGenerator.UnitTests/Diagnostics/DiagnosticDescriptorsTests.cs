@@ -251,4 +251,111 @@ public class DiagnosticDescriptorsTests
             d.MessageFormat.ToString().Should().NotBeNullOrEmpty("All descriptors should have a message format");
         });
     }
+
+    // Advanced Type System Diagnostics Tests
+
+    [Fact]
+    public void InvalidTtlType_ShouldHaveCorrectProperties()
+    {
+        // Arrange & Act
+        var descriptor = DiagnosticDescriptors.InvalidTtlType;
+
+        // Assert
+        descriptor.Id.Should().Be("DYNDB101");
+        descriptor.Title.ToString().Should().Be("Invalid TTL property type");
+        descriptor.MessageFormat.ToString().Should().Be("[TimeToLive] can only be used on DateTime or DateTimeOffset properties. Property '{0}' is type '{1}'");
+        descriptor.Category.Should().Be("DynamoDb");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MissingJsonSerializer_ShouldHaveCorrectProperties()
+    {
+        // Arrange & Act
+        var descriptor = DiagnosticDescriptors.MissingJsonSerializer;
+
+        // Assert
+        descriptor.Id.Should().Be("DYNDB102");
+        descriptor.Title.ToString().Should().Be("Missing JSON serializer package");
+        descriptor.MessageFormat.ToString().Should().Be("[JsonBlob] on property '{0}' requires referencing a JSON serializer package (SystemTextJson or NewtonsoftJson)");
+        descriptor.Category.Should().Be("DynamoDb");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MissingBlobProvider_ShouldHaveCorrectProperties()
+    {
+        // Arrange & Act
+        var descriptor = DiagnosticDescriptors.MissingBlobProvider;
+
+        // Assert
+        descriptor.Id.Should().Be("DYNDB103");
+        descriptor.Title.ToString().Should().Be("Missing blob provider package");
+        descriptor.MessageFormat.ToString().Should().Be("[BlobReference] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3");
+        descriptor.Category.Should().Be("DynamoDb");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IncompatibleAttributes_ShouldHaveCorrectProperties()
+    {
+        // Arrange & Act
+        var descriptor = DiagnosticDescriptors.IncompatibleAttributes;
+
+        // Assert
+        descriptor.Id.Should().Be("DYNDB104");
+        descriptor.Title.ToString().Should().Be("Incompatible attribute combination");
+        descriptor.MessageFormat.ToString().Should().Be("Property '{0}' has incompatible attribute combination: {1}");
+        descriptor.Category.Should().Be("DynamoDb");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MultipleTtlFields_ShouldHaveCorrectProperties()
+    {
+        // Arrange & Act
+        var descriptor = DiagnosticDescriptors.MultipleTtlFields;
+
+        // Assert
+        descriptor.Id.Should().Be("DYNDB105");
+        descriptor.Title.ToString().Should().Be("Multiple TTL fields");
+        descriptor.MessageFormat.ToString().Should().Be("Entity '{0}' has multiple [TimeToLive] properties. Only one TTL field is allowed per entity");
+        descriptor.Category.Should().Be("DynamoDb");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void UnsupportedCollectionType_ShouldHaveCorrectProperties()
+    {
+        // Arrange & Act
+        var descriptor = DiagnosticDescriptors.UnsupportedCollectionType;
+
+        // Assert
+        descriptor.Id.Should().Be("DYNDB106");
+        descriptor.Title.ToString().Should().Be("Unsupported collection type");
+        descriptor.MessageFormat.ToString().Should().Be("Property '{0}' has unsupported collection type '{1}'. Use Dictionary<string, T>, HashSet<T>, or List<T>");
+        descriptor.Category.Should().Be("DynamoDb");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public void NestedMapTypeMissingEntity_ShouldHaveCorrectProperties()
+    {
+        // Arrange & Act
+        var descriptor = DiagnosticDescriptors.NestedMapTypeMissingEntity;
+
+        // Assert
+        descriptor.Id.Should().Be("DYNDB107");
+        descriptor.Title.ToString().Should().Be("Nested map type missing [DynamoDbEntity]");
+        descriptor.MessageFormat.ToString().Should().Contain("Property '{0}' with [DynamoDbMap] has type '{1}' which must be marked with [DynamoDbEntity]");
+        descriptor.Category.Should().Be("DynamoDb");
+        descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
+        descriptor.IsEnabledByDefault.Should().BeTrue();
+    }
 }

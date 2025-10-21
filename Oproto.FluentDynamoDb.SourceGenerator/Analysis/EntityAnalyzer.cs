@@ -61,7 +61,7 @@ public class EntityAnalyzer
         // Validate individual properties
         foreach (var property in entityModel.Properties)
         {
-            ValidatePropertyModel(property);
+            ValidatePropertyModel(property, semanticModel);
             ValidatePropertyPerformance(property);
         }
 
@@ -494,28 +494,23 @@ public class EntityAnalyzer
             }
         }
 
-        // Check if entity is multi-item (has collection properties with DynamoDB attributes)
-        entityModel.IsMultiItemEntity = entityModel.Properties.Any(p => p.IsCollection && p.HasAttributeMapping);
-
-        // Validate multi-item entity consistency
-        if (entityModel.IsMultiItemEntity)
-        {
-            ValidateMultiItemEntityConsistency(entityModel);
-        }
+        // Multi-item entity concept is legacy - collections are now just serialized as DynamoDB Lists
+        // ToListAsync() handles multiple entity instances, compound entities use different patterns
+        entityModel.IsMultiItemEntity = false;
 
         // Validate computed and extracted keys
         ValidateComputedAndExtractedKeys(entityModel);
+
+        // Validate advanced types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        ValidateAdvancedTypes(entityModel);
 
         // Additional comprehensive validations
         ValidateEntityComplexity(entityModel);
         ValidateEntityScalability(entityModel);
         ValidateCircularReferences(entityModel);
-
-        // Validate advanced type configurations
-        ValidateAdvancedTypes(entityModel);
     }
 
-    private void ValidatePropertyModel(PropertyModel propertyModel)
+    private void ValidatePropertyModel(PropertyModel propertyModel, SemanticModel semanticModel)
     {
         // Check if property has key attributes but missing DynamoDbAttribute
         if ((propertyModel.IsPartitionKey || propertyModel.IsSortKey || propertyModel.IsPartOfGsi) &&
@@ -527,11 +522,27 @@ public class EntityAnalyzer
         }
 
         // Validate property type support
-        if (!IsSupportedPropertyType(propertyModel.PropertyType))
+        // Skip validation for advanced types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        // as they are validated separately
+        var isAdvancedType = propertyModel.AdvancedType != null && (
+            propertyModel.AdvancedType.IsMap ||
+            propertyModel.AdvancedType.IsSet ||
+            propertyModel.AdvancedType.IsList ||
+            propertyModel.AdvancedType.IsTtl ||
+            propertyModel.AdvancedType.IsJsonBlob ||
+            propertyModel.AdvancedType.IsBlobReference);
+
+        if (!isAdvancedType && !IsSupportedPropertyType(propertyModel.PropertyType))
         {
             ReportDiagnostic(DiagnosticDescriptors.UnsupportedPropertyType,
                 propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
                 propertyModel.PropertyName, propertyModel.PropertyType);
+        }
+
+        // Validate nested map types have [DynamoDbEntity] for AOT compatibility
+        if (propertyModel.AdvancedType?.IsMap == true)
+        {
+            ValidateNestedMapType(propertyModel, semanticModel);
         }
 
         // Validate attribute name
@@ -686,6 +697,48 @@ public class EntityAnalyzer
                     propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
                     $"{keyFormat.Prefix}{keyFormat.Separator}{{value}}", propertyModel.PropertyName);
             }
+        }
+    }
+
+    private void ValidateNestedMapType(PropertyModel propertyModel, SemanticModel semanticModel)
+    {
+        // Only validate custom object maps (not Dictionary<string, string> or Dictionary<string, AttributeValue>)
+        var propertyType = propertyModel.PropertyType;
+        
+        // Skip Dictionary types - they don't need [DynamoDbEntity]
+        if (propertyType.Contains("Dictionary<"))
+            return;
+
+        // For custom types with [DynamoDbMap], verify the nested type has [DynamoDbEntity]
+        // This is required for AOT compatibility - we need the nested type's generated ToDynamoDb/FromDynamoDb methods
+        
+        // Get the type symbol for the property
+        if (propertyModel.PropertyDeclaration == null)
+            return;
+
+        var propertySymbol = semanticModel.GetDeclaredSymbol(propertyModel.PropertyDeclaration) as IPropertySymbol;
+        if (propertySymbol == null)
+            return;
+
+        var nestedTypeSymbol = propertySymbol.Type;
+        
+        // Check if the nested type has [DynamoDbEntity] or [DynamoDbTable] attribute
+        var hasEntityAttribute = nestedTypeSymbol.GetAttributes().Any(attr =>
+        {
+            var attrName = attr.AttributeClass?.Name;
+            return attrName == "DynamoDbEntityAttribute" || 
+                   attrName == "DynamoDbEntity" ||
+                   attrName == "DynamoDbTableAttribute" ||
+                   attrName == "DynamoDbTable";
+        });
+
+        if (!hasEntityAttribute)
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.NestedMapTypeMissingEntity,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName,
+                propertyType);
         }
     }
 
@@ -853,14 +906,28 @@ public class EntityAnalyzer
             return true; // Assume nullable types are supported if base type is
         }
 
-        // Check for collections
+        // Check for Dictionary types (Map support)
+        if (baseType.StartsWith("System.Collections.Generic.Dictionary<") ||
+            baseType.StartsWith("Dictionary<"))
+        {
+            return true; // Dictionary types are supported for Map conversion
+        }
+
+        // Check for HashSet types (Set support)
+        if (baseType.StartsWith("System.Collections.Generic.HashSet<") ||
+            baseType.StartsWith("HashSet<"))
+        {
+            return true; // HashSet types are supported for Set conversion
+        }
+
+        // Check for List types (List support)
         if (baseType.StartsWith("System.Collections.Generic.List<") ||
             baseType.StartsWith("List<") ||
             baseType.StartsWith("IList<") ||
             baseType.StartsWith("ICollection<") ||
             baseType.StartsWith("IEnumerable<"))
         {
-            return true; // Collections are supported
+            return true; // List types are supported
         }
 
         return supportedTypes.Contains(baseType);
@@ -1414,7 +1481,8 @@ public class EntityAnalyzer
                     property,
                     property.AdvancedType,
                     hasJsonSerializerPackage,
-                    hasBlobProviderPackage);
+                    hasBlobProviderPackage,
+                    entityModel.SemanticModel!);
             }
         }
 

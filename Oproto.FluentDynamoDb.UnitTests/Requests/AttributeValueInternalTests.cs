@@ -227,7 +227,7 @@ public class AttributeValueInternalTests
     }
 
     [Fact]
-    public void WithValue_StringDictionary_Empty_ShouldAddEmptyMapValue()
+    public void WithValue_StringDictionary_Empty_ShouldNotAddValue()
     {
         // Arrange
         var dict = new Dictionary<string, string>();
@@ -235,9 +235,8 @@ public class AttributeValueInternalTests
         // Act
         _helper.WithValue(":metadata", dict, conditionalUse: true);
 
-        // Assert
-        _helper.AttributeValues.Should().HaveCount(1);
-        _helper.AttributeValues[":metadata"].M.Should().BeEmpty();
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty collections)
+        _helper.AttributeValues.Should().BeEmpty();
     }
 
     [Fact]
@@ -278,6 +277,19 @@ public class AttributeValueInternalTests
     }
 
     [Fact]
+    public void WithValue_AttributeValueDictionary_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var dict = new Dictionary<string, AttributeValue>();
+
+        // Act
+        _helper.WithValue(":complex", dict, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty collections)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
     public void WithValue_AttributeValueDictionary_ConditionalUseFalse_ShouldNotAddValue()
     {
         // Arrange
@@ -290,6 +302,215 @@ public class AttributeValueInternalTests
         _helper.WithValue(":complex", dict, conditionalUse: false);
 
         // Assert
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    #endregion
+
+    #region WithValue HashSet Tests
+
+    [Fact]
+    public void WithValue_HashSetString_ConditionalUseTrue_ShouldAddStringSetValue()
+    {
+        // Arrange
+        var set = new HashSet<string> { "value1", "value2", "value3" };
+
+        // Act
+        _helper.WithValue(":tags", set, conditionalUse: true);
+
+        // Assert
+        _helper.AttributeValues.Should().HaveCount(1);
+        _helper.AttributeValues[":tags"].SS.Should().HaveCount(3);
+        _helper.AttributeValues[":tags"].SS.Should().Contain("value1");
+        _helper.AttributeValues[":tags"].SS.Should().Contain("value2");
+        _helper.AttributeValues[":tags"].SS.Should().Contain("value3");
+    }
+
+    [Fact]
+    public void WithValue_HashSetString_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var set = new HashSet<string>();
+
+        // Act
+        _helper.WithValue(":tags", set, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty sets)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_HashSetString_Null_ShouldNotAddValue()
+    {
+        // Act
+        _helper.WithValue(":tags", (HashSet<string>?)null, conditionalUse: true);
+
+        // Assert
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_HashSetInt_ConditionalUseTrue_ShouldAddNumberSetValue()
+    {
+        // Arrange
+        var set = new HashSet<int> { 1, 2, 3 };
+
+        // Act
+        _helper.WithValue(":numbers", set, conditionalUse: true);
+
+        // Assert
+        _helper.AttributeValues.Should().HaveCount(1);
+        _helper.AttributeValues[":numbers"].NS.Should().HaveCount(3);
+        _helper.AttributeValues[":numbers"].NS.Should().Contain("1");
+        _helper.AttributeValues[":numbers"].NS.Should().Contain("2");
+        _helper.AttributeValues[":numbers"].NS.Should().Contain("3");
+    }
+
+    [Fact]
+    public void WithValue_HashSetInt_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var set = new HashSet<int>();
+
+        // Act
+        _helper.WithValue(":numbers", set, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty sets)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_HashSetLong_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var set = new HashSet<long>();
+
+        // Act
+        _helper.WithValue(":longs", set, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty sets)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_HashSetDecimal_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var set = new HashSet<decimal>();
+
+        // Act
+        _helper.WithValue(":decimals", set, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty sets)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_HashSetByteArray_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var set = new HashSet<byte[]>();
+
+        // Act
+        _helper.WithValue(":binaries", set, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty sets)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    #endregion
+
+    #region WithValue List Tests
+
+    [Fact]
+    public void WithValue_ListString_ConditionalUseTrue_ShouldAddListValue()
+    {
+        // Arrange
+        var list = new List<string> { "item1", "item2", "item3" };
+
+        // Act
+        _helper.WithValue(":items", list, conditionalUse: true);
+
+        // Assert
+        _helper.AttributeValues.Should().HaveCount(1);
+        _helper.AttributeValues[":items"].L.Should().HaveCount(3);
+        _helper.AttributeValues[":items"].L[0].S.Should().Be("item1");
+        _helper.AttributeValues[":items"].L[1].S.Should().Be("item2");
+        _helper.AttributeValues[":items"].L[2].S.Should().Be("item3");
+    }
+
+    [Fact]
+    public void WithValue_ListString_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var list = new List<string>();
+
+        // Act
+        _helper.WithValue(":items", list, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty lists)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_ListString_Null_ShouldNotAddValue()
+    {
+        // Act
+        _helper.WithValue(":items", (List<string>?)null, conditionalUse: true);
+
+        // Assert
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_ListInt_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var list = new List<int>();
+
+        // Act
+        _helper.WithValue(":numbers", list, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty lists)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_ListLong_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var list = new List<long>();
+
+        // Act
+        _helper.WithValue(":longs", list, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty lists)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_ListDecimal_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var list = new List<decimal>();
+
+        // Act
+        _helper.WithValue(":decimals", list, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty lists)
+        _helper.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithValue_ListBool_Empty_ShouldNotAddValue()
+    {
+        // Arrange
+        var list = new List<bool>();
+
+        // Act
+        _helper.WithValue(":bools", list, conditionalUse: true);
+
+        // Assert - Empty collections should not be added (DynamoDB doesn't support empty lists)
         _helper.AttributeValues.Should().BeEmpty();
     }
 

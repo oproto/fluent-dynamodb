@@ -448,7 +448,7 @@ public static class DiagnosticDescriptors
         "DYNDB101",
         "Invalid TTL property type",
         "[TimeToLive] can only be used on DateTime or DateTimeOffset properties. Property '{0}' is type '{1}'",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "TTL properties must be DateTime or DateTimeOffset to support Unix epoch conversion.");
@@ -459,8 +459,8 @@ public static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor MissingJsonSerializer = new(
         "DYNDB102",
         "Missing JSON serializer package",
-        "[JsonBlob] on property '{0}' requires referencing either Oproto.FluentDynamoDb.SystemTextJson or Oproto.FluentDynamoDb.NewtonsoftJson",
-        "DynamoDb.AdvancedTypes",
+        "[JsonBlob] on property '{0}' requires referencing a JSON serializer package (SystemTextJson or NewtonsoftJson)",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "JSON blob serialization requires a JSON serializer package reference.");
@@ -472,7 +472,7 @@ public static class DiagnosticDescriptors
         "DYNDB103",
         "Missing blob provider package",
         "[BlobReference] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Blob reference storage requires a blob provider package reference.");
@@ -484,7 +484,7 @@ public static class DiagnosticDescriptors
         "DYNDB104",
         "Incompatible attribute combination",
         "Property '{0}' has incompatible attribute combination: {1}",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Certain attribute combinations are not supported together.");
@@ -496,7 +496,7 @@ public static class DiagnosticDescriptors
         "DYNDB105",
         "Multiple TTL fields",
         "Entity '{0}' has multiple [TimeToLive] properties. Only one TTL field is allowed per entity",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "DynamoDB entities can only have one TTL field.");
@@ -508,7 +508,7 @@ public static class DiagnosticDescriptors
         "DYNDB106",
         "Unsupported collection type",
         "Property '{0}' has unsupported collection type '{1}'. Use Dictionary<string, T>, HashSet<T>, or List<T>",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Only specific collection types are supported for DynamoDB mapping.");
@@ -520,7 +520,7 @@ public static class DiagnosticDescriptors
         "DYNDB107",
         "Nested map type missing [DynamoDbEntity]",
         "Property '{0}' with [DynamoDbMap] has type '{1}' which must be marked with [DynamoDbEntity] to generate mapping code. Nested map types require source-generated ToDynamoDb/FromDynamoDb methods to maintain AOT compatibility.",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Custom types used with [DynamoDbMap] must be marked with [DynamoDbEntity] to generate the required mapping methods. This ensures AOT compatibility by avoiding reflection.");
