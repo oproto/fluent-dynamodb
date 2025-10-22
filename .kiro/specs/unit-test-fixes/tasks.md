@@ -142,22 +142,22 @@
   - Update migration tracking
   - _Requirements: 5.1, 5.4_
 
-- [ ] 7. Migrate MapperGeneratorBugFixTests.cs (Medium Priority)
-- [ ] 7.1 Add compilation verification to all tests in MapperGeneratorBugFixTests.cs
+- [x] 7. Migrate MapperGeneratorBugFixTests.cs (Medium Priority)
+- [x] 7.1 Add compilation verification to all tests in MapperGeneratorBugFixTests.cs
   - Add compilation verification for bug fix tests
   - _Requirements: 2.1, 2.4_
 
-- [ ] 7.2 Replace structural assertions with semantic assertions in MapperGeneratorBugFixTests.cs
+- [x] 7.2 Replace structural assertions with semantic assertions in MapperGeneratorBugFixTests.cs
   - Replace type reference checks
   - Keep specific bug-related string checks that verify the fix
   - _Requirements: 3.4, 3.5_
 
-- [ ] 7.3 Validate MapperGeneratorBugFixTests.cs migration
+- [x] 7.3 Validate MapperGeneratorBugFixTests.cs migration
   - Run tests and verify they pass
   - Verify bug fix tests still catch the original bug if reintroduced
   - _Requirements: 8.1, 8.2_
 
-- [ ] 7.4 Document MapperGeneratorBugFixTests.cs migration
+- [x] 7.4 Document MapperGeneratorBugFixTests.cs migration
   - Add file header comment
   - Update migration tracking
   - _Requirements: 5.1, 5.4_

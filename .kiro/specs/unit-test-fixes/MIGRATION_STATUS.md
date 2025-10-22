@@ -7,7 +7,7 @@ This document tracks the migration of brittle unit tests from string-based asser
 **Last Updated:** 2025-10-22  
 **Total Test Files:** 15  
 **Total Tests:** 164  
-**Migrated Tests:** 64 (39.0%)
+**Migrated Tests:** 65 (39.6%)
 
 ## Migration Priority Classification
 
@@ -205,22 +205,30 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 
 ---
 
-#### 6. MapperGeneratorBugFixTests.cs
+#### 6. MapperGeneratorBugFixTests.cs ✅ COMPLETED
 - **Location:** `Oproto.FluentDynamoDb.SourceGenerator.UnitTests/Generators/MapperGeneratorBugFixTests.cs`
 - **Total Tests:** 1
-- **Migration Status:** ❌ Not Started
-- **Compilation Verification:** ❌ Not Added
-- **String Assertions Found:**
-  - Type reference checks: `Should().Contain("typeof(TestEntity)")`
-  - Negative checks: `Should().NotContain("typeof(Id)")`
-- **Estimated Effort:** Very Low (1 bug fix verification test)
+- **Migration Status:** ✅ **COMPLETED** (2025-10-22)
+- **Compilation Verification:** ✅ Added
+- **Migration Changes Applied:**
+  - ✅ Added compilation verification to verify generated code compiles
+  - ✅ Added `.ShouldReferenceType()` semantic assertion for TestEntity type reference
+  - ✅ Preserved bug-specific string checks with "because" messages:
+    - `typeof(TestEntity)` presence check (verifies fix)
+    - `typeof(Id)` absence check (verifies bug doesn't reoccur)
+    - `typeof(Data)` absence check (verifies bug doesn't reoccur)
+    - Exception constructor parameter checks (verifies correct error handling)
+  - ✅ Added file header comment documenting migration
+  - ✅ Test passing
 - **Notes:**
-  - Verifies specific bug fix for CS0246 error
-  - Should keep string checks for bug verification
-  - Should add compilation verification
+  - Migration completed successfully
+  - Test now verifies both compilation and bug-specific behavior
+  - Bug-specific checks preserved to ensure the CS0246 error fix remains in place
+  - The bug was: property names were being used as types instead of entity class name
+  - Test verifies `typeof(TestEntity)` is used, not `typeof(Id)` or `typeof(Data)`
 
 **Test Breakdown:**
-1. `GenerateEntityImplementation_WithPropertyNames_UsesEntityClassNameInTypeofExpressions`
+1. `GenerateEntityImplementation_WithPropertyNames_UsesEntityClassNameInTypeofExpressions` - Verifies CS0246 bug fix
 
 ---
 
@@ -349,14 +357,14 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 - **Priority 3 (Low Impact):** 9 files, 99 tests
 
 ### By Migration Status
-- **Completed:** 5 files, 64 tests ✅
-- **Not Started:** 1 file, 1 test
+- **Completed:** 6 files, 65 tests ✅
+- **Not Started:** 0 files, 0 tests
 - **Good As-Is:** 7 files, 87 tests
 - **Review Needed:** 2 files, 23 tests
 
 ### By Compilation Verification Status
-- **Already Added:** 5 files (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests, DynamoDbSourceGeneratorTests)
-- **Needs Adding:** 1 file (MapperGeneratorBugFixTests)
+- **Already Added:** 6 files (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests, DynamoDbSourceGeneratorTests, MapperGeneratorBugFixTests)
+- **Needs Adding:** 0 files
 - **Not Needed:** 10 files (diagnostic, model, and infrastructure tests)
 
 ---
@@ -458,6 +466,6 @@ Use this checklist for each file being migrated:
 4. ✅ **COMPLETED:** Priority 1: KeysGeneratorTests.cs (8 tests migrated)
 5. ✅ **COMPLETED:** Priority 2: FieldsGeneratorTests.cs (6 tests migrated)
 6. ✅ **COMPLETED:** Priority 2: DynamoDbSourceGeneratorTests.cs (3 tests migrated)
-7. ⏭️ Move to remaining Priority 2 file (MapperGeneratorBugFixTests.cs)
-8. ⏭️ Review Priority 3 files that need review
+7. ✅ **COMPLETED:** Priority 2: MapperGeneratorBugFixTests.cs (1 test migrated)
+8. ⏭️ Review Priority 3 files that need review (EdgeCaseTests.cs, EndToEndSourceGeneratorTests.cs)
 9. ⏭️ Create final migration summary report
