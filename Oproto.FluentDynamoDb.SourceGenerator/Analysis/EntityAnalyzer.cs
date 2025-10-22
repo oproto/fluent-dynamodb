@@ -93,8 +93,20 @@ public class EntityAnalyzer
     private bool ExtractTableInfo(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
         var tableAttribute = GetAttribute(classDecl, semanticModel, "DynamoDbTableAttribute");
+        
+        // Check if this is a DynamoDbEntity (nested type) instead of a DynamoDbTable
         if (tableAttribute == null)
+        {
+            var entityAttribute = GetAttribute(classDecl, semanticModel, "DynamoDbEntityAttribute");
+            if (entityAttribute != null)
+            {
+                // This is a nested entity type - no table name required
+                // Set a placeholder table name to indicate it's an entity
+                entityModel.TableName = $"_entity_{entityModel.ClassName}";
+                return true;
+            }
             return false;
+        }
 
         // Extract table name from constructor argument
         if (tableAttribute.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax tableNameLiteral)
@@ -461,18 +473,25 @@ public class EntityAnalyzer
         var partitionKeyProperties = entityModel.Properties.Where(p => p.IsPartitionKey).ToArray();
         var sortKeyProperties = entityModel.Properties.Where(p => p.IsSortKey).ToArray();
 
-        // Validate partition key - this is critical for DynamoDB entities
-        if (partitionKeyProperties.Length == 0)
+        // Check if this is a nested entity (DynamoDbEntity) vs a table entity (DynamoDbTable)
+        var isNestedEntity = entityModel.TableName?.StartsWith("_entity_") == true;
+
+        // Validate partition key - this is critical for DynamoDB table entities
+        // Nested entities (marked with [DynamoDbEntity]) don't need partition keys
+        if (!isNestedEntity)
         {
-            ReportDiagnostic(DiagnosticDescriptors.MissingPartitionKey,
-                entityModel.ClassDeclaration?.Identifier.GetLocation(),
-                entityModel.ClassName);
-        }
-        else if (partitionKeyProperties.Length > 1)
-        {
-            ReportDiagnostic(DiagnosticDescriptors.MultiplePartitionKeys,
-                entityModel.ClassDeclaration?.Identifier.GetLocation(),
-                entityModel.ClassName);
+            if (partitionKeyProperties.Length == 0)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.MissingPartitionKey,
+                    entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                    entityModel.ClassName);
+            }
+            else if (partitionKeyProperties.Length > 1)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.MultiplePartitionKeys,
+                    entityModel.ClassDeclaration?.Identifier.GetLocation(),
+                    entityModel.ClassName);
+            }
         }
 
         // Validate sort key

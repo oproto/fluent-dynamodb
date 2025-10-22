@@ -39,7 +39,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("namespace TestNamespace");
@@ -92,7 +93,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("Multi-item entity: Supports entities that span multiple DynamoDB items.");
@@ -152,7 +154,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("Related entities: 2 relationship(s) defined.");
@@ -210,7 +213,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("public static EntityMetadata GetEntityMetadata()");
@@ -251,7 +255,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("if (typedEntity.OptionalField != null)");
@@ -290,7 +295,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("// Convert collection Tags to native DynamoDB type");
@@ -350,7 +356,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         // Check ToDynamoDb conversions
@@ -401,7 +408,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("// Check entity discriminator");
@@ -441,7 +449,8 @@ public class MapperGeneratorTests
         var result = MapperGenerator.GenerateEntityImplementation(entity);
 
         // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(result);
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert
         result.Should().Contain("try");
@@ -450,5 +459,41 @@ public class MapperGeneratorTests
         result.Should().Contain("catch (DynamoDbMappingException)");
         result.Should().Contain("// Re-throw mapping exceptions as-is");
         result.Should().Contain("throw DynamoDbMappingException.EntityConstructionFailed(");
+    }
+
+    /// <summary>
+    /// Helper method to create entity source code from an EntityModel for compilation testing.
+    /// </summary>
+    private static string CreateEntitySource(EntityModel entity)
+    {
+        var sb = new System.Text.StringBuilder();
+        
+        // Add necessary using statements
+        sb.AppendLine("using System;");
+        sb.AppendLine("using System.Collections.Generic;");
+        sb.AppendLine("using System.Threading;");
+        sb.AppendLine("using System.Threading.Tasks;");
+        sb.AppendLine();
+        
+        sb.AppendLine($"namespace {entity.Namespace}");
+        sb.AppendLine("{");
+        sb.AppendLine($"    public partial class {entity.ClassName}");
+        sb.AppendLine("    {");
+        
+        foreach (var prop in entity.Properties)
+        {
+            // Handle nullable types properly
+            var propertyType = prop.PropertyType;
+            if (prop.IsNullable && !propertyType.EndsWith("?") && !propertyType.Contains("<"))
+            {
+                propertyType += "?";
+            }
+            sb.AppendLine($"        public {propertyType} {prop.PropertyName} {{ get; set; }}");
+        }
+        
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        
+        return sb.ToString();
     }
 }

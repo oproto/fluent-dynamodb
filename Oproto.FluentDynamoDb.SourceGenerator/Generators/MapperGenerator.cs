@@ -56,7 +56,10 @@ public static class MapperGenerator
         sb.AppendLine("using System.IO;");
         sb.AppendLine("using System.Linq;");
         sb.AppendLine("using System.Runtime.CompilerServices;");
+        sb.AppendLine("using System.Threading;");
+        sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Attributes;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
         sb.AppendLine();
 
@@ -89,7 +92,13 @@ public static class MapperGenerator
         // Generate all required interface methods
         if (hasBlobReferences)
         {
-            // Generate async methods for entities with blob references
+            // For entities with blob references, generate both:
+            // 1. Stub synchronous methods (to satisfy interface) that throw NotSupportedException
+            // 2. Actual async methods that handle blob storage
+            GenerateToDynamoDbStubMethod(sb, entity);
+            GenerateFromDynamoDbSingleStubMethod(sb, entity);
+            GenerateFromDynamoDbMultiStubMethod(sb, entity);
+            
             GenerateToDynamoDbAsyncMethod(sb, entity);
             GenerateFromDynamoDbSingleAsyncMethod(sb, entity);
             GenerateFromDynamoDbMultiAsyncMethod(sb, entity);
@@ -156,6 +165,52 @@ public static class MapperGenerator
 
         sb.AppendLine();
         sb.AppendLine("            return item;");
+        sb.AppendLine("        }");
+    }
+
+    private static void GenerateToDynamoDbStubMethod(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
+        sb.AppendLine("        /// Use ToDynamoDbAsync instead.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            throw new NotSupportedException(");
+        sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
+        sb.AppendLine($"                \"Use ToDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        sb.AppendLine("        }");
+    }
+
+    private static void GenerateFromDynamoDbSingleStubMethod(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
+        sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            throw new NotSupportedException(");
+        sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
+        sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        sb.AppendLine("        }");
+    }
+
+    private static void GenerateFromDynamoDbMultiStubMethod(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
+        sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            throw new NotSupportedException(");
+        sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
+        sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider instead.\");");
         sb.AppendLine("        }");
     }
 
@@ -329,9 +384,30 @@ public static class MapperGenerator
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
 
+        // Generate suggested key based on entity keys (declare before try block so it's accessible in catch)
+        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
+
         sb.AppendLine($"            // Store blob reference property {propertyName} externally");
         sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
         sb.AppendLine("            {");
+        sb.AppendLine("                string suggestedKey;");
+        if (partitionKeyProperty != null)
+        {
+            if (sortKeyProperty != null)
+            {
+                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}\";");
+            }
+            else
+            {
+                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}\";");
+            }
+        }
+        else
+        {
+            sb.AppendLine($"                suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}\";");
+        }
+        
         sb.AppendLine("                try");
         sb.AppendLine("                {");
 
@@ -360,25 +436,20 @@ public static class MapperGenerator
             sb.AppendLine("                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
             sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
         }
-
-        // Generate suggested key based on entity keys
-        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
-        var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
-
         if (partitionKeyProperty != null)
         {
             if (sortKeyProperty != null)
             {
-                sb.AppendLine($"                    var suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}\";");
+                sb.AppendLine($"                    suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}\";");
             }
             else
             {
-                sb.AppendLine($"                    var suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}\";");
+                sb.AppendLine($"                    suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}\";");
             }
         }
         else
         {
-            sb.AppendLine($"                    var suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}\";");
+            sb.AppendLine($"                    suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}\";");
         }
 
         // Store blob and save reference
@@ -409,9 +480,30 @@ public static class MapperGenerator
         var baseType = GetBaseType(propertyType);
         var serializerType = property.AdvancedType?.JsonSerializerType;
 
+        // Generate suggested key based on entity keys (declare before try block so it's accessible in catch)
+        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
+
         sb.AppendLine($"            // Combined JSON blob + blob reference: serialize to JSON, then store as external blob");
         sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
         sb.AppendLine("            {");
+        sb.AppendLine("                string suggestedKey;");
+        if (partitionKeyProperty != null)
+        {
+            if (sortKeyProperty != null)
+            {
+                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}.json\";");
+            }
+            else
+            {
+                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}.json\";");
+            }
+        }
+        else
+        {
+            sb.AppendLine($"                suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}.json\";");
+        }
+        
         sb.AppendLine("                try");
         sb.AppendLine("                {");
 
@@ -440,29 +532,8 @@ public static class MapperGenerator
         sb.AppendLine($"                    // Step 2: Convert JSON string to stream");
         sb.AppendLine("                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
         sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
-        sb.AppendLine();
 
-        // Step 3: Generate suggested key based on entity keys
-        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
-        var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
-
-        if (partitionKeyProperty != null)
-        {
-            if (sortKeyProperty != null)
-            {
-                sb.AppendLine($"                    var suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}.json\";");
-            }
-            else
-            {
-                sb.AppendLine($"                    var suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}.json\";");
-            }
-        }
-        else
-        {
-            sb.AppendLine($"                    var suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}.json\";");
-        }
-
-        // Step 4: Store blob and save reference in DynamoDB
+        // Step 3: Store blob and save reference in DynamoDB
         sb.AppendLine();
         sb.AppendLine($"                    // Step 3: Store JSON blob externally and save reference");
         sb.AppendLine("                    var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken);");

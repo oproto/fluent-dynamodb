@@ -346,7 +346,7 @@
     - _Requirements: 15.4, 15.5_
 
 - [ ] 20. Fix source generator test compilation failures
-  - [ ] 20.1 Fix CompilationVerifier usage in AdvancedTypeGenerationTests
+  - [x] 20.1 Fix CompilationVerifier usage in AdvancedTypeGenerationTests
     - Update all test methods to pass both original source and generated code to CompilationVerifier
     - Ensure entity class definitions are included in compilation context
     - Add missing using statements (System.Threading for CancellationToken)

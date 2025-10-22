@@ -37,7 +37,9 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             {
                 var attributeName = a.Name.ToString();
                 return attributeName.Contains("DynamoDbTable") ||
-                       attributeName.Contains("DynamoDbTableAttribute");
+                       attributeName.Contains("DynamoDbTableAttribute") ||
+                       attributeName.Contains("DynamoDbEntity") ||
+                       attributeName.Contains("DynamoDbEntityAttribute");
             }));
     }
 
@@ -84,13 +86,19 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
             if (entity == null) continue;
 
-            // Generate Fields class with field name constants
+            // Check if this is a nested entity (DynamoDbEntity) vs a table entity (DynamoDbTable)
+            var isNestedEntity = entity.TableName?.StartsWith("_entity_") == true;
+
+            // Generate Fields class with field name constants (for all entities)
             var fieldsCode = FieldsGenerator.GenerateFieldsClass(entity);
             context.AddSource($"{entity.ClassName}Fields.g.cs", fieldsCode);
 
-            // Generate Keys class with key builder methods
-            var keysCode = KeysGenerator.GenerateKeysClass(entity);
-            context.AddSource($"{entity.ClassName}Keys.g.cs", keysCode);
+            // Generate Keys class only for table entities (not nested entities)
+            if (!isNestedEntity)
+            {
+                var keysCode = KeysGenerator.GenerateKeysClass(entity);
+                context.AddSource($"{entity.ClassName}Keys.g.cs", keysCode);
+            }
 
             // Generate JsonSerializerContext for System.Text.Json if needed
             var jsonContextCode = JsonSerializerContextGenerator.GenerateJsonSerializerContext(entity);

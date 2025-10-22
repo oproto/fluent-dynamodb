@@ -30,6 +30,10 @@ public static class CompilationVerifier
             syntaxTrees.Add(CSharpSyntaxTree.ParseText(additionalSource));
         }
 
+        // Add mock attributes and interfaces for testing
+        syntaxTrees.Add(CSharpSyntaxTree.ParseText(GetMockAttributes()));
+        syntaxTrees.Add(CSharpSyntaxTree.ParseText(GetMockInterfaces()));
+
         var compilation = CSharpCompilation.Create(
             "TestCompilation",
             syntaxTrees,
@@ -51,6 +55,35 @@ public static class CompilationVerifier
     }
 
     /// <summary>
+    /// Gets mock attribute definitions for testing purposes.
+    /// These are attributes that are planned but not yet implemented.
+    /// </summary>
+    private static string GetMockAttributes()
+    {
+        return @"
+namespace Oproto.FluentDynamoDb.Attributes
+{
+    /// <summary>
+    /// Mock attribute for DynamoDbEntity - marks a class as a DynamoDB entity type.
+    /// This is a placeholder for testing until the actual attribute is implemented.
+    /// </summary>
+    [System.AttributeUsage(System.AttributeTargets.Class)]
+    public class DynamoDbEntityAttribute : System.Attribute { }
+}
+";
+    }
+
+    /// <summary>
+    /// Gets mock interface and class definitions for testing purposes.
+    /// These provide the necessary types that generated code depends on.
+    /// </summary>
+    private static string GetMockInterfaces()
+    {
+        // No mocks needed - all types are provided by the referenced assemblies
+        return string.Empty;
+    }
+
+    /// <summary>
     /// Gets the standard set of metadata references needed for compilation.
     /// </summary>
     private static IEnumerable<MetadataReference> GetMetadataReferences()
@@ -63,6 +96,8 @@ public static class CompilationVerifier
             MetadataReference.CreateFromFile(typeof(System.Attribute).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Threading.Tasks.Task).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Threading.CancellationToken).Assembly.Location),
             
             // AWS SDK references
             MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
