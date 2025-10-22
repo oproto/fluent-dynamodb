@@ -121,23 +121,23 @@
   - Update migration tracking
   - _Requirements: 5.1, 5.4_
 
-- [ ] 6. Migrate DynamoDbSourceGeneratorTests.cs (Medium Priority)
-- [ ] 6.1 Add compilation verification to all tests in DynamoDbSourceGeneratorTests.cs
+- [x] 6. Migrate DynamoDbSourceGeneratorTests.cs (Medium Priority)
+- [x] 6.1 Add compilation verification to all tests in DynamoDbSourceGeneratorTests.cs
   - Add compilation verification for end-to-end generator tests
   - _Requirements: 2.1, 2.4_
 
-- [ ] 6.2 Replace structural assertions with semantic assertions in DynamoDbSourceGeneratorTests.cs
+- [x] 6.2 Replace structural assertions with semantic assertions in DynamoDbSourceGeneratorTests.cs
   - Replace class and namespace checks
   - Replace method existence checks
   - Replace field constant checks
   - _Requirements: 3.1, 3.2, 3.4_
 
-- [ ] 6.3 Validate DynamoDbSourceGeneratorTests.cs migration
+- [x] 6.3 Validate DynamoDbSourceGeneratorTests.cs migration
   - Run tests and verify they pass
   - Test with formatting changes
   - _Requirements: 8.1, 8.2_
 
-- [ ] 6.4 Document DynamoDbSourceGeneratorTests.cs migration
+- [x] 6.4 Document DynamoDbSourceGeneratorTests.cs migration
   - Add file header comment
   - Update migration tracking
   - _Requirements: 5.1, 5.4_

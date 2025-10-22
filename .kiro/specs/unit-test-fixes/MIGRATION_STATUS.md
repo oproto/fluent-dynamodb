@@ -7,7 +7,7 @@ This document tracks the migration of brittle unit tests from string-based asser
 **Last Updated:** 2025-10-22  
 **Total Test Files:** 15  
 **Total Tests:** 164  
-**Migrated Tests:** 61 (37.2%)
+**Migrated Tests:** 64 (39.0%)
 
 ## Migration Priority Classification
 
@@ -176,26 +176,32 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 
 ---
 
-#### 5. DynamoDbSourceGeneratorTests.cs
+#### 5. DynamoDbSourceGeneratorTests.cs ✅ COMPLETED
 - **Location:** `Oproto.FluentDynamoDb.SourceGenerator.UnitTests/DynamoDbSourceGeneratorTests.cs`
 - **Total Tests:** 3
-- **Migration Status:** ❌ Not Started
-- **Compilation Verification:** ❌ Not Added
-- **String Assertions Found:**
-  - Class existence checks: `Should().Contain("public partial class TestEntity")`
-  - Namespace checks: `Should().Contain("namespace TestNamespace")`
-  - Method existence checks: `Should().Contain("public static string Pk(")`
-  - Constant field checks: `Should().Contain("public const string Id")`
-- **Estimated Effort:** Low (3 end-to-end tests)
+- **Migration Status:** ✅ **COMPLETED** (2025-10-22)
+- **Compilation Verification:** ✅ Added
+- **Migration Changes Applied:**
+  - ✅ Added compilation verification to all tests that generate code
+  - ✅ Replaced class existence checks with `.ShouldContainClass()`
+  - ✅ Replaced method existence checks with `.ShouldContainMethod()`
+  - ✅ Preserved namespace checks with "because" messages
+  - ✅ Preserved constant field value checks with "because" messages (attribute name mappings)
+  - ✅ Added file header comment documenting migration
+  - ✅ All 3 tests passing
 - **Notes:**
-  - End-to-end generator tests
-  - Should add compilation verification
-  - Tests verify complete generator output (Entity + Fields + Keys)
+  - Migration completed successfully
+  - Tests now resilient to formatting changes
+  - End-to-end generator tests verify complete output (Entity + Fields + Keys)
+  - DynamoDB-specific behavior checks preserved for:
+    - Namespace generation
+    - Attribute name mappings in field constants
+    - GSI nested class generation
 
 **Test Breakdown:**
-1. `Generator_WithBasicEntity_ProducesCode`
-2. `Generator_WithoutDynamoDbTableAttribute_ProducesNoCode`
-3. `Generator_WithGsiEntity_GeneratesFieldsWithGsiClasses`
+1. `Generator_WithBasicEntity_ProducesCode` - Basic entity with reserved word warning
+2. `Generator_WithoutDynamoDbTableAttribute_ProducesNoCode` - No generation without attribute
+3. `Generator_WithGsiEntity_GeneratesFieldsWithGsiClasses` - GSI field generation
 
 ---
 
@@ -343,14 +349,14 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 - **Priority 3 (Low Impact):** 9 files, 99 tests
 
 ### By Migration Status
-- **Completed:** 4 files, 61 tests ✅
-- **Not Started:** 2 files, 4 tests
+- **Completed:** 5 files, 64 tests ✅
+- **Not Started:** 1 file, 1 test
 - **Good As-Is:** 7 files, 87 tests
 - **Review Needed:** 2 files, 23 tests
 
 ### By Compilation Verification Status
-- **Already Added:** 4 files (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests)
-- **Needs Adding:** 2 files (DynamoDbSourceGeneratorTests, MapperGeneratorBugFixTests)
+- **Already Added:** 5 files (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests, DynamoDbSourceGeneratorTests)
+- **Needs Adding:** 1 file (MapperGeneratorBugFixTests)
 - **Not Needed:** 10 files (diagnostic, model, and infrastructure tests)
 
 ---
@@ -451,6 +457,7 @@ Use this checklist for each file being migrated:
 3. ✅ **COMPLETED:** Priority 1: AdvancedTypeGenerationTests.cs (38 tests migrated)
 4. ✅ **COMPLETED:** Priority 1: KeysGeneratorTests.cs (8 tests migrated)
 5. ✅ **COMPLETED:** Priority 2: FieldsGeneratorTests.cs (6 tests migrated)
-6. ⏭️ Move to remaining Priority 2 files (DynamoDbSourceGeneratorTests.cs, MapperGeneratorBugFixTests.cs)
-7. ⏭️ Review Priority 3 files that need review
-8. ⏭️ Create final migration summary report
+6. ✅ **COMPLETED:** Priority 2: DynamoDbSourceGeneratorTests.cs (3 tests migrated)
+7. ⏭️ Move to remaining Priority 2 file (MapperGeneratorBugFixTests.cs)
+8. ⏭️ Review Priority 3 files that need review
+9. ⏭️ Create final migration summary report

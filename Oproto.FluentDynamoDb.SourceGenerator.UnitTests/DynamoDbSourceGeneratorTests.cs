@@ -1,6 +1,12 @@
+// MIGRATION STATUS: Migrated to use CompilationVerifier and SemanticAssertions
+// - Added compilation verification to all tests
+// - Replaced structural string checks with semantic assertions
+// - Preserved DynamoDB-specific value checks with descriptive messages
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator;
+using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 using System.Collections.Immutable;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests;
@@ -41,19 +47,22 @@ namespace TestNamespace
 
         // Check entity implementation
         var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntity.g.cs")).SourceText.ToString();
-        entityCode.Should().Contain("public partial class TestEntity");
-        entityCode.Should().Contain("namespace TestNamespace");
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        entityCode.ShouldContainClass("TestEntity");
+        entityCode.Should().Contain("namespace TestNamespace", "should generate code in the correct namespace");
 
         // Check fields class
         var fieldsCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityFields.g.cs")).SourceText.ToString();
-        fieldsCode.Should().Contain("public static partial class TestEntityFields");
-        fieldsCode.Should().Contain("public const string Id = \"pk\";");
-        fieldsCode.Should().Contain("public const string Name = \"name\";");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        fieldsCode.ShouldContainClass("TestEntityFields");
+        fieldsCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
+        fieldsCode.Should().Contain("public const string Name = \"name\";", "should map Name property to name attribute");
 
         // Check keys class
         var keysCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityKeys.g.cs")).SourceText.ToString();
-        keysCode.Should().Contain("public static partial class TestEntityKeys");
-        keysCode.Should().Contain("public static string Pk(string id)");
+        CompilationVerifier.AssertGeneratedCodeCompiles(keysCode, source);
+        keysCode.ShouldContainClass("TestEntityKeys");
+        keysCode.ShouldContainMethod("Pk");
     }
 
     [Fact]
@@ -113,13 +122,14 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3); // Entity + Fields + Keys
 
         var fieldsCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityFields.g.cs")).SourceText.ToString();
-        fieldsCode.Should().Contain("public static partial class TestEntityFields");
-        fieldsCode.Should().Contain("public const string Id = \"pk\";");
-        fieldsCode.Should().Contain("public const string GsiKey = \"gsi_pk\";");
-        fieldsCode.Should().Contain("public const string GsiSort = \"gsi_sk\";");
-        fieldsCode.Should().Contain("public static partial class TestGSIFields");
-        fieldsCode.Should().Contain("public const string PartitionKey = \"gsi_pk\";");
-        fieldsCode.Should().Contain("public const string SortKey = \"gsi_sk\";");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        fieldsCode.ShouldContainClass("TestEntityFields");
+        fieldsCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
+        fieldsCode.Should().Contain("public const string GsiKey = \"gsi_pk\";", "should map GsiKey property to gsi_pk attribute");
+        fieldsCode.Should().Contain("public const string GsiSort = \"gsi_sk\";", "should map GsiSort property to gsi_sk attribute");
+        fieldsCode.ShouldContainClass("TestGSIFields");
+        fieldsCode.Should().Contain("public const string PartitionKey = \"gsi_pk\";", "should define GSI partition key constant");
+        fieldsCode.Should().Contain("public const string SortKey = \"gsi_sk\";", "should define GSI sort key constant");
     }
 
     private static GeneratorTestResult GenerateCode(string source)
