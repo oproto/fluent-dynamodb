@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator;
+using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 using System.Collections.Immutable;
 using System.IO;
 
@@ -9,6 +10,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.EdgeCases;
 
 /// <summary>
 /// Tests for edge cases and unusual scenarios that the source generator should handle gracefully.
+/// MIGRATION STATUS: Migrated to use compilation verification and semantic assertions.
 /// </summary>
 public class EdgeCaseTests
 {
@@ -39,8 +41,10 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var entityCode = GetGeneratedSource(result, "EmptyEntity.g.cs");
-        entityCode.Should().Contain("public partial class EmptyEntity : IDynamoDbEntity");
-        entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity)");
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        entityCode.ShouldReferenceType("IDynamoDbEntity");
+        entityCode.ShouldContainMethod("ToDynamoDb");
     }
 
     [Fact]
@@ -82,10 +86,17 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var fieldsCode = GetGeneratedSource(result, "SpecialCharsEntityFields.g.cs");
-        fieldsCode.Should().Contain("public const string FieldWithDashes = \"field-with-dashes\";");
-        fieldsCode.Should().Contain("public const string FieldWithUnderscores = \"field_with_underscores\";");
-        fieldsCode.Should().Contain("public const string FieldWithDots = \"field.with.dots\";");
-        fieldsCode.Should().Contain("public const string FieldWithNumbers = \"field123\";");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        
+        // Keep DynamoDB-specific field constant value checks
+        fieldsCode.Should().Contain("public const string FieldWithDashes = \"field-with-dashes\";",
+            "should preserve special characters in DynamoDB attribute names");
+        fieldsCode.Should().Contain("public const string FieldWithUnderscores = \"field_with_underscores\";",
+            "should preserve underscores in DynamoDB attribute names");
+        fieldsCode.Should().Contain("public const string FieldWithDots = \"field.with.dots\";",
+            "should preserve dots in DynamoDB attribute names");
+        fieldsCode.Should().Contain("public const string FieldWithNumbers = \"field123\";",
+            "should preserve numbers in DynamoDB attribute names");
     }
 
     [Fact]
@@ -131,11 +142,19 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var fieldsCode = GetGeneratedSource(result, "ReservedKeywordsEntityFields.g.cs");
-        fieldsCode.Should().Contain("public const string @class = \"class\";");
-        fieldsCode.Should().Contain("public const string @namespace = \"namespace\";");
-        fieldsCode.Should().Contain("public const string @public = \"public\";");
-        fieldsCode.Should().Contain("public const string @COUNT = \"COUNT\";");
-        fieldsCode.Should().Contain("public const string @SIZE = \"SIZE\";");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        
+        // Keep DynamoDB-specific checks for reserved keyword escaping
+        fieldsCode.Should().Contain("public const string @class = \"class\";",
+            "should escape C# reserved keyword 'class' with @ prefix");
+        fieldsCode.Should().Contain("public const string @namespace = \"namespace\";",
+            "should escape C# reserved keyword 'namespace' with @ prefix");
+        fieldsCode.Should().Contain("public const string @public = \"public\";",
+            "should escape C# reserved keyword 'public' with @ prefix");
+        fieldsCode.Should().Contain("public const string @COUNT = \"COUNT\";",
+            "should escape DynamoDB reserved word 'COUNT' with @ prefix");
+        fieldsCode.Should().Contain("public const string @SIZE = \"SIZE\";",
+            "should escape DynamoDB reserved word 'SIZE' with @ prefix");
     }
 
     [Fact]
@@ -171,7 +190,11 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var fieldsCode = GetGeneratedSource(result, "LongNamesEntityFields.g.cs");
-        fieldsCode.Should().Contain($"public const string {longPropertyName} = \"{longAttributeName}\";");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        
+        // Keep DynamoDB-specific check for long attribute name mapping
+        fieldsCode.Should().Contain($"public const string {longPropertyName} = \"{longAttributeName}\";",
+            "should handle extremely long property and attribute names correctly");
     }
 
     [Fact]
@@ -205,8 +228,11 @@ namespace Very.Deeply.Nested.Namespace.Structure
         result.GeneratedSources.Should().HaveCount(3);
 
         var entityCode = GetGeneratedSource(result, "NestedNamespaceEntity.g.cs");
-        entityCode.Should().Contain("namespace Very.Deeply.Nested.Namespace.Structure");
-        entityCode.Should().Contain("public partial class NestedNamespaceEntity : IDynamoDbEntity");
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        entityCode.Should().Contain("namespace Very.Deeply.Nested.Namespace.Structure",
+            "should preserve deeply nested namespace structure");
+        entityCode.ShouldReferenceType("IDynamoDbEntity");
     }
 
     [Fact]
@@ -248,10 +274,12 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var entityCode = GetGeneratedSource(result, "GenericConstraintsEntity.g.cs");
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
         // The generator should handle generic types, even if with performance warnings
-        entityCode.Should().Contain("public partial class GenericConstraintsEntity : IDynamoDbEntity");
-        entityCode.Should().Contain("ToDynamoDb<TSelf>");
-        entityCode.Should().Contain("FromDynamoDb<TSelf>");
+        entityCode.ShouldReferenceType("IDynamoDbEntity");
+        entityCode.ShouldContainMethod("ToDynamoDb");
+        entityCode.ShouldContainMethod("FromDynamoDb");
     }
 
     [Fact]
@@ -290,10 +318,12 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var entityCode = GetGeneratedSource(result, "CircularRefEntity.g.cs");
-        entityCode.Should().Contain("public partial class CircularRefEntity : IDynamoDbEntity");
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
         // The generator should handle circular references without crashing
-        entityCode.Should().Contain("ToDynamoDb<TSelf>");
-        entityCode.Should().Contain("FromDynamoDb<TSelf>");
+        entityCode.ShouldReferenceType("IDynamoDbEntity");
+        entityCode.ShouldContainMethod("ToDynamoDb");
+        entityCode.ShouldContainMethod("FromDynamoDb");
     }
 
     [Fact]
@@ -332,9 +362,15 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var fieldsCode = GetGeneratedSource(result, "UnicodeEntityFields.g.cs");
-        fieldsCode.Should().Contain("public const string 名前 = \"名前\";");
-        fieldsCode.Should().Contain("public const string Descripción = \"descripción\";");
-        fieldsCode.Should().Contain("public const string 价格 = \"价格\";");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        
+        // Keep DynamoDB-specific checks for Unicode character handling
+        fieldsCode.Should().Contain("public const string 名前 = \"名前\";",
+            "should handle Japanese Unicode characters in property and attribute names");
+        fieldsCode.Should().Contain("public const string Descripción = \"descripción\";",
+            "should handle Spanish Unicode characters in property and attribute names");
+        fieldsCode.Should().Contain("public const string 价格 = \"价格\";",
+            "should handle Chinese Unicode characters in property and attribute names");
     }
 
     [Fact]
@@ -376,10 +412,16 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var keysCode = GetGeneratedSource(result, "ComplexKeyFormatsEntityKeys.g.cs");
-        keysCode.Should().Contain("public static string Pk(string tenantId)");
-        keysCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
-        keysCode.Should().Contain("public static string Sk(string itemId)");
-        keysCode.Should().Contain("var keyValue = \"item#\" + itemId;");
+        CompilationVerifier.AssertGeneratedCodeCompiles(keysCode, source);
+        
+        keysCode.ShouldContainMethod("Pk");
+        keysCode.ShouldContainMethod("Sk");
+        
+        // Keep DynamoDB-specific checks for key format strings
+        keysCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;",
+            "should generate correct partition key format with prefix and separator");
+        keysCode.Should().Contain("var keyValue = \"item#\" + itemId;",
+            "should generate correct sort key format with prefix and separator");
     }
 
     [Fact]
@@ -414,9 +456,15 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var fieldsCode = GetGeneratedSource(result, "EmptyAttributesEntityFields.g.cs");
-        fieldsCode.Should().Contain("public const string Id = \"pk\";");
-        fieldsCode.Should().NotContain("public const string EmptyAttribute");
-        fieldsCode.Should().NotContain("public const string NoAttribute");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        
+        // Keep DynamoDB-specific checks for attribute name handling
+        fieldsCode.Should().Contain("public const string Id = \"pk\";",
+            "should generate field constant for properties with valid attribute names");
+        fieldsCode.Should().NotContain("public const string EmptyAttribute",
+            "should not generate field constant for properties with empty attribute names");
+        fieldsCode.Should().NotContain("public const string NoAttribute",
+            "should not generate field constant for properties without DynamoDbAttribute");
     }
 
     [Fact]
@@ -452,8 +500,13 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var fieldsCode = GetGeneratedSource(result, "DuplicateAttributesEntityFields.g.cs");
-        fieldsCode.Should().Contain("public const string FirstProperty = \"same_name\";");
-        fieldsCode.Should().Contain("public const string SecondProperty = \"same_name\";");
+        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
+        
+        // Keep DynamoDB-specific checks for duplicate attribute name handling
+        fieldsCode.Should().Contain("public const string FirstProperty = \"same_name\";",
+            "should generate field constant for first property with duplicate attribute name");
+        fieldsCode.Should().Contain("public const string SecondProperty = \"same_name\";",
+            "should generate field constant for second property with duplicate attribute name");
     }
 
     [Fact]
@@ -516,16 +569,23 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(3);
 
         var entityCode = GetGeneratedSource(result, "ComplexPatternsEntity.g.cs");
-        entityCode.Should().Contain("public partial class ComplexPatternsEntity : IDynamoDbEntity");
-        entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity)");
-        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item)");
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        entityCode.ShouldReferenceType("IDynamoDbEntity");
+        entityCode.ShouldContainMethod("ToDynamoDb");
+        entityCode.ShouldContainMethod("FromDynamoDb");
 
         // Verify related entity metadata is captured (actual mapping happens at runtime in ToCompositeEntityAsync)
-        entityCode.Should().Contain("Relationships = new RelationshipMetadata[]");
-        entityCode.Should().Contain("PropertyName = \"NestedWildcardAudit\"");
-        entityCode.Should().Contain("PropertyName = \"ComplexPattern\"");
-        entityCode.Should().Contain("PropertyName = \"VeryBroadPattern\"");
-        entityCode.Should().Contain("PropertyName = \"ExactMatch\"");
+        entityCode.Should().Contain("Relationships = new RelationshipMetadata[]",
+            "should generate relationship metadata array");
+        entityCode.Should().Contain("PropertyName = \"NestedWildcardAudit\"",
+            "should include nested wildcard relationship in metadata");
+        entityCode.Should().Contain("PropertyName = \"ComplexPattern\"",
+            "should include complex pattern relationship in metadata");
+        entityCode.Should().Contain("PropertyName = \"VeryBroadPattern\"",
+            "should include very broad pattern relationship in metadata");
+        entityCode.Should().Contain("PropertyName = \"ExactMatch\"",
+            "should include exact match relationship in metadata");
     }
 
     private static GeneratorTestResult GenerateCode(string source)

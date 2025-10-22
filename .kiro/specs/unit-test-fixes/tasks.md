@@ -162,20 +162,20 @@
   - Update migration tracking
   - _Requirements: 5.1, 5.4_
 
-- [ ] 8. Review and selectively migrate low-priority tests
-- [ ] 8.1 Review EntityAnalyzerTests.cs
+- [x] 8. Review and selectively migrate low-priority tests
+- [x] 8.1 Review EntityAnalyzerTests.cs
   - Analyze if migration is needed (mostly diagnostic tests)
   - Add compilation verification if beneficial
   - Document decision to migrate or skip
   - _Requirements: 1.5, 7.4_
 
-- [ ] 8.2 Review EdgeCaseTests.cs
+- [x] 8.2 Review EdgeCaseTests.cs
   - Analyze if migration is needed
   - Add compilation verification if beneficial
   - Document decision to migrate or skip
   - _Requirements: 1.5, 7.4_
 
-- [ ] 8.3 Review Model tests (EntityModelTests.cs, PropertyModelTests.cs, RelationshipModelTests.cs)
+- [x] 8.3 Review Model tests (EntityModelTests.cs, PropertyModelTests.cs, RelationshipModelTests.cs)
   - Analyze if migration is needed (simple structure tests)
   - Document decision to migrate or skip
   - _Requirements: 1.5, 7.4_

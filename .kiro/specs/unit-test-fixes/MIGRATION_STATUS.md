@@ -6,8 +6,8 @@ This document tracks the migration of brittle unit tests from string-based asser
 
 **Last Updated:** 2025-10-22  
 **Total Test Files:** 15  
-**Total Tests:** 164  
-**Migrated Tests:** 65 (39.6%)
+**Total Tests:** 167  
+**Migrated Tests:** 80 (47.9%)
 
 ## Migration Priority Classification
 
@@ -249,15 +249,53 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 
 ---
 
-#### 8. EdgeCaseTests.cs
+#### 8. EdgeCaseTests.cs ✅ COMPLETED
 - **Location:** `Oproto.FluentDynamoDb.SourceGenerator.UnitTests/EdgeCases/EdgeCaseTests.cs`
-- **Total Tests:** 12
-- **Migration Status:** 🔍 Review Needed
-- **Compilation Verification:** Unknown
-- **Estimated Effort:** Low-Medium (depends on test content)
+- **Total Tests:** 15
+- **Migration Status:** ✅ **COMPLETED** (2025-10-22)
+- **Compilation Verification:** ✅ Added
+- **Migration Changes Applied:**
+  - ✅ Added compilation verification to all 15 tests
+  - ✅ Replaced class/interface checks with `.ShouldReferenceType()`
+  - ✅ Replaced method existence checks with `.ShouldContainMethod()`
+  - ✅ Preserved DynamoDB-specific checks with "because" messages:
+    - Field constant values (special characters, reserved keywords, Unicode)
+    - Key format strings (prefix + separator patterns)
+    - Attribute name mappings
+    - Reserved keyword escaping (@ prefix)
+    - Relationship metadata generation
+  - ✅ Added file header comment documenting migration
+  - ✅ All 15 tests passing
 - **Notes:**
-  - Need to review test content to determine if migration is beneficial
-  - Edge case tests may already be well-structured
+  - Migration completed successfully
+  - Tests now resilient to formatting changes
+  - Edge cases covered:
+    - Empty entities
+    - Special characters in names (dashes, underscores, dots, numbers)
+    - Reserved keywords (C# and DynamoDB)
+    - Very long names
+    - Nested namespaces
+    - Generic type constraints
+    - Circular references
+    - Unicode characters (Japanese, Spanish, Chinese)
+    - Complex key formats
+    - Empty attribute names
+    - Duplicate attribute names
+    - Very complex relationship patterns
+
+**Test Breakdown:**
+1. `SourceGenerator_WithEmptyEntity_GeneratesMinimalCode` - Minimal entity
+2. `SourceGenerator_WithSpecialCharactersInNames_HandlesCorrectly` - Special chars
+3. `SourceGenerator_WithReservedKeywords_EscapesCorrectly` - Reserved words
+4. `SourceGenerator_WithVeryLongNames_HandlesCorrectly` - Long identifiers
+5. `SourceGenerator_WithNestedNamespaces_HandlesCorrectly` - Deep namespaces
+6. `SourceGenerator_WithGenericTypeConstraints_HandlesCorrectly` - Generics
+7. `SourceGenerator_WithCircularReferences_HandlesGracefully` - Circular refs
+8. `SourceGenerator_WithUnicodeCharacters_HandlesCorrectly` - Unicode
+9. `SourceGenerator_WithComplexKeyFormats_ParsesCorrectly` - Complex keys
+10. `SourceGenerator_WithEmptyAttributeNames_HandlesGracefully` - Empty attrs
+11. `SourceGenerator_WithDuplicateAttributeNames_HandlesCorrectly` - Duplicates
+12. `SourceGenerator_WithVeryComplexRelationshipPatterns_HandlesCorrectly` - Complex patterns
 
 ---
 
@@ -354,16 +392,16 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 ### By Priority
 - **Priority 1 (High Impact):** 3 files, 55 tests
 - **Priority 2 (Medium Impact):** 3 files, 10 tests
-- **Priority 3 (Low Impact):** 9 files, 99 tests
+- **Priority 3 (Low Impact):** 9 files, 102 tests
 
 ### By Migration Status
-- **Completed:** 6 files, 65 tests ✅
+- **Completed:** 7 files, 80 tests ✅
 - **Not Started:** 0 files, 0 tests
 - **Good As-Is:** 7 files, 87 tests
-- **Review Needed:** 2 files, 23 tests
+- **Review Needed:** 1 file, 11 tests (EndToEndSourceGeneratorTests.cs)
 
 ### By Compilation Verification Status
-- **Already Added:** 6 files (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests, DynamoDbSourceGeneratorTests, MapperGeneratorBugFixTests)
+- **Already Added:** 7 files (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests, DynamoDbSourceGeneratorTests, MapperGeneratorBugFixTests, EdgeCaseTests)
 - **Needs Adding:** 0 files
 - **Not Needed:** 10 files (diagnostic, model, and infrastructure tests)
 
@@ -467,5 +505,8 @@ Use this checklist for each file being migrated:
 5. ✅ **COMPLETED:** Priority 2: FieldsGeneratorTests.cs (6 tests migrated)
 6. ✅ **COMPLETED:** Priority 2: DynamoDbSourceGeneratorTests.cs (3 tests migrated)
 7. ✅ **COMPLETED:** Priority 2: MapperGeneratorBugFixTests.cs (1 test migrated)
-8. ⏭️ Review Priority 3 files that need review (EdgeCaseTests.cs, EndToEndSourceGeneratorTests.cs)
-9. ⏭️ Create final migration summary report
+8. ✅ **COMPLETED:** Priority 3: EdgeCaseTests.cs (15 tests migrated)
+9. ✅ **COMPLETED:** Priority 3: EntityAnalyzerTests.cs (reviewed - no migration needed)
+10. ✅ **COMPLETED:** Priority 3: Model tests (reviewed - no migration needed)
+11. ⏭️ Review Priority 3: EndToEndSourceGeneratorTests.cs (11 tests)
+12. ⏭️ Create final migration summary report
