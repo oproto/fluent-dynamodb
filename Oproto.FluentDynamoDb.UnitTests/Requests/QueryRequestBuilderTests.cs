@@ -7,6 +7,7 @@ using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
+[Trait("Category", "Unit")]
 public class QueryRequestBuilderTests
 {
     [Fact]

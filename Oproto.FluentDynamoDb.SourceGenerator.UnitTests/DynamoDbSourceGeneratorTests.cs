@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests;
 
+[Trait("Category", "Unit")]
 public class DynamoDbSourceGeneratorTests
 {
     [Fact]

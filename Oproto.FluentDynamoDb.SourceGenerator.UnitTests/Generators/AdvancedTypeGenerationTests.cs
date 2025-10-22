@@ -7,6 +7,7 @@ using System.Collections.Immutable;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
+[Trait("Category", "Unit")]
 public class AdvancedTypeGenerationTests
 {
     #region Map Property Tests (Task 19.1)

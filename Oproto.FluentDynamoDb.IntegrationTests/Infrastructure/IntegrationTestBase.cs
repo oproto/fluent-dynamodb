@@ -13,6 +13,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 public abstract class IntegrationTestBase : IAsyncLifetime
 {
     private readonly List<string> _tablesToCleanup = new();
+    private readonly System.Diagnostics.Stopwatch _testTimer = new();
     
     /// <summary>
     /// Gets the DynamoDB client connected to DynamoDB Local.
@@ -24,6 +25,12 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     /// Each test class gets a unique table name to avoid conflicts when running tests in parallel.
     /// </summary>
     protected string TableName { get; }
+    
+    /// <summary>
+    /// Gets or sets whether to track performance metrics for this test.
+    /// Default is false to avoid overhead in most tests.
+    /// </summary>
+    protected bool TrackPerformance { get; set; } = false;
     
     /// <summary>
     /// Initializes a new instance of the IntegrationTestBase class.
@@ -42,6 +49,10 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     /// </summary>
     public virtual Task InitializeAsync()
     {
+        if (TrackPerformance)
+        {
+            _testTimer.Start();
+        }
         return Task.CompletedTask;
     }
     
@@ -51,6 +62,15 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     /// </summary>
     public virtual async Task DisposeAsync()
     {
+        // Record performance metrics if tracking is enabled
+        if (TrackPerformance && _testTimer.IsRunning)
+        {
+            _testTimer.Stop();
+            var testName = GetType().Name;
+            PerformanceMetrics.RecordTestExecution(testName, _testTimer.ElapsedMilliseconds);
+            Console.WriteLine($"[Performance] {testName} completed in {_testTimer.ElapsedMilliseconds}ms");
+        }
+        
         // Clean up all tables created during tests
         var cleanupErrors = new List<Exception>();
         
@@ -78,6 +98,50 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         {
             Console.WriteLine($"[Cleanup] Completed with {cleanupErrors.Count} error(s)");
         }
+    }
+    
+    /// <summary>
+    /// Verifies that all tables created during the test have been cleaned up.
+    /// This method can be used to check if cleanup was successful.
+    /// </summary>
+    /// <returns>True if all tables have been deleted, false otherwise.</returns>
+    protected async Task<bool> VerifyCleanupAsync()
+    {
+        var allCleaned = true;
+        
+        foreach (var tableName in _tablesToCleanup)
+        {
+            try
+            {
+                var response = await DynamoDb.DescribeTableAsync(tableName);
+                // If we get here, the table still exists
+                Console.WriteLine($"[Cleanup Verification] Table still exists: {tableName}");
+                allCleaned = false;
+            }
+            catch (ResourceNotFoundException)
+            {
+                // Table doesn't exist - this is what we want
+                Console.WriteLine($"[Cleanup Verification] Table successfully deleted: {tableName}");
+            }
+            catch (Exception ex)
+            {
+                // Unable to verify - log and mark as not cleaned
+                Console.WriteLine($"[Cleanup Verification] Unable to verify table {tableName}: {ex.Message}");
+                allCleaned = false;
+            }
+        }
+        
+        return allCleaned;
+    }
+    
+    /// <summary>
+    /// Gets the list of table names that are tracked for cleanup.
+    /// This can be useful for debugging or verification purposes.
+    /// </summary>
+    /// <returns>A read-only list of table names tracked for cleanup.</returns>
+    protected IReadOnlyList<string> GetTrackedTables()
+    {
+        return _tablesToCleanup.AsReadOnly();
     }
     
     /// <summary>

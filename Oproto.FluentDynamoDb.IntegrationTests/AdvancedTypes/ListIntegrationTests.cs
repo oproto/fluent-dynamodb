@@ -9,6 +9,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.AdvancedTypes;
 /// and that element order is preserved.
 /// </summary>
 [Collection("DynamoDB Local")]
+[Trait("Category", "Integration")]
 public class ListIntegrationTests : IntegrationTestBase
 {
     public ListIntegrationTests(DynamoDbLocalFixture fixture) : base(fixture)

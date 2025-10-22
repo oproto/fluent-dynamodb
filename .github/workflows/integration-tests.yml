@@ -1,0 +1,179 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  JAVA_VERSION: '17'
+  DYNAMODB_LOCAL_VERSION: 'latest'
+
+jobs:
+  integration-tests:
+    name: Integration Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Setup Java (for DynamoDB Local)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      
+      - name: Download DynamoDB Local (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          echo "Downloading DynamoDB Local..."
+          mkdir -p dynamodb-local
+          cd dynamodb-local
+          wget -q https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz
+          tar -xzf dynamodb_local_latest.tar.gz
+          rm dynamodb_local_latest.tar.gz
+          ls -la
+          echo "DynamoDB Local downloaded successfully"
+      
+      - name: Download DynamoDB Local (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Downloading DynamoDB Local..."
+          New-Item -ItemType Directory -Force -Path dynamodb-local
+          Set-Location dynamodb-local
+          Invoke-WebRequest -Uri "https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz" -OutFile "dynamodb_local_latest.tar.gz"
+          tar -xzf dynamodb_local_latest.tar.gz
+          Remove-Item dynamodb_local_latest.tar.gz
+          Get-ChildItem
+          Write-Host "DynamoDB Local downloaded successfully"
+      
+      - name: Verify Java and DynamoDB Local
+        shell: bash
+        run: |
+          echo "Java version:"
+          java -version
+          echo ""
+          echo "DynamoDB Local files:"
+          ls -la dynamodb-local/
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+      
+      - name: Run Unit Tests
+        run: dotnet test --no-build --configuration Release --filter "Category=Unit" --logger "trx;LogFileName=unit-test-results.trx" --results-directory ./TestResults/Unit
+        continue-on-error: false
+      
+      - name: Run Integration Tests
+        run: dotnet test Oproto.FluentDynamoDb.IntegrationTests --no-build --configuration Release --logger "trx;LogFileName=integration-test-results.trx" --results-directory ./TestResults/Integration --verbosity normal
+        env:
+          DYNAMODB_LOCAL_PATH: ${{ github.workspace }}/dynamodb-local
+        continue-on-error: false
+      
+      - name: Upload Unit Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ matrix.os }}
+          path: ./TestResults/Unit/*.trx
+          retention-days: 30
+      
+      - name: Upload Integration Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-${{ matrix.os }}
+          path: ./TestResults/Integration/*.trx
+          retention-days: 30
+      
+      - name: Collect DynamoDB Local Logs (on failure)
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Test Failure Diagnostics ==="
+          echo ""
+          echo "DynamoDB Local directory contents:"
+          ls -la dynamodb-local/ || echo "Directory not found"
+          echo ""
+          echo "Checking for DynamoDB Local process:"
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            tasklist | findstr java || echo "No Java process found"
+          else
+            ps aux | grep -i dynamodb || echo "No DynamoDB process found"
+          fi
+          echo ""
+          echo "Test results summary:"
+          find ./TestResults -name "*.trx" -exec echo "Found: {}" \;
+      
+      - name: Upload DynamoDB Local Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamodb-logs-${{ matrix.os }}
+          path: |
+            dynamodb-local/*.log
+            TestResults/**/*.trx
+          retention-days: 7
+          if-no-files-found: ignore
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: always()
+    
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-test-results-*'
+          path: ./all-test-results
+      
+      - name: Generate Test Summary
+        shell: bash
+        run: |
+          echo "# Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## Test Execution Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count test result files
+          unit_count=$(find ./all-test-results -name "*unit-test-results*" -type f | wc -l)
+          integration_count=$(find ./all-test-results -name "*integration-test-results*" -type f | wc -l)
+          
+          echo "- Unit Test Results: $unit_count platform(s)" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Test Results: $integration_count platform(s)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## Platform Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tests executed on:" >> $GITHUB_STEP_SUMMARY
+          
+          for os in ubuntu-latest windows-latest macos-latest; do
+            if [ -d "./all-test-results/unit-test-results-$os" ] || [ -d "./all-test-results/integration-test-results-$os" ]; then
+              echo "- ✅ $os" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ $os (failed or skipped)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View detailed test results in the artifacts section." >> $GITHUB_STEP_SUMMARY

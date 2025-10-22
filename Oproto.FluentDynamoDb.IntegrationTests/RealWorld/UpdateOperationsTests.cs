@@ -11,6 +11,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 /// using DynamoDB update expressions.
 /// </summary>
 [Collection("DynamoDB Local")]
+[Trait("Category", "Integration")]
 public class UpdateOperationsTests : IntegrationTestBase
 {
     private DynamoDbTableBase _table = null!;

@@ -12,18 +12,32 @@ public class DynamoDbLocalFixture : IAsyncLifetime
 {
     private Process? _dynamoDbProcess;
     private bool _startedByFixture;
+    private readonly Stopwatch _startupTimer = new();
     
     public IAmazonDynamoDB Client { get; private set; } = null!;
     public string ServiceUrl { get; private set; } = "http://localhost:8000";
     
+    /// <summary>
+    /// Gets the startup time in milliseconds. Returns 0 if reusing an existing instance.
+    /// </summary>
+    public long StartupTimeMs => _startupTimer.ElapsedMilliseconds;
+    
+    /// <summary>
+    /// Gets whether this fixture started DynamoDB Local or reused an existing instance.
+    /// </summary>
+    public bool ReusedExistingInstance => !_startedByFixture;
+    
     public async Task InitializeAsync()
     {
+        _startupTimer.Start();
+        
         try
         {
             // 1. Check if DynamoDB Local is already running
             if (await IsDynamoDbLocalRunningAsync())
             {
-                Console.WriteLine("[DynamoDB Local] Already running, reusing existing instance");
+                _startupTimer.Stop();
+                Console.WriteLine($"[DynamoDB Local] Already running, reusing existing instance (check took {_startupTimer.ElapsedMilliseconds}ms)");
                 Client = CreateClient();
                 _startedByFixture = false;
                 return;
@@ -42,7 +56,8 @@ public class DynamoDbLocalFixture : IAsyncLifetime
             // 5. Create client
             Client = CreateClient();
             
-            Console.WriteLine("[DynamoDB Local] Started successfully");
+            _startupTimer.Stop();
+            Console.WriteLine($"[DynamoDB Local] Started successfully in {_startupTimer.ElapsedMilliseconds}ms");
         }
         catch (Exception ex)
         {
@@ -113,7 +128,7 @@ public class DynamoDbLocalFixture : IAsyncLifetime
             return;
         }
         
-        Console.WriteLine("[DynamoDB Local] Not found, downloading...");
+        Console.WriteLine($"[DynamoDB Local] Not found, downloading... (Platform: {GetPlatformName()})");
         
         Directory.CreateDirectory(dynamoDbDir);
         
@@ -131,32 +146,70 @@ public class DynamoDbLocalFixture : IAsyncLifetime
         
         Console.WriteLine("[DynamoDB Local] Downloaded, extracting...");
         
-        // Extract tar.gz
-        var extractProcess = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "tar",
-                Arguments = $"-xzf {tarPath} -C {dynamoDbDir}",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            }
-        };
-        
-        extractProcess.Start();
-        await extractProcess.WaitForExitAsync();
-        
-        if (extractProcess.ExitCode != 0)
-        {
-            var error = await extractProcess.StandardError.ReadToEndAsync();
-            throw new InvalidOperationException($"Failed to extract DynamoDB Local: {error}");
-        }
+        // Extract tar.gz - platform-specific handling
+        await ExtractTarGzAsync(tarPath, dynamoDbDir);
         
         // Clean up tar file
         File.Delete(tarPath);
         
         Console.WriteLine("[DynamoDB Local] Installation complete");
+    }
+    
+    private async Task ExtractTarGzAsync(string tarPath, string destinationDir)
+    {
+        ProcessStartInfo startInfo;
+        
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // Windows: Use tar.exe (available in Windows 10+)
+            startInfo = new ProcessStartInfo
+            {
+                FileName = "tar.exe",
+                Arguments = $"-xzf \"{tarPath}\" -C \"{destinationDir}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+        }
+        else
+        {
+            // Linux/macOS: Use standard tar
+            startInfo = new ProcessStartInfo
+            {
+                FileName = "tar",
+                Arguments = $"-xzf \"{tarPath}\" -C \"{destinationDir}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+        }
+        
+        var extractProcess = Process.Start(startInfo);
+        if (extractProcess == null)
+        {
+            throw new InvalidOperationException("Failed to start extraction process");
+        }
+        
+        await extractProcess.WaitForExitAsync();
+        
+        if (extractProcess.ExitCode != 0)
+        {
+            var error = await extractProcess.StandardError.ReadToEndAsync();
+            throw new InvalidOperationException(
+                $"Failed to extract DynamoDB Local on {GetPlatformName()}: {error}");
+        }
+    }
+    
+    private string GetPlatformName()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return "Windows";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return "Linux";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            return "macOS";
+        return "Unknown";
     }
     
     private Process StartDynamoDbLocal()
@@ -240,8 +293,10 @@ public class DynamoDbLocalFixture : IAsyncLifetime
     
     private string FindJavaExecutable()
     {
-        // Try common Java locations
-        var javaExecutable = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "java.exe" : "java";
+        var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var javaExecutable = isWindows ? "java.exe" : "java";
+        
+        Console.WriteLine($"[DynamoDB Local] Looking for Java on {GetPlatformName()}...");
         
         // Check JAVA_HOME environment variable
         var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
@@ -250,6 +305,7 @@ public class DynamoDbLocalFixture : IAsyncLifetime
             var javaPath = Path.Combine(javaHome, "bin", javaExecutable);
             if (File.Exists(javaPath))
             {
+                Console.WriteLine($"[DynamoDB Local] Found Java via JAVA_HOME: {javaPath}");
                 return javaPath;
             }
         }
@@ -261,15 +317,104 @@ public class DynamoDbLocalFixture : IAsyncLifetime
             var paths = pathEnv.Split(Path.PathSeparator);
             foreach (var path in paths)
             {
-                var javaPath = Path.Combine(path, javaExecutable);
-                if (File.Exists(javaPath))
+                try
                 {
-                    return javaPath;
+                    var javaPath = Path.Combine(path, javaExecutable);
+                    if (File.Exists(javaPath))
+                    {
+                        Console.WriteLine($"[DynamoDB Local] Found Java in PATH: {javaPath}");
+                        return javaPath;
+                    }
+                }
+                catch
+                {
+                    // Skip invalid paths
+                }
+            }
+        }
+        
+        // Platform-specific fallback locations
+        if (isWindows)
+        {
+            // Common Windows Java locations
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var commonLocations = new[]
+            {
+                Path.Combine(programFiles, "Java"),
+                Path.Combine(programFiles, "Eclipse Adoptium"),
+                Path.Combine(programFiles, "Amazon Corretto")
+            };
+            
+            foreach (var location in commonLocations)
+            {
+                if (Directory.Exists(location))
+                {
+                    var javaPath = Directory.GetFiles(location, javaExecutable, SearchOption.AllDirectories)
+                        .FirstOrDefault();
+                    if (javaPath != null)
+                    {
+                        Console.WriteLine($"[DynamoDB Local] Found Java at: {javaPath}");
+                        return javaPath;
+                    }
+                }
+            }
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            // macOS: Check common Homebrew and system locations
+            var commonLocations = new[]
+            {
+                "/opt/homebrew/opt/openjdk/bin/java",
+                "/usr/local/opt/openjdk/bin/java",
+                "/Library/Java/JavaVirtualMachines"
+            };
+            
+            foreach (var location in commonLocations)
+            {
+                if (File.Exists(location))
+                {
+                    Console.WriteLine($"[DynamoDB Local] Found Java at: {location}");
+                    return location;
+                }
+                
+                if (Directory.Exists(location))
+                {
+                    var javaPath = Directory.GetFiles(location, javaExecutable, SearchOption.AllDirectories)
+                        .FirstOrDefault();
+                    if (javaPath != null)
+                    {
+                        Console.WriteLine($"[DynamoDB Local] Found Java at: {javaPath}");
+                        return javaPath;
+                    }
+                }
+            }
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            // Linux: Check common package manager locations
+            var commonLocations = new[]
+            {
+                "/usr/lib/jvm",
+                "/usr/java"
+            };
+            
+            foreach (var location in commonLocations)
+            {
+                if (Directory.Exists(location))
+                {
+                    var javaPath = Directory.GetFiles(location, javaExecutable, SearchOption.AllDirectories)
+                        .FirstOrDefault();
+                    if (javaPath != null)
+                    {
+                        Console.WriteLine($"[DynamoDB Local] Found Java at: {javaPath}");
+                        return javaPath;
+                    }
                 }
             }
         }
         
         // Default to just "java" and hope it's in PATH
+        Console.WriteLine("[DynamoDB Local] Using 'java' from PATH (assuming it's available)");
         return javaExecutable;
     }
     

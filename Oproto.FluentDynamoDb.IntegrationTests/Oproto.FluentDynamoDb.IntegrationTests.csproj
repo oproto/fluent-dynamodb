@@ -38,6 +38,13 @@
         <ProjectReference Include="..\Oproto.FluentDynamoDb.Attributes\Oproto.FluentDynamoDb.Attributes.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- Include xUnit configuration for parallel execution -->
+        <None Update="xunit.runner.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
     <!-- Include source generator as analyzer for compile-time generation -->
     <ItemGroup Condition="'$(DesignTimeBuild)' != 'true'">
         <Analyzer Include="..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll" 

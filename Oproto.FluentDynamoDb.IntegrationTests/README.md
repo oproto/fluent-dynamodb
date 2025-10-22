@@ -2,6 +2,21 @@
 
 This project contains integration tests for Oproto.FluentDynamoDb that verify the library works correctly with actual DynamoDB operations using DynamoDB Local.
 
+## Quick Start
+
+```bash
+# Run all tests
+dotnet test
+
+# Run only unit tests (fast, no DynamoDB Local required)
+dotnet test --filter "Category=Unit"
+
+# Run only integration tests (requires DynamoDB Local)
+dotnet test --filter "Category=Integration"
+```
+
+For more filtering options, see the [Test Filtering Guide](./TEST_FILTERING_GUIDE.md).
+
 ## Prerequisites
 
 Before running integration tests, ensure you have the following installed:
@@ -86,6 +101,21 @@ If you prefer to manage DynamoDB Local manually:
 dotnet test Oproto.FluentDynamoDb.IntegrationTests
 ```
 
+### Run Tests by Category
+
+All tests are categorized using xUnit traits for easy filtering:
+
+```bash
+# Run only integration tests (requires DynamoDB Local)
+dotnet test --filter "Category=Integration"
+
+# Run only unit tests (fast, no external dependencies)
+dotnet test --filter "Category=Unit"
+
+# Run all tests
+dotnet test
+```
+
 ### Run Specific Test Categories
 
 ```bash
@@ -100,6 +130,9 @@ dotnet test Oproto.FluentDynamoDb.IntegrationTests --filter "FullyQualifiedName~
 
 # Run only Dictionary tests
 dotnet test Oproto.FluentDynamoDb.IntegrationTests --filter "FullyQualifiedName~Dictionary"
+
+# Run only real-world scenario tests
+dotnet test Oproto.FluentDynamoDb.IntegrationTests --filter "FullyQualifiedName~RealWorld"
 ```
 
 ### Run Specific Test Class
@@ -119,6 +152,219 @@ dotnet test Oproto.FluentDynamoDb.IntegrationTests --verbosity detailed
 ```bash
 dotnet test Oproto.FluentDynamoDb.IntegrationTests --logger "console;verbosity=detailed"
 ```
+
+## Test Filtering Guide
+
+### Understanding Test Categories
+
+Tests are organized using xUnit `[Trait]` attributes:
+
+- **`Category=Unit`**: Fast unit tests with no external dependencies (mocks, in-memory)
+- **`Category=Integration`**: Integration tests that require DynamoDB Local
+
+### Filter Syntax
+
+The `--filter` option supports various expressions:
+
+#### Basic Filters
+
+```bash
+# Single category
+dotnet test --filter "Category=Unit"
+dotnet test --filter "Category=Integration"
+
+# Specific test class
+dotnet test --filter "FullyQualifiedName~HashSetIntegrationTests"
+
+# Specific test method
+dotnet test --filter "FullyQualifiedName~HashSetInt_RoundTrip_PreservesAllValues"
+```
+
+#### Combining Filters
+
+```bash
+# OR operator (|)
+dotnet test --filter "Category=Unit|Category=Integration"
+
+# AND operator (&)
+dotnet test --filter "Category=Integration&FullyQualifiedName~HashSet"
+
+# NOT operator (!=)
+dotnet test --filter "Category!=Integration"  # Run only unit tests
+
+# Complex expressions
+dotnet test --filter "(Category=Integration)&(FullyQualifiedName~AdvancedTypes|FullyQualifiedName~RealWorld)"
+```
+
+#### Namespace Filters
+
+```bash
+# All tests in a namespace
+dotnet test --filter "FullyQualifiedName~Oproto.FluentDynamoDb.IntegrationTests.AdvancedTypes"
+
+# Multiple namespaces
+dotnet test --filter "FullyQualifiedName~AdvancedTypes|FullyQualifiedName~RealWorld"
+```
+
+### Common Filtering Scenarios
+
+#### Development Workflow
+
+```bash
+# Fast feedback during development (unit tests only)
+dotnet test --filter "Category=Unit"
+
+# Verify integration before commit
+dotnet test --filter "Category=Integration"
+
+# Run tests for specific feature
+dotnet test --filter "FullyQualifiedName~HashSet"
+```
+
+#### CI/CD Workflow
+
+```bash
+# Run unit tests first (fast feedback)
+dotnet test --filter "Category=Unit" --logger "trx;LogFileName=unit-tests.trx"
+
+# Run integration tests separately
+dotnet test --filter "Category=Integration" --logger "trx;LogFileName=integration-tests.trx"
+
+# Run all tests
+dotnet test --logger "trx;LogFileName=all-tests.trx"
+```
+
+#### Debugging Workflow
+
+```bash
+# Run single failing test
+dotnet test --filter "FullyQualifiedName~MyFailingTest"
+
+# Run all tests in failing class
+dotnet test --filter "FullyQualifiedName~MyFailingTestClass"
+
+# Run with detailed output
+dotnet test --filter "FullyQualifiedName~MyFailingTest" --verbosity detailed
+```
+
+### Filter Performance Tips
+
+1. **Use specific filters** for faster execution:
+   ```bash
+   # Slower (runs all integration tests)
+   dotnet test Oproto.FluentDynamoDb.IntegrationTests
+   
+   # Faster (runs only HashSet tests)
+   dotnet test --filter "FullyQualifiedName~HashSet"
+   ```
+
+2. **Run unit tests first** for quick feedback:
+   ```bash
+   dotnet test --filter "Category=Unit"  # Fast
+   dotnet test --filter "Category=Integration"  # Slower (requires DynamoDB Local)
+   ```
+
+3. **Use watch mode** during development:
+   ```bash
+   dotnet watch test --filter "Category=Unit"
+   ```
+
+### Filter Examples by Use Case
+
+#### Feature Development
+
+```bash
+# Working on HashSet support
+dotnet test --filter "FullyQualifiedName~HashSet"
+
+# Working on query operations
+dotnet test --filter "FullyQualifiedName~Query"
+
+# Working on update operations
+dotnet test --filter "FullyQualifiedName~Update"
+```
+
+#### Bug Investigation
+
+```bash
+# Reproduce specific bug
+dotnet test --filter "FullyQualifiedName~BugReproductionTest" --verbosity detailed
+
+# Test all related functionality
+dotnet test --filter "FullyQualifiedName~ComplexEntity" --verbosity detailed
+```
+
+#### Pre-Commit Checks
+
+```bash
+# Quick check (unit tests only)
+dotnet test --filter "Category=Unit"
+
+# Full check (all tests)
+dotnet test
+
+# Integration tests for changed area
+dotnet test --filter "Category=Integration&FullyQualifiedName~AdvancedTypes"
+```
+
+### Troubleshooting Filters
+
+#### No Tests Match Filter
+
+**Symptom**: "No test matches the given testcase filter"
+
+**Solutions**:
+
+1. **Check trait spelling**:
+   ```bash
+   # Wrong
+   dotnet test --filter "Category=integration"  # Case-sensitive!
+   
+   # Correct
+   dotnet test --filter "Category=Integration"
+   ```
+
+2. **Verify test has trait**:
+   ```csharp
+   [Trait("Category", "Integration")]  // Ensure trait is present
+   public class MyTests { }
+   ```
+
+3. **Use broader filter**:
+   ```bash
+   # Too specific
+   dotnet test --filter "FullyQualifiedName=Exact.Match.Required"
+   
+   # Better (uses contains)
+   dotnet test --filter "FullyQualifiedName~MyTest"
+   ```
+
+#### Filter Syntax Errors
+
+**Symptom**: "Invalid filter expression"
+
+**Solutions**:
+
+1. **Quote complex expressions**:
+   ```bash
+   # Wrong
+   dotnet test --filter Category=Unit&FullyQualifiedName~Test
+   
+   # Correct
+   dotnet test --filter "Category=Unit&FullyQualifiedName~Test"
+   ```
+
+2. **Check operator usage**:
+   ```bash
+   # AND: &
+   dotnet test --filter "Category=Unit&FullyQualifiedName~Test"
+   
+   # OR: |
+   dotnet test --filter "Category=Unit|Category=Integration"
+   
+   # NOT: !=
+   dotnet test --filter "Category!=Integration"
+   ```
 
 ## Test Organization
 
@@ -242,6 +488,92 @@ public async Task ComplexEntity_RoundTrip_PreservesAllProperties()
     loaded.Should().BeEquivalentTo(entity);
 }
 ```
+
+## Performance Optimization
+
+### Parallel Test Execution
+
+Integration tests are configured to run in parallel for faster execution:
+
+**Configuration** (`xunit.runner.json`):
+```json
+{
+  "parallelizeAssembly": true,
+  "parallelizeTestCollections": true,
+  "maxParallelThreads": -1
+}
+```
+
+**Key Features:**
+- Tests within the same collection can run in parallel
+- Each test gets a unique table name to prevent conflicts
+- DynamoDB Local instance is shared across all tests (collection fixture)
+- No shared state between test instances
+
+**Verification:**
+```bash
+# Run parallel execution tests to verify isolation
+dotnet test --filter "FullyQualifiedName~ParallelExecutionTests"
+```
+
+**Performance Benefits:**
+- **DynamoDB Local Reuse**: Single instance shared across all tests (saves ~5-10 seconds per test run)
+- **Parallel Execution**: Tests run concurrently on multiple threads
+- **Unique Table Names**: Each test uses `test_{ClassName}_{Guid}` format to avoid conflicts
+
+**Controlling Parallelization:**
+
+To disable parallel execution (for debugging):
+```bash
+# Run tests sequentially
+dotnet test -- xUnit.ParallelizeTestCollections=false
+```
+
+To limit parallel threads:
+```bash
+# Limit to 4 threads
+dotnet test -- xUnit.MaxParallelThreads=4
+```
+
+### Test Execution Time
+
+**Target Performance:**
+- Full integration test suite: < 30 seconds
+- Individual test: < 1 second (after DynamoDB Local startup)
+- DynamoDB Local startup: ~5-10 seconds (first time only)
+
+**Measuring Performance:**
+
+Use the provided scripts to measure test performance:
+
+```bash
+# Linux/macOS
+./measure-performance.sh
+
+# Windows PowerShell
+.\measure-performance.ps1
+
+# Manual measurement with dotnet test
+time dotnet test --filter "Category=Integration"
+```
+
+**Performance Tests:**
+
+Run dedicated performance tests to verify targets:
+
+```bash
+# Run all performance tests
+dotnet test --filter "FullyQualifiedName~PerformanceTests"
+
+# Run specific performance test
+dotnet test --filter "FullyQualifiedName~SingleTest_CompletesInUnder1Second"
+```
+
+**Optimization Tips:**
+1. Keep DynamoDB Local running between test runs during development
+2. Use test filtering to run only relevant tests during development
+3. Run full suite in CI/CD where parallel execution provides maximum benefit
+4. Monitor slow tests using the performance metrics utilities
 
 ## Troubleshooting
 
@@ -400,16 +732,36 @@ public async Task ComplexEntity_RoundTrip_PreservesAllProperties()
 
 ## CI/CD Integration
 
-Integration tests run automatically in CI/CD pipelines. See `.github/workflows/` for configuration.
+Integration tests run automatically in CI/CD pipelines across multiple platforms (Linux, Windows, macOS).
+
+For comprehensive CI/CD documentation, see the [CI/CD Integration Guide](../.github/CI_CD_GUIDE.md).
 
 ### GitHub Actions
 
-The workflow:
+The workflow (`.github/workflows/integration-tests.yml`):
 1. Sets up .NET 8 SDK
 2. Sets up Java 17
-3. Downloads DynamoDB Local
-4. Runs integration tests
-5. Uploads test results
+3. Downloads DynamoDB Local (platform-specific)
+4. Runs unit tests separately
+5. Runs integration tests
+6. Uploads test results as artifacts
+7. Generates test summary report
+
+### Platform Support
+
+Tests run on:
+- **Ubuntu Latest**: Linux environment
+- **Windows Latest**: Windows environment  
+- **macOS Latest**: macOS environment
+
+Platform-specific handling ensures DynamoDB Local works correctly on all platforms.
+
+### Test Result Artifacts
+
+After each CI run, test results are available as artifacts:
+- `unit-test-results-{platform}`: Unit test TRX files
+- `integration-test-results-{platform}`: Integration test TRX files
+- `dynamodb-logs-{platform}`: DynamoDB Local logs (on failure)
 
 ### Running Locally Like CI
 
@@ -423,8 +775,9 @@ wget https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar
 tar -xzf dynamodb_local_latest.tar.gz
 cd ..
 
-# Run tests
-dotnet test Oproto.FluentDynamoDb.IntegrationTests
+# Run tests like CI
+dotnet test --filter "Category=Unit" --logger "trx;LogFileName=unit-test-results.trx"
+dotnet test Oproto.FluentDynamoDb.IntegrationTests --logger "trx;LogFileName=integration-test-results.trx"
 ```
 
 ## Performance Expectations
@@ -438,11 +791,17 @@ If tests are significantly slower, see "Tests Are Slow" in Troubleshooting secti
 
 ## Additional Resources
 
+### Project Documentation
+- [Test Filtering Guide](./TEST_FILTERING_GUIDE.md) - Comprehensive guide to filtering tests by category, namespace, and more
+- [CI/CD Integration Guide](../.github/CI_CD_GUIDE.md) - Complete CI/CD setup and troubleshooting guide
+- [Test Migration Guide](./MIGRATION_GUIDE.md) - Guide for migrating existing tests
+- [Test Writing Guide](./TEST_WRITING_GUIDE.md) - Best practices for writing tests
+
+### External Documentation
 - [DynamoDB Local Documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
 - [xUnit Documentation](https://xunit.net/)
 - [FluentAssertions Documentation](https://fluentassertions.com/)
-- [Test Migration Guide](./MIGRATION_GUIDE.md)
-- [Test Writing Guide](./TEST_WRITING_GUIDE.md)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
 
 ## Getting Help
 

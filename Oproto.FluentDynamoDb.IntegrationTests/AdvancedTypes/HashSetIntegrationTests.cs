@@ -8,6 +8,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.AdvancedTypes;
 /// Tests verify that HashSet properties correctly round-trip through DynamoDB Local.
 /// </summary>
 [Collection("DynamoDB Local")]
+[Trait("Category", "Integration")]
 public class HashSetIntegrationTests : IntegrationTestBase
 {
     public HashSetIntegrationTests(DynamoDbLocalFixture fixture) : base(fixture)

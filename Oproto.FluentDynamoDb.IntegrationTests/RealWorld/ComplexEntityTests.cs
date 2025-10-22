@@ -9,6 +9,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 /// work correctly in real-world scenarios.
 /// </summary>
 [Collection("DynamoDB Local")]
+[Trait("Category", "Integration")]
 public class ComplexEntityTests : IntegrationTestBase
 {
     public ComplexEntityTests(DynamoDbLocalFixture fixture) : base(fixture)

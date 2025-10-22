@@ -232,20 +232,20 @@
     - Stop DynamoDB Local on completion
     - _Requirements: 2.5_
 
-- [ ] 13. Set up CI/CD integration
-  - [ ] 13.1 Create GitHub Actions workflow for integration tests
+- [x] 13. Set up CI/CD integration
+  - [x] 13.1 Create GitHub Actions workflow for integration tests
     - Set up Java for DynamoDB Local
     - Download and start DynamoDB Local
     - Run integration tests
     - Upload test results
     - _Requirements: 6.1, 6.2, 6.3_
   
-  - [ ] 13.2 Add platform-specific handling
+  - [x] 13.2 Add platform-specific handling
     - Handle Linux, macOS, Windows differences
     - Use appropriate DynamoDB Local binary
     - _Requirements: 6.5_
   
-  - [ ] 13.3 Add test result reporting
+  - [x] 13.3 Add test result reporting
     - Separate unit and integration test results
     - Include DynamoDB Local logs on failure
     - _Requirements: 6.3, 6.4_
@@ -270,61 +270,61 @@
     - Explain test organization
     - _Requirements: 10.1, 10.2_
 
-- [ ] 15. Add test utilities and helpers
-  - [ ] 15.1 Create assertion helpers for AttributeValue
+- [x] 15. Add test utilities and helpers
+  - [x] 15.1 Create assertion helpers for AttributeValue
     - Add methods to compare AttributeValue dictionaries
     - Provide deep equality comparison
     - _Requirements: 9.3_
   
-  - [ ] 15.2 Create debugging utilities
+  - [x] 15.2 Create debugging utilities
     - Add method to dump entity state
     - Add method to dump DynamoDB item
     - _Requirements: 9.5_
   
-  - [ ] 15.3 Create random data generators
+  - [x] 15.3 Create random data generators
     - Generate random strings, numbers, collections
     - Provide consistent seed for reproducibility
     - _Requirements: 9.2_
 
-- [ ] 16. Implement test isolation and cleanup
-  - [ ] 16.1 Ensure unique table names per test
+- [x] 16. Implement test isolation and cleanup
+  - [x] 16.1 Ensure unique table names per test
     - Use GUID in table name
     - Include test class name for debugging
     - _Requirements: 8.2, 12.3_
   
-  - [ ] 16.2 Implement robust cleanup
+  - [x] 16.2 Implement robust cleanup
     - Delete tables in DisposeAsync
     - Handle cleanup failures gracefully
     - Log cleanup issues without failing tests
     - _Requirements: 12.1, 12.2, 12.4_
   
-  - [ ] 16.3 Add cleanup verification
+  - [x] 16.3 Add cleanup verification
     - Provide method to check if resources cleaned up
     - _Requirements: 12.4, 12.5_
 
-- [ ] 17. Add test execution modes and filtering
-  - [ ] 17.1 Add xUnit traits for test categories
+- [x] 17. Add test execution modes and filtering
+  - [x] 17.1 Add xUnit traits for test categories
     - Add Category trait to unit tests
     - Add Category trait to integration tests
     - _Requirements: 14.1, 14.2, 14.4_
   
-  - [ ] 17.2 Document test filtering
+  - [x] 17.2 Document test filtering
     - Show how to run specific test categories
     - Explain filter syntax
     - _Requirements: 14.1, 14.2, 14.3_
 
-- [ ] 18. Implement performance optimizations
-  - [ ] 18.1 Add DynamoDB Local instance reuse
+- [x] 18. Implement performance optimizations
+  - [x] 18.1 Add DynamoDB Local instance reuse
     - Use collection fixture to share instance
     - Measure startup time savings
     - _Requirements: 8.1_
   
-  - [ ] 18.2 Enable parallel test execution
+  - [x] 18.2 Enable parallel test execution
     - Ensure tests use unique table names
     - Verify no shared state between tests
     - _Requirements: 8.3_
   
-  - [ ] 18.3 Optimize test execution time
+  - [x] 18.3 Optimize test execution time
     - Measure full suite execution time
     - Target < 30 seconds for integration tests
     - _Requirements: 8.5_
@@ -345,20 +345,51 @@
     - Report in CI/CD dashboard format
     - _Requirements: 15.4, 15.5_
 
-- [ ] 20. Validate and verify implementation
-  - [ ] 20.1 Run full test suite locally
-    - Verify all unit tests pass
+- [ ] 20. Fix source generator test compilation failures
+  - [ ] 20.1 Fix CompilationVerifier usage in AdvancedTypeGenerationTests
+    - Update all test methods to pass both original source and generated code to CompilationVerifier
+    - Ensure entity class definitions are included in compilation context
+    - Add missing using statements (System.Threading for CancellationToken)
+    - Fix tests that use BlobReference attributes (4 tests)
+    - Fix tests for Dictionary, HashSet, and List types (28 tests)
+    - Fix tests for JsonBlob and TTL attributes (10 tests)
+    - _Requirements: 4.1, 4.3, 4.5_
+  
+  - [ ] 20.2 Fix CompilationVerifier usage in MapperGeneratorTests
+    - Update all test methods to include original entity source
+    - Fix multi-item entity tests
+    - Fix collection property tests
+    - Fix nullable property tests
+    - Fix error handling tests
+    - Fix GSI property tests
+    - Fix entity discriminator tests
+    - Fix related entities tests (8 tests total)
+    - _Requirements: 4.1, 4.3, 4.5_
+  
+  - [ ] 20.3 Fix CompilationVerifier usage in EndToEndSourceGeneratorTests
+    - Update multi-item entity test to include complete source
+    - Ensure all entity definitions are available during compilation
+    - _Requirements: 4.1, 4.5_
+  
+  - [ ] 20.4 Fix EdgeCaseTests compilation issue
+    - Update generic type constraints test to expect correct diagnostic ID
+    - Fix expected diagnostic from DYNDB009 to DYNDB023
+    - _Requirements: 4.1_
+
+- [ ] 21. Validate and verify implementation
+  - [ ] 21.1 Run full test suite locally
+    - Verify all unit tests pass (188 tests should pass)
     - Verify all integration tests pass
     - Check execution time
     - _Requirements: All_
   
-  - [ ] 20.2 Run tests in CI/CD
+  - [ ] 21.2 Run tests in CI/CD
     - Verify GitHub Actions workflow works
     - Check test result reporting
     - Verify DynamoDB Local starts correctly
     - _Requirements: 6.1, 6.2, 6.3_
   
-  - [ ] 20.3 Verify backward compatibility
+  - [ ] 21.3 Verify backward compatibility
     - Ensure existing tests still pass
     - Verify no breaking changes
     - _Requirements: 11.1, 11.2, 11.3_

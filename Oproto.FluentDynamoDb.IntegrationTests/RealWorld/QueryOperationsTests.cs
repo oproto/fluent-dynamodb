@@ -11,6 +11,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 /// that use HashSet, List, and Dictionary types.
 /// </summary>
 [Collection("DynamoDB Local")]
+[Trait("Category", "Integration")]
 public class QueryOperationsTests : IntegrationTestBase
 {
     private DynamoDbTableBase _table = null!;

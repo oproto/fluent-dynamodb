@@ -8,6 +8,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.AdvancedTypes;
 /// Tests verify that Dictionary properties correctly round-trip through DynamoDB Local.
 /// </summary>
 [Collection("DynamoDB Local")]
+[Trait("Category", "Integration")]
 public class DictionaryIntegrationTests : IntegrationTestBase
 {
     public DictionaryIntegrationTests(DynamoDbLocalFixture fixture) : base(fixture)

@@ -5,6 +5,7 @@ using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
+[Trait("Category", "Unit")]
 public class FieldsGeneratorTests
 {
     [Fact]
