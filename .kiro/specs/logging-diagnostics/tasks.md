@@ -308,8 +308,8 @@
     - Verify allocations are minimal and predictable
     - _Requirements: 4.3, 4.4_
 
-- [ ] 13. Write integration tests for request builders
-  - [ ] 13.1 Test QueryRequestBuilder logging
+- [x] 13. Write integration tests for request builders
+  - [x] 13.1 Test QueryRequestBuilder logging
     - Test operation start is logged
     - Test parameters are logged at Trace level
     - Test operation completion is logged
@@ -317,22 +317,22 @@
     - Test errors are logged
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
   
-  - [ ] 13.2 Test GetItemRequestBuilder logging
+  - [x] 13.2 Test GetItemRequestBuilder logging
     - Test operation logging
     - Test error logging
     - _Requirements: 9.3, 9.5_
   
-  - [ ] 13.3 Test PutItemRequestBuilder logging
+  - [x] 13.3 Test PutItemRequestBuilder logging
     - Test operation logging
     - Test error logging
     - _Requirements: 9.3, 9.5_
   
-  - [ ] 13.4 Test UpdateItemRequestBuilder logging
+  - [x] 13.4 Test UpdateItemRequestBuilder logging
     - Test operation logging
     - Test error logging
     - _Requirements: 9.3, 9.5_
   
-  - [ ] 13.5 Test TransactWriteItemsRequestBuilder logging
+  - [x] 13.5 Test TransactWriteItemsRequestBuilder logging
     - Test operation logging
     - Test error logging
     - _Requirements: 9.3, 9.5_
