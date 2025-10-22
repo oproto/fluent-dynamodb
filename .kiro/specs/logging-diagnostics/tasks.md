@@ -248,7 +248,7 @@
     - Test ToDynamoDbLogger on ILoggerFactory
     - _Requirements: 5.1_
 
-- [-] 11. Write integration tests for generated logging
+- [x] 11. Write integration tests for generated logging
   - [x] 11.1 Test generated ToDynamoDb with logger
     - Test entry logging is generated
     - Test property logging is generated
@@ -256,31 +256,31 @@
     - Test structured properties are included
     - _Requirements: 2.1, 2.2, 2.3, 7.1, 7.2_
   
-  - [ ] 11.2 Test generated FromDynamoDb with logger
+  - [x] 11.2 Test generated FromDynamoDb with logger
     - Test entry logging is generated
     - Test property logging is generated
     - Test exit logging is generated
     - Test structured properties are included
     - _Requirements: 2.4, 2.5, 7.1, 7.2_
   
-  - [ ] 11.3 Test generated error logging
+  - [x] 11.3 Test generated error logging
     - Test mapping errors are logged
     - Test conversion errors are logged
     - Test exceptions include full context
     - Test structured properties are included
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 7.4_
   
-  - [ ] 11.4 Test logging with null logger
+  - [x] 11.4 Test logging with null logger
     - Test generated code works with null logger
     - Test no NullReferenceException is thrown
     - _Requirements: 12.1, 12.2, 12.3, 12.4_
   
-  - [ ] 11.5 Test logging with NoOpLogger
+  - [x] 11.5 Test logging with NoOpLogger
     - Test generated code works with NoOpLogger
     - Test no logging output is produced
     - _Requirements: 1.4, 12.5_
   
-  - [ ] 11.6 Test conditional compilation
+  - [x] 11.6 Test conditional compilation
     - Test code compiles with DISABLE_DYNAMODB_LOGGING defined
     - Test no logging calls are present when disabled
     - Test code functions identically with logging disabled

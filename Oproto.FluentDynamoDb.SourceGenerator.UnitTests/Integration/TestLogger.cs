@@ -99,7 +99,27 @@ public class LogEntry
         Message = message;
         Args = args;
         Exception = exception;
-        FormattedMessage = args.Length > 0 ? string.Format(message, args) : message;
+        
+        // Handle structured logging format (e.g., "{EntityType}" instead of "{0}")
+        // For testing purposes, we'll create a simple formatted message
+        if (args.Length > 0)
+        {
+            try
+            {
+                // Try to format with positional arguments first
+                FormattedMessage = string.Format(message, args);
+            }
+            catch (FormatException)
+            {
+                // If that fails, it's likely structured logging format
+                // Just concatenate the message with args for testing purposes
+                FormattedMessage = message + " [" + string.Join(", ", args) + "]";
+            }
+        }
+        else
+        {
+            FormattedMessage = message;
+        }
     }
 
     public LogLevel Level { get; }

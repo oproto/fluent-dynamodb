@@ -1936,7 +1936,7 @@ public static class MapperGenerator
         
         // Generate entry logging for multi-item
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            logger?.LogTrace(Logging.LogEventIds.MappingFromDynamoDbStart,");
+        sb.AppendLine("            logger?.LogTrace(LogEventIds.MappingFromDynamoDbStart,");
         sb.AppendLine($"                \"Starting FromDynamoDb mapping for {{EntityType}} with {{ItemCount}} items\",");
         sb.AppendLine($"                \"{entity.ClassName}\", items?.Count ?? 0);");
         sb.AppendLine("            #endif");
