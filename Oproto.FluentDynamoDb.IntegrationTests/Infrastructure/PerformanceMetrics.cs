@@ -124,6 +124,8 @@ public class TestExecutionMetric
     public long DurationMs { get; set; }
     public string Category { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
+    public bool Passed { get; set; } = true;
+    public string? FailureReason { get; set; }
 }
 
 /// <summary>
