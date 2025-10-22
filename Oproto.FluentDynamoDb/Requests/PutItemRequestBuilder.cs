@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -31,13 +32,20 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>, IWithAttributeValues<PutItemRequestBuilder>,
     IWithConditionExpression<PutItemRequestBuilder>
 {
-    public PutItemRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <summary>
+    /// Initializes a new instance of the PutItemRequestBuilder.
+    /// </summary>
+    /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public PutItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     private PutItemRequest _req = new PutItemRequest();
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -155,8 +163,49 @@ public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>,
         return _req;
     }
 
+    /// <summary>
+    /// Executes the PutItem operation asynchronously using the configured parameters.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation, containing the PutItemResponse.</returns>
     public async Task<PutItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.PutItemAsync(ToPutItemRequest(), cancellationToken);
+        var request = ToPutItemRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        _logger?.LogInformation(LogEventIds.ExecutingPutItem,
+            "Executing PutItem on table {TableName}. Condition: {ConditionExpression}",
+            request.TableName ?? "Unknown", 
+            request.ConditionExpression ?? "None");
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Item != null)
+        {
+            _logger.LogTrace(LogEventIds.ExecutingPutItem,
+                "PutItem attributes: {AttributeCount}",
+                request.Item.Count);
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.PutItemAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "PutItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                response.ConsumedCapacity?.CapacityUnits ?? 0);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "PutItem failed on table {TableName}",
+                request.TableName ?? "Unknown");
+            #endif
+            throw;
+        }
     }
 }

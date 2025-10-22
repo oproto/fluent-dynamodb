@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -25,15 +26,18 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class TransactWriteItemsRequestBuilder
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly TransactWriteItemsRequest _req = new() { TransactItems = new List<TransactWriteItem>() };
 
     /// <summary>
     /// Initializes a new instance of the TransactWriteItemsRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the transaction.</param>
-    public TransactWriteItemsRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public TransactWriteItemsRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     public TransactWriteItemsRequestBuilder WithClientRequestToken(string token)
@@ -177,6 +181,47 @@ public class TransactWriteItemsRequestBuilder
     /// <exception cref="ProvisionedThroughputExceededException">Thrown when the request rate is too high.</exception>
     public async Task<TransactWriteItemsResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.TransactWriteItemsAsync(this.ToTransactWriteItemsRequest(), cancellationToken);
+        var request = ToTransactWriteItemsRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        _logger?.LogInformation(LogEventIds.ExecutingTransaction,
+            "Executing TransactWriteItems with {ItemCount} operations",
+            request.TransactItems?.Count ?? 0);
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && request.TransactItems != null)
+        {
+            var putCount = request.TransactItems.Count(i => i.Put != null);
+            var updateCount = request.TransactItems.Count(i => i.Update != null);
+            var deleteCount = request.TransactItems.Count(i => i.Delete != null);
+            var checkCount = request.TransactItems.Count(i => i.ConditionCheck != null);
+            
+            _logger.LogTrace(LogEventIds.ExecutingTransaction,
+                "Transaction operations: Put={PutCount}, Update={UpdateCount}, Delete={DeleteCount}, Check={CheckCount}",
+                putCount, updateCount, deleteCount, checkCount);
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.TransactWriteItemsAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            var totalCapacity = response.ConsumedCapacity?.Sum(c => c.CapacityUnits) ?? 0;
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "TransactWriteItems completed. TotalConsumedCapacity: {ConsumedCapacity}",
+                totalCapacity);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "TransactWriteItems failed with {ItemCount} operations",
+                request.TransactItems?.Count ?? 0);
+            #endif
+            throw;
+        }
     }
 }

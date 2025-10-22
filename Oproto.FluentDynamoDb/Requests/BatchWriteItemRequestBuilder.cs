@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 
 namespace Oproto.FluentDynamoDb.Requests;
 
@@ -34,15 +35,18 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class BatchWriteItemRequestBuilder
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly BatchWriteItemRequest _req = new() { RequestItems = new Dictionary<string, List<WriteRequest>>() };
 
     /// <summary>
     /// Initializes a new instance of the BatchWriteItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    public BatchWriteItemRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public BatchWriteItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     /// <summary>
@@ -153,6 +157,51 @@ public class BatchWriteItemRequestBuilder
     /// <exception cref="ResourceNotFoundException">Thrown when one of the specified tables doesn't exist.</exception>
     public async Task<BatchWriteItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.BatchWriteItemAsync(this.ToBatchWriteItemRequest(), cancellationToken);
+        var request = ToBatchWriteItemRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        var totalRequests = request.RequestItems?.Sum(kvp => kvp.Value?.Count ?? 0) ?? 0;
+        _logger?.LogInformation(LogEventIds.ExecutingPutItem,
+            "Executing BatchWriteItem across {TableCount} tables with {TotalRequests} operations",
+            request.RequestItems?.Count ?? 0,
+            totalRequests);
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && request.RequestItems != null)
+        {
+            foreach (var table in request.RequestItems.Keys)
+            {
+                var putCount = request.RequestItems[table].Count(r => r.PutRequest != null);
+                var deleteCount = request.RequestItems[table].Count(r => r.DeleteRequest != null);
+                _logger.LogTrace(LogEventIds.ExecutingPutItem,
+                    "BatchWriteItem table {TableName}: Put={PutCount}, Delete={DeleteCount}",
+                    table, putCount, deleteCount);
+            }
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.BatchWriteItemAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            var unprocessedCount = response.UnprocessedItems?.Sum(kvp => kvp.Value?.Count ?? 0) ?? 0;
+            var totalCapacity = response.ConsumedCapacity?.Sum(c => c.CapacityUnits) ?? 0;
+            
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "BatchWriteItem completed. UnprocessedItems: {UnprocessedCount}, ConsumedCapacity: {ConsumedCapacity}",
+                unprocessedCount, totalCapacity);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "BatchWriteItem failed across {TableCount} tables",
+                request.RequestItems?.Count ?? 0);
+            #endif
+            throw;
+        }
     }
 }

@@ -35,14 +35,14 @@
     - Ensure backward compatibility with existing constructors
     - _Requirements: 6.4, 6.5_
 
-- [ ] 3. Add logging to request builders
-  - [ ] 3.1 Add logger field to request builder base classes
+- [x] 3. Add logging to request builders
+  - [x] 3.1 Add logger field to request builder base classes
     - Add private IDynamoDbLogger field to each request builder
     - Accept logger in constructor
     - Default to NoOpLogger.Instance when null
     - _Requirements: 9.1, 9.2_
   
-  - [ ] 3.2 Add logging to ExecuteAsync methods
+  - [x] 3.2 Add logging to ExecuteAsync methods
     - Log operation start with table name and operation type at Information level
     - Log parameters at Trace level
     - Log operation completion with consumed capacity at Information level

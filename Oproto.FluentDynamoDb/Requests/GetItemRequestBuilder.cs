@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -32,13 +33,16 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// Initializes a new instance of the GetItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    public GetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public GetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     private GetItemRequest _req = new GetItemRequest();
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
     /// <summary>
@@ -156,6 +160,42 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// <exception cref="ProvisionedThroughputExceededException">Thrown when the request rate is too high.</exception>
     public async Task<GetItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.GetItemAsync(this.ToGetItemRequest(), cancellationToken);
+        var request = ToGetItemRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        _logger?.LogInformation(LogEventIds.ExecutingGetItem,
+            "Executing GetItem on table {TableName}",
+            request.TableName ?? "Unknown");
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Key != null)
+        {
+            _logger.LogTrace(LogEventIds.ExecutingGetItem,
+                "GetItem key attributes: {KeyCount}",
+                request.Key.Count);
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.GetItemAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "GetItem completed. ItemFound: {ItemFound}, ConsumedCapacity: {ConsumedCapacity}",
+                response.Item != null && response.Item.Count > 0, 
+                response.ConsumedCapacity?.CapacityUnits ?? 0);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "GetItem failed on table {TableName}",
+                request.TableName ?? "Unknown");
+            #endif
+            throw;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -35,13 +36,16 @@ public class DeleteItemRequestBuilder :
     /// Initializes a new instance of the DeleteItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    public DeleteItemRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public DeleteItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     private DeleteItemRequest _req = new();
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -190,6 +194,42 @@ public class DeleteItemRequestBuilder :
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table doesn't exist.</exception>
     public async Task<DeleteItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.DeleteItemAsync(this.ToDeleteItemRequest(), cancellationToken);
+        var request = ToDeleteItemRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        _logger?.LogInformation(LogEventIds.ExecutingPutItem,
+            "Executing DeleteItem on table {TableName}. Condition: {ConditionExpression}",
+            request.TableName ?? "Unknown", 
+            request.ConditionExpression ?? "None");
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Key != null)
+        {
+            _logger.LogTrace(LogEventIds.ExecutingPutItem,
+                "DeleteItem key attributes: {KeyCount}",
+                request.Key.Count);
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.DeleteItemAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "DeleteItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                response.ConsumedCapacity?.CapacityUnits ?? 0);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "DeleteItem failed on table {TableName}",
+                request.TableName ?? "Unknown");
+            #endif
+            throw;
+        }
     }
 }

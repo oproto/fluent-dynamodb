@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -42,13 +43,16 @@ public class ScanRequestBuilder :
     /// Initializes a new instance of the ScanRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    public ScanRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public ScanRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     private ScanRequest _req = new ScanRequest() { ConsistentRead = false };
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -250,6 +254,47 @@ public class ScanRequestBuilder :
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table or index doesn't exist.</exception>
     public async Task<ScanResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.ScanAsync(ToScanRequest(), cancellationToken);
+        var request = ToScanRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        _logger?.LogInformation(LogEventIds.ExecutingQuery,
+            "Executing Scan on table {TableName}. Index: {IndexName}, Filter: {FilterExpression}, Segment: {Segment}/{TotalSegments}",
+            request.TableName ?? "Unknown", 
+            request.IndexName ?? "None", 
+            request.FilterExpression ?? "None",
+            request.Segment,
+            request.TotalSegments);
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
+        {
+            _logger.LogTrace(LogEventIds.ExecutingQuery,
+                "Scan parameters: {ParameterCount} values",
+                _attrV.AttributeValues.Count);
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.ScanAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "Scan completed. ItemCount: {ItemCount}, ScannedCount: {ScannedCount}, ConsumedCapacity: {ConsumedCapacity}",
+                response.Count, 
+                response.ScannedCount,
+                response.ConsumedCapacity?.CapacityUnits ?? 0);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "Scan failed on table {TableName}",
+                request.TableName ?? "Unknown");
+            #endif
+            throw;
+        }
     }
 }

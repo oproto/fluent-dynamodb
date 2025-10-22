@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -37,13 +38,16 @@ public class QueryRequestBuilder :
     /// Initializes a new instance of the QueryRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    public QueryRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public QueryRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     private QueryRequest _req = new QueryRequest() { ExclusiveStartKey = new Dictionary<string, AttributeValue>() };
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -278,6 +282,45 @@ public class QueryRequestBuilder :
     /// <exception cref="ValidationException">Thrown when the key condition expression is invalid.</exception>
     public async Task<QueryResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.QueryAsync(ToQueryRequest(), cancellationToken);
+        var request = ToQueryRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        _logger?.LogInformation(LogEventIds.ExecutingQuery,
+            "Executing Query on table {TableName}. Index: {IndexName}, KeyCondition: {KeyCondition}, Filter: {FilterExpression}",
+            request.TableName ?? "Unknown", 
+            request.IndexName ?? "None", 
+            request.KeyConditionExpression ?? "None", 
+            request.FilterExpression ?? "None");
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
+        {
+            _logger.LogTrace(LogEventIds.ExecutingQuery,
+                "Query parameters: {ParameterCount} values",
+                _attrV.AttributeValues.Count);
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.QueryAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "Query completed. ItemCount: {ItemCount}, ConsumedCapacity: {ConsumedCapacity}",
+                response.Count, 
+                response.ConsumedCapacity?.CapacityUnits ?? 0);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "Query failed on table {TableName}",
+                request.TableName ?? "Unknown");
+            #endif
+            throw;
+        }
     }
 }

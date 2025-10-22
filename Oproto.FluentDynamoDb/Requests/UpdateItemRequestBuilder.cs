@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -34,13 +35,20 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class UpdateItemRequestBuilder :
     IWithKey<UpdateItemRequestBuilder>, IWithConditionExpression<UpdateItemRequestBuilder>, IWithAttributeNames<UpdateItemRequestBuilder>, IWithAttributeValues<UpdateItemRequestBuilder>, IWithUpdateExpression<UpdateItemRequestBuilder>
 {
-    public UpdateItemRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <summary>
+    /// Initializes a new instance of the UpdateItemRequestBuilder.
+    /// </summary>
+    /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public UpdateItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
     }
 
     private UpdateItemRequest _req = new();
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -171,8 +179,50 @@ public class UpdateItemRequestBuilder :
         return _req;
     }
 
+    /// <summary>
+    /// Executes the UpdateItem operation asynchronously using the configured parameters.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation, containing the UpdateItemResponse.</returns>
     public async Task<UpdateItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.UpdateItemAsync(this.ToUpdateItemRequest(), cancellationToken);
+        var request = ToUpdateItemRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        _logger?.LogInformation(LogEventIds.ExecutingUpdate,
+            "Executing UpdateItem on table {TableName}. UpdateExpression: {UpdateExpression}, Condition: {ConditionExpression}",
+            request.TableName ?? "Unknown", 
+            request.UpdateExpression ?? "None", 
+            request.ConditionExpression ?? "None");
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
+        {
+            _logger.LogTrace(LogEventIds.ExecutingUpdate,
+                "UpdateItem parameters: {ParameterCount} values",
+                _attrV.AttributeValues.Count);
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.UpdateItemAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "UpdateItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                response.ConsumedCapacity?.CapacityUnits ?? 0);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "UpdateItem failed on table {TableName}",
+                request.TableName ?? "Unknown");
+            #endif
+            throw;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 
 namespace Oproto.FluentDynamoDb.Requests;
 
@@ -33,15 +34,18 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class BatchGetItemRequestBuilder
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly IDynamoDbLogger _logger;
     private readonly BatchGetItemRequest _req = new();
 
     /// <summary>
     /// Initializes a new instance of the BatchGetItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    public BatchGetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient)
+    /// <param name="logger">Optional logger for operation diagnostics.</param>
+    public BatchGetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
     {
         _dynamoDbClient = dynamoDbClient;
+        _logger = logger ?? NoOpLogger.Instance;
         _req.RequestItems = new Dictionary<string, KeysAndAttributes>();
     }
 
@@ -99,6 +103,50 @@ public class BatchGetItemRequestBuilder
     /// <exception cref="ResourceNotFoundException">Thrown when one of the specified tables doesn't exist.</exception>
     public async Task<BatchGetItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _dynamoDbClient.BatchGetItemAsync(ToBatchGetItemRequest(), cancellationToken);
+        var request = ToBatchGetItemRequest();
+        
+        #if !DISABLE_DYNAMODB_LOGGING
+        var totalKeys = request.RequestItems?.Sum(kvp => kvp.Value.Keys?.Count ?? 0) ?? 0;
+        _logger?.LogInformation(LogEventIds.ExecutingGetItem,
+            "Executing BatchGetItem across {TableCount} tables with {TotalKeys} keys",
+            request.RequestItems?.Count ?? 0,
+            totalKeys);
+        
+        if (_logger?.IsEnabled(LogLevel.Trace) == true && request.RequestItems != null)
+        {
+            foreach (var table in request.RequestItems.Keys)
+            {
+                _logger.LogTrace(LogEventIds.ExecutingGetItem,
+                    "BatchGetItem table {TableName}: {KeyCount} keys",
+                    table, request.RequestItems[table].Keys?.Count ?? 0);
+            }
+        }
+        #endif
+        
+        try
+        {
+            var response = await _dynamoDbClient.BatchGetItemAsync(request, cancellationToken);
+            
+            #if !DISABLE_DYNAMODB_LOGGING
+            var totalItems = response.Responses?.Sum(kvp => kvp.Value?.Count ?? 0) ?? 0;
+            var unprocessedCount = response.UnprocessedKeys?.Sum(kvp => kvp.Value.Keys?.Count ?? 0) ?? 0;
+            var totalCapacity = response.ConsumedCapacity?.Sum(c => c.CapacityUnits) ?? 0;
+            
+            _logger?.LogInformation(LogEventIds.OperationComplete,
+                "BatchGetItem completed. ItemsRetrieved: {ItemCount}, UnprocessedKeys: {UnprocessedCount}, ConsumedCapacity: {ConsumedCapacity}",
+                totalItems, unprocessedCount, totalCapacity);
+            #endif
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            #if !DISABLE_DYNAMODB_LOGGING
+            _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
+                "BatchGetItem failed across {TableCount} tables",
+                request.RequestItems?.Count ?? 0);
+            #endif
+            throw;
+        }
     }
 }
