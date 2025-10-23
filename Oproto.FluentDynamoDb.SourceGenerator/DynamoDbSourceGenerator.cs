@@ -162,8 +162,16 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 if (projectionModel == null)
                     continue;
 
-                // TODO: Generate projection code in later tasks
-                // For now, we just validate and report diagnostics
+                // Generate projection expression
+                projectionModel.ProjectionExpression = ProjectionExpressionGenerator.GenerateProjectionExpression(projectionModel);
+
+                // Generate projection metadata class
+                var metadataCode = ProjectionExpressionGenerator.GenerateProjectionMetadata(projectionModel);
+                context.AddSource($"{projectionModel.ClassName}Metadata.g.cs", metadataCode);
+                
+                // Generate FromDynamoDb method for projection model
+                var fromDynamoDbCode = ProjectionExpressionGenerator.GenerateFromDynamoDbMethod(projectionModel);
+                context.AddSource($"{projectionModel.ClassName}.g.cs", fromDynamoDbCode);
             }
             catch (Exception ex)
             {

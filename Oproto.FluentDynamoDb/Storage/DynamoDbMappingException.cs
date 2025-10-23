@@ -270,6 +270,54 @@ public class DynamoDbMappingException : Exception
             .WithContext("KeyValue", keyValue?.ToString() ?? "[null]");
     }
 
+    /// <summary>
+    /// Creates a mapping exception for projection mapping failures.
+    /// </summary>
+    /// <param name="projectionType">The projection type that failed to map.</param>
+    /// <param name="sourceEntityType">The source entity type name.</param>
+    /// <param name="innerException">The underlying mapping exception.</param>
+    /// <returns>A configured DynamoDbMappingException.</returns>
+    public static DynamoDbMappingException ProjectionMappingFailed(
+        Type projectionType,
+        string sourceEntityType,
+        Exception innerException)
+    {
+        var message = $"Failed to map DynamoDB item to projection type {projectionType.Name}. " +
+                     $"Source entity: {sourceEntityType}";
+
+        return new DynamoDbMappingException(
+            message,
+            projectionType,
+            MappingOperation.FromDynamoDb,
+            innerException: innerException)
+            .WithContext("ProjectionType", projectionType.FullName ?? projectionType.Name)
+            .WithContext("SourceEntityType", sourceEntityType);
+    }
+
+    /// <summary>
+    /// Creates a mapping exception for required attribute missing.
+    /// </summary>
+    /// <param name="entityType">The entity type being mapped.</param>
+    /// <param name="attributeName">The missing attribute name.</param>
+    /// <param name="propertyName">The property name that requires the attribute.</param>
+    /// <returns>A configured DynamoDbMappingException.</returns>
+    public static DynamoDbMappingException RequiredAttributeMissing(
+        Type entityType,
+        string attributeName,
+        string propertyName)
+    {
+        var message = $"Required attribute '{attributeName}' is missing from DynamoDB item. " +
+                     $"Property '{propertyName}' on type {entityType.Name} is not nullable and requires this attribute.";
+
+        return new DynamoDbMappingException(
+            message,
+            entityType,
+            MappingOperation.FromDynamoDb,
+            propertyName: propertyName)
+            .WithContext("AttributeName", attributeName)
+            .WithContext("PropertyName", propertyName);
+    }
+
     private static string GetAttributeValueType(AttributeValue attributeValue)
     {
         if (attributeValue.S != null) return "String";

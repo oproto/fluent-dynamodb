@@ -28,22 +28,22 @@
     - Collect and report diagnostics
     - _Requirements: 1.1, 1.5_
 
-- [ ] 3. Implement projection expression generation
-  - [ ] 3.1 Create ProjectionExpressionGenerator class
+- [x] 3. Implement projection expression generation
+  - [x] 3.1 Create ProjectionExpressionGenerator class
     - Implement GenerateProjectionExpression to create DynamoDB projection strings
     - Map property names to DynamoDB attribute names using [DynamoDbAttribute]
     - Include discriminator property in projection if source entity uses discriminators
     - Handle nullable properties correctly
     - _Requirements: 2.1, 2.2, 2.3, 4.2_
   
-  - [ ] 3.2 Generate projection metadata classes
+  - [x] 3.2 Generate projection metadata classes
     - Create static metadata class for each projection model
     - Include projection expression as string constant
     - Include property mapping information
     - Include discriminator information if applicable
     - _Requirements: 2.1, 2.2, 4.2_
   
-  - [ ] 3.3 Generate FromDynamoDb methods for projection models
+  - [x] 3.3 Generate FromDynamoDb methods for projection models
     - Generate partial class with FromDynamoDb static method
     - Map DynamoDB AttributeValues to projection properties
     - Handle nullable properties and missing attributes
