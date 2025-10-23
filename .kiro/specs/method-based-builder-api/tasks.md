@@ -42,21 +42,21 @@
     - Add example index definitions with key names
     - _Requirements: 2.2, 2.4, 3.2, 3.3, 3.4_
 
-- [ ] 4. Update source generator for method-based table generation
-  - [ ] 4.1 Analyze entity attributes to determine key structure
+- [x] 4. Update source generator for method-based table generation
+  - [x] 4.1 Analyze entity attributes to determine key structure
     - Detect partition key from [PartitionKey] attribute
     - Detect sort key from [SortKey] attribute
     - Determine if table has single or composite key
     - _Requirements: 7.1, 7.2, 7.3_
 
-  - [ ] 4.2 Generate appropriate Get/Update/Delete overloads
+  - [x] 4.2 Generate appropriate Get/Update/Delete overloads
     - Generate Get(pk), Update(pk), Delete(pk) for single-key tables
     - Generate Get(pk, sk), Update(pk, sk), Delete(pk, sk) for composite-key tables
     - Use correct attribute names from entity definition
     - Add XML documentation to generated methods
     - _Requirements: 7.2, 7.3, 8.1, 8.2, 8.4_
 
-  - [ ] 4.3 Generate index definitions with key names
+  - [x] 4.3 Generate index definitions with key names
     - Analyze [GlobalSecondaryIndex] attributes for key structure
     - Generate DynamoDbIndex constructors with partition and sort key names
     - Include projection expressions where specified

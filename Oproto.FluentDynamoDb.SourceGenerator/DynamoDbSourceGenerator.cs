@@ -144,6 +144,16 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             {
                 context.AddSource($"{entity.ClassName}SecurityMetadata.g.cs", securityMetadata);
             }
+
+            // Generate table class for table entities (not nested entities)
+            if (!isNestedEntity)
+            {
+                var tableCode = TableGenerator.GenerateTableClass(entity);
+                if (!string.IsNullOrEmpty(tableCode))
+                {
+                    context.AddSource($"{entity.ClassName}Table.g.cs", tableCode);
+                }
+            }
         }
 
         // Now process projection models and collect them
