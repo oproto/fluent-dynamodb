@@ -139,7 +139,9 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             context.AddSource($"{entity.ClassName}.g.cs", sourceCode);
         }
 
-        // Now process projection models
+        // Now process projection models and collect them
+        var validProjectionModels = new List<ProjectionModel>();
+        
         foreach (var projectionContext in projectionContexts)
         {
             if (projectionContext.Node is not ClassDeclarationSyntax classDecl)
@@ -172,6 +174,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 // Generate FromDynamoDb method for projection model
                 var fromDynamoDbCode = ProjectionExpressionGenerator.GenerateFromDynamoDbMethod(projectionModel);
                 context.AddSource($"{projectionModel.ClassName}.g.cs", fromDynamoDbCode);
+                
+                validProjectionModels.Add(projectionModel);
             }
             catch (Exception ex)
             {
@@ -191,6 +195,9 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 context.ReportDiagnostic(diagnostic);
             }
         }
+        
+        // Generate table index properties for entities grouped by table
+        GenerateTableIndexProperties(context, validEntityModels, validProjectionModels);
     }
 
     /// <summary>
@@ -200,5 +207,44 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
     {
         // Use MapperGenerator as the single source of truth for entity implementation
         return MapperGenerator.GenerateEntityImplementation(entity);
+    }
+    
+    /// <summary>
+    /// Generates table index properties for entities grouped by table name.
+    /// </summary>
+    private static void GenerateTableIndexProperties(
+        SourceProductionContext context,
+        List<EntityModel> entities,
+        List<ProjectionModel> projectionModels)
+    {
+        // Group entities by table name
+        var entitiesByTable = entities
+            .Where(e => !string.IsNullOrEmpty(e.TableName) && !e.TableName.StartsWith("_entity_"))
+            .GroupBy(e => e.TableName)
+            .ToList();
+        
+        foreach (var tableGroup in entitiesByTable)
+        {
+            var tableName = tableGroup.Key;
+            var tableEntities = tableGroup.ToList();
+            
+            // Check if any entity in this table has GSI definitions
+            var hasGsiDefinitions = tableEntities.Any(e => e.Indexes.Length > 0);
+            if (!hasGsiDefinitions)
+                continue;
+            
+            // Generate index properties for this table
+            var indexPropertiesCode = TableIndexGenerator.GenerateIndexProperties(
+                tableName,
+                tableEntities,
+                projectionModels);
+            
+            if (!string.IsNullOrEmpty(indexPropertiesCode))
+            {
+                // Use the table name to create a unique file name
+                var tableClassName = tableName.Replace("-", "").Replace("_", "");
+                context.AddSource($"{tableClassName}Table.Indexes.g.cs", indexPropertiesCode);
+            }
+        }
     }
 }

@@ -14,6 +14,11 @@ namespace Oproto.FluentDynamoDb.Attributes;
 /// - Automatically apply the projection expression to queries
 /// - Validate at compile-time that the projection type is valid
 /// 
+/// <para><strong>Limitation:</strong> Currently, only ONE [UseProjection] attribute is supported per GSI.
+/// If multiple entities define the same GSI with different [UseProjection] attributes,
+/// the first one encountered will be used. To query the same GSI with different projections,
+/// use the generic QueryAsync&lt;TResult&gt; override method on the generated index property.</para>
+/// 
 /// Example:
 /// <code>
 /// [DynamoDbAttribute("status_pk")]
@@ -29,6 +34,15 @@ namespace Oproto.FluentDynamoDb.Attributes;
 ///         this, 
 ///         "StatusIndex", 
 ///         "id, amount, status, entity_type");
+/// </code>
+/// 
+/// To use an alternative projection on the same GSI:
+/// <code>
+/// // Use default projection (TransactionSummary)
+/// var summaries = await table.StatusIndex.QueryAsync(q => q.Where("status = :s"));
+/// 
+/// // Override with different projection
+/// var minimal = await table.StatusIndex.QueryAsync&lt;MinimalTransaction&gt;(q => q.Where("status = :s"));
 /// </code>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]

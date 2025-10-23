@@ -50,33 +50,33 @@
     - Use generated mapping code (no reflection)
     - _Requirements: 2.2, 2.3, 6.1, 6.2, 6.3_
 
-- [ ] 4. Implement GSI index property generation
-  - [ ] 4.1 Create GsiDefinition model class
+- [x] 4. Implement GSI index property generation
+  - [x] 4.1 Create GsiDefinition model class
     - Define GsiDefinition with IndexName, EntityTypes, ProjectionType, ProjectionExpression, PartitionKeyProperty, SortKeyProperty
     - _Requirements: 3.1, 3.2, 3a.1, 3a.2_
   
-  - [ ] 4.2 Create TableIndexGenerator class
+  - [x] 4.2 Create TableIndexGenerator class
     - Implement GroupGsiDefinitions to aggregate GSI definitions across entities
     - Detect [UseProjection] attributes on GSI properties
     - Resolve projection expressions for GSIs with [UseProjection]
     - Handle multiple entities sharing the same GSI name
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3a.1, 3a.2, 3a.3, 3a.4, 3a.5_
   
-  - [ ] 4.3 Generate index properties on table classes
+  - [x] 4.3 Generate index properties on table classes
     - Generate DynamoDbIndex<TProjection> properties for GSIs with [UseProjection]
     - Generate non-generic DynamoDbIndex properties for GSIs without projection
     - Include projection expression in constructor call
     - Ensure one property per unique GSI name
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 7.1, 7.2, 7.3, 7.4, 7.5_
   
-  - [ ] 4.4 Integrate TableIndexGenerator into source generation pipeline
+  - [x] 4.4 Integrate TableIndexGenerator into source generation pipeline
     - Detect table classes with GSI definitions
     - Generate partial table class with index properties
     - Handle tables with no GSI definitions
     - _Requirements: 7.1, 7.2, 7.5_
 
-- [ ] 5. Implement generic DynamoDbIndex class
-  - [ ] 5.1 Create DynamoDbIndex<TDefault> class
+- [x] 5. Implement generic DynamoDbIndex class
+  - [x] 5.1 Create DynamoDbIndex<TDefault> class
     - Add constructor accepting table, indexName, and optional projectionExpression
     - Implement Name property
     - Implement Query property that returns QueryRequestBuilder with auto-applied projection
@@ -84,7 +84,7 @@
     - Implement QueryAsync<TResult> method for type override
     - _Requirements: 2.4, 2.5, 3.1, 3.2, 3.3, 6.1, 6.2, 6.3_
   
-  - [ ] 5.2 Update non-generic DynamoDbIndex class
+  - [x] 5.2 Update non-generic DynamoDbIndex class
     - Add constructor overload accepting projectionExpression
     - Auto-apply projection in Query property if configured
     - Maintain backward compatibility with existing constructor
