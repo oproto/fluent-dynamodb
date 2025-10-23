@@ -25,8 +25,8 @@
     - Maintain backward compatibility for existing generic index usage
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 10.1, 10.2_
 
-- [ ] 3. Create example manual table implementations
-  - [ ] 3.1 Create single partition key table example
+- [x] 3. Create example manual table implementations
+  - [x] 3.1 Create single partition key table example
     - Implement table class deriving from DynamoDbTableBase
     - Override Get(string pk) method
     - Override Update(string pk) method
@@ -34,7 +34,7 @@
     - Add example index definitions with key names
     - _Requirements: 2.1, 2.4, 3.1, 3.2, 3.3_
 
-  - [ ] 3.2 Create composite key table example
+  - [x] 3.2 Create composite key table example
     - Implement table class deriving from DynamoDbTableBase
     - Override Get(string pk, string sk) method
     - Override Update(string pk, string sk) method
