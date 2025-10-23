@@ -188,14 +188,14 @@ public static class DiscriminatorAnalyzer
             // No wildcards - treat as exact match
             return DiscriminatorStrategy.ExactMatch;
         }
+        else if (wildcardCount == 2 && pattern.StartsWith("*") && pattern.EndsWith("*") && pattern.Length > 2)
+        {
+            // *text* - contains (exactly 2 wildcards at start and end)
+            return DiscriminatorStrategy.Contains;
+        }
         else if (wildcardCount == 1)
         {
-            if (pattern.StartsWith("*") && pattern.EndsWith("*"))
-            {
-                // *text* - contains
-                return DiscriminatorStrategy.Contains;
-            }
-            else if (pattern.StartsWith("*"))
+            if (pattern.StartsWith("*"))
             {
                 // *text - ends with
                 return DiscriminatorStrategy.EndsWith;

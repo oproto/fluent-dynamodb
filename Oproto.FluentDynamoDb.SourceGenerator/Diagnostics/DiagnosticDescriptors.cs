@@ -534,7 +534,7 @@ public static class DiagnosticDescriptors
         "PROJ001",
         "Projection property not found",
         "Property '{0}' on projection '{1}' does not exist on source entity '{2}'",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "All properties in a projection model must exist on the source entity.");
@@ -546,7 +546,7 @@ public static class DiagnosticDescriptors
         "PROJ002",
         "Projection property type mismatch",
         "Property '{0}' type '{1}' on projection '{2}' does not match source entity type '{3}'",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Projection property types must match the corresponding source entity property types.");
@@ -558,7 +558,7 @@ public static class DiagnosticDescriptors
         "PROJ003",
         "Invalid projection source entity",
         "Source entity type '{0}' for projection '{1}' does not exist or is not a DynamoDB entity",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Projection source entity must be a valid DynamoDB entity class.");
@@ -570,7 +570,7 @@ public static class DiagnosticDescriptors
         "PROJ004",
         "Projection must be partial",
         "Projection class '{0}' must be declared as 'partial' to support source generation",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Projection classes must be declared as partial to allow the source generator to add mapping code.");
@@ -582,7 +582,7 @@ public static class DiagnosticDescriptors
         "PROJ005",
         "UseProjection references invalid type",
         "UseProjection attribute on GSI '{0}' references non-existent or invalid projection type '{1}'",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "UseProjection attribute must reference a valid projection model type.");
@@ -594,7 +594,7 @@ public static class DiagnosticDescriptors
         "PROJ006",
         "Conflicting UseProjection attributes",
         "GSI '{0}' has multiple conflicting UseProjection attributes specifying different projection types",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "A GSI can only have one projection type constraint across all entities.");
@@ -606,7 +606,7 @@ public static class DiagnosticDescriptors
         "PROJ101",
         "Projection includes all properties",
         "Projection '{0}' includes all properties from source entity '{1}'. Consider using the full entity type instead for better performance.",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Projections that include all properties provide no optimization benefit over using the full entity type.");
@@ -618,7 +618,7 @@ public static class DiagnosticDescriptors
         "PROJ102",
         "Projection has many properties",
         "Projection '{0}' has {1} properties which may impact performance. Consider reducing the number of projected properties.",
-        "DynamoDb.Projection",
+        "DynamoDb",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Projections with many properties may not provide significant performance benefits.");
@@ -632,7 +632,7 @@ public static class DiagnosticDescriptors
         "DISC001",
         "Both DiscriminatorValue and DiscriminatorPattern specified",
         "Entity '{0}' has both DiscriminatorValue and DiscriminatorPattern specified. Only one should be used. DiscriminatorValue will take precedence.",
-        "DynamoDb.Discriminator",
+        "DynamoDb",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "DiscriminatorValue and DiscriminatorPattern are mutually exclusive. Specify only one to avoid confusion.");
@@ -644,7 +644,7 @@ public static class DiagnosticDescriptors
         "DISC002",
         "DiscriminatorValue or DiscriminatorPattern without DiscriminatorProperty",
         "Entity '{0}' has DiscriminatorValue or DiscriminatorPattern specified but DiscriminatorProperty is missing. Specify DiscriminatorProperty to indicate which attribute contains the discriminator.",
-        "DynamoDb.Discriminator",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "DiscriminatorProperty must be specified when using DiscriminatorValue or DiscriminatorPattern to indicate which DynamoDB attribute contains the discriminator.");
@@ -656,7 +656,7 @@ public static class DiagnosticDescriptors
         "DISC003",
         "Invalid discriminator pattern syntax",
         "Entity '{0}' has invalid discriminator pattern '{1}': {2}. Patterns should use '*' as a wildcard (e.g., 'USER#*', '*#USER', '*USER*').",
-        "DynamoDb.Discriminator",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Discriminator patterns must use valid syntax with '*' as wildcard. Complex patterns with multiple wildcards in non-standard positions may not be supported.");
@@ -670,7 +670,7 @@ public static class DiagnosticDescriptors
         "SEC001",
         "Missing Encryption.Kms package",
         "Property '{0}' on entity '{1}' is marked with [Encrypted] but the Oproto.FluentDynamoDb.Encryption.Kms package is not referenced. Add the package reference to enable field-level encryption.",
-        "DynamoDb.Security",
+        "DynamoDb",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "The [Encrypted] attribute requires the Oproto.FluentDynamoDb.Encryption.Kms package to provide encryption functionality.");

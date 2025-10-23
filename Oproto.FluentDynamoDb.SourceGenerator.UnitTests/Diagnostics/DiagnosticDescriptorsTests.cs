@@ -189,7 +189,12 @@ public class DiagnosticDescriptorsTests
 
         // Assert
         ids.Should().OnlyHaveUniqueItems("All diagnostic descriptors should have unique IDs");
-        ids.Should().AllSatisfy(id => id.Should().StartWith("DYNDB"), "All IDs should start with DYNDB prefix");
+        ids.Should().AllSatisfy(id => 
+        {
+            var validPrefixes = new[] { "DYNDB", "PROJ", "DISC", "SEC" };
+            validPrefixes.Should().Contain(prefix => id.StartsWith(prefix), 
+                $"ID '{id}' should start with one of the valid prefixes: {string.Join(", ", validPrefixes)}");
+        }, "All IDs should start with a valid category prefix");
     }
 
     [Fact]
