@@ -19,14 +19,15 @@ namespace Oproto.FluentDynamoDb.Storage;
 public interface IScannableDynamoDbTable : IDynamoDbTable
 {
     /// <summary>
-    /// Gets a builder for Scan operations to examine every item in the table or index.
+    /// Creates a new Scan operation builder to examine every item in the table or index.
     /// 
     /// WARNING: Use with caution as scan operations can be expensive.
     /// - Scan operations consume read capacity for every item examined, not just returned items
     /// - Large tables will require multiple scan operations due to 1MB response limits
     /// - Consider using Query operations instead whenever possible
     /// </summary>
-    ScanRequestBuilder Scan { get; }
+    /// <returns>A ScanRequestBuilder configured for this table.</returns>
+    ScanRequestBuilder Scan();
 
     /// <summary>
     /// Gets access to the underlying table instance, allowing access to custom properties and methods

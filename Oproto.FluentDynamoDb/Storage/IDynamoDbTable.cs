@@ -22,29 +22,42 @@ public interface IDynamoDbTable
     string Name { get; }
 
     /// <summary>
-    /// Gets a builder for GetItem operations to retrieve individual items by their primary key.
+    /// Creates a new Query operation builder for this table.
+    /// Use this to query items using the primary key or a secondary index.
     /// </summary>
-    GetItemRequestBuilder Get { get; }
+    /// <returns>A QueryRequestBuilder configured for this table.</returns>
+    QueryRequestBuilder Query();
 
     /// <summary>
-    /// Gets a builder for PutItem operations to create new items or completely replace existing items.
+    /// Creates a new Query operation builder with a key condition expression.
+    /// Uses format string syntax for parameters: {0}, {1}, etc.
     /// </summary>
-    PutItemRequestBuilder Put { get; }
+    /// <param name="keyConditionExpression">The key condition expression with format placeholders.</param>
+    /// <param name="values">The values to substitute into the expression.</param>
+    /// <returns>A QueryRequestBuilder configured with the key condition.</returns>
+    QueryRequestBuilder Query(string keyConditionExpression, params object[] values);
 
     /// <summary>
-    /// Gets a builder for UpdateItem operations to modify existing items or create them if they don't exist.
+    /// Creates a new GetItem operation builder for this table.
     /// </summary>
-    UpdateItemRequestBuilder Update { get; }
+    /// <returns>A GetItemRequestBuilder configured for this table.</returns>
+    GetItemRequestBuilder Get();
 
     /// <summary>
-    /// Gets a builder for Query operations to efficiently retrieve items using the primary key and optional sort key conditions.
-    /// This is the preferred method for retrieving multiple items when you know the primary key.
+    /// Creates a new UpdateItem operation builder for this table.
     /// </summary>
-    QueryRequestBuilder Query { get; }
+    /// <returns>An UpdateItemRequestBuilder configured for this table.</returns>
+    UpdateItemRequestBuilder Update();
 
     /// <summary>
-    /// Gets a builder for DeleteItem operations to remove individual items by their primary key.
-    /// Supports conditional deletes and return value options.
+    /// Creates a new DeleteItem operation builder for this table.
     /// </summary>
-    DeleteItemRequestBuilder Delete { get; }
+    /// <returns>A DeleteItemRequestBuilder configured for this table.</returns>
+    DeleteItemRequestBuilder Delete();
+
+    /// <summary>
+    /// Creates a new PutItem operation builder for this table.
+    /// </summary>
+    /// <returns>A PutItemRequestBuilder configured for this table.</returns>
+    PutItemRequestBuilder Put();
 }

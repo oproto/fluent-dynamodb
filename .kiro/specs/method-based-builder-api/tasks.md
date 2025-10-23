@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Update DynamoDbTableBase to use method-based builder access
+- [x] 1. Update DynamoDbTableBase to use method-based builder access
   - Remove property-based Query, Get, Update, Delete, Put properties
   - Add Query() method returning QueryRequestBuilder
   - Add Query(string expression, params object[] values) overload for format string support

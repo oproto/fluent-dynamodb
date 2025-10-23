@@ -45,34 +45,40 @@ internal class ScannableDynamoDbTable : IScannableDynamoDbTable
 
 
     /// <summary>
-    /// Gets a builder for GetItem operations (pass-through to underlying table).
+    /// Creates a new Query operation builder (pass-through to underlying table).
     /// </summary>
-    public GetItemRequestBuilder Get => _table.Get;
+    public QueryRequestBuilder Query() => _table.Query();
 
     /// <summary>
-    /// Gets a builder for PutItem operations (pass-through to underlying table).
+    /// Creates a new Query operation builder with a key condition expression (pass-through to underlying table).
     /// </summary>
-    public PutItemRequestBuilder Put => _table.Put;
+    public QueryRequestBuilder Query(string keyConditionExpression, params object[] values) => 
+        _table.Query(keyConditionExpression, values);
 
     /// <summary>
-    /// Gets a builder for UpdateItem operations (pass-through to underlying table).
+    /// Creates a new GetItem operation builder (pass-through to underlying table).
     /// </summary>
-    public UpdateItemRequestBuilder Update => _table.Update;
+    public GetItemRequestBuilder Get() => _table.Get();
 
     /// <summary>
-    /// Gets a builder for Query operations (pass-through to underlying table).
+    /// Creates a new UpdateItem operation builder (pass-through to underlying table).
     /// </summary>
-    public QueryRequestBuilder Query => _table.Query;
+    public UpdateItemRequestBuilder Update() => _table.Update();
 
     /// <summary>
-    /// Gets a builder for DeleteItem operations (pass-through to underlying table).
+    /// Creates a new DeleteItem operation builder (pass-through to underlying table).
     /// </summary>
-    public DeleteItemRequestBuilder Delete => _table.Delete;
+    public DeleteItemRequestBuilder Delete() => _table.Delete();
 
     /// <summary>
-    /// Gets a builder for Scan operations - only available through this scannable interface.
+    /// Creates a new PutItem operation builder (pass-through to underlying table).
+    /// </summary>
+    public PutItemRequestBuilder Put() => _table.Put();
+
+    /// <summary>
+    /// Creates a new Scan operation builder - only available through this scannable interface.
     /// 
     /// WARNING: Scan operations can be expensive. Use Query operations instead whenever possible.
     /// </summary>
-    public ScanRequestBuilder Scan => new ScanRequestBuilder(DynamoDbClient).ForTable(Name);
+    public ScanRequestBuilder Scan() => new ScanRequestBuilder(DynamoDbClient, _table.Logger).ForTable(Name);
 }

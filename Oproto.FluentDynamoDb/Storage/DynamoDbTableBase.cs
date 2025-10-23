@@ -51,7 +51,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <summary>
     /// Gets the logger for DynamoDB operations.
     /// </summary>
-    protected IDynamoDbLogger Logger { get; private init; }
+    internal IDynamoDbLogger Logger { get; private init; }
 
     /// <summary>
     /// Gets the field encryptor for encrypting and decrypting sensitive properties.
@@ -75,30 +75,94 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     }
 
     /// <summary>
-    /// Gets a builder for GetItem operations on this table.
+    /// Creates a new Query operation builder for this table.
+    /// Use this to query items using the primary key or a secondary index.
     /// </summary>
-    public GetItemRequestBuilder Get => new GetItemRequestBuilder(DynamoDbClient).ForTable(Name);
-
+    /// <returns>A QueryRequestBuilder configured for this table.</returns>
+    /// <example>
+    /// <code>
+    /// // Manual query configuration
+    /// var results = await table.Query()
+    ///     .Where("pk = {0}", "USER#123")
+    ///     .ExecuteAsync();
+    /// 
+    /// // Or use the expression overload
+    /// var results = await table.Query("pk = {0}", "USER#123").ExecuteAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder Query() => 
+        new QueryRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    
     /// <summary>
-    /// Gets a builder for UpdateItem operations on this table.
+    /// Creates a new Query operation builder with a key condition expression.
+    /// Uses format string syntax for parameters: {0}, {1}, etc.
     /// </summary>
-    public UpdateItemRequestBuilder Update => new UpdateItemRequestBuilder(DynamoDbClient).ForTable(Name);
-
+    /// <param name="keyConditionExpression">The key condition expression with format placeholders.</param>
+    /// <param name="values">The values to substitute into the expression.</param>
+    /// <returns>A QueryRequestBuilder configured with the key condition.</returns>
+    /// <example>
+    /// <code>
+    /// // Simple partition key query
+    /// var results = await table.Query("pk = {0}", "USER#123").ExecuteAsync();
+    /// 
+    /// // Composite key query
+    /// var results = await table.Query("pk = {0} AND sk > {1}", "USER#123", "2024-01-01").ExecuteAsync();
+    /// 
+    /// // With begins_with
+    /// var results = await table.Query("pk = {0} AND begins_with(sk, {1})", "USER#123", "ORDER#").ExecuteAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder Query(string keyConditionExpression, params object[] values)
+    {
+        var builder = Query();
+        return Requests.Extensions.WithConditionExpressionExtensions.Where(builder, keyConditionExpression, values);
+    }
+    
     /// <summary>
-    /// Gets a builder for Query operations on this table.
+    /// Creates a new GetItem operation builder for this table.
+    /// Base implementation provides parameterless version.
+    /// Derived classes should override to provide key-specific overloads.
     /// </summary>
-    public QueryRequestBuilder Query => new QueryRequestBuilder(DynamoDbClient).ForTable(Name);
-
+    /// <returns>A GetItemRequestBuilder configured for this table.</returns>
+    /// <example>
+    /// <code>
+    /// // Manual key configuration
+    /// var item = await table.Get()
+    ///     .WithKey("id", "123")
+    ///     .WithProjection("name, email")
+    ///     .ExecuteAsync();
+    /// 
+    /// // Or use derived class overload (if available)
+    /// var item = await table.Get("123").ExecuteAsync();
+    /// </code>
+    /// </example>
+    public virtual GetItemRequestBuilder Get() => 
+        new GetItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    
     /// <summary>
-    /// Gets a builder for PutItem operations on this table.
+    /// Creates a new UpdateItem operation builder for this table.
+    /// Base implementation provides parameterless version.
+    /// Derived classes should override to provide key-specific overloads.
     /// </summary>
-    public PutItemRequestBuilder Put => new PutItemRequestBuilder(DynamoDbClient).ForTable(Name);
-
+    /// <returns>An UpdateItemRequestBuilder configured for this table.</returns>
+    public virtual UpdateItemRequestBuilder Update() => 
+        new UpdateItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    
     /// <summary>
-    /// Gets a builder for DeleteItem operations on this table.
-    /// Use this to delete individual items by their primary key, with optional condition expressions.
+    /// Creates a new DeleteItem operation builder for this table.
+    /// Base implementation provides parameterless version.
+    /// Derived classes should override to provide key-specific overloads.
     /// </summary>
-    public DeleteItemRequestBuilder Delete => new DeleteItemRequestBuilder(DynamoDbClient).ForTable(Name);
+    /// <returns>A DeleteItemRequestBuilder configured for this table.</returns>
+    public virtual DeleteItemRequestBuilder Delete() => 
+        new DeleteItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    
+    /// <summary>
+    /// Creates a new PutItem operation builder for this table.
+    /// </summary>
+    /// <returns>A PutItemRequestBuilder configured for this table.</returns>
+    public PutItemRequestBuilder Put() => 
+        new PutItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
 
     /// <summary>
     /// Returns a scannable interface that provides access to scan operations.
