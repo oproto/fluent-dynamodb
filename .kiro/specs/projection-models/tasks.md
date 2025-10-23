@@ -90,22 +90,22 @@
     - Maintain backward compatibility with existing constructor
     - _Requirements: 6.1, 6.2, 6.3, 7a.1, 7a.2, 7a.3, 7a.4, 7a.5_
 
-- [ ] 6. Implement query builder extensions for projection
-  - [ ] 6.1 Create ToListAsync<TResult> extension method
+- [x] 6. Implement query builder extensions for projection
+  - [x] 6.1 Create ToListAsync<TResult> extension method
     - Detect if TResult is a projection model using generated metadata
     - Auto-apply projection expression if TResult is a projection model
     - Skip auto-projection if manual .WithProjection() was called
     - Execute query and return List<TResult>
     - _Requirements: 2.1, 2.2, 2.4, 2.5, 6.1, 6.2, 6.3_
   
-  - [ ] 6.2 Implement projection hydration logic
+  - [x] 6.2 Implement projection hydration logic
     - Call generated FromDynamoDb method for projection models
     - Handle DynamoDB response items
     - Map AttributeValues to projection properties
     - Handle missing attributes gracefully
     - _Requirements: 2.2, 2.3, 6.1, 6.2, 6.3_
   
-  - [ ] 6.3 Implement GSI projection validation
+  - [x] 6.3 Implement GSI projection validation
     - Check if query is using a GSI with [UseProjection]
     - Validate TResult matches the required projection type (if enforced)
     - Throw ProjectionValidationException if validation fails
