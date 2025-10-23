@@ -337,38 +337,38 @@
     - Test error logging
     - _Requirements: 9.3, 9.5_
 
-- [ ] 14. Update documentation
-  - [ ] 14.1 Create logging configuration guide
+- [x] 14. Update documentation
+  - [x] 14.1 Create logging configuration guide
     - Document how to configure IDynamoDbLogger
     - Provide examples with no logger, custom logger, and MEL
     - Document logger parameter in constructors
     - _Requirements: 15.1, 15.2_
   
-  - [ ] 14.2 Document log levels and event IDs
+  - [x] 14.2 Document log levels and event IDs
     - Explain when each log level is used
     - Document event ID ranges and meanings
     - Provide examples of filtering by event ID
     - _Requirements: 15.3, 11.1, 11.2, 11.3, 11.4_
   
-  - [ ] 14.3 Document structured logging
+  - [x] 14.3 Document structured logging
     - Explain structured properties in log messages
     - Provide examples of querying structured logs
     - Show integration with Serilog, NLog, etc.
     - _Requirements: 15.4, 7.1, 7.2, 7.3, 7.4_
   
-  - [ ] 14.4 Document conditional compilation
+  - [x] 14.4 Document conditional compilation
     - Explain how to disable logging for production
     - Provide .csproj examples
     - Document performance implications
     - _Requirements: 15.5, 10.1, 10.4_
   
-  - [ ] 14.5 Create troubleshooting guide
+  - [x] 14.5 Create troubleshooting guide
     - Document common logging issues
     - Explain how to use logs for debugging AOT issues
     - Provide examples of log analysis
     - _Requirements: 15.1, 15.3_
   
-  - [ ] 14.6 Add code examples to README
+  - [x] 14.6 Add code examples to README
     - Add basic usage example
     - Add MEL integration example
     - Add custom logger example

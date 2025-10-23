@@ -127,6 +127,112 @@ Efficient batch get/write operations and full transaction support with expressio
 Fluent pattern matching for DynamoDB Streams in Lambda functions with support for INSERT, UPDATE, DELETE, and TTL events.
 - **Learn more:** [Developer Guide](docs/DeveloperGuide.md)
 
+### 📊 Logging and Diagnostics
+Comprehensive logging support for debugging and monitoring DynamoDB operations, especially useful in AOT environments where stack traces are limited.
+- **Learn more:** [Logging Configuration](docs/core-features/LoggingConfiguration.md)
+
+## Logging Examples
+
+### Basic Usage (No Logger)
+
+By default, the library uses a no-op logger with zero overhead:
+
+```csharp
+var client = new AmazonDynamoDBClient();
+var table = new DynamoDbTableBase(client, "products");
+
+// No logging - works exactly as before
+await table.Get.WithKey("pk", "product-123").ExecuteAsync();
+```
+
+### With Microsoft.Extensions.Logging
+
+Install the adapter package:
+
+```bash
+dotnet add package Oproto.FluentDynamoDb.Logging.Extensions
+```
+
+Configure logging:
+
+```csharp
+using Oproto.FluentDynamoDb.Logging.Extensions;
+using Microsoft.Extensions.Logging;
+
+// Create logger from ILoggerFactory
+var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+var logger = loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger();
+
+// Pass logger to table
+var table = new ProductsTable(client, "products", logger);
+
+// All operations are now logged with detailed context
+await table.GetProductAsync("product-123");
+
+// Logs:
+// [Trace] Starting FromDynamoDb mapping for Product with 8 attributes
+// [Debug] Mapping property Id from String
+// [Debug] Mapping property Name from String
+// [Debug] Converting Tags from String Set with 3 elements
+// [Information] Executing GetItem on table products
+// [Information] GetItem completed. ConsumedCapacity: 1.0
+// [Trace] Completed FromDynamoDb mapping for Product
+```
+
+### With Custom Logger
+
+Implement the `IDynamoDbLogger` interface:
+
+```csharp
+using Oproto.FluentDynamoDb.Logging;
+
+public class ConsoleLogger : IDynamoDbLogger
+{
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+    
+    public void LogInformation(int eventId, string message, params object[] args)
+    {
+        Console.WriteLine($"[INFO] [{eventId}] {string.Format(message, args)}");
+    }
+    
+    public void LogError(int eventId, Exception exception, string message, params object[] args)
+    {
+        Console.WriteLine($"[ERROR] [{eventId}] {string.Format(message, args)}");
+        Console.WriteLine($"Exception: {exception}");
+    }
+    
+    // Implement other methods...
+}
+
+// Use custom logger
+var logger = new ConsoleLogger();
+var table = new ProductsTable(client, "products", logger);
+```
+
+### Conditional Compilation (Zero Overhead in Production)
+
+Disable logging completely in production builds:
+
+```xml
+<!-- .csproj -->
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
+</PropertyGroup>
+```
+
+When `DISABLE_DYNAMODB_LOGGING` is defined:
+- All logging code is removed at compile time
+- Zero runtime overhead
+- Zero allocations
+- Smaller binary size
+
+**Learn more:**
+- [Logging Configuration Guide](docs/core-features/LoggingConfiguration.md) - Setup and configuration
+- [Log Levels and Event IDs](docs/core-features/LogLevelsAndEventIds.md) - Filtering and analysis
+- [Structured Logging](docs/core-features/StructuredLogging.md) - Query logs by properties
+- [Conditional Compilation](docs/core-features/ConditionalCompilation.md) - Disable for production
+- [Logging Troubleshooting](docs/reference/LoggingTroubleshooting.md) - Common issues
+
 ## Documentation Guide
 
 ### 📖 [Getting Started](docs/getting-started/README.md)
@@ -143,6 +249,10 @@ Master the essential operations and patterns.
 - [Expression Formatting](docs/core-features/ExpressionFormatting.md) - Format string syntax
 - [Batch Operations](docs/core-features/BatchOperations.md) - Batch get and write
 - [Transactions](docs/core-features/Transactions.md) - Multi-item transactions
+- [Logging Configuration](docs/core-features/LoggingConfiguration.md) - Logging and diagnostics
+- [Log Levels and Event IDs](docs/core-features/LogLevelsAndEventIds.md) - Event filtering
+- [Structured Logging](docs/core-features/StructuredLogging.md) - Query and analyze logs
+- [Conditional Compilation](docs/core-features/ConditionalCompilation.md) - Disable for production
 
 ### 🚀 [Advanced Topics](docs/advanced-topics/README.md)
 Explore advanced patterns and optimizations.
@@ -158,6 +268,7 @@ Detailed API and troubleshooting information.
 - [Format Specifiers](docs/reference/FormatSpecifiers.md) - Format string reference
 - [Error Handling](docs/reference/ErrorHandling.md) - Exception patterns
 - [Troubleshooting](docs/reference/Troubleshooting.md) - Common issues and solutions
+- [Logging Troubleshooting](docs/reference/LoggingTroubleshooting.md) - Logging issues and debugging
 
 ### 📄 Additional Resources
 - [Developer Guide](docs/DeveloperGuide.md) - Comprehensive usage guide

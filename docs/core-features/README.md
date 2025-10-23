@@ -18,3 +18,7 @@ This section covers the essential features of Oproto.FluentDynamoDb.
 4. [Expression Formatting](ExpressionFormatting.md) - Complete guide to format strings
 5. [Batch Operations](BatchOperations.md) - Batch get and write operations
 6. [Transactions](Transactions.md) - DynamoDB transactions
+7. [Logging Configuration](LoggingConfiguration.md) - Configure logging and diagnostics
+8. [Log Levels and Event IDs](LogLevelsAndEventIds.md) - Understand and filter logs
+9. [Structured Logging](StructuredLogging.md) - Query and analyze structured logs
+10. [Conditional Compilation](ConditionalCompilation.md) - Disable logging for production

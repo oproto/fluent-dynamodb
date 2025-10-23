@@ -22,6 +22,10 @@ Learn the essential features you'll use every day.
 - **[Expression Formatting](core-features/ExpressionFormatting.md)** - String.Format-style expressions
 - **[Batch Operations](core-features/BatchOperations.md)** - Batch get and write operations
 - **[Transactions](core-features/Transactions.md)** - DynamoDB transactions
+- **[Logging Configuration](core-features/LoggingConfiguration.md)** - Configure logging and diagnostics
+- **[Log Levels and Event IDs](core-features/LogLevelsAndEventIds.md)** - Understand and filter logs
+- **[Structured Logging](core-features/StructuredLogging.md)** - Query and analyze structured logs
+- **[Conditional Compilation](core-features/ConditionalCompilation.md)** - Disable logging for production
 
 ### 🎯 Advanced Topics
 Explore advanced patterns and optimizations.
@@ -40,6 +44,7 @@ Detailed reference documentation for attributes, format specifiers, and troubles
 - **[Format Specifiers](reference/FormatSpecifiers.md)** - Format specifier reference
 - **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
 - **[Troubleshooting](reference/Troubleshooting.md)** - Common issues and solutions
+- **[Logging Troubleshooting](reference/LoggingTroubleshooting.md)** - Logging issues and debugging
 - **[Advanced Types Migration](reference/AdvancedTypesMigration.md)** - Migrate to advanced types
 
 ### 💡 Examples
@@ -70,6 +75,9 @@ Practical code examples for common scenarios.
 
 **Use expression formatting**
 → [Expression Formatting](core-features/ExpressionFormatting.md)
+
+**Configure logging and diagnostics**
+→ [Logging Configuration](core-features/LoggingConfiguration.md)
 
 **Use advanced types (Maps, Sets, Lists, TTL)**
 → [Advanced Type System](advanced-topics/AdvancedTypes.md)
