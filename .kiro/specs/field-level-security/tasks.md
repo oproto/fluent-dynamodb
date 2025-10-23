@@ -206,14 +206,14 @@
     - Verify both features applied
     - _Requirements: 4.5_
 
-- [ ] 13. Write unit tests for encryption components
-  - [ ] 13.1 Test DefaultKmsKeyResolver
+- [x] 13. Write unit tests for encryption components
+  - [x] 13.1 Test DefaultKmsKeyResolver
     - Test default key resolution
     - Test context-specific key resolution
     - Test fallback when context not found
     - _Requirements: 3.2, 3.3, 3.4_
   
-  - [ ] 13.2 Test AwsEncryptionSdkFieldEncryptor with mocked ESDK
+  - [x] 13.2 Test AwsEncryptionSdkFieldEncryptor with mocked ESDK
     - Mock AWS Encryption SDK encrypt/decrypt operations
     - Test encryption context building
     - Test error handling for each failure mode
@@ -221,12 +221,12 @@
     - Verify AWS Encryption SDK message format
     - _Requirements: 2.2, 2.3, 2.4, 5.1, 5.2, 5.3_
   
-  - [ ] 13.3 Test FieldEncryptionException
+  - [x] 13.3 Test FieldEncryptionException
     - Verify properties set correctly
     - Test with and without inner exception
     - _Requirements: 5.1, 5.2, 5.3_
   
-  - [ ] 13.4 Test AwsEncryptionSdkOptions
+  - [x] 13.4 Test AwsEncryptionSdkOptions
     - Verify default values
     - Test custom configuration
     - _Requirements: 6.1, 6.2_
