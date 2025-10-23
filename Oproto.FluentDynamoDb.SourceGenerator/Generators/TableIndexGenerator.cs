@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis;
+using Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using System.Text;
 
@@ -8,6 +10,12 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// </summary>
 public static class TableIndexGenerator
 {
+    private static readonly List<Diagnostic> _diagnostics = new();
+    /// <summary>
+    /// Gets the diagnostics collected during generation.
+    /// </summary>
+    public static IReadOnlyList<Diagnostic> Diagnostics => _diagnostics;
+    
     /// <summary>
     /// Generates index properties for all GSIs defined across entities.
     /// Creates generic DynamoDbIndex&lt;TProjection&gt; if UseProjection is specified,
@@ -22,6 +30,7 @@ public static class TableIndexGenerator
         IEnumerable<EntityModel> entities,
         IEnumerable<ProjectionModel> projectionModels)
     {
+        _diagnostics.Clear();
         var entityList = entities.ToList();
         if (entityList.Count == 0)
             return string.Empty;
@@ -103,6 +112,17 @@ public static class TableIndexGenerator
                     var useProjectionType = DetectUseProjectionAttribute(partitionKeyProp);
                     if (useProjectionType != null)
                     {
+                        // Validate that the projection type exists (PROJ005)
+                        if (!projectionLookup.ContainsKey(useProjectionType))
+                        {
+                            var location = partitionKeyProp.PropertyDeclaration?.GetLocation();
+                            ReportDiagnostic(
+                                DiagnosticDescriptors.UseProjectionInvalidType,
+                                location,
+                                index.IndexName,
+                                useProjectionType);
+                        }
+                        
                         // Set projection type if not already set
                         if (gsiDef.ProjectionType == null)
                         {
@@ -116,10 +136,12 @@ public static class TableIndexGenerator
                         }
                         else if (gsiDef.ProjectionType != useProjectionType)
                         {
-                            // LIMITATION: Multiple entities have conflicting [UseProjection] attributes for the same GSI.
-                            // Currently, only one projection per GSI is supported. The first one encountered is used.
-                            // Future enhancement: Support multiple projections with priority/default mechanism.
-                            // Workaround: Use QueryAsync<TResult> generic override to specify alternative projections.
+                            // PROJ006: Multiple entities have conflicting [UseProjection] attributes for the same GSI
+                            var location = partitionKeyProp.PropertyDeclaration?.GetLocation();
+                            ReportDiagnostic(
+                                DiagnosticDescriptors.ConflictingUseProjection,
+                                location,
+                                index.IndexName);
                         }
                     }
                 }
@@ -127,6 +149,15 @@ public static class TableIndexGenerator
         }
 
         return gsiDefinitions;
+    }
+    
+    /// <summary>
+    /// Reports a diagnostic message.
+    /// </summary>
+    private static void ReportDiagnostic(DiagnosticDescriptor descriptor, Location? location, params object[] messageArgs)
+    {
+        var diagnostic = Diagnostic.Create(descriptor, location ?? Location.None, messageArgs);
+        _diagnostics.Add(diagnostic);
     }
 
     /// <summary>

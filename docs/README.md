@@ -22,6 +22,7 @@ Learn the essential features you'll use every day.
 - **[Expression Formatting](core-features/ExpressionFormatting.md)** - String.Format-style expressions
 - **[Batch Operations](core-features/BatchOperations.md)** - Batch get and write operations
 - **[Transactions](core-features/Transactions.md)** - DynamoDB transactions
+- **[Projection Models](core-features/ProjectionModels.md)** - Optimize queries with automatic projections
 - **[Logging Configuration](core-features/LoggingConfiguration.md)** - Configure logging and diagnostics
 - **[Log Levels and Event IDs](core-features/LogLevelsAndEventIds.md)** - Understand and filter logs
 - **[Structured Logging](core-features/StructuredLogging.md)** - Query and analyze structured logs
@@ -51,6 +52,7 @@ Detailed reference documentation for attributes, format specifiers, and troubles
 ### 💡 Examples
 Practical code examples for common scenarios.
 
+- **[Projection Models Examples](examples/ProjectionModelsExamples.md)** - Projection models, GSI enforcement, and type overrides
 - **[Advanced Types Examples](examples/AdvancedTypesExamples.md)** - Maps, Sets, Lists, TTL, JSON, and blob storage examples
 
 ### 📑 Additional Resources
@@ -76,6 +78,9 @@ Practical code examples for common scenarios.
 
 **Use expression formatting**
 → [Expression Formatting](core-features/ExpressionFormatting.md)
+
+**Optimize queries with projections**
+→ [Projection Models](core-features/ProjectionModels.md)
 
 **Configure logging and diagnostics**
 → [Logging Configuration](core-features/LoggingConfiguration.md)

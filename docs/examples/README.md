@@ -4,6 +4,17 @@ This directory contains practical code examples for Oproto.FluentDynamoDb featur
 
 ## Available Examples
 
+### [Projection Models Examples](ProjectionModelsExamples.md)
+
+Comprehensive examples for using projection models to optimize queries:
+
+- **Basic Projection Models**: Simple projections and multiple projection levels
+- **GSI Projection Enforcement**: Type-safe GSI queries with required projections
+- **Manual Configuration**: Non-source-generation projection setup
+- **Type Override Patterns**: Runtime type selection and conditional projections
+- **Discriminator Support**: Multi-entity tables with projections
+- **Real-World Scenarios**: E-commerce, order management, and analytics examples
+
 ### [Advanced Types Examples](AdvancedTypesExamples.md)
 
 Comprehensive examples for using advanced DynamoDB types:

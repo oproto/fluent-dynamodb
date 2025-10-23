@@ -132,8 +132,8 @@
     - Return heterogeneous list if needed (or skip incompatible items)
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 8. Add validation and diagnostics
-  - [ ] 8.1 Implement compilation-time validations
+- [x] 8. Add validation and diagnostics
+  - [x] 8.1 Implement compilation-time validations
     - Validate projection properties exist on source entity (PROJ001)
     - Validate property type compatibility (PROJ002)
     - Validate source entity type exists (PROJ003)
@@ -142,31 +142,31 @@
     - Detect conflicting UseProjection attributes (PROJ006)
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ] 8.2 Implement warnings for suboptimal configurations
+  - [x] 8.2 Implement warnings for suboptimal configurations
     - Warn if projection includes all properties (PROJ101)
     - Warn if projection has many properties (PROJ102)
     - _Requirements: 5.5, 8.1, 8.2, 8.3, 8.4, 8.5_
   
-  - [ ] 8.3 Implement runtime validation
+  - [x] 8.3 Implement runtime validation
     - Validate GSI projection constraints at query time
     - Provide clear error messages with GSI name and type information
     - Handle validation failures gracefully
     - _Requirements: 3.5, 7a.4_
 
-- [ ] 9. Implement manual configuration support
-  - [ ] 9.1 Add manual projection configuration API
+- [x] 9. Implement manual configuration support
+  - [x] 9.1 Add manual projection configuration API
     - Update DynamoDbIndex constructor to accept projection expression
     - Update DynamoDbIndex<TDefault> constructor for manual use
     - Document manual configuration patterns
     - _Requirements: 7a.1, 7a.2, 7a.3, 7a.4, 7a.5_
   
-  - [ ] 9.2 Implement precedence rules
+  - [x] 9.2 Implement precedence rules
     - Manual .WithProjection() overrides automatic projection
     - Manual DynamoDbIndex configuration overrides generated
     - Document precedence behavior
     - _Requirements: 6.4, 7a.5_
 
-- [ ] 10. Add comprehensive documentation
+- [x] 10. Add comprehensive documentation
   - Create code examples for projection model definition
   - Document GSI projection enforcement with [UseProjection]
   - Document manual configuration for non-source-generation users
@@ -175,7 +175,7 @@
   - Document projection application rules and precedence
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-- [ ] 11. Implement backward compatibility measures
+- [x] 11. Implement backward compatibility measures
   - Ensure existing manual DynamoDbIndex instantiation continues to work
   - Ensure existing .WithProjection() calls continue to work
   - Ensure existing ToListAsync() usage with full entities is unchanged

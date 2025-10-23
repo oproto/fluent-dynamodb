@@ -298,6 +298,16 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - In queries: [Querying Data](core-features/QueryingData.md#projection-expressions)
 - Performance: [Performance Optimization](advanced-topics/PerformanceOptimization.md#projection-expressions)
 
+**Projection Models**
+- Complete guide: [Projection Models](core-features/ProjectionModels.md)
+- Examples: [Projection Models Examples](examples/ProjectionModelsExamples.md)
+- Defining projections: [Projection Models](core-features/ProjectionModels.md#defining-projection-models)
+- GSI enforcement: [Projection Models](core-features/ProjectionModels.md#gsi-projection-enforcement)
+- Manual configuration: [Projection Models](core-features/ProjectionModels.md#manual-configuration)
+- Type overrides: [Projection Models](core-features/ProjectionModels.md#type-override-patterns)
+- Discriminator support: [Projection Models](core-features/ProjectionModels.md#discriminator-support)
+- Precedence rules: [Projection Models](core-features/ProjectionModels.md#projection-application-rules)
+
 **Put Operations**
 - Basic put: [Basic Operations](core-features/BasicOperations.md#put-operations)
 - Conditional put: [Basic Operations](core-features/BasicOperations.md#conditional-put)
@@ -448,6 +458,7 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - [Expression Formatting](core-features/ExpressionFormatting.md)
 - [Batch Operations](core-features/BatchOperations.md)
 - [Transactions](core-features/Transactions.md)
+- [Projection Models](core-features/ProjectionModels.md)
 
 **Advanced Topics**
 - [Composite Entities](advanced-topics/CompositeEntities.md)
@@ -470,6 +481,7 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Perform CRUD operations → [Basic Operations](core-features/BasicOperations.md)
 - Query data → [Querying Data](core-features/QueryingData.md)
 - Use format strings → [Expression Formatting](core-features/ExpressionFormatting.md)
+- Optimize queries with projections → [Projection Models](core-features/ProjectionModels.md)
 - Model complex relationships → [Composite Entities](advanced-topics/CompositeEntities.md)
 - Create GSIs → [Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md)
 - Optimize performance → [Performance Optimization](advanced-topics/PerformanceOptimization.md)

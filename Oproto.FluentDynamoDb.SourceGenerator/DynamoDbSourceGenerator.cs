@@ -239,6 +239,12 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 tableEntities,
                 projectionModels);
             
+            // Report any diagnostics from table index generation
+            foreach (var diagnostic in TableIndexGenerator.Diagnostics)
+            {
+                context.ReportDiagnostic(diagnostic);
+            }
+            
             if (!string.IsNullOrEmpty(indexPropertiesCode))
             {
                 // Use the table name to create a unique file name

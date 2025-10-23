@@ -96,6 +96,9 @@ public class ProjectionModelAnalyzer
         // Validate property types
         ValidatePropertyTypes(projectionModel, sourceEntity);
         
+        // Check for suboptimal configurations (warnings)
+        CheckForSuboptimalConfigurations(projectionModel, sourceEntity);
+        
         // Only return null if there are critical errors
         var criticalErrors = _diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
         return criticalErrors.Length > 0 ? null : projectionModel;
@@ -217,6 +220,36 @@ public class ProjectionModelAnalyzer
                     projection.ClassName,
                     property.SourceProperty.PropertyType);
             }
+        }
+    }
+    
+    /// <summary>
+    /// Checks for suboptimal projection configurations and emits warnings.
+    /// </summary>
+    private void CheckForSuboptimalConfigurations(ProjectionModel projection, EntityModel sourceEntity)
+    {
+        // PROJ101: Warn if projection includes all properties from source entity
+        var sourcePropertyCount = sourceEntity.Properties.Length;
+        var projectionPropertyCount = projection.Properties.Length;
+        
+        if (projectionPropertyCount >= sourcePropertyCount && sourcePropertyCount > 0)
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.ProjectionIncludesAllProperties,
+                projection.ClassDeclaration?.Identifier.GetLocation(),
+                projection.ClassName,
+                sourceEntity.ClassName);
+        }
+        
+        // PROJ102: Warn if projection has many properties (threshold: 20)
+        const int manyPropertiesThreshold = 20;
+        if (projectionPropertyCount > manyPropertiesThreshold)
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.ProjectionHasManyProperties,
+                projection.ClassDeclaration?.Identifier.GetLocation(),
+                projection.ClassName,
+                projectionPropertyCount);
         }
     }
     

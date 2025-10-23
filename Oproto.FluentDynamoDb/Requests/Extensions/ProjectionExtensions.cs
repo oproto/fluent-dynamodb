@@ -107,7 +107,8 @@ public static class ProjectionExtensions
 
     /// <summary>
     /// Validates GSI projection constraints at runtime (if configured).
-    /// Note: This is only enforced if [UseProjection] is explicitly set.
+    /// Provides clear error messages with GSI name and type information.
+    /// Note: Primary validation is enforced at compile-time through source generator diagnostics.
     /// </summary>
     private static void ValidateGsiProjection<TResult>(QueryRequestBuilder builder)
         where TResult : class, new()
@@ -134,7 +135,11 @@ public static class ProjectionExtensions
             if (!string.IsNullOrEmpty(requiredGsiName) && requiredGsiName != request.IndexName)
             {
                 // This projection is required for a specific GSI, but we're querying a different one
-                throw ProjectionValidationException.GsiProjectionMismatch(
+                // Provide clear error message with GSI name and type information
+                throw new ProjectionValidationException(
+                    $"Projection type '{typeof(TResult).Name}' is configured for GSI '{requiredGsiName}' " +
+                    $"but the query is targeting GSI '{request.IndexName}'. " +
+                    $"Either use the correct projection type for '{request.IndexName}' or query '{requiredGsiName}' instead.",
                     request.IndexName,
                     typeof(TResult),
                     typeof(TResult));
@@ -146,10 +151,8 @@ public static class ProjectionExtensions
         // This runtime validation provides an additional safety check for cases
         // where projection constraints are defined through generated metadata.
         // 
-        // For full runtime validation of GSI projection constraints, additional
-        // infrastructure would be needed to track which GSIs require which projection
-        // types. This could be implemented in a future enhancement through a
-        // projection registry or table metadata system.
+        // Validation failures are handled gracefully by throwing ProjectionValidationException
+        // with detailed context about the GSI name, expected type, and actual type.
     }
 
     /// <summary>

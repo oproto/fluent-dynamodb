@@ -456,4 +456,355 @@ public class BackwardCompatibilityTests
     }
     
     #endregion
+    
+    #region Projection Models Backward Compatibility Tests (Task 11)
+    
+    [Fact]
+    public void DynamoDbIndex_LegacyConstructor_WithoutProjection_ShouldWork()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Act - Create index using legacy two-parameter constructor
+        var index = new DynamoDbIndex(table, "StatusIndex");
+        
+        // Assert
+        index.Should().NotBeNull();
+        index.Name.Should().Be("StatusIndex");
+        index.Query.Should().NotBeNull();
+    }
+    
+    [Fact]
+    public void DynamoDbIndex_NewConstructor_WithProjection_ShouldWork()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Act - Create index using new three-parameter constructor with projection
+        var index = new DynamoDbIndex(table, "StatusIndex", "id, amount, status");
+        
+        // Assert
+        index.Should().NotBeNull();
+        index.Name.Should().Be("StatusIndex");
+        index.Query.Should().NotBeNull();
+    }
+    
+    [Fact]
+    public void DynamoDbIndex_LegacyConstructor_QueryBuilder_ShouldNotHaveProjection()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        var index = new DynamoDbIndex(table, "StatusIndex");
+        
+        // Act - Get query builder from legacy index
+        var builder = index.Query;
+        var request = builder.ToQueryRequest();
+        
+        // Assert - No projection should be applied automatically
+        request.ProjectionExpression.Should().BeNullOrEmpty();
+        request.IndexName.Should().Be("StatusIndex");
+        request.TableName.Should().Be("TestTable");
+    }
+    
+    [Fact]
+    public void DynamoDbIndex_NewConstructor_QueryBuilder_ShouldHaveProjection()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        var index = new DynamoDbIndex(table, "StatusIndex", "id, amount, status");
+        
+        // Act - Get query builder from index with projection
+        var builder = index.Query;
+        var request = builder.ToQueryRequest();
+        
+        // Assert - Projection should be applied automatically
+        request.ProjectionExpression.Should().Be("id, amount, status");
+        request.IndexName.Should().Be("StatusIndex");
+        request.TableName.Should().Be("TestTable");
+    }
+    
+    [Fact]
+    public void DynamoDbIndexGeneric_Constructor_WithoutProjection_ShouldWork()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Act - Create generic index without projection
+        var index = new DynamoDbIndex<TestEntity>(table, "StatusIndex");
+        
+        // Assert
+        index.Should().NotBeNull();
+        index.Name.Should().Be("StatusIndex");
+        index.Query.Should().NotBeNull();
+    }
+    
+    [Fact]
+    public void DynamoDbIndexGeneric_Constructor_WithProjection_ShouldWork()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Act - Create generic index with projection
+        var index = new DynamoDbIndex<TestEntity>(table, "StatusIndex", "id, amount, status");
+        
+        // Assert
+        index.Should().NotBeNull();
+        index.Name.Should().Be("StatusIndex");
+        index.Query.Should().NotBeNull();
+    }
+    
+    [Fact]
+    public void QueryRequestBuilder_WithProjection_ManualCall_ShouldWork()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        
+        // Act - Use manual WithProjection call (existing API)
+        var builder = new QueryRequestBuilder(mockClient)
+            .ForTable("TestTable")
+            .Where("pk = :pk")
+            .WithValue(":pk", "test-id")
+            .WithProjection("id, name, email");
+        
+        var request = builder.ToQueryRequest();
+        
+        // Assert - Manual projection should work as before
+        request.ProjectionExpression.Should().Be("id, name, email");
+        request.Select.Should().Be(Select.SPECIFIC_ATTRIBUTES);
+    }
+    
+    [Fact]
+    public void QueryRequestBuilder_WithProjection_ChainedWithOtherMethods_ShouldWork()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        
+        // Act - Chain WithProjection with other methods (existing pattern)
+        var builder = new QueryRequestBuilder(mockClient)
+            .ForTable("TestTable")
+            .UsingIndex("StatusIndex")
+            .Where("pk = :pk")
+            .WithValue(":pk", "test-id")
+            .WithFilter("amount > :amount")
+            .WithValue(":amount", 100)
+            .WithProjection("id, amount, status")
+            .Take(10)
+            .OrderDescending();
+        
+        var request = builder.ToQueryRequest();
+        
+        // Assert - All methods should work together
+        request.ProjectionExpression.Should().Be("id, amount, status");
+        request.IndexName.Should().Be("StatusIndex");
+        request.FilterExpression.Should().Be("amount > :amount");
+        request.Limit.Should().Be(10);
+        request.ScanIndexForward.Should().BeFalse();
+    }
+    
+    [Fact]
+    public void DynamoDbIndex_ManualProjection_ShouldOverrideAutoProjection()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        var index = new DynamoDbIndex(table, "StatusIndex", "id, amount, status");
+        
+        // Act - Manually override the auto-applied projection
+        var builder = index.Query
+            .Where("pk = :pk")
+            .WithValue(":pk", "test-id")
+            .WithProjection("id, name"); // Manual override
+        
+        var request = builder.ToQueryRequest();
+        
+        // Assert - Manual projection should take precedence
+        request.ProjectionExpression.Should().Be("id, name");
+    }
+    
+    [Fact]
+    public void QueryRequestBuilder_ExecuteAsync_WithoutToListAsync_ShouldWork()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new QueryResponse { Items = new List<Dictionary<string, AttributeValue>>() });
+        
+        // Act - Use ExecuteAsync directly (existing pattern)
+        var builder = new QueryRequestBuilder(mockClient)
+            .ForTable("TestTable")
+            .Where("pk = :pk")
+            .WithValue(":pk", "test-id");
+        
+        var responseTask = builder.ExecuteAsync();
+        
+        // Assert - Should work without ToListAsync
+        responseTask.Should().NotBeNull();
+    }
+    
+    [Fact]
+    public void MigrationScenario_ExistingIndexUsage_ShouldContinueToWork()
+    {
+        // This test simulates existing code that manually creates indexes
+        // and should continue to work after the projection models feature is added
+        
+        // Arrange - Existing code pattern
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Act - Existing manual index instantiation
+        var statusIndex = new DynamoDbIndex(table, "StatusIndex");
+        var gsi1 = new DynamoDbIndex(table, "GSI1");
+        
+        // Existing query patterns
+        var query1 = statusIndex.Query
+            .Where("status = :status")
+            .WithValue(":status", "ACTIVE");
+        
+        var query2 = gsi1.Query
+            .Where("gsi1pk = :pk")
+            .WithValue(":pk", "USER#123")
+            .WithProjection("id, name"); // Manual projection
+        
+        // Assert - All existing patterns should work
+        statusIndex.Name.Should().Be("StatusIndex");
+        gsi1.Name.Should().Be("GSI1");
+        
+        var request1 = query1.ToQueryRequest();
+        request1.IndexName.Should().Be("StatusIndex");
+        request1.ProjectionExpression.Should().BeNullOrEmpty(); // No auto-projection
+        
+        var request2 = query2.ToQueryRequest();
+        request2.IndexName.Should().Be("GSI1");
+        request2.ProjectionExpression.Should().Be("id, name"); // Manual projection preserved
+    }
+    
+    [Fact]
+    public void MigrationScenario_AddingProjectionToExistingIndex_ShouldWork()
+    {
+        // This test simulates migrating from manual index without projection
+        // to manual index with projection
+        
+        // Arrange - Start with existing code
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Old pattern - no projection
+        var oldIndex = new DynamoDbIndex(table, "StatusIndex");
+        var oldRequest = oldIndex.Query.Where("pk = :pk").ToQueryRequest();
+        
+        // Act - Migrate to new pattern with projection
+        var newIndex = new DynamoDbIndex(table, "StatusIndex", "id, amount, status");
+        var newRequest = newIndex.Query.Where("pk = :pk").ToQueryRequest();
+        
+        // Assert - Both should work, but new one has projection
+        oldRequest.ProjectionExpression.Should().BeNullOrEmpty();
+        newRequest.ProjectionExpression.Should().Be("id, amount, status");
+        
+        // Both should have same index name and table name
+        oldRequest.IndexName.Should().Be(newRequest.IndexName);
+        oldRequest.TableName.Should().Be(newRequest.TableName);
+    }
+    
+    [Fact]
+    public void MigrationScenario_MixingLegacyAndNewIndexes_ShouldWork()
+    {
+        // This test verifies that legacy indexes and new projection-enabled indexes
+        // can coexist in the same codebase
+        
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Act - Create both legacy and new style indexes
+        var legacyIndex = new DynamoDbIndex(table, "LegacyIndex");
+        var projectionIndex = new DynamoDbIndex(table, "ProjectionIndex", "id, amount");
+        var genericIndex = new DynamoDbIndex<TestEntity>(table, "GenericIndex", "id, name");
+        
+        // Assert - All should work independently
+        legacyIndex.Query.ToQueryRequest().ProjectionExpression.Should().BeNullOrEmpty();
+        projectionIndex.Query.ToQueryRequest().ProjectionExpression.Should().Be("id, amount");
+        genericIndex.Query.ToQueryRequest().ProjectionExpression.Should().Be("id, name");
+        
+        // All should have correct index names
+        legacyIndex.Name.Should().Be("LegacyIndex");
+        projectionIndex.Name.Should().Be("ProjectionIndex");
+        genericIndex.Name.Should().Be("GenericIndex");
+    }
+    
+    [Fact]
+    public void BackwardCompatibility_AllExistingAPIs_ShouldRemainUnchanged()
+    {
+        // This comprehensive test verifies that all existing APIs work exactly as before
+        
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var table = new LegacyTestTable(mockClient, "TestTable");
+        
+        // Act & Assert - Test all existing API patterns
+        
+        // 1. Table builders
+        table.Get.Should().NotBeNull();
+        table.Put.Should().NotBeNull();
+        table.Query.Should().NotBeNull();
+        table.Update.Should().NotBeNull();
+        table.Delete.Should().NotBeNull();
+        
+        // 2. Request builders
+        new GetItemRequestBuilder(mockClient).Should().NotBeNull();
+        new PutItemRequestBuilder(mockClient).Should().NotBeNull();
+        new QueryRequestBuilder(mockClient).Should().NotBeNull();
+        new UpdateItemRequestBuilder(mockClient).Should().NotBeNull();
+        new DeleteItemRequestBuilder(mockClient).Should().NotBeNull();
+        
+        // 3. Index creation
+        var index = new DynamoDbIndex(table, "TestIndex");
+        index.Should().NotBeNull();
+        index.Name.Should().Be("TestIndex");
+        index.Query.Should().NotBeNull();
+        
+        // 4. Query building
+        var queryRequest = table.Query
+            .Where("pk = :pk")
+            .WithValue(":pk", "test")
+            .WithProjection("id, name")
+            .Take(10)
+            .ToQueryRequest();
+        
+        queryRequest.TableName.Should().Be("TestTable");
+        queryRequest.KeyConditionExpression.Should().Be("pk = :pk");
+        queryRequest.ProjectionExpression.Should().Be("id, name");
+        queryRequest.Limit.Should().Be(10);
+        
+        // 5. Index query building
+        var indexQueryRequest = index.Query
+            .Where("pk = :pk")
+            .WithValue(":pk", "test")
+            .ToQueryRequest();
+        
+        indexQueryRequest.IndexName.Should().Be("TestIndex");
+        indexQueryRequest.TableName.Should().Be("TestTable");
+    }
+    
+    #endregion
+    
+    #region Test Helper Classes for Projection Tests
+    
+    /// <summary>
+    /// Simple test entity for generic index tests.
+    /// </summary>
+    private class TestEntity
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public int Amount { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+    
+    #endregion
 }
