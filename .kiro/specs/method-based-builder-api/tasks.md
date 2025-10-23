@@ -86,7 +86,7 @@
     - Verify key values are properly configured
     - _Requirements: 2.1, 2.2, 2.4, 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 6. Update integration tests for end-to-end scenarios
+- [x] 6. Update integration tests for end-to-end scenarios
   - Test complete query workflows with Query(expression, params)
   - Test Get/Update/Delete operations with key parameters
   - Test index queries with various key configurations
@@ -94,20 +94,13 @@
   - Test format string integration with other fluent methods
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ]* 7. Update source generator tests
+- [ ] 7. Update source generator tests
   - Test generator produces correct Get/Update/Delete overloads for single-key tables
   - Test generator produces correct Get/Update/Delete overloads for composite-key tables
   - Test generator creates index definitions with key names
   - Verify generated code compiles and works correctly
   - Test edge cases (no keys, multiple indexes, etc.)
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 9.1, 9.2, 9.3, 9.4_
-
-- [ ]* 8. Validate AOT compatibility
-  - Create test project targeting Native AOT
-  - Verify method-based API works in AOT environment
-  - Test source-generated tables compile for AOT
-  - Verify no reflection or dynamic code generation
-  - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
 - [ ] 9. Update documentation and examples
   - [ ] 9.1 Update XML documentation for new methods
