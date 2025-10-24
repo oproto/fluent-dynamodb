@@ -493,6 +493,59 @@ namespace TestNamespace
         analyzer.Diagnostics.Should().BeEmpty();
     }
 
+    [Fact]
+    public void AnalyzeEntity_WithFormatProperty_ExtractsFormatString()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""created_date"", Format = ""yyyy-MM-dd"")]
+        public DateTime CreatedDate { get; set; }
+        
+        [DynamoDbAttribute(""amount"", Format = ""F2"")]
+        public decimal Amount { get; set; }
+        
+        [DynamoDbAttribute(""name"")]
+        public string Name { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Properties.Should().HaveCount(4);
+
+        var createdDateProperty = result.Properties.FirstOrDefault(p => p.PropertyName == "CreatedDate");
+        createdDateProperty.Should().NotBeNull();
+        createdDateProperty!.AttributeName.Should().Be("created_date");
+        createdDateProperty.Format.Should().Be("yyyy-MM-dd");
+
+        var amountProperty = result.Properties.FirstOrDefault(p => p.PropertyName == "Amount");
+        amountProperty.Should().NotBeNull();
+        amountProperty!.AttributeName.Should().Be("amount");
+        amountProperty.Format.Should().Be("F2");
+
+        var nameProperty = result.Properties.FirstOrDefault(p => p.PropertyName == "Name");
+        nameProperty.Should().NotBeNull();
+        nameProperty!.Format.Should().BeNull("no format specified");
+    }
+
     private static (ClassDeclarationSyntax ClassDecl, SemanticModel SemanticModel) ParseSource(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);

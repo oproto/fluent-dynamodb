@@ -106,4 +106,9 @@ public class PropertyModel
     /// Gets or sets the security information for this property.
     /// </summary>
     public SecurityInfo? Security { get; set; }
+
+    /// <summary>
+    /// Gets or sets the format string from DynamoDbAttribute for value serialization.
+    /// </summary>
+    public string? Format { get; set; }
 }

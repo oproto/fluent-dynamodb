@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq.Expressions;
 using System.Text;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.Expressions;
@@ -122,11 +123,31 @@ namespace Oproto.FluentDynamoDb.Expressions;
 public class ExpressionTranslator
 {
     private static readonly ExpressionCache _cache = new();
+    private readonly IDynamoDbLogger? _logger;
+    private readonly Func<string, bool>? _isSensitiveField;
 
     /// <summary>
     /// Gets the global expression cache instance.
     /// </summary>
     public static ExpressionCache Cache => _cache;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExpressionTranslator"/> class.
+    /// </summary>
+    public ExpressionTranslator()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExpressionTranslator"/> class with logging and security metadata.
+    /// </summary>
+    /// <param name="logger">Optional logger for expression translation diagnostics.</param>
+    /// <param name="isSensitiveField">Optional function to check if a field is sensitive (typically from generated SecurityMetadata).</param>
+    public ExpressionTranslator(IDynamoDbLogger? logger, Func<string, bool>? isSensitiveField = null)
+    {
+        _logger = logger;
+        _isSensitiveField = isSensitiveField;
+    }
 
     /// <summary>
     /// Translates a lambda expression to DynamoDB expression syntax.
@@ -224,8 +245,27 @@ public class ExpressionTranslator
         }
 
         // Handle comparison operators (==, !=, <, >, <=, >=)
-        var leftSide = Visit(node.Left, entityParameter, context);
-        var rightSide = Visit(node.Right, entityParameter, context);
+        // For comparisons, we need to determine which side is the property and which is the value
+        // to apply formatting correctly
+        PropertyMetadata? propertyMetadata = null;
+        
+        // Check if left side is entity property access
+        if (IsEntityPropertyAccess(node.Left, entityParameter) && context.EntityMetadata != null)
+        {
+            var propertyName = ((MemberExpression)node.Left).Member.Name;
+            propertyMetadata = context.EntityMetadata.Properties
+                .FirstOrDefault(p => p.PropertyName == propertyName);
+        }
+        // Check if right side is entity property access
+        else if (IsEntityPropertyAccess(node.Right, entityParameter) && context.EntityMetadata != null)
+        {
+            var propertyName = ((MemberExpression)node.Right).Member.Name;
+            propertyMetadata = context.EntityMetadata.Properties
+                .FirstOrDefault(p => p.PropertyName == propertyName);
+        }
+        
+        var leftSide = VisitWithPropertyMetadata(node.Left, entityParameter, context, propertyMetadata);
+        var rightSide = VisitWithPropertyMetadata(node.Right, entityParameter, context, propertyMetadata);
 
         var dynamoDbOperator = node.NodeType switch
         {
@@ -245,6 +285,39 @@ public class ExpressionTranslator
         var builder = new StringBuilder(leftSide.Length + rightSide.Length + dynamoDbOperator.Length + 2);
         builder.Append(leftSide).Append(' ').Append(dynamoDbOperator).Append(' ').Append(rightSide);
         return builder.ToString();
+    }
+    
+    /// <summary>
+    /// Visits an expression node with property metadata for format application.
+    /// </summary>
+    private string VisitWithPropertyMetadata(Expression node, ParameterExpression entityParameter, ExpressionContext context, PropertyMetadata? propertyMetadata)
+    {
+        // For entity property access, don't pass metadata (it's the attribute name, not a value)
+        if (IsEntityPropertyAccess(node, entityParameter))
+        {
+            return Visit(node, entityParameter, context);
+        }
+        
+        // For value expressions, evaluate and capture with format
+        if (node is ConstantExpression constant)
+        {
+            return CaptureValue(constant.Value, context, propertyMetadata);
+        }
+        
+        if (node is MemberExpression member && !IsEntityPropertyAccess(member, entityParameter))
+        {
+            var value = EvaluateExpression(member);
+            return CaptureValue(value, context, propertyMetadata);
+        }
+        
+        if (node is MethodCallExpression methodCall && !ReferencesEntityParameter(methodCall, entityParameter))
+        {
+            var value = EvaluateExpression(methodCall);
+            return CaptureValue(value, context, propertyMetadata);
+        }
+        
+        // For other expressions, use standard visit
+        return Visit(node, entityParameter, context);
     }
 
     /// <summary>
@@ -308,7 +381,7 @@ public class ExpressionTranslator
         // This is value capture (accessing a variable or closure)
         // Evaluate the member expression to get its value
         var value = EvaluateExpression(node);
-        return CaptureValue(value, context);
+        return CaptureValue(value, context, propertyMetadata: null);
     }
 
     /// <summary>
@@ -316,7 +389,7 @@ public class ExpressionTranslator
     /// </summary>
     private string VisitConstant(ConstantExpression node, ExpressionContext context)
     {
-        return CaptureValue(node.Value, context);
+        return CaptureValue(node.Value, context, propertyMetadata: null);
     }
 
     /// <summary>
@@ -371,7 +444,7 @@ public class ExpressionTranslator
         // If the method doesn't reference the entity parameter, it's a value capture
         // Evaluate the method call and capture its result
         var value = EvaluateExpression(node);
-        return CaptureValue(value, context);
+        return CaptureValue(value, context, propertyMetadata: null);
     }
 
     /// <summary>
@@ -379,6 +452,7 @@ public class ExpressionTranslator
     /// </summary>
     /// <param name="node">The method call expression.</param>
     /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
     /// <param name="dynamoDbFunction">The translated DynamoDB function string.</param>
     /// <returns>True if this is a DynamoDB function, false otherwise.</returns>
     private bool IsDynamoDbFunction(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context, out string? dynamoDbFunction)
@@ -394,8 +468,9 @@ public class ExpressionTranslator
             // The argument is the value to check
             if (node.Object != null && IsEntityPropertyAccess(node.Object, entityParameter))
             {
+                var propertyMetadata = GetPropertyMetadata(node.Object, entityParameter, context);
                 var attributeName = Visit(node.Object, entityParameter, context);
-                var value = Visit(node.Arguments[0], entityParameter, context);
+                var value = VisitWithPropertyMetadata(node.Arguments[0], entityParameter, context, propertyMetadata);
                 
                 // Use StringBuilder to minimize allocations
                 var sb = new StringBuilder(attributeName.Length + value.Length + 16);
@@ -414,8 +489,9 @@ public class ExpressionTranslator
             // The argument is the value to check
             if (node.Object != null && IsEntityPropertyAccess(node.Object, entityParameter))
             {
+                var propertyMetadata = GetPropertyMetadata(node.Object, entityParameter, context);
                 var attributeName = Visit(node.Object, entityParameter, context);
-                var value = Visit(node.Arguments[0], entityParameter, context);
+                var value = VisitWithPropertyMetadata(node.Arguments[0], entityParameter, context, propertyMetadata);
                 
                 // Use StringBuilder to minimize allocations
                 var sb = new StringBuilder(attributeName.Length + value.Length + 13);
@@ -434,9 +510,10 @@ public class ExpressionTranslator
             // Second and third arguments are low and high bounds
             if (IsEntityPropertyAccess(node.Arguments[0], entityParameter))
             {
+                var propertyMetadata = GetPropertyMetadata(node.Arguments[0], entityParameter, context);
                 var attributeName = Visit(node.Arguments[0], entityParameter, context);
-                var low = Visit(node.Arguments[1], entityParameter, context);
-                var high = Visit(node.Arguments[2], entityParameter, context);
+                var low = VisitWithPropertyMetadata(node.Arguments[1], entityParameter, context, propertyMetadata);
+                var high = VisitWithPropertyMetadata(node.Arguments[2], entityParameter, context, propertyMetadata);
                 
                 // Use StringBuilder to minimize allocations
                 var sb = new StringBuilder(attributeName.Length + low.Length + high.Length + 17);
@@ -501,6 +578,21 @@ public class ExpressionTranslator
         }
 
         return false;
+    }
+    
+    /// <summary>
+    /// Gets property metadata for an entity property access expression.
+    /// </summary>
+    private PropertyMetadata? GetPropertyMetadata(Expression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        if (!IsEntityPropertyAccess(node, entityParameter) || context.EntityMetadata == null)
+        {
+            return null;
+        }
+        
+        var propertyName = ((MemberExpression)node).Member.Name;
+        return context.EntityMetadata.Properties
+            .FirstOrDefault(p => p.PropertyName == propertyName);
     }
 
     /// <summary>
@@ -570,8 +662,17 @@ public class ExpressionTranslator
     /// <summary>
     /// Captures a value and generates a parameter placeholder.
     /// </summary>
-    private string CaptureValue(object? value, ExpressionContext context)
+    /// <param name="value">The value to capture.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="propertyMetadata">Optional property metadata for format application.</param>
+    private string CaptureValue(object? value, ExpressionContext context, PropertyMetadata? propertyMetadata)
     {
+        // Apply format if specified
+        if (propertyMetadata?.Format != null && value != null)
+        {
+            value = ApplyFormat(value, propertyMetadata.Format, propertyMetadata.PropertyName);
+        }
+        
         // Convert the value to an AttributeValue
         var attributeValue = ConvertToAttributeValue(value);
 
@@ -581,7 +682,55 @@ public class ExpressionTranslator
         // Add to the context
         context.AttributeValues.AttributeValues.Add(parameterName, attributeValue);
 
+        // Log parameter capture with sensitive data redaction
+        if (_logger != null && _logger.IsEnabled(LogLevel.Debug))
+        {
+            var attributeName = propertyMetadata?.AttributeName;
+            var isSensitive = attributeName != null && _isSensitiveField != null && _isSensitiveField(attributeName);
+            
+            var valueToLog = isSensitive ? "[REDACTED]" : (value?.ToString() ?? "null");
+            
+            _logger.LogDebug(
+                LogEventIds.ExpressionTranslation,
+                "Expression parameter {ParameterName} = {Value} (Property: {PropertyName})",
+                parameterName,
+                valueToLog,
+                propertyMetadata?.PropertyName ?? "unknown");
+        }
+
         return parameterName;
+    }
+    
+    /// <summary>
+    /// Applies a format string to a value.
+    /// </summary>
+    /// <param name="value">The value to format.</param>
+    /// <param name="format">The format string to apply.</param>
+    /// <param name="propertyName">The property name for error messages.</param>
+    /// <returns>The formatted value.</returns>
+    /// <exception cref="FormatException">Thrown when the format string is invalid for the value type.</exception>
+    private object ApplyFormat(object value, string format, string propertyName)
+    {
+        try
+        {
+            return value switch
+            {
+                DateTime dt => dt.ToString(format, CultureInfo.InvariantCulture),
+                DateTimeOffset dto => dto.ToString(format, CultureInfo.InvariantCulture),
+                decimal d => d.ToString(format, CultureInfo.InvariantCulture),
+                double d => d.ToString(format, CultureInfo.InvariantCulture),
+                float f => f.ToString(format, CultureInfo.InvariantCulture),
+                IFormattable formattable => formattable.ToString(format, CultureInfo.InvariantCulture),
+                _ => value
+            };
+        }
+        catch (FormatException ex)
+        {
+            throw new FormatException(
+                $"Invalid format string '{format}' for property '{propertyName}' of type {value.GetType().Name}. " +
+                $"Error: {ex.Message}",
+                ex);
+        }
     }
 
     /// <summary>

@@ -2358,7 +2358,13 @@ public static class MapperGenerator
             {
                 sb.AppendLine($"                            Separator = \"{property.KeyFormat.Separator}\"");
             }
-            sb.AppendLine("                        }");
+            sb.AppendLine("                        },");
+        }
+
+        // Add format string if available
+        if (!string.IsNullOrEmpty(property.Format))
+        {
+            sb.AppendLine($"                        Format = \"{property.Format}\"");
         }
 
         sb.AppendLine("                    },");

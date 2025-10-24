@@ -80,6 +80,15 @@ public static class LogEventIds
     public const int ConvertingBlobReference = 2050;
     
     // ========================================
+    // Expression Translation (2500-2599)
+    // ========================================
+    
+    /// <summary>
+    /// Event ID for when translating LINQ expressions to DynamoDB syntax.
+    /// </summary>
+    public const int ExpressionTranslation = 2500;
+    
+    // ========================================
     // DynamoDB Operations (3000-3999)
     // ========================================
     

@@ -56,6 +56,16 @@ public class PropertyMetadata
     /// Gets or sets key formatting information for partition and sort keys.
     /// </summary>
     public KeyFormatMetadata? KeyFormat { get; set; }
+
+    /// <summary>
+    /// Gets or sets the format string to apply when serializing this property's value in LINQ expressions.
+    /// </summary>
+    /// <remarks>
+    /// This format string is applied during LINQ expression translation to ensure consistent formatting
+    /// of values sent to DynamoDB. Common examples include "yyyy-MM-dd" for DateTime, "F2" for decimals.
+    /// If null or empty, default serialization is used.
+    /// </remarks>
+    public string? Format { get; set; }
 }
 
 /// <summary>

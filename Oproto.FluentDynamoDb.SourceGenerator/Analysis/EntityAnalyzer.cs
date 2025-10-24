@@ -186,6 +186,20 @@ public class EntityAnalyzer
             }
         }
 
+        // Extract Format property from DynamoDbAttribute if present
+        if (dynamoDbAttribute?.ArgumentList != null)
+        {
+            foreach (var arg in dynamoDbAttribute.ArgumentList.Arguments)
+            {
+                if (arg.NameEquals?.Name.Identifier.ValueText == "Format" &&
+                    arg.Expression is LiteralExpressionSyntax formatLiteral)
+                {
+                    propertyModel.Format = formatLiteral.Token.ValueText;
+                    break;
+                }
+            }
+        }
+
         // Extract key attributes
         ExtractKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
