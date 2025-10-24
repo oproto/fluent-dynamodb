@@ -393,8 +393,8 @@ Console.WriteLine($"Items returned: {response.Count}");
 
 #### 2. Check Query Patterns
 ```csharp
-// ❌ Inefficient - scan operation
-var users = await _table.AsScannable().Scan
+// ❌ Inefficient - scan operation (requires [Scannable] attribute)
+var users = await _table.Scan()
     .WithFilter($"{UserFields.Status} = {{0}}", "active")
     .ToListAsync<User>();
 

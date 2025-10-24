@@ -125,7 +125,8 @@ var response = await table.Query
 **❌ Inefficient: Scan entire table**
 ```csharp
 // Reads entire table
-var response = await table.AsScannable().Scan
+// Note: Requires [Scannable] attribute on table class
+var response = await table.Scan()
     .WithFilter($"{OrderFields.CustomerId} = {{0}}", "customer123")
     .ExecuteAsync();
 
@@ -185,7 +186,8 @@ var response = await table.Query
 **❌ Inefficient: Scan with filter**
 ```csharp
 // Scan entire table
-var response = await table.AsScannable().Scan
+// Note: Requires [Scannable] attribute on table class
+var response = await table.Scan()
     .WithFilter($"{OrderFields.Status} = {{0}}", "pending")
     .ExecuteAsync();
 
@@ -773,8 +775,8 @@ await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .ExecuteAsync<Order>();
 
-// ❌ Avoid scans
-await table.AsScannable().Scan.ExecuteAsync();
+// ❌ Avoid scans (requires [Scannable] attribute)
+await table.Scan().ExecuteAsync();
 ```
 
 ### 3. Use Batch Operations

@@ -737,7 +737,8 @@ await table.Query
 **❌ Inefficient GSI Queries:**
 ```csharp
 // Bad: Scan entire GSI (no partition key)
-var response = await table.AsScannable().Scan
+// Note: Requires [Scannable] attribute on table class
+var response = await table.Scan()
     .WithIndex(OrderIndexes.StatusIndex)
     .WithFilter($"{OrderFields.Total} > {{0}}", 100.00m)
     .ExecuteAsync();

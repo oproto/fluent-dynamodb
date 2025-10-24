@@ -209,6 +209,162 @@ var retrievedUser = UserMapper.FromAttributeMap(response.Item);
 ```
 
 
+## Manual Scan Implementation
+
+For tables without source generation, you can manually implement `Scan()` methods:
+
+### When to Use Manual Scan Implementation
+
+Manual scan implementation is appropriate when:
+
+- **No source generation** - Working without the source generator
+- **Dynamic table scenarios** - Table names determined at runtime
+- **Custom table classes** - Extending `DynamoDbTableBase` with custom logic
+- **Legacy code** - Maintaining existing code without refactoring
+
+### Basic Manual Scan Implementation
+
+```csharp
+using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Requests;
+using Oproto.FluentDynamoDb.Requests.Extensions;
+
+public class UsersTable : DynamoDbTableBase
+{
+    public UsersTable(IAmazonDynamoDB client, string tableName) 
+        : base(client, tableName)
+    {
+    }
+    
+    // Parameterless scan method
+    public ScanRequestBuilder Scan() => 
+        new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    
+    // Expression-based scan method with filter
+    public ScanRequestBuilder Scan(string filterExpression, params object[] values)
+    {
+        var builder = Scan();
+        return WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);
+    }
+}
+
+// Usage
+var table = new UsersTable(client, "users");
+
+// Parameterless scan
+var allUsers = await table.Scan()
+    .ExecuteAsync();
+
+// Scan with filter
+var activeUsers = await table.Scan("status = {0}", "active")
+    .ExecuteAsync();
+
+// Scan with complex filter
+var recentUsers = await table.Scan()
+    .WithFilter("createdAt > {0} AND accountType = {1}", 
+        DateTime.UtcNow.AddDays(-30), 
+        "PREMIUM")
+    .ExecuteAsync();
+```
+
+### Manual Scan with DynamoDbTableBase
+
+If you don't want to create a custom table class, use `DynamoDbTableBase` directly:
+
+```csharp
+var table = new DynamoDbTableBase(client, "users");
+
+// Create scan builder directly
+var scanBuilder = new ScanRequestBuilder(client, logger).ForTable("users");
+
+var response = await scanBuilder
+    .WithFilter("status = {0}", "active")
+    .ExecuteAsync();
+```
+
+### When Manual Implementation is Appropriate
+
+**Use manual implementation when:**
+
+1. **Dynamic table names** - Table name varies at runtime
+   ```csharp
+   public class MultiTenantTable : DynamoDbTableBase
+   {
+       public MultiTenantTable(IAmazonDynamoDB client, string tenantId) 
+           : base(client, $"tenant-{tenantId}-data")
+       {
+       }
+       
+       public ScanRequestBuilder Scan() => 
+           new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+   }
+   ```
+
+2. **Custom table logic** - Adding business logic to table operations
+   ```csharp
+   public class AuditedUsersTable : DynamoDbTableBase
+   {
+       private readonly IAuditLogger _auditLogger;
+       
+       public ScanRequestBuilder Scan()
+       {
+           _auditLogger.LogScanOperation(Name);
+           return new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+       }
+   }
+   ```
+
+3. **Legacy code maintenance** - Existing code without source generation
+   ```csharp
+   // Existing table class without [Scannable] attribute
+   public class LegacyTable : DynamoDbTableBase
+   {
+       // Add scan support without refactoring to use source generation
+       public ScanRequestBuilder Scan() => 
+           new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+   }
+   ```
+
+### Comparison: Manual vs Source Generation
+
+**Manual Implementation:**
+```csharp
+public class UsersTable : DynamoDbTableBase
+{
+    public ScanRequestBuilder Scan() => 
+        new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    
+    public ScanRequestBuilder Scan(string filterExpression, params object[] values)
+    {
+        var builder = Scan();
+        return WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);
+    }
+}
+```
+
+**Source Generation (Recommended):**
+```csharp
+[DynamoDbTable("users")]
+[Scannable]
+public partial class UsersTable : DynamoDbTableBase
+{
+    // Scan() methods generated automatically
+}
+```
+
+**Benefits of Source Generation:**
+- No boilerplate code to write
+- Consistent implementation across all tables
+- Automatic updates when library patterns change
+- Compile-time validation
+
+**When Manual is Better:**
+- Dynamic table names
+- Custom business logic
+- No access to source generator
+- Gradual migration scenarios
+
+
 ## Manual Parameter Binding
 
 Use `.WithValue()` and `.WithAttributeName()` for manual parameter binding:

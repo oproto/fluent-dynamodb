@@ -70,19 +70,19 @@
     - Verify manual implementation works without conflicts
     - _Requirements: 4.1, 4.2, 4.3_
 
-- [ ] 9. Update documentation
-  - [ ] 9.1 Add usage examples to ScannableAttribute documentation
+- [x] 9. Update documentation
+  - [x] 9.1 Add usage examples to ScannableAttribute documentation
     - Show how to apply the attribute
     - Show how to use generated methods
     - Include warnings about scan costs
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
   
-  - [ ] 9.2 Document manual implementation pattern
+  - [x] 9.2 Document manual implementation pattern
     - Provide example of manually implementing Scan() methods
     - Explain when manual implementation is appropriate
     - _Requirements: 4.3, 4.4, 6.4_
   
-  - [ ] 9.3 Update any existing documentation that references AsScannable()
+  - [x] 9.3 Update any existing documentation that references AsScannable()
     - Update README if it mentions the old pattern
     - Update any example code
     - _Requirements: 6.5_

@@ -269,7 +269,12 @@ public class EcommerceService
 
     public async Task<Dictionary<string, int>> GetOrderStatusSummaryAsync()
     {
-        var allOrders = await _table.AsScannable().Scan()
+        // Note: For source-generated tables, add [Scannable] attribute to enable Scan()
+        // For manual DynamoDbTableBase usage, use ScanRequestBuilder directly
+        var scanBuilder = new ScanRequestBuilder(_table.DynamoDbClient, _table.Logger)
+            .ForTable("ecommerce");
+            
+        var allOrders = await scanBuilder
             .WithFilter($"{OrderFields.Sk} = {{0}}", "ORDER")
             .ToListAsync<Order>();
 
