@@ -30,6 +30,7 @@ public static class TableGenerator
         sb.AppendLine();
         
         // Usings
+        sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
@@ -52,6 +53,9 @@ public static class TableGenerator
         // Constructors
         GenerateConstructors(sb, entity);
         
+        // Query methods
+        GenerateQueryMethods(sb, entity);
+        
         // Get/Update/Delete overloads based on key structure
         GenerateOperationOverloads(sb, entity);
         
@@ -62,6 +66,13 @@ public static class TableGenerator
         GenerateIndexProperties(sb, entity);
         
         sb.AppendLine("}");
+        
+        // Generate typed index classes
+        foreach (var index in entity.Indexes)
+        {
+            sb.AppendLine();
+            GenerateTypedIndexClass(sb, entity, index);
+        }
         
         return sb.ToString();
     }
@@ -86,6 +97,78 @@ public static class TableGenerator
         sb.AppendLine($"    public {entity.ClassName}Table(IAmazonDynamoDB client, IDynamoDbLogger logger)");
         sb.AppendLine($"        : base(client, \"{entity.TableName}\", logger)");
         sb.AppendLine($"    {{");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+    }
+
+    private static void GenerateQueryMethods(StringBuilder sb, EntityModel entity)
+    {
+        // Parameterless Query() method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder for this table.");
+        sb.AppendLine($"    /// Query operations efficiently retrieve items using the primary key and optional sort key conditions.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
+        sb.AppendLine($"    public QueryRequestBuilder<{entity.ClassName}> Query() =>");
+        sb.AppendLine($"        base.Query<{entity.ClassName}>();");
+        sb.AppendLine();
+
+        // Expression-based Query(string, params object[]) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder with a key condition expression.");
+        sb.AppendLine($"    /// Uses format string syntax for parameters: {{0}}, {{1}}, etc.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"keyConditionExpression\">The key condition expression with format placeholders.</param>");
+        sb.AppendLine($"    /// <param name=\"values\">The values to substitute into the expression.</param>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;{entity.ClassName}&gt; configured with the key condition.</returns>");
+        sb.AppendLine($"    public QueryRequestBuilder<{entity.ClassName}> Query(string keyConditionExpression, params object[] values) =>");
+        sb.AppendLine($"        base.Query<{entity.ClassName}>(keyConditionExpression, values);");
+        sb.AppendLine();
+
+        // LINQ expression Query(Expression<Func<TEntity, bool>>) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder with a LINQ expression for the key condition.");
+        sb.AppendLine($"    /// Provides type-safe query building with compile-time checking of property access.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"keyCondition\">The LINQ expression representing the key condition (e.g., x => x.PartitionKey == value).</param>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;{entity.ClassName}&gt; configured with the key condition.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Simple partition key query");
+        sb.AppendLine($"    /// var results = await table.Query(x => x.PartitionKey == \"USER#123\").ToListAsync();");
+        sb.AppendLine($"    /// ");
+        sb.AppendLine($"    /// // Partition key with sort key condition");
+        sb.AppendLine($"    /// var results = await table.Query(x => x.PartitionKey == \"USER#123\" &amp;&amp; x.SortKey.StartsWith(\"ORDER#\")).ToListAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public QueryRequestBuilder<{entity.ClassName}> Query(Expression<Func<{entity.ClassName}, bool>> keyCondition)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        return Query().Where(keyCondition);");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        // LINQ expression Query(Expression<Func<TEntity, bool>>, Expression<Func<TEntity, bool>>) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder with LINQ expressions for both key condition and filter.");
+        sb.AppendLine($"    /// Provides type-safe query building with compile-time checking of property access.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"keyCondition\">The LINQ expression representing the key condition (e.g., x => x.PartitionKey == value).</param>");
+        sb.AppendLine($"    /// <param name=\"filterCondition\">The LINQ expression representing the filter condition (e.g., x => x.Status == \"ACTIVE\").</param>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;{entity.ClassName}&gt; configured with both key condition and filter.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Query with key condition and filter");
+        sb.AppendLine($"    /// var results = await table.Query(");
+        sb.AppendLine($"    ///     x => x.PartitionKey == \"USER#123\",");
+        sb.AppendLine($"    ///     x => x.Status == \"ACTIVE\" &amp;&amp; x.Amount > 100");
+        sb.AppendLine($"    /// ).ToListAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public QueryRequestBuilder<{entity.ClassName}> Query(");
+        sb.AppendLine($"        Expression<Func<{entity.ClassName}, bool>> keyCondition,");
+        sb.AppendLine($"        Expression<Func<{entity.ClassName}, bool>> filterCondition)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        return Query().Where(keyCondition).WithFilter(filterCondition);");
         sb.AppendLine($"    }}");
         sb.AppendLine();
     }
@@ -127,9 +210,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// Gets an item by its {pkAttributeName} (partition key).");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
-        sb.AppendLine($"    /// <returns>A GetItemRequestBuilder configured with the key.</returns>");
-        sb.AppendLine($"    public GetItemRequestBuilder Get({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        base.Get().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}) =>");
+        sb.AppendLine($"        base.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
         
         // Update overload
@@ -137,9 +220,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// Updates an item by its {pkAttributeName} (partition key).");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
-        sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder configured with the key.</returns>");
-        sb.AppendLine($"    public UpdateItemRequestBuilder Update({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        base.Update().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {paramName}) =>");
+        sb.AppendLine($"        base.Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
         
         // Delete overload
@@ -165,9 +248,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
-        sb.AppendLine($"    /// <returns>A GetItemRequestBuilder configured with the composite key.</returns>");
-        sb.AppendLine($"    public GetItemRequestBuilder Get({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        base.Get().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+        sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+        sb.AppendLine($"        base.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
         
         // Update overload
@@ -176,9 +259,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
-        sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder configured with the composite key.</returns>");
-        sb.AppendLine($"    public UpdateItemRequestBuilder Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        base.Update().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+        sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+        sb.AppendLine($"        base.Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
         
         // Delete overload
@@ -210,9 +293,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// - Analytics on small tables");
         sb.AppendLine($"    /// - Operations where you truly need to examine every item");
         sb.AppendLine($"    /// </summary>");
-        sb.AppendLine($"    /// <returns>A ScanRequestBuilder configured for this table.</returns>");
-        sb.AppendLine($"    public ScanRequestBuilder Scan() =>");
-        sb.AppendLine($"        new ScanRequestBuilder(DynamoDbClient).ForTable(Name);");
+        sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
+        sb.AppendLine($"    public ScanRequestBuilder<{entity.ClassName}> Scan() =>");
+        sb.AppendLine($"        new ScanRequestBuilder<{entity.ClassName}>(DynamoDbClient).ForTable(Name);");
         sb.AppendLine();
 
         // Expression-based Scan(string, params object[]) method
@@ -225,11 +308,33 @@ public static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"filterExpression\">The filter expression with format placeholders.</param>");
         sb.AppendLine($"    /// <param name=\"values\">The values to substitute into the expression.</param>");
-        sb.AppendLine($"    /// <returns>A ScanRequestBuilder configured with the filter.</returns>");
-        sb.AppendLine($"    public ScanRequestBuilder Scan(string filterExpression, params object[] values)");
+        sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;{entity.ClassName}&gt; configured with the filter.</returns>");
+        sb.AppendLine($"    public ScanRequestBuilder<{entity.ClassName}> Scan(string filterExpression, params object[] values)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"        var builder = Scan();");
         sb.AppendLine($"        return WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        // LINQ expression Scan(Expression<Func<TEntity, bool>>) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Scan operation builder with a LINQ expression for the filter condition.");
+        sb.AppendLine($"    /// Provides type-safe filter building with compile-time checking of property access.");
+        sb.AppendLine($"    /// ");
+        sb.AppendLine($"    /// WARNING: Scan operations are expensive. Filter expressions reduce data transfer");
+        sb.AppendLine($"    /// but do not reduce consumed read capacity.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"filterCondition\">The LINQ expression representing the filter condition (e.g., x => x.Status == \"ACTIVE\").</param>");
+        sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;{entity.ClassName}&gt; configured with the filter.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Scan with filter");
+        sb.AppendLine($"    /// var results = await table.Scan(x => x.Status == \"ACTIVE\" &amp;&amp; x.Amount > 100).ToListAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public ScanRequestBuilder<{entity.ClassName}> Scan(Expression<Func<{entity.ClassName}, bool>> filterCondition)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        return Scan().WithFilter(filterCondition);");
         sb.AppendLine($"    }}");
         sb.AppendLine();
     }
@@ -244,9 +349,7 @@ public static class TableGenerator
         foreach (var index in entity.Indexes)
         {
             var indexPropertyName = index.IndexName.Replace("-", "").Replace("_", "");
-            
-            // Build projection expression from properties
-            var projectionExpression = BuildProjectionExpression(entity, index);
+            var indexClassName = $"{entity.ClassName}{indexPropertyName}Index";
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Global Secondary Index: {index.IndexName}");
@@ -256,19 +359,144 @@ public static class TableGenerator
                 sb.AppendLine($"    /// Sort Key: {index.SortKeyProperty}");
             }
             sb.AppendLine($"    /// </summary>");
-            
-            if (!string.IsNullOrEmpty(projectionExpression))
-            {
-                sb.AppendLine($"    public DynamoDbIndex {indexPropertyName} =>");
-                sb.AppendLine($"        new DynamoDbIndex(this, \"{index.IndexName}\", \"{projectionExpression}\");");
-            }
-            else
-            {
-                sb.AppendLine($"    public DynamoDbIndex {indexPropertyName} =>");
-                sb.AppendLine($"        new DynamoDbIndex(this, \"{index.IndexName}\");");
-            }
+            sb.AppendLine($"    public {indexClassName} {indexPropertyName} => new {indexClassName}(this);");
             sb.AppendLine();
         }
+    }
+
+    private static void GenerateTypedIndexClass(StringBuilder sb, EntityModel entity, IndexModel index)
+    {
+        var indexPropertyName = index.IndexName.Replace("-", "").Replace("_", "");
+        var indexClassName = $"{entity.ClassName}{indexPropertyName}Index";
+        var projectionExpression = BuildProjectionExpression(entity, index);
+        
+        sb.AppendLine($"/// <summary>");
+        sb.AppendLine($"/// Typed index class for {index.IndexName} Global Secondary Index.");
+        sb.AppendLine($"/// Provides type-safe query operations with LINQ expression support.");
+        sb.AppendLine($"/// Supports GSI overloading - can query different entity types from the same index.");
+        sb.AppendLine($"/// </summary>");
+        sb.AppendLine($"public class {indexClassName}");
+        sb.AppendLine("{");
+        sb.AppendLine($"    private readonly {entity.ClassName}Table _table;");
+        sb.AppendLine();
+        
+        // Constructor
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Initializes a new instance of the {indexClassName}.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"table\">The parent table.</param>");
+        sb.AppendLine($"    public {indexClassName}({entity.ClassName}Table table)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        _table = table;");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+        
+        // Generic Query<T>() method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder for this index with a specific entity type.");
+        sb.AppendLine($"    /// The IndexName is automatically set to \"{index.IndexName}\".");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <typeparam name=\"T\">The entity type to query and deserialize results into.</typeparam>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;T&gt; configured for this index.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Query for an entity type stored in this GSI");
+        sb.AppendLine($"    /// var results = await table.{indexPropertyName}.Query&lt;{entity.ClassName}&gt;()");
+        sb.AppendLine($"    ///     .Where(\"gsi1pk = {{0}}\", \"VALUE\")");
+        sb.AppendLine($"    ///     .ToListAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public QueryRequestBuilder<T> Query<T>() where T : class");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        var builder = new QueryRequestBuilder<T>(_table.DynamoDbClient)");
+        sb.AppendLine($"            .ForTable(_table.Name)");
+        sb.AppendLine($"            .UsingIndex(\"{index.IndexName}\");");
+        
+        if (!string.IsNullOrEmpty(projectionExpression))
+        {
+            sb.AppendLine($"        builder = builder.WithProjection(\"{projectionExpression}\");");
+        }
+        
+        sb.AppendLine($"        return builder;");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+        
+        // Generic Query<T>(string, params object[]) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder with a key condition expression and specific entity type.");
+        sb.AppendLine($"    /// Uses format string syntax for parameters: {{0}}, {{1}}, etc.");
+        sb.AppendLine($"    /// The IndexName is automatically set to \"{index.IndexName}\".");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <typeparam name=\"T\">The entity type to query and deserialize results into.</typeparam>");
+        sb.AppendLine($"    /// <param name=\"keyConditionExpression\">The key condition expression with format placeholders.</param>");
+        sb.AppendLine($"    /// <param name=\"values\">The values to substitute into the expression.</param>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;T&gt; configured with the key condition.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Query with key condition");
+        sb.AppendLine($"    /// var results = await table.{indexPropertyName}.Query&lt;{entity.ClassName}&gt;(\"gsi1pk = {{0}}\", \"VALUE\").ToListAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public QueryRequestBuilder<T> Query<T>(string keyConditionExpression, params object[] values) where T : class");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        return WithConditionExpressionExtensions.Where(Query<T>(), keyConditionExpression, values);");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+        
+        // Generic LINQ expression Query<T>(Expression<Func<T, bool>>) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder with a LINQ expression for the key condition and specific entity type.");
+        sb.AppendLine($"    /// Provides type-safe query building with compile-time checking of property access.");
+        sb.AppendLine($"    /// The IndexName is automatically set to \"{index.IndexName}\".");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <typeparam name=\"T\">The entity type to query and deserialize results into.</typeparam>");
+        sb.AppendLine($"    /// <param name=\"keyCondition\">The LINQ expression representing the key condition.</param>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;T&gt; configured with the key condition.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Query with LINQ expression");
+        sb.AppendLine($"    /// var results = await table.{indexPropertyName}.Query&lt;{entity.ClassName}&gt;(x => x.{index.PartitionKeyProperty} == \"VALUE\").ToListAsync();");
+        if (index.HasSortKey)
+        {
+            sb.AppendLine($"    /// ");
+            sb.AppendLine($"    /// // With sort key condition");
+            sb.AppendLine($"    /// var results = await table.{indexPropertyName}.Query&lt;{entity.ClassName}&gt;(x => x.{index.PartitionKeyProperty} == \"VALUE\" &amp;&amp; x.{index.SortKeyProperty}.StartsWith(\"PREFIX\")).ToListAsync();");
+        }
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public QueryRequestBuilder<T> Query<T>(Expression<Func<T, bool>> keyCondition) where T : class");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        return Query<T>().Where(keyCondition);");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+        
+        // Generic LINQ expression Query<T>(Expression<Func<T, bool>>, Expression<Func<T, bool>>) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Query operation builder with LINQ expressions for both key condition and filter, and specific entity type.");
+        sb.AppendLine($"    /// Provides type-safe query building with compile-time checking of property access.");
+        sb.AppendLine($"    /// The IndexName is automatically set to \"{index.IndexName}\".");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <typeparam name=\"T\">The entity type to query and deserialize results into.</typeparam>");
+        sb.AppendLine($"    /// <param name=\"keyCondition\">The LINQ expression representing the key condition.</param>");
+        sb.AppendLine($"    /// <param name=\"filterCondition\">The LINQ expression representing the filter condition.</param>");
+        sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;T&gt; configured with both key condition and filter.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Query with key condition and filter");
+        sb.AppendLine($"    /// var results = await table.{indexPropertyName}.Query&lt;{entity.ClassName}&gt;(");
+        sb.AppendLine($"    ///     x => x.{index.PartitionKeyProperty} == \"VALUE\",");
+        sb.AppendLine($"    ///     x => x.Status == \"ACTIVE\"");
+        sb.AppendLine($"    /// ).ToListAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public QueryRequestBuilder<T> Query<T>(");
+        sb.AppendLine($"        Expression<Func<T, bool>> keyCondition,");
+        sb.AppendLine($"        Expression<Func<T, bool>> filterCondition) where T : class");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        return Query<T>().Where(keyCondition).WithFilter(filterCondition);");
+        sb.AppendLine($"    }}");
+        
+        sb.AppendLine("}");
     }
 
     private static string BuildProjectionExpression(EntityModel entity, IndexModel index)

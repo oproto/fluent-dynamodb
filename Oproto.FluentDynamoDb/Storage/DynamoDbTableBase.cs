@@ -82,7 +82,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <example>
     /// <code>
     /// // Manual query configuration
-    /// var results = await table.Query()
+    /// var results = await table.Query&lt;MyEntity&gt;()
     ///     .Where("pk = {0}", "USER#123")
     ///     .ExecuteAsync();
     /// 
@@ -90,8 +90,8 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// var results = await table.Query("pk = {0}", "USER#123").ExecuteAsync();
     /// </code>
     /// </example>
-    public QueryRequestBuilder Query() => 
-        new QueryRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class => 
+        new QueryRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
     
     /// <summary>
     /// Creates a new Query operation builder with a key condition expression.
@@ -112,9 +112,9 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// var results = await table.Query("pk = {0} AND begins_with(sk, {1})", "USER#123", "ORDER#").ExecuteAsync();
     /// </code>
     /// </example>
-    public QueryRequestBuilder Query(string keyConditionExpression, params object[] values)
+    public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class
     {
-        var builder = Query();
+        var builder = Query<TEntity>();
         return Requests.Extensions.WithConditionExpressionExtensions.Where(builder, keyConditionExpression, values);
     }
     
@@ -127,7 +127,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <example>
     /// <code>
     /// // Manual key configuration
-    /// var item = await table.Get()
+    /// var item = await table.Get&lt;MyEntity&gt;()
     ///     .WithKey("id", "123")
     ///     .WithProjection("name, email")
     ///     .ExecuteAsync();
@@ -136,8 +136,8 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// var item = await table.Get("123").ExecuteAsync();
     /// </code>
     /// </example>
-    public virtual GetItemRequestBuilder Get() => 
-        new GetItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    public virtual GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class => 
+        new GetItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
     
     /// <summary>
     /// Creates a new UpdateItem operation builder for this table.
@@ -145,8 +145,8 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// Derived classes should override to provide key-specific overloads.
     /// </summary>
     /// <returns>An UpdateItemRequestBuilder configured for this table.</returns>
-    public virtual UpdateItemRequestBuilder Update() => 
-        new UpdateItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    public virtual UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class => 
+        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
     
     /// <summary>
     /// Creates a new DeleteItem operation builder for this table.
@@ -154,8 +154,8 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// Derived classes should override to provide key-specific overloads.
     /// </summary>
     /// <returns>A DeleteItemRequestBuilder configured for this table.</returns>
-    public virtual DeleteItemRequestBuilder Delete() => 
-        new DeleteItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    public virtual DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class => 
+        new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
     
     /// <summary>
     /// Creates a new PutItem operation builder for this table.

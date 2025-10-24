@@ -10,15 +10,16 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// Provides a type-safe way to construct delete requests with support for conditional deletes,
 /// return values, and consumed capacity tracking.
 /// </summary>
+/// <typeparam name="TEntity">The entity type being deleted.</typeparam>
 /// <example>
 /// <code>
 /// // Simple delete by primary key
-/// await table.Delete
+/// await table.Delete&lt;Transaction&gt;()
 ///     .WithKey("id", "user123")
 ///     .ExecuteAsync();
 /// 
 /// // Conditional delete with return values
-/// var response = await table.Delete
+/// var response = await table.Delete&lt;Transaction&gt;()
 ///     .WithKey("pk", "USER", "sk", "user123")
 ///     .Where("attribute_exists(#status)")
 ///     .WithAttribute("#status", "status")
@@ -26,11 +27,12 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class DeleteItemRequestBuilder :
-    IWithKey<DeleteItemRequestBuilder>,
-    IWithConditionExpression<DeleteItemRequestBuilder>,
-    IWithAttributeNames<DeleteItemRequestBuilder>,
-    IWithAttributeValues<DeleteItemRequestBuilder>
+public class DeleteItemRequestBuilder<TEntity> :
+    IWithKey<DeleteItemRequestBuilder<TEntity>>,
+    IWithConditionExpression<DeleteItemRequestBuilder<TEntity>>,
+    IWithAttributeNames<DeleteItemRequestBuilder<TEntity>>,
+    IWithAttributeValues<DeleteItemRequestBuilder<TEntity>>
+    where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the DeleteItemRequestBuilder.
@@ -67,7 +69,7 @@ public class DeleteItemRequestBuilder :
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder SetConditionExpression(string expression)
+    public DeleteItemRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
         if (string.IsNullOrEmpty(_req.ConditionExpression))
         {
@@ -85,7 +87,7 @@ public class DeleteItemRequestBuilder :
     /// </summary>
     /// <param name="keyAction">An action that configures the key dictionary.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
+    public DeleteItemRequestBuilder<TEntity> SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
     {
         if (_req.Key == null) _req.Key = new();
         keyAction(_req.Key);
@@ -95,14 +97,14 @@ public class DeleteItemRequestBuilder :
     /// <summary>
     /// Gets the builder instance for method chaining.
     /// </summary>
-    public DeleteItemRequestBuilder Self => this;
+    public DeleteItemRequestBuilder<TEntity> Self => this;
 
     /// <summary>
     /// Specifies the table name for the delete operation.
     /// </summary>
     /// <param name="tableName">The name of the DynamoDB table.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder ForTable(string tableName)
+    public DeleteItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
         return this;
@@ -121,7 +123,7 @@ public class DeleteItemRequestBuilder :
     /// Useful for audit trails or undo functionality.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder ReturnAllOldValues()
+    public DeleteItemRequestBuilder<TEntity> ReturnAllOldValues()
     {
         _req.ReturnValues = ReturnValue.ALL_OLD;
         return this;
@@ -132,7 +134,7 @@ public class DeleteItemRequestBuilder :
     /// This is the most efficient option when you don't need the deleted item's data.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder ReturnNone()
+    public DeleteItemRequestBuilder<TEntity> ReturnNone()
     {
         _req.ReturnValues = ReturnValue.NONE;
         return this;
@@ -143,7 +145,7 @@ public class DeleteItemRequestBuilder :
     /// Useful for monitoring and optimizing DynamoDB usage costs.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder ReturnTotalConsumedCapacity()
+    public DeleteItemRequestBuilder<TEntity> ReturnTotalConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL;
         return this;
@@ -154,7 +156,7 @@ public class DeleteItemRequestBuilder :
     /// </summary>
     /// <param name="consumedCapacity">The level of consumed capacity information to return.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
+    public DeleteItemRequestBuilder<TEntity> ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
     {
         _req.ReturnConsumedCapacity = consumedCapacity;
         return this;
@@ -165,7 +167,7 @@ public class DeleteItemRequestBuilder :
     /// Only applicable for tables with local secondary indexes.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder ReturnItemCollectionMetrics()
+    public DeleteItemRequestBuilder<TEntity> ReturnItemCollectionMetrics()
     {
         _req.ReturnItemCollectionMetrics = Amazon.DynamoDBv2.ReturnItemCollectionMetrics.SIZE;
         return this;
@@ -176,7 +178,7 @@ public class DeleteItemRequestBuilder :
     /// Useful for debugging conditional delete failures.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public DeleteItemRequestBuilder ReturnOldValuesOnConditionCheckFailure()
+    public DeleteItemRequestBuilder<TEntity> ReturnOldValuesOnConditionCheckFailure()
     {
         _req.ReturnValuesOnConditionCheckFailure = Amazon.DynamoDBv2.ReturnValuesOnConditionCheckFailure.ALL_OLD;
         return this;

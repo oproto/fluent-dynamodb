@@ -20,10 +20,11 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// - Consider using parallel scans for large tables to improve throughput
 /// - Always use filter expressions to reduce data transfer, though this doesn't reduce consumed capacity
 /// </summary>
+/// <typeparam name="TEntity">The entity type being scanned.</typeparam>
 /// <example>
 /// <code>
 /// // Basic scan with filter
-/// var response = await table.AsScannable().Scan
+/// var response = await table.Scan&lt;Transaction&gt;()
 ///     .WithFilter("#status = :active")
 ///     .WithAttribute("#status", "status")
 ///     .WithValue(":active", "ACTIVE")
@@ -31,13 +32,14 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// 
 /// // Parallel scan for large tables
-/// var segment1Task = table.AsScannable().Scan
+/// var segment1Task = table.Scan&lt;Transaction&gt;()
 ///     .WithSegment(0, 4)  // Segment 0 of 4 total segments
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class ScanRequestBuilder :
-    IWithAttributeNames<ScanRequestBuilder>, IWithAttributeValues<ScanRequestBuilder>, IWithFilterExpression<ScanRequestBuilder>
+public class ScanRequestBuilder<TEntity> :
+    IWithAttributeNames<ScanRequestBuilder<TEntity>>, IWithAttributeValues<ScanRequestBuilder<TEntity>>, IWithFilterExpression<ScanRequestBuilder<TEntity>>
+    where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the ScanRequestBuilder.
@@ -74,7 +76,7 @@ public class ScanRequestBuilder :
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder SetFilterExpression(string expression)
+    public ScanRequestBuilder<TEntity> SetFilterExpression(string expression)
     {
         if (string.IsNullOrEmpty(_req.FilterExpression))
         {
@@ -90,14 +92,14 @@ public class ScanRequestBuilder :
     /// <summary>
     /// Gets the builder instance for method chaining.
     /// </summary>
-    public ScanRequestBuilder Self => this;
+    public ScanRequestBuilder<TEntity> Self => this;
 
     /// <summary>
     /// Specifies the table name for the scan operation.
     /// </summary>
     /// <param name="tableName">The name of the DynamoDB table to scan.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder ForTable(string tableName)
+    public ScanRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
         return this;
@@ -116,7 +118,7 @@ public class ScanRequestBuilder :
     /// .WithProjection("#id, #name, #status")
     /// </code>
     /// </example>
-    public ScanRequestBuilder WithProjection(string projectionExpression)
+    public ScanRequestBuilder<TEntity> WithProjection(string projectionExpression)
     {
         _req.ProjectionExpression = projectionExpression;
         _req.Select = Select.SPECIFIC_ATTRIBUTES;
@@ -128,7 +130,7 @@ public class ScanRequestBuilder :
     /// </summary>
     /// <param name="indexName">The name of the global or local secondary index to scan.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder UsingIndex(string indexName)
+    public ScanRequestBuilder<TEntity> UsingIndex(string indexName)
     {
         _req.IndexName = indexName;
         return this;
@@ -140,7 +142,7 @@ public class ScanRequestBuilder :
     /// </summary>
     /// <param name="limit">The maximum number of items to examine.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder Take(int limit)
+    public ScanRequestBuilder<TEntity> Take(int limit)
     {
         _req.Limit = limit;
         return this;
@@ -152,7 +154,7 @@ public class ScanRequestBuilder :
     /// </summary>
     /// <param name="exclusiveStartKey">The key to start scanning from (exclusive).</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder StartAt(Dictionary<string, AttributeValue> exclusiveStartKey)
+    public ScanRequestBuilder<TEntity> StartAt(Dictionary<string, AttributeValue> exclusiveStartKey)
     {
         _req.ExclusiveStartKey = exclusiveStartKey;
         return this;
@@ -163,7 +165,7 @@ public class ScanRequestBuilder :
     /// Note: Consistent reads consume twice the read capacity and are not supported on global secondary indexes.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder UsingConsistentRead()
+    public ScanRequestBuilder<TEntity> UsingConsistentRead()
     {
         _req.ConsistentRead = true;
         return this;
@@ -182,7 +184,7 @@ public class ScanRequestBuilder :
     /// .WithSegment(0, 4)
     /// </code>
     /// </example>
-    public ScanRequestBuilder WithSegment(int segment, int totalSegments)
+    public ScanRequestBuilder<TEntity> WithSegment(int segment, int totalSegments)
     {
         _req.Segment = segment;
         _req.TotalSegments = totalSegments;
@@ -194,7 +196,7 @@ public class ScanRequestBuilder :
     /// This is more efficient when you only need to know how many items match your criteria.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder Count()
+    public ScanRequestBuilder<TEntity> Count()
     {
         _req.Select = Select.COUNT;
         return this;
@@ -205,7 +207,7 @@ public class ScanRequestBuilder :
     /// Useful for monitoring and optimizing DynamoDB usage costs.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder ReturnTotalConsumedCapacity()
+    public ScanRequestBuilder<TEntity> ReturnTotalConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL;
         return this;
@@ -215,7 +217,7 @@ public class ScanRequestBuilder :
     /// Configures the scan operation to return consumed capacity information for indexes.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder ReturnIndexConsumedCapacity()
+    public ScanRequestBuilder<TEntity> ReturnIndexConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.INDEXES;
         return this;
@@ -226,7 +228,7 @@ public class ScanRequestBuilder :
     /// </summary>
     /// <param name="consumedCapacity">The level of consumed capacity information to return.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public ScanRequestBuilder ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
+    public ScanRequestBuilder<TEntity> ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
     {
         _req.ReturnConsumedCapacity = consumedCapacity;
         return this;

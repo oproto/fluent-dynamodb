@@ -10,15 +10,16 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// Provides a type-safe way to construct GetItem requests with support for key specification,
 /// projection expressions, consistent reads, and attribute name mapping.
 /// </summary>
+/// <typeparam name="TEntity">The entity type being retrieved.</typeparam>
 /// <example>
 /// <code>
 /// // Get an item by primary key
-/// var response = await table.Get
+/// var response = await table.Get&lt;Transaction&gt;()
 ///     .WithKey("id", "123")
 ///     .ExecuteAsync();
 /// 
 /// // Get with projection and consistent read
-/// var response = await table.Get
+/// var response = await table.Get&lt;Transaction&gt;()
 ///     .WithKey("pk", "USER", "sk", "profile")
 ///     .WithProjection("#name, #email")
 ///     .WithAttribute("#name", "name")
@@ -27,7 +28,8 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttributeNames<GetItemRequestBuilder>
+public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>
+    where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the GetItemRequestBuilder.
@@ -58,7 +60,7 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// </summary>
     /// <param name="keyAction">An action that configures the key dictionary.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
+    public GetItemRequestBuilder<TEntity> SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
     {
         if (_req.Key == null) _req.Key = new();
         keyAction(_req.Key);
@@ -68,14 +70,14 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// <summary>
     /// Gets the builder instance for method chaining.
     /// </summary>
-    public GetItemRequestBuilder Self => this;
+    public GetItemRequestBuilder<TEntity> Self => this;
 
     /// <summary>
     /// Specifies the name of the table to get the item from.
     /// </summary>
     /// <param name="tableName">The name of the DynamoDB table.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder ForTable(string tableName)
+    public GetItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
         return this;
@@ -92,7 +94,7 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// the most up-to-date data, but be aware this consumes twice the read capacity.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder UsingConsistentRead()
+    public GetItemRequestBuilder<TEntity> UsingConsistentRead()
     {
         _req.ConsistentRead = true;
         return this;
@@ -112,7 +114,7 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// .WithAttribute("#status", "status")
     /// </code>
     /// </example>
-    public GetItemRequestBuilder WithProjection(string projectionExpression)
+    public GetItemRequestBuilder<TEntity> WithProjection(string projectionExpression)
     {
         _req.ProjectionExpression = projectionExpression;
         return this;
@@ -123,7 +125,7 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// This is useful for monitoring and optimizing read capacity usage.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder ReturnTotalConsumedCapacity()
+    public GetItemRequestBuilder<TEntity> ReturnTotalConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL;
         return this;
@@ -134,7 +136,7 @@ public class GetItemRequestBuilder : IWithKey<GetItemRequestBuilder>, IWithAttri
     /// </summary>
     /// <param name="consumedCapacity">The level of consumed capacity information to return.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public GetItemRequestBuilder ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
+    public GetItemRequestBuilder<TEntity> ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
     {
         _req.ReturnConsumedCapacity = consumedCapacity;
         return this;

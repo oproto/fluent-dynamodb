@@ -33,14 +33,14 @@ public static class PaginationExtensions
     /// <example>
     /// <code>
     /// var paginationRequest = new PaginationRequest(10, previousToken);
-    /// var response = await table.Query
+    /// var response = await table.Query&lt;MyEntity&gt;()
     ///     .Where("pk = :pk")
     ///     .WithValue(":pk", "USER#123")
     ///     .Paginate(paginationRequest)
     ///     .ExecuteAsync();
     /// </code>
     /// </example>
-    public static QueryRequestBuilder Paginate(this QueryRequestBuilder builder, IPaginationRequest request)
+    public static QueryRequestBuilder<TEntity> Paginate<TEntity>(this QueryRequestBuilder<TEntity> builder, IPaginationRequest request) where TEntity : class
     {
         Dictionary<string, AttributeValue>? startAt = null;
 

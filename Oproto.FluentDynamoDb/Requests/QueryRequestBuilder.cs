@@ -11,16 +11,17 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// This is the preferred method for retrieving multiple items when you know the primary key.
 /// Query operations are much more efficient than Scan operations and should be used whenever possible.
 /// </summary>
+/// <typeparam name="TEntity">The entity type being queried.</typeparam>
 /// <example>
 /// <code>
 /// // Query items with a specific primary key
-/// var response = await table.Query
+/// var response = await table.Query&lt;Transaction&gt;()
 ///     .Where("pk = :pk")
 ///     .WithValue(":pk", "USER#123")
 ///     .ExecuteAsync();
 /// 
 /// // Query with sort key condition and filter
-/// var response = await table.Query
+/// var response = await table.Query&lt;Transaction&gt;()
 ///     .Where("pk = :pk AND begins_with(sk, :prefix)")
 ///     .WithFilter("#status = :status")
 ///     .WithValue(":pk", "USER#123")
@@ -31,8 +32,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class QueryRequestBuilder :
-    IWithAttributeNames<QueryRequestBuilder>, IWithConditionExpression<QueryRequestBuilder>, IWithAttributeValues<QueryRequestBuilder>, IWithFilterExpression<QueryRequestBuilder>
+public class QueryRequestBuilder<TEntity> :
+    IWithAttributeNames<QueryRequestBuilder<TEntity>>, IWithConditionExpression<QueryRequestBuilder<TEntity>>, IWithAttributeValues<QueryRequestBuilder<TEntity>>, IWithFilterExpression<QueryRequestBuilder<TEntity>>
+    where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the QueryRequestBuilder.
@@ -69,7 +71,7 @@ public class QueryRequestBuilder :
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder SetConditionExpression(string expression)
+    public QueryRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
         if (string.IsNullOrEmpty(_req.KeyConditionExpression))
         {
@@ -88,7 +90,7 @@ public class QueryRequestBuilder :
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder SetFilterExpression(string expression)
+    public QueryRequestBuilder<TEntity> SetFilterExpression(string expression)
     {
         if (string.IsNullOrEmpty(_req.FilterExpression))
         {
@@ -104,14 +106,14 @@ public class QueryRequestBuilder :
     /// <summary>
     /// Gets the builder instance for method chaining.
     /// </summary>
-    public QueryRequestBuilder Self => this;
+    public QueryRequestBuilder<TEntity> Self => this;
 
     /// <summary>
     /// Specifies the name of the table to query.
     /// </summary>
     /// <param name="tableName">The name of the DynamoDB table.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder ForTable(string tableName)
+    public QueryRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
         return this;
@@ -124,7 +126,7 @@ public class QueryRequestBuilder :
     /// </summary>
     /// <param name="limit">The maximum number of items to evaluate.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder Take(int limit)
+    public QueryRequestBuilder<TEntity> Take(int limit)
     {
         _req.Limit = limit;
         return this;
@@ -136,7 +138,7 @@ public class QueryRequestBuilder :
     /// how many items match your criteria.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder Count()
+    public QueryRequestBuilder<TEntity> Count()
     {
         _req.Select = Select.COUNT;
         return this;
@@ -150,7 +152,7 @@ public class QueryRequestBuilder :
     /// Note: Consistent reads are not supported on Global Secondary Indexes.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder UsingConsistentRead()
+    public QueryRequestBuilder<TEntity> UsingConsistentRead()
     {
         _req.ConsistentRead = true;
         return this;
@@ -164,7 +166,7 @@ public class QueryRequestBuilder :
     /// </summary>
     /// <param name="indexName">The name of the index to query.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder UsingIndex(string indexName)
+    public QueryRequestBuilder<TEntity> UsingIndex(string indexName)
     {
         _req.IndexName = indexName;
         return this;
@@ -184,7 +186,7 @@ public class QueryRequestBuilder :
     /// .WithAttribute("#status", "status")
     /// </code>
     /// </example>
-    public QueryRequestBuilder WithProjection(string projectionExpression)
+    public QueryRequestBuilder<TEntity> WithProjection(string projectionExpression)
     {
         _req.ProjectionExpression = projectionExpression;
         _req.Select = Select.SPECIFIC_ATTRIBUTES;
@@ -197,7 +199,7 @@ public class QueryRequestBuilder :
     /// </summary>
     /// <param name="exclusiveStartKey">The primary key of the item where the previous query stopped.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder StartAt(Dictionary<string, AttributeValue> exclusiveStartKey)
+    public QueryRequestBuilder<TEntity> StartAt(Dictionary<string, AttributeValue> exclusiveStartKey)
     {
         _req.ExclusiveStartKey = exclusiveStartKey;
         return this;
@@ -214,7 +216,7 @@ public class QueryRequestBuilder :
     /// This is useful for monitoring and optimizing read capacity usage across tables and indexes.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder ReturnTotalConsumedCapacity()
+    public QueryRequestBuilder<TEntity> ReturnTotalConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL;
         return this;
@@ -225,7 +227,7 @@ public class QueryRequestBuilder :
     /// This is useful when querying indexes and you want to monitor index-specific capacity usage.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder ReturnIndexConsumedCapacity()
+    public QueryRequestBuilder<TEntity> ReturnIndexConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.INDEXES;
         return this;
@@ -236,7 +238,7 @@ public class QueryRequestBuilder :
     /// </summary>
     /// <param name="consumedCapacity">The level of consumed capacity information to return.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
+    public QueryRequestBuilder<TEntity> ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
     {
         _req.ReturnConsumedCapacity = consumedCapacity;
         return this;
@@ -247,7 +249,7 @@ public class QueryRequestBuilder :
     /// This is the default behavior for Query operations.
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder OrderAscending()
+    public QueryRequestBuilder<TEntity> OrderAscending()
     {
         _req.ScanIndexForward = true;
         return this;
@@ -258,7 +260,7 @@ public class QueryRequestBuilder :
     /// This is useful when you want the most recent items first (assuming sort key represents time).
     /// </summary>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder OrderDescending()
+    public QueryRequestBuilder<TEntity> OrderDescending()
     {
         _req.ScanIndexForward = false;
         return this;
@@ -269,7 +271,7 @@ public class QueryRequestBuilder :
     /// </summary>
     /// <param name="ascending">True for ascending order (default), false for descending order.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public QueryRequestBuilder ScanIndexForward(bool ascending = true)
+    public QueryRequestBuilder<TEntity> ScanIndexForward(bool ascending = true)
     {
         _req.ScanIndexForward = ascending;
         return this;

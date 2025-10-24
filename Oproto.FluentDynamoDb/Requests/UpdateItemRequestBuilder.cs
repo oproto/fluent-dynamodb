@@ -10,10 +10,11 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// UpdateItem modifies existing items or creates them if they don't exist (upsert behavior).
 /// Use update expressions to specify which attributes to modify and how to modify them.
 /// </summary>
+/// <typeparam name="TEntity">The entity type being updated.</typeparam>
 /// <example>
 /// <code>
 /// // Update specific attributes
-/// var response = await table.Update
+/// var response = await table.Update&lt;Transaction&gt;()
 ///     .WithKey("id", "123")
 ///     .Set("SET #name = :name, #status = :status")
 ///     .WithAttribute("#name", "name")
@@ -23,7 +24,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// 
 /// // Conditional update
-/// var response = await table.Update
+/// var response = await table.Update&lt;Transaction&gt;()
 ///     .WithKey("id", "123")
 ///     .Set("SET #count = #count + :inc")
 ///     .Where("attribute_exists(id)")
@@ -32,8 +33,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class UpdateItemRequestBuilder :
-    IWithKey<UpdateItemRequestBuilder>, IWithConditionExpression<UpdateItemRequestBuilder>, IWithAttributeNames<UpdateItemRequestBuilder>, IWithAttributeValues<UpdateItemRequestBuilder>, IWithUpdateExpression<UpdateItemRequestBuilder>
+public class UpdateItemRequestBuilder<TEntity> :
+    IWithKey<UpdateItemRequestBuilder<TEntity>>, IWithConditionExpression<UpdateItemRequestBuilder<TEntity>>, IWithAttributeNames<UpdateItemRequestBuilder<TEntity>>, IWithAttributeValues<UpdateItemRequestBuilder<TEntity>>, IWithUpdateExpression<UpdateItemRequestBuilder<TEntity>>
+    where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the UpdateItemRequestBuilder.
@@ -70,7 +72,7 @@ public class UpdateItemRequestBuilder :
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public UpdateItemRequestBuilder SetConditionExpression(string expression)
+    public UpdateItemRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
         if (string.IsNullOrEmpty(_req.ConditionExpression))
         {
@@ -88,7 +90,7 @@ public class UpdateItemRequestBuilder :
     /// </summary>
     /// <param name="keyAction">An action that configures the key dictionary.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public UpdateItemRequestBuilder SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
+    public UpdateItemRequestBuilder<TEntity> SetKey(Action<Dictionary<string, AttributeValue>> keyAction)
     {
         if (_req.Key == null) _req.Key = new();
         keyAction(_req.Key);
@@ -98,9 +100,9 @@ public class UpdateItemRequestBuilder :
     /// <summary>
     /// Gets the builder instance for method chaining.
     /// </summary>
-    public UpdateItemRequestBuilder Self => this;
+    public UpdateItemRequestBuilder<TEntity> Self => this;
 
-    public UpdateItemRequestBuilder ForTable(string tableName)
+    public UpdateItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
         return this;
@@ -115,7 +117,7 @@ public class UpdateItemRequestBuilder :
     /// </summary>
     /// <param name="expression">The processed update expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public UpdateItemRequestBuilder SetUpdateExpression(string expression)
+    public UpdateItemRequestBuilder<TEntity> SetUpdateExpression(string expression)
     {
         _req.UpdateExpression = expression;
         return this;
@@ -126,55 +128,55 @@ public class UpdateItemRequestBuilder :
 
 
 
-    public UpdateItemRequestBuilder ReturnUpdatedNewValues()
+    public UpdateItemRequestBuilder<TEntity> ReturnUpdatedNewValues()
     {
         _req.ReturnValues = ReturnValue.UPDATED_NEW;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnUpdatedOldValues()
+    public UpdateItemRequestBuilder<TEntity> ReturnUpdatedOldValues()
     {
         _req.ReturnValues = ReturnValue.UPDATED_OLD;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnAllNewValues()
+    public UpdateItemRequestBuilder<TEntity> ReturnAllNewValues()
     {
         _req.ReturnValues = ReturnValue.ALL_NEW;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnAllOldValues()
+    public UpdateItemRequestBuilder<TEntity> ReturnAllOldValues()
     {
         _req.ReturnValues = ReturnValue.ALL_OLD;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnNone()
+    public UpdateItemRequestBuilder<TEntity> ReturnNone()
     {
         _req.ReturnValues = ReturnValue.NONE;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnTotalConsumedCapacity()
+    public UpdateItemRequestBuilder<TEntity> ReturnTotalConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
+    public UpdateItemRequestBuilder<TEntity> ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
     {
         _req.ReturnConsumedCapacity = consumedCapacity;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnItemCollectionMetrics()
+    public UpdateItemRequestBuilder<TEntity> ReturnItemCollectionMetrics()
     {
         _req.ReturnItemCollectionMetrics = Amazon.DynamoDBv2.ReturnItemCollectionMetrics.SIZE;
         return this;
     }
 
-    public UpdateItemRequestBuilder ReturnOldValuesOnConditionCheckFailure()
+    public UpdateItemRequestBuilder<TEntity> ReturnOldValuesOnConditionCheckFailure()
     {
         _req.ReturnValuesOnConditionCheckFailure = Amazon.DynamoDBv2.ReturnValuesOnConditionCheckFailure.ALL_OLD;
         return this;

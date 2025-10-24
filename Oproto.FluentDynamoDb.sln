@@ -1,19 +1,19 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# 
+#
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb", "Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj", "{988B3792-D039-496B-99D7-5362FC913AF0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.UnitTests", "Oproto.FluentDynamoDb.UnitTests\Oproto.FluentDynamoDb.UnitTests.csproj", "{950913A4-B4B1-42B0-97B3-FDBE7B692004}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.SourceGenerator", "Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.SourceGenerator.UnitTests", "Oproto.FluentDynamoDb.SourceGenerator.UnitTests\Oproto.FluentDynamoDb.SourceGenerator.UnitTests.csproj", "{B2C3D4E5-F6G7-8901-BCDE-F23456789012}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.SourceGenerator.UnitTests", "Oproto.FluentDynamoDb.SourceGenerator.UnitTests\Oproto.FluentDynamoDb.SourceGenerator.UnitTests.csproj", "{00000000-0000-0000-0000-000000000000}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.FluentResults", "Oproto.FluentDynamoDb.FluentResults\Oproto.FluentDynamoDb.FluentResults.csproj", "{C3D4E5F6-G7H8-9012-CDEF-345678901234}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.FluentResults", "Oproto.FluentDynamoDb.FluentResults\Oproto.FluentDynamoDb.FluentResults.csproj", "{00000000-0000-0000-0000-000000000000}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.FluentResults.UnitTests", "Oproto.FluentDynamoDb.FluentResults.UnitTests\Oproto.FluentDynamoDb.FluentResults.UnitTests.csproj", "{D4E5F6G7-H8I9-0123-DEFG-456789012345}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.FluentResults.UnitTests", "Oproto.FluentDynamoDb.FluentResults.UnitTests\Oproto.FluentDynamoDb.FluentResults.UnitTests.csproj", "{00000000-0000-0000-0000-000000000000}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.BlobStorage.S3", "Oproto.FluentDynamoDb.BlobStorage.S3\Oproto.FluentDynamoDb.BlobStorage.S3.csproj", "{E5F6G7H8-I9J0-1234-EFGH-567890123456}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.BlobStorage.S3", "Oproto.FluentDynamoDb.BlobStorage.S3\Oproto.FluentDynamoDb.BlobStorage.S3.csproj", "{00000000-0000-0000-0000-000000000000}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Files", "Solution Files", "{9AC1C47E-62C0-406D-863C-E459369CA7E2}"
 	ProjectSection(SolutionItems) = preProject
@@ -31,6 +31,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Attributes.UnitTests", "Oproto.FluentDynamoDb.Attributes.UnitTests\Oproto.FluentDynamoDb.Attributes.UnitTests.csproj", "{8E87C0C5-7C83-4248-A713-6E387D01BE33}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.AotTests", "Oproto.FluentDynamoDb.AotTests\Oproto.FluentDynamoDb.AotTests.csproj", "{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Attributes", "Oproto.FluentDynamoDb.Attributes\Oproto.FluentDynamoDb.Attributes.csproj", "{3335B258-E0E2-4622-AC3C-EC53FFA34602}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -86,5 +88,9 @@ Global
 		{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

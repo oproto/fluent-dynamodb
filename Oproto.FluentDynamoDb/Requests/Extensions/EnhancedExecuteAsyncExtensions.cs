@@ -19,7 +19,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <returns>A GetItemResponse containing the mapped entity or null if not found.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     public static async Task<GetItemResponse<T>> ExecuteAsync<T>(
-        this GetItemRequestBuilder builder,
+        this GetItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -55,7 +55,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
     public static async Task<GetItemResponse<T>> ExecuteAsync<T>(
-        this GetItemRequestBuilder builder,
+        this GetItemRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
@@ -123,7 +123,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <returns>A list of mapped entities, one per DynamoDB item.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     public static async Task<List<T>> ToListAsync<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -159,7 +159,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
     public static async Task<List<T>> ToListAsync<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
@@ -218,7 +218,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <returns>A list of composite entities, where each entity may be constructed from multiple DynamoDB items.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     public static async Task<List<T>> ToCompositeEntityListAsync<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -259,7 +259,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
     public static async Task<List<T>> ToCompositeEntityListAsync<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
@@ -340,7 +340,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <returns>A single composite entity constructed from multiple DynamoDB items, or null if no matching items found.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     public static async Task<T?> ToCompositeEntityAsync<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -377,7 +377,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
     public static async Task<T?> ToCompositeEntityAsync<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
@@ -517,7 +517,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <returns>A list of mapped entities, one per DynamoDB item.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     public static async Task<List<T>> ToListAsync<T>(
-        this ScanRequestBuilder builder,
+        this ScanRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -554,7 +554,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
     public static async Task<List<T>> ToListAsync<T>(
-        this ScanRequestBuilder builder,
+        this ScanRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
@@ -612,7 +612,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <returns>A list of composite entities, where each entity may be constructed from multiple DynamoDB items.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     public static async Task<List<T>> ToCompositeEntityListAsync<T>(
-        this ScanRequestBuilder builder,
+        this ScanRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -654,7 +654,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
     public static async Task<List<T>> ToCompositeEntityListAsync<T>(
-        this ScanRequestBuilder builder,
+        this ScanRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity

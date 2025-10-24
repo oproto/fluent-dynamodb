@@ -84,14 +84,14 @@ public class DynamoDbIndex
     /// <returns>A QueryRequestBuilder configured for this index.</returns>
     /// <example>
     /// <code>
-    /// var results = await index.Query()
+    /// var results = await index.Query&lt;MyEntity&gt;()
     ///     .Where("gsi1pk = {0}", "STATUS#ACTIVE")
     ///     .ExecuteAsync();
     /// </code>
     /// </example>
-    public QueryRequestBuilder Query()
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
     {
-        var builder = new QueryRequestBuilder(_table.DynamoDbClient)
+        var builder = new QueryRequestBuilder<TEntity>(_table.DynamoDbClient)
             .ForTable(_table.Name)
             .UsingIndex(Name);
 
@@ -122,9 +122,9 @@ public class DynamoDbIndex
     /// var results = await index.Query("gsi1pk = {0} AND begins_with(gsi1sk, {1})", "STATUS#ACTIVE", "USER#").ExecuteAsync();
     /// </code>
     /// </example>
-    public QueryRequestBuilder Query(string keyConditionExpression, params object[] values)
+    public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class
     {
-        return Requests.Extensions.WithConditionExpressionExtensions.Where(Query(), keyConditionExpression, values);
+        return Requests.Extensions.WithConditionExpressionExtensions.Where(Query<TEntity>(), keyConditionExpression, values);
     }
 }
 
@@ -196,12 +196,12 @@ public class DynamoDbIndex<TDefault> where TDefault : class, new()
     /// <returns>A QueryRequestBuilder configured for this index.</returns>
     /// <example>
     /// <code>
-    /// var results = await table.StatusIndex.Query()
+    /// var results = await table.StatusIndex.Query&lt;MyEntity&gt;()
     ///     .Where("gsi1pk = {0}", "ACTIVE")
     ///     .ExecuteAsync();
     /// </code>
     /// </example>
-    public QueryRequestBuilder Query() => _innerIndex.Query();
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class => _innerIndex.Query<TEntity>();
     
     /// <summary>
     /// Creates a new Query operation builder with a key condition expression.
