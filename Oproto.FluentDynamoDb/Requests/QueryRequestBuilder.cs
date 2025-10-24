@@ -65,23 +65,39 @@ public class QueryRequestBuilder :
 
     /// <summary>
     /// Sets the condition expression on the builder.
+    /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public QueryRequestBuilder SetConditionExpression(string expression)
     {
-        _req.KeyConditionExpression = expression;
+        if (string.IsNullOrEmpty(_req.KeyConditionExpression))
+        {
+            _req.KeyConditionExpression = expression;
+        }
+        else
+        {
+            _req.KeyConditionExpression = $"({_req.KeyConditionExpression}) AND ({expression})";
+        }
         return this;
     }
 
     /// <summary>
     /// Sets the filter expression on the builder.
+    /// If a filter expression already exists, combines them with AND logic.
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public QueryRequestBuilder SetFilterExpression(string expression)
     {
-        _req.FilterExpression = expression;
+        if (string.IsNullOrEmpty(_req.FilterExpression))
+        {
+            _req.FilterExpression = expression;
+        }
+        else
+        {
+            _req.FilterExpression = $"({_req.FilterExpression}) AND ({expression})";
+        }
         return this;
     }
 

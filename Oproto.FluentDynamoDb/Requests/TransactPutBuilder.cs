@@ -29,12 +29,20 @@ public class TransactPutBuilder : IWithConditionExpression<TransactPutBuilder>, 
 
     /// <summary>
     /// Sets the condition expression on the builder.
+    /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public TransactPutBuilder SetConditionExpression(string expression)
     {
-        _req.Put.ConditionExpression = expression;
+        if (string.IsNullOrEmpty(_req.Put.ConditionExpression))
+        {
+            _req.Put.ConditionExpression = expression;
+        }
+        else
+        {
+            _req.Put.ConditionExpression = $"({_req.Put.ConditionExpression}) AND ({expression})";
+        }
         return this;
     }
 

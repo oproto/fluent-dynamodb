@@ -30,12 +30,20 @@ public class TransactConditionCheckBuilder :
 
     /// <summary>
     /// Sets the condition expression on the builder.
+    /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public TransactConditionCheckBuilder SetConditionExpression(string expression)
     {
-        _req.ConditionCheck.ConditionExpression = expression;
+        if (string.IsNullOrEmpty(_req.ConditionCheck.ConditionExpression))
+        {
+            _req.ConditionCheck.ConditionExpression = expression;
+        }
+        else
+        {
+            _req.ConditionCheck.ConditionExpression = $"({_req.ConditionCheck.ConditionExpression}) AND ({expression})";
+        }
         return this;
     }
 

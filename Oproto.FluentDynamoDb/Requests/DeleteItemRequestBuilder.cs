@@ -63,12 +63,20 @@ public class DeleteItemRequestBuilder :
 
     /// <summary>
     /// Sets the condition expression on the builder.
+    /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public DeleteItemRequestBuilder SetConditionExpression(string expression)
     {
-        _req.ConditionExpression = expression;
+        if (string.IsNullOrEmpty(_req.ConditionExpression))
+        {
+            _req.ConditionExpression = expression;
+        }
+        else
+        {
+            _req.ConditionExpression = $"({_req.ConditionExpression}) AND ({expression})";
+        }
         return this;
     }
 

@@ -1,5 +1,8 @@
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
+using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Utility;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
@@ -149,6 +152,67 @@ public static class WithFilterExpressionExtensions
     {
         var (processedExpression, _) = FormatStringProcessor.ProcessFormatString(format, args, builder.GetAttributeValueHelper());
         return builder.SetFilterExpression(processedExpression);
+    }
+
+    /// <summary>
+    /// Specifies the filter expression using a C# lambda expression.
+    /// This method provides type-safe filter building with compile-time checking of property access.
+    /// The expression is translated to DynamoDB expression syntax with automatic parameter generation.
+    /// Filter expressions can reference any property (no key-only restriction).
+    /// </summary>
+    /// <typeparam name="T">The type of the builder implementing IWithFilterExpression.</typeparam>
+    /// <typeparam name="TEntity">The entity type being filtered.</typeparam>
+    /// <param name="builder">The builder instance.</param>
+    /// <param name="expression">The lambda expression representing the filter (e.g., x => x.Status == "ACTIVE").</param>
+    /// <param name="metadata">Optional entity metadata for property validation. If not provided, validation is skipped.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ExpressionTranslationException">Thrown when the expression cannot be translated to DynamoDB syntax.</exception>
+    /// <exception cref="UnmappedPropertyException">Thrown when a property in the expression doesn't map to a DynamoDB attribute.</exception>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the expression uses unsupported operators or methods.</exception>
+    /// <example>
+    /// <code>
+    /// // Simple filter on non-key attribute
+    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Status == "ACTIVE")
+    /// 
+    /// // Complex filter with multiple conditions
+    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Status == "ACTIVE" &amp;&amp; x.Age >= 18)
+    /// 
+    /// // Using string methods
+    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Name.StartsWith("John") &amp;&amp; x.Email.Contains("@example.com"))
+    /// 
+    /// // Using DynamoDB functions
+    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Age.Between(18, 65) &amp;&amp; x.Tags.Size() > 0)
+    /// 
+    /// // Checking attribute existence
+    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.OptionalField.AttributeExists())
+    /// 
+    /// // With entity metadata for validation
+    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Status == "ACTIVE", userEntityMetadata)
+    /// </code>
+    /// </example>
+    /// <remarks>
+    /// <para><strong>Validation Mode:</strong> This overload uses None validation, meaning any property can be referenced (not just keys).</para>
+    /// <para><strong>Supported Operators:</strong> ==, !=, &lt;, &gt;, &lt;=, &gt;=, &amp;&amp;, ||, !</para>
+    /// <para><strong>Supported Methods:</strong> StartsWith, Contains, Between, AttributeExists, AttributeNotExists, Size</para>
+    /// <para><strong>Parameter Generation:</strong> Values are automatically captured and converted to DynamoDB AttributeValue types.</para>
+    /// <para><strong>Performance Note:</strong> Filter expressions are applied after items are read from DynamoDB, so they reduce data transfer but not consumed read capacity.</para>
+    /// <para><strong>AOT Safety:</strong> This method is AOT-safe and doesn't use runtime code generation.</para>
+    /// </remarks>
+    public static T WithFilter<T, TEntity>(
+        this IWithFilterExpression<T> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+    {
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None);
+
+        var translator = new ExpressionTranslator();
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetFilterExpression(expressionString);
     }
 
 }

@@ -1,5 +1,8 @@
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
+using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Utility;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
@@ -124,6 +127,64 @@ public static class WithConditionExpressionExtensions
     {
         var (processedExpression, _) = FormatStringProcessor.ProcessFormatString(format, args, builder.GetAttributeValueHelper());
         return builder.SetConditionExpression(processedExpression);
+    }
+
+    /// <summary>
+    /// Specifies the condition expression using a C# lambda expression.
+    /// This method provides type-safe query building with compile-time checking of property access.
+    /// The expression is translated to DynamoDB expression syntax with automatic parameter generation.
+    /// For Query operations, only partition key and sort key properties are allowed (KeysOnly validation).
+    /// </summary>
+    /// <typeparam name="T">The type of the builder implementing IWithConditionExpression.</typeparam>
+    /// <typeparam name="TEntity">The entity type being queried.</typeparam>
+    /// <param name="builder">The builder instance.</param>
+    /// <param name="expression">The lambda expression representing the condition (e.g., x => x.PartitionKey == userId).</param>
+    /// <param name="metadata">Optional entity metadata for property validation. If not provided, validation is skipped.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ExpressionTranslationException">Thrown when the expression cannot be translated to DynamoDB syntax.</exception>
+    /// <exception cref="UnmappedPropertyException">Thrown when a property in the expression doesn't map to a DynamoDB attribute.</exception>
+    /// <exception cref="InvalidKeyExpressionException">Thrown when a non-key property is used in Query().Where().</exception>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the expression uses unsupported operators or methods.</exception>
+    /// <example>
+    /// <code>
+    /// // Simple partition key query
+    /// .Where&lt;QueryRequestBuilder, UserEntity&gt;(x => x.PartitionKey == userId)
+    /// 
+    /// // Partition key + sort key with StartsWith
+    /// .Where&lt;QueryRequestBuilder, UserEntity&gt;(x => x.PartitionKey == userId &amp;&amp; x.SortKey.StartsWith("ORDER#"))
+    /// 
+    /// // Using Between for range queries
+    /// .Where&lt;QueryRequestBuilder, UserEntity&gt;(x => x.PartitionKey == userId &amp;&amp; x.SortKey.Between("2024-01-01", "2024-12-31"))
+    /// 
+    /// // Complex key condition with multiple operators
+    /// .Where&lt;QueryRequestBuilder, UserEntity&gt;(x => x.PartitionKey == userId &amp;&amp; x.SortKey >= "ORDER#2024")
+    /// 
+    /// // With entity metadata for validation
+    /// .Where&lt;QueryRequestBuilder, UserEntity&gt;(x => x.PartitionKey == userId, userEntityMetadata)
+    /// </code>
+    /// </example>
+    /// <remarks>
+    /// <para><strong>Validation Mode:</strong> This overload uses KeysOnly validation, meaning only partition key and sort key properties are allowed.</para>
+    /// <para><strong>Supported Operators:</strong> ==, !=, &lt;, &gt;, &lt;=, &gt;=, &amp;&amp;, ||, !</para>
+    /// <para><strong>Supported Methods:</strong> StartsWith, Contains, Between, AttributeExists, AttributeNotExists, Size</para>
+    /// <para><strong>Parameter Generation:</strong> Values are automatically captured and converted to DynamoDB AttributeValue types.</para>
+    /// <para><strong>AOT Safety:</strong> This method is AOT-safe and doesn't use runtime code generation.</para>
+    /// </remarks>
+    public static T Where<T, TEntity>(
+        this IWithConditionExpression<T> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+    {
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.KeysOnly);
+
+        var translator = new ExpressionTranslator();
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
     }
 
 }

@@ -70,12 +70,20 @@ public class ScanRequestBuilder :
 
     /// <summary>
     /// Sets the filter expression on the builder.
+    /// If a filter expression already exists, combines them with AND logic.
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public ScanRequestBuilder SetFilterExpression(string expression)
     {
-        _req.FilterExpression = expression;
+        if (string.IsNullOrEmpty(_req.FilterExpression))
+        {
+            _req.FilterExpression = expression;
+        }
+        else
+        {
+            _req.FilterExpression = $"({_req.FilterExpression}) AND ({expression})";
+        }
         return this;
     }
 

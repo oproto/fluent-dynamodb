@@ -90,22 +90,22 @@
     - Reject unsupported unary operators
     - _Requirements: 3.8_
 
-- [ ] 5. Add expression-based extension method overloads
-  - [ ] 5.1 Add expression overload to Where() for key conditions
+- [x] 5. Add expression-based extension method overloads
+  - [x] 5.1 Add expression overload to Where() for key conditions
     - Add `Where<T, TEntity>(Expression<Func<TEntity, bool>>, EntityMetadata?)` to WithConditionExpressionExtensions
     - Create ExpressionContext with KeysOnly validation mode
     - Call ExpressionTranslator to generate expression string
     - Integrate with existing SetConditionExpression method
     - _Requirements: 1.1, 1.5, 1.6, 6.1_
 
-  - [ ] 5.2 Add expression overload to WithFilter() for filter expressions
+  - [x] 5.2 Add expression overload to WithFilter() for filter expressions
     - Add `WithFilter<T, TEntity>(Expression<Func<TEntity, bool>>, EntityMetadata?)` to WithFilterExpressionExtensions
     - Create ExpressionContext with None validation mode
     - Call ExpressionTranslator to generate expression string
     - Integrate with existing SetFilterExpression method
     - _Requirements: 1.2, 1.3, 1.5, 1.6, 6.3, 6.4_
 
-  - [ ] 5.3 Implement expression combining for multiple calls
+  - [x] 5.3 Implement expression combining for multiple calls
     - Handle multiple Where() calls with AND logic
     - Handle multiple WithFilter() calls with AND logic
     - Ensure parameter name uniqueness across calls

@@ -14,6 +14,12 @@ public interface IWithFilterExpression<out TBuilder>
     AttributeValueInternal GetAttributeValueHelper();
 
     /// <summary>
+    /// Gets the internal attribute name helper for attribute name mapping in extension methods.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    AttributeNameInternal GetAttributeNameHelper();
+
+    /// <summary>
     /// Sets the filter expression on the builder.
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
