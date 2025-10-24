@@ -1,33 +1,33 @@
 # Implementation Plan
 
-- [ ] 1. Create core expression translation infrastructure
+- [x] 1. Create core expression translation infrastructure
   - Create `Oproto.FluentDynamoDb/Expressions/` directory for expression-related classes
   - Implement `ExpressionContext` class with validation mode, parameter tracking, and entity metadata support
   - Implement `ExpressionValidationMode` enum (None, KeysOnly)
   - _Requirements: 2.1, 2.2, 2.5_
 
-- [ ] 2. Implement basic expression translator with operator support
-  - [ ] 2.1 Create `ExpressionTranslator` class with core translation method
+- [x] 2. Implement basic expression translator with operator support
+  - [x] 2.1 Create `ExpressionTranslator` class with core translation method
     - Implement `Translate<TEntity>(Expression<Func<TEntity, bool>>, ExpressionContext)` method
     - Implement expression visitor pattern for walking expression trees
     - Add basic error handling and exception types
     - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2_
 
-  - [ ] 2.2 Implement binary operator translation
+  - [x] 2.2 Implement binary operator translation
     - Implement `VisitBinary` method for BinaryExpression nodes
     - Map C# operators to DynamoDB syntax (==, !=, <, >, <=, >=)
     - Map logical operators (&&, ||)
     - Handle operator precedence with parentheses
     - _Requirements: 3.1, 3.2, 3.6, 3.7_
 
-  - [ ] 2.3 Implement member access translation
+  - [x] 2.3 Implement member access translation
     - Implement `VisitMember` method for MemberExpression nodes
     - Distinguish between entity property access and value capture
     - Validate entity property access against metadata
     - Generate attribute name placeholders for entity properties
     - _Requirements: 1.4, 4.1, 4.2, 4.3_
 
-  - [ ] 2.4 Implement constant and value capture
+  - [x] 2.4 Implement constant and value capture
     - Implement `VisitConstant` method for ConstantExpression nodes
     - Implement value capture for variables and closures
     - Generate unique parameter names using ParameterGenerator
