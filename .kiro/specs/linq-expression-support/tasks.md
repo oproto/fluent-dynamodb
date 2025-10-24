@@ -61,8 +61,8 @@
     - Allow method calls on captured values only
     - _Requirements: 5.4, 5.5, 8.3_
 
-- [ ] 4. Implement validation and error handling
-  - [ ] 4.1 Create exception types
+- [x] 4. Implement validation and error handling
+  - [x] 4.1 Create exception types
     - Implement `ExpressionTranslationException` base class
     - Implement `UnmappedPropertyException` for unmapped properties
     - Implement `UnsupportedExpressionException` for unsupported patterns
@@ -70,21 +70,21 @@
     - Include original expression in exceptions for debugging
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-  - [ ] 4.2 Implement property validation
+  - [x] 4.2 Implement property validation
     - Validate property access against EntityMetadata when available
     - Check if property has DynamoDB attribute mapping
     - Check if property is queryable (not marked as non-queryable)
     - Validate computed and extracted attributes
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [ ] 4.3 Implement key-only validation for Query().Where()
+  - [x] 4.3 Implement key-only validation for Query().Where()
     - Check validation mode in ExpressionContext
     - When KeysOnly mode, validate properties are partition key or sort key
     - Use EntityMetadata to determine key properties
     - Throw InvalidKeyExpressionException for non-key properties
     - _Requirements: 6.1, 6.2, 6.5_
 
-  - [ ] 4.4 Implement unary operator support and validation
+  - [x] 4.4 Implement unary operator support and validation
     - Implement `VisitUnary` method for UnaryExpression nodes
     - Support logical NOT (!) operator
     - Reject unsupported unary operators

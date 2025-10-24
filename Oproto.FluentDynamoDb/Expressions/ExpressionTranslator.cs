@@ -117,6 +117,16 @@ public class ExpressionTranslator
                         node);
                 }
 
+                // Check if property is queryable (has supported operations)
+                if (propertyMetadata.SupportedOperations != null && 
+                    propertyMetadata.SupportedOperations.Length == 0)
+                {
+                    throw new UnsupportedExpressionException(
+                        $"Property '{propertyName}' is marked as non-queryable and cannot be used in expressions. " +
+                        $"The property has no supported DynamoDB operations defined.",
+                        node);
+                }
+
                 // Validate key-only mode for Query().Where()
                 if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
                 {
