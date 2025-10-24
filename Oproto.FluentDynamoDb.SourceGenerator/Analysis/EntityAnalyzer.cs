@@ -127,7 +127,16 @@ public class EntityAnalyzer
             entityModel.EntityDiscriminator = entityModel.Discriminator.ExactValue;
         }
 
+        // Extract scannable attribute
+        ExtractScannableAttribute(classDecl, semanticModel, entityModel);
+
         return !string.IsNullOrEmpty(entityModel.TableName);
+    }
+
+    private void ExtractScannableAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var scannableAttribute = GetAttribute(classDecl, semanticModel, "ScannableAttribute");
+        entityModel.IsScannable = scannableAttribute != null;
     }
 
     private void ExtractProperties(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)

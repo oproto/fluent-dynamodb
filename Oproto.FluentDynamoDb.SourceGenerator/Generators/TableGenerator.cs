@@ -55,6 +55,9 @@ public static class TableGenerator
         // Get/Update/Delete overloads based on key structure
         GenerateOperationOverloads(sb, entity);
         
+        // Scan methods if table is scannable
+        GenerateScanMethods(sb, entity);
+        
         // Index properties
         GenerateIndexProperties(sb, entity);
         
@@ -187,6 +190,47 @@ public static class TableGenerator
         sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder configured with the composite key.</returns>");
         sb.AppendLine($"    public DeleteItemRequestBuilder Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
         sb.AppendLine($"        base.Delete().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine();
+    }
+
+    private static void GenerateScanMethods(StringBuilder sb, EntityModel entity)
+    {
+        if (!entity.IsScannable)
+        {
+            return;
+        }
+
+        // Parameterless Scan() method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Scan operation builder for this table.");
+        sb.AppendLine($"    /// ");
+        sb.AppendLine($"    /// WARNING: Scan operations read every item in a table or index and can be very expensive.");
+        sb.AppendLine($"    /// Use Query operations instead whenever possible. Scan should only be used for:");
+        sb.AppendLine($"    /// - Data migration or ETL processes");
+        sb.AppendLine($"    /// - Analytics on small tables");
+        sb.AppendLine($"    /// - Operations where you truly need to examine every item");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <returns>A ScanRequestBuilder configured for this table.</returns>");
+        sb.AppendLine($"    public ScanRequestBuilder Scan() =>");
+        sb.AppendLine($"        new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);");
+        sb.AppendLine();
+
+        // Expression-based Scan(string, params object[]) method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Scan operation builder with a filter expression.");
+        sb.AppendLine($"    /// Uses format string syntax for parameters: {{0}}, {{1}}, etc.");
+        sb.AppendLine($"    /// ");
+        sb.AppendLine($"    /// WARNING: Scan operations are expensive. Filter expressions reduce data transfer");
+        sb.AppendLine($"    /// but do not reduce consumed read capacity.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"filterExpression\">The filter expression with format placeholders.</param>");
+        sb.AppendLine($"    /// <param name=\"values\">The values to substitute into the expression.</param>");
+        sb.AppendLine($"    /// <returns>A ScanRequestBuilder configured with the filter.</returns>");
+        sb.AppendLine($"    public ScanRequestBuilder Scan(string filterExpression, params object[] values)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        var builder = Scan();");
+        sb.AppendLine($"        return Requests.Extensions.WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);");
+        sb.AppendLine($"    }}");
         sb.AppendLine();
     }
 

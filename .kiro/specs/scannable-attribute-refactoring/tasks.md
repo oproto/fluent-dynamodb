@@ -11,13 +11,13 @@
   - Add XML documentation for the new property
   - _Requirements: 3.1_
 
-- [ ] 3. Update EntityAnalyzer to detect Scannable attribute
+- [x] 3. Update EntityAnalyzer to detect Scannable attribute
   - Add method to detect `[Scannable]` attribute on table classes
   - Set `IsScannable` property on `EntityModel` when attribute is present
   - Integrate detection into existing entity analysis flow
   - _Requirements: 1.1, 1.2, 3.1, 3.2_
 
-- [ ] 4. Enhance TableGenerator to generate Scan methods
+- [x] 4. Enhance TableGenerator to generate Scan methods
   - Add `GenerateScanMethods()` private method to `TableGenerator`
   - Generate parameterless `Scan()` method when `IsScannable` is true
   - Generate expression-based `Scan(string, params object[])` method when `IsScannable` is true
