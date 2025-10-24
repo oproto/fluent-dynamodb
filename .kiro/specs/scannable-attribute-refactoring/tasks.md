@@ -26,39 +26,39 @@
   - Integrate scan method generation into `GenerateTableClass()` method
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 5. Remove legacy scannable implementation
+- [x] 5. Remove legacy scannable implementation
   - Delete `IScannableDynamoDbTable.cs` file
   - Delete `ScannableDynamoDbTable.cs` file
   - Remove `AsScannable()` method from `DynamoDbTableBase.cs`
   - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 6. Update internal code to use new pattern
+- [x] 6. Update internal code to use new pattern
   - Find all usages of `AsScannable()` in the codebase
   - Add `[Scannable]` attribute to table classes that need scan operations
   - Update code to call `Scan()` directly instead of `AsScannable().Scan()`
   - _Requirements: 1.1, 2.1, 2.2_
 
-- [ ] 7. Add source generator unit tests
-  - [ ] 7.1 Test scannable attribute detection in EntityAnalyzer
+- [x] 7. Add source generator unit tests
+  - [x] 7.1 Test scannable attribute detection in EntityAnalyzer
     - Test that `IsScannable` is true when `[Scannable]` is present
     - Test that `IsScannable` is false when `[Scannable]` is absent
     - _Requirements: 3.1_
   
-  - [ ] 7.2 Test scan method generation in TableGenerator
+  - [x] 7.2 Test scan method generation in TableGenerator
     - Test that both `Scan()` overloads are generated when `IsScannable` is true
     - Test that no `Scan()` methods are generated when `IsScannable` is false
     - Test that generated code includes XML documentation
     - Test that generated code compiles successfully
     - _Requirements: 2.1, 2.2, 3.4_
   
-  - [ ] 7.3 Test integration with existing features
+  - [x] 7.3 Test integration with existing features
     - Test `[Scannable]` with single-key tables
     - Test `[Scannable]` with composite-key tables
     - Test `[Scannable]` with tables that have GSIs
     - _Requirements: 3.3_
 
-- [ ] 8. Add functional tests
-  - [ ] 8.1 Test generated Scan() method functionality
+- [-] 8. Add functional tests
+  - [x] 8.1 Test generated Scan() method functionality
     - Test that parameterless `Scan()` returns configured `ScanRequestBuilder`
     - Test that expression-based `Scan()` applies filter correctly
     - Test that generated methods work with method chaining

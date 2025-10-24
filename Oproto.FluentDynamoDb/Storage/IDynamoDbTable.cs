@@ -7,7 +7,7 @@ namespace Oproto.FluentDynamoDb.Storage;
 /// Interface defining core DynamoDB table operations.
 /// This interface provides access to the most commonly used DynamoDB operations:
 /// Get, Put, Update, Query, and Delete. Scan operations are intentionally excluded
-/// and are only available through the IScannableDynamoDbTable interface.
+/// and must be explicitly enabled using the [Scannable] attribute on table classes.
 /// </summary>
 public interface IDynamoDbTable
 {

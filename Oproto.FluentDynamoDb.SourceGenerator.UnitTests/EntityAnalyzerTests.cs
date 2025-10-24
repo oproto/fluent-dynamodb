@@ -432,6 +432,67 @@ namespace TestNamespace
         analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB008");
     }
 
+    [Fact]
+    public void AnalyzeEntity_WithScannableAttribute_SetIsScannableToTrue()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [Scannable]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.IsScannable.Should().BeTrue("entity has [Scannable] attribute");
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithoutScannableAttribute_SetIsScannableToFalse()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.IsScannable.Should().BeFalse("entity does not have [Scannable] attribute");
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
     private static (ClassDeclarationSyntax ClassDecl, SemanticModel SemanticModel) ParseSource(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);

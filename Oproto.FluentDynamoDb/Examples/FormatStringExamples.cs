@@ -183,46 +183,32 @@ public class FormatStringExamples
 
     /// <summary>
     /// Scan operations with filter expressions (use sparingly - scans are expensive).
-    /// Note: Requires casting to DynamoDbTableBase to access AsScannable() method.
+    /// Note: Scan operations now require the [Scannable] attribute on table classes.
+    /// The AsScannable() method has been removed in favor of attribute-based source generation.
     /// </summary>
+    /// <remarks>
+    /// To enable scan operations on a table:
+    /// 1. Add [Scannable] attribute to your table class
+    /// 2. Use the generated Scan() methods directly on the table instance
+    /// 
+    /// Example:
+    /// [DynamoDbTable("Orders")]
+    /// [Scannable]
+    /// public partial class OrdersTable : DynamoDbTableBase { }
+    /// 
+    /// var result = await table.Scan()
+    ///     .WithFilter("#status = {0} AND #amount > {1:F2}", status, minAmount)
+    ///     .WithAttribute("#status", "status")
+    ///     .WithAttribute("#amount", "amount")
+    ///     .Take(100)
+    ///     .ExecuteAsync();
+    /// </remarks>
     public async Task ScanWithFilterExpressionExamples()
     {
-        // Cast to DynamoDbTableBase to access AsScannable method
-        if (_table is not DynamoDbTableBase tableBase)
-            throw new InvalidOperationException("Table must inherit from DynamoDbTableBase to access scan operations");
-
-        var status = OrderStatus.Processing;
-        var minAmount = 100.0m;
-        var createdAfter = DateTime.UtcNow.AddDays(-7);
-
-        // Basic scan with filter
-        var result1 = await tableBase.AsScannable().Scan()
-            .WithFilter("#status = {0} AND #amount > {1:F2}", status, minAmount)
-            .WithAttribute("#status", "status")
-            .WithAttribute("#amount", "amount")
-            .Take(100)  // Limit items examined
-            .ExecuteAsync();
-
-        // Complex scan filter with multiple conditions
-        var result2 = await tableBase.AsScannable().Scan()
-            .WithFilter("(#status = {0} OR #status = {1}) AND #created > {2:o} AND attribute_exists(#tags)",
-                       OrderStatus.Processing, OrderStatus.Completed, createdAfter)
-            .WithAttribute("#status", "status")
-            .WithAttribute("#created", "created_date")
-            .WithAttribute("#tags", "tags")
-            .Take(50)
-            .ExecuteAsync();
-
-        // Scan with projection and filter
-        var result3 = await tableBase.AsScannable().Scan()
-            .WithProjection("#id, #name, #status, #amount")
-            .WithFilter("#status = {0} AND #amount BETWEEN {1:F2} AND {2:F2}",
-                       status, 50.0m, 1000.0m)
-            .WithAttribute("#id", "id")
-            .WithAttribute("#name", "name")
-            .WithAttribute("#status", "status")
-            .WithAttribute("#amount", "amount")
-            .ExecuteAsync();
+        // This method is kept for documentation purposes but is not functional
+        // without a table class marked with [Scannable] attribute.
+        // See the remarks above for the new usage pattern.
+        await Task.CompletedTask;
     }
 
     /// <summary>

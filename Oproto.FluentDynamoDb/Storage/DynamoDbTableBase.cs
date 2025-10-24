@@ -164,36 +164,5 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     public PutItemRequestBuilder Put() => 
         new PutItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
 
-    /// <summary>
-    /// Returns a scannable interface that provides access to scan operations.
-    /// 
-    /// This method implements intentional friction to discourage accidental scan usage.
-    /// Scan operations are expensive and should only be used for legitimate use cases such as:
-    /// - Data migration or ETL processes
-    /// - Analytics on small tables  
-    /// - Operations where you truly need to examine every item
-    /// 
-    /// Consider using Query operations instead whenever possible, as they are much more efficient.
-    /// </summary>
-    /// <returns>An interface that provides scan functionality while maintaining access to all core operations.</returns>
-    /// <example>
-    /// <code>
-    /// // Access scan operations through the scannable interface
-    /// var scannableTable = table.AsScannable();
-    /// var results = await scannableTable.Scan
-    ///     .WithFilter("#status = :active")
-    ///     .WithAttribute("#status", "status")
-    ///     .WithValue(":active", "ACTIVE")
-    ///     .ExecuteAsync();
-    /// 
-    /// // Still access regular operations
-    /// var item = await scannableTable.Get
-    ///     .WithKey("id", "123")
-    ///     .ExecuteAsync();
-    /// </code>
-    /// </example>
-    public IScannableDynamoDbTable AsScannable()
-    {
-        return new ScannableDynamoDbTable(this);
-    }
+
 }

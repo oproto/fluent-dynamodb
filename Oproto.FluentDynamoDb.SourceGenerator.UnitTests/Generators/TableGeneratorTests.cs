@@ -603,6 +603,323 @@ namespace TestNamespace
         CompilationVerifier.AssertGeneratedCodeCompiles(tableSource, source);
     }
 
+    [Fact]
+    public void Generator_WithScannableAttribute_GeneratesBothScanOverloads()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""users-table"")]
+    [Scannable]
+    public partial class UserEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""id"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""email"")]
+        public string Email { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        var tableCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("UserEntityTable.g.cs"));
+        tableCode.Should().NotBeNull("table class should be generated");
+        
+        var tableSource = tableCode!.SourceText.ToString();
+        
+        // Verify both Scan overloads are generated
+        tableSource.Should().Contain("public ScanRequestBuilder Scan()", 
+            "should generate parameterless Scan method");
+        tableSource.Should().Contain("public ScanRequestBuilder Scan(string filterExpression, params object[] values)", 
+            "should generate expression-based Scan method");
+        
+        // Verify the implementation
+        tableSource.Should().Contain("new ScanRequestBuilder(DynamoDbClient).ForTable(Name)", 
+            "parameterless Scan should create builder with table name");
+        tableSource.Should().Contain("WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values)", 
+            "expression-based Scan should apply filter");
+    }
+
+    [Fact]
+    public void Generator_WithoutScannableAttribute_DoesNotGenerateScanMethods()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""users-table"")]
+    public partial class UserEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""id"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""email"")]
+        public string Email { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        var tableCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("UserEntityTable.g.cs"));
+        tableCode.Should().NotBeNull("table class should be generated");
+        
+        var tableSource = tableCode!.SourceText.ToString();
+        
+        // Verify no Scan methods are generated
+        tableSource.Should().NotContain("public ScanRequestBuilder Scan()", 
+            "should not generate Scan methods without [Scannable] attribute");
+    }
+
+    [Fact]
+    public void Generator_WithScannableAttribute_IncludesXmlDocumentation()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""users-table"")]
+    [Scannable]
+    public partial class UserEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""id"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        var tableCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("UserEntityTable.g.cs"));
+        tableCode.Should().NotBeNull();
+        
+        var tableSource = tableCode!.SourceText.ToString();
+        
+        // Verify XML documentation is present
+        tableSource.Should().Contain("/// <summary>", 
+            "should include XML documentation");
+        tableSource.Should().Contain("WARNING", 
+            "should include warning about scan operation costs");
+    }
+
+    [Fact]
+    public void Generator_WithScannableAttribute_GeneratedCodeCompiles()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [Scannable]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string PartitionKey { get; set; } = string.Empty;
+        
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string SortKey { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        var tableCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("TestEntityTable.g.cs"));
+        tableCode.Should().NotBeNull();
+        
+        var tableSource = tableCode!.SourceText.ToString();
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(tableSource, source);
+    }
+
+    [Fact]
+    public void Generator_WithScannableAndSingleKey_GeneratesBothScanAndKeyMethods()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""users-table"")]
+    [Scannable]
+    public partial class UserEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""id"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""email"")]
+        public string Email { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        var tableCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("UserEntityTable.g.cs"));
+        tableCode.Should().NotBeNull();
+        
+        var tableSource = tableCode!.SourceText.ToString();
+        
+        // Verify single-key methods are generated
+        tableSource.Should().Contain("public GetItemRequestBuilder Get(string id)", 
+            "should generate Get method for single key");
+        tableSource.Should().Contain("public UpdateItemRequestBuilder Update(string id)", 
+            "should generate Update method for single key");
+        tableSource.Should().Contain("public DeleteItemRequestBuilder Delete(string id)", 
+            "should generate Delete method for single key");
+        
+        // Verify Scan methods are also generated
+        tableSource.Should().Contain("public ScanRequestBuilder Scan()", 
+            "should generate parameterless Scan method");
+        tableSource.Should().Contain("public ScanRequestBuilder Scan(string filterExpression, params object[] values)", 
+            "should generate expression-based Scan method");
+    }
+
+    [Fact]
+    public void Generator_WithScannableAndCompositeKey_GeneratesBothScanAndKeyMethods()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""transactions-table"")]
+    [Scannable]
+    public partial class TransactionEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string PartitionKey { get; set; } = string.Empty;
+        
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string SortKey { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""amount"")]
+        public decimal Amount { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        var tableCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("TransactionEntityTable.g.cs"));
+        tableCode.Should().NotBeNull();
+        
+        var tableSource = tableCode!.SourceText.ToString();
+        
+        // Verify composite-key methods are generated
+        tableSource.Should().Contain("public GetItemRequestBuilder Get(string pk, string sk)", 
+            "should generate Get method for composite key");
+        tableSource.Should().Contain("public UpdateItemRequestBuilder Update(string pk, string sk)", 
+            "should generate Update method for composite key");
+        tableSource.Should().Contain("public DeleteItemRequestBuilder Delete(string pk, string sk)", 
+            "should generate Delete method for composite key");
+        
+        // Verify Scan methods are also generated
+        tableSource.Should().Contain("public ScanRequestBuilder Scan()", 
+            "should generate parameterless Scan method");
+        tableSource.Should().Contain("public ScanRequestBuilder Scan(string filterExpression, params object[] values)", 
+            "should generate expression-based Scan method");
+    }
+
+    [Fact]
+    public void Generator_WithScannableAndGSI_GeneratesScanMethodsAndIndexProperties()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""users-table"")]
+    [Scannable]
+    public partial class UserEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""id"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [GlobalSecondaryIndex(""EmailIndex"", IsPartitionKey = true)]
+        [DynamoDbAttribute(""email"")]
+        public string Email { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""user_name"")]
+        public string UserName { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        var tableCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("UserEntityTable.g.cs"));
+        tableCode.Should().NotBeNull();
+        
+        var tableSource = tableCode!.SourceText.ToString();
+        
+        // Verify GSI property is generated
+        tableSource.Should().Contain("public DynamoDbIndex EmailIndex", 
+            "should generate index property");
+        
+        // Verify Scan methods are generated
+        tableSource.Should().Contain("public ScanRequestBuilder Scan()", 
+            "should generate parameterless Scan method");
+        tableSource.Should().Contain("public ScanRequestBuilder Scan(string filterExpression, params object[] values)", 
+            "should generate expression-based Scan method");
+        
+        // Verify single-key methods are also generated
+        tableSource.Should().Contain("public GetItemRequestBuilder Get(string id)", 
+            "should generate Get method for single key");
+    }
+
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(

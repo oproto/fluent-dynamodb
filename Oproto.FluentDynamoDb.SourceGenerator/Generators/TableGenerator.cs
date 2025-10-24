@@ -212,7 +212,7 @@ public static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <returns>A ScanRequestBuilder configured for this table.</returns>");
         sb.AppendLine($"    public ScanRequestBuilder Scan() =>");
-        sb.AppendLine($"        new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);");
+        sb.AppendLine($"        new ScanRequestBuilder(DynamoDbClient).ForTable(Name);");
         sb.AppendLine();
 
         // Expression-based Scan(string, params object[]) method
@@ -229,7 +229,7 @@ public static class TableGenerator
         sb.AppendLine($"    public ScanRequestBuilder Scan(string filterExpression, params object[] values)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"        var builder = Scan();");
-        sb.AppendLine($"        return Requests.Extensions.WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);");
+        sb.AppendLine($"        return WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);");
         sb.AppendLine($"    }}");
         sb.AppendLine();
     }
