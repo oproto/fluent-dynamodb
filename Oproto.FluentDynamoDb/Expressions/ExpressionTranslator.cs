@@ -459,6 +459,33 @@ public class ExpressionTranslator
     {
         dynamoDbFunction = null;
 
+        // table.Encrypt(value, fieldName) -> encrypted parameter value
+        // This is a special case where we need to call the Encrypt method and capture the result
+        if (node.Method.Name == "Encrypt" && 
+            node.Method.DeclaringType != null &&
+            typeof(DynamoDbTableBase).IsAssignableFrom(node.Method.DeclaringType) &&
+            node.Arguments.Count == 2)
+        {
+            try
+            {
+                // Evaluate the method call to get the encrypted value
+                // The Encrypt method will handle the encryption using the configured IFieldEncryptor
+                var encryptedValue = EvaluateExpression(node);
+                
+                // Capture the encrypted value as a parameter
+                dynamoDbFunction = CaptureValue(encryptedValue, context, propertyMetadata: null);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                throw new ExpressionTranslationException(
+                    $"Failed to encrypt value in expression: {ex.Message}. " +
+                    $"Ensure IFieldEncryptor is configured and EncryptionContext.Current is set.",
+                    ex,
+                    node);
+            }
+        }
+
         // string.StartsWith(value) -> begins_with(attr, value)
         if (node.Method.Name == "StartsWith" && 
             node.Method.DeclaringType == typeof(string) &&

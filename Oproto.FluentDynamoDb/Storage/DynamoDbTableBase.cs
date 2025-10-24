@@ -179,5 +179,86 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class => 
         new PutItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
 
+    /// <summary>
+    /// Encrypts a value for use in query expressions.
+    /// Uses the ambient EncryptionContext.Current for the context ID.
+    /// </summary>
+    /// <param name="value">The value to encrypt.</param>
+    /// <param name="fieldName">The name of the field being encrypted (used for encryption context).</param>
+    /// <returns>A base64-encoded encrypted string suitable for use in DynamoDB queries.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when IFieldEncryptor is not configured.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method is designed for use in LINQ expressions, format string expressions, and WithValue calls
+    /// when you need to query encrypted fields. It uses the same encryption pattern as Put/Get operations.
+    /// </para>
+    /// <para>
+    /// <strong>Important:</strong> Manual encryption only works for equality comparisons (=).
+    /// Do not use with range queries (&gt;, &lt;, BETWEEN), begins_with, or other non-equality operations,
+    /// as encrypted values cannot be compared or sorted.
+    /// </para>
+    /// <para>
+    /// The method uses EncryptionContext.Current for the context ID, which should be set before calling:
+    /// <code>
+    /// EncryptionContext.Current = "tenant-123";
+    /// var results = await table.Query&lt;User&gt;()
+    ///     .Where(x => x.Ssn == table.Encrypt(ssn, "Ssn"))
+    ///     .ToListAsync();
+    /// </code>
+    /// </para>
+    /// </remarks>
+    public string Encrypt(object value, string fieldName)
+    {
+        if (FieldEncryptor == null)
+        {
+            throw new InvalidOperationException(
+                "Cannot encrypt value: IFieldEncryptor not configured. " +
+                "Pass an IFieldEncryptor instance to the table constructor.");
+        }
+
+        // Build FieldEncryptionContext using same pattern as generated code
+        var context = new FieldEncryptionContext
+        {
+            ContextId = EncryptionContext.Current, // Uses ambient context
+            CacheTtlSeconds = 300 // Default, matches generated code
+        };
+
+        // Convert value to bytes
+        var plaintext = System.Text.Encoding.UTF8.GetBytes(value?.ToString() ?? string.Empty);
+
+        // Encrypt synchronously (blocking call for use in expressions)
+        var ciphertext = FieldEncryptor.EncryptAsync(plaintext, fieldName, context).GetAwaiter().GetResult();
+
+        // Return as base64 string for use in queries
+        return Convert.ToBase64String(ciphertext);
+    }
+
+    /// <summary>
+    /// Encrypts a value for use in query expressions.
+    /// This is an alias for <see cref="Encrypt"/> to make the intent clear when pre-encrypting values.
+    /// Uses the ambient EncryptionContext.Current for the context ID.
+    /// </summary>
+    /// <param name="value">The value to encrypt.</param>
+    /// <param name="fieldName">The name of the field being encrypted (used for encryption context).</param>
+    /// <returns>A base64-encoded encrypted string suitable for use in DynamoDB queries.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when IFieldEncryptor is not configured.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method is identical to <see cref="Encrypt"/> but provides a clearer name when
+    /// pre-encrypting values for later use in queries:
+    /// <code>
+    /// EncryptionContext.Current = "tenant-123";
+    /// var encryptedSsn = table.EncryptValue(ssn, "Ssn");
+    /// 
+    /// var results = await table.Query&lt;User&gt;()
+    ///     .Where(x => x.Ssn == encryptedSsn)
+    ///     .ToListAsync();
+    /// </code>
+    /// </para>
+    /// </remarks>
+    public string EncryptValue(object value, string fieldName)
+    {
+        return Encrypt(value, fieldName);
+    }
 
 }

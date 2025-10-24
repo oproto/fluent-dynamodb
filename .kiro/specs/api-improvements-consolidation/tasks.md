@@ -38,7 +38,7 @@
   - Ensure redaction only applies when logger is configured
   - _Requirements: 1_
 
-- [ ] 5. Add Encrypt and EncryptValue methods to DynamoDbTableBase
+- [x] 5. Add Encrypt and EncryptValue methods to DynamoDbTableBase
   - Add Encrypt(object value, string fieldName) method for use in all expression types
   - Add EncryptValue(object value, string fieldName) helper method (alias for Encrypt)
   - Use ambient EncryptionContext.Current for context ID (compatible with existing pattern)
@@ -49,7 +49,7 @@
   - Works with LINQ expressions, format strings, and WithValue
   - _Requirements: 3_
 
-- [ ] 6. Update ExpressionTranslator to detect table.Encrypt() calls
+- [x] 6. Update ExpressionTranslator to detect table.Encrypt() calls
   - Detect MethodCallExpression for Encrypt method in LINQ expression tree
   - Extract value and fieldName arguments from method call
   - Call the Encrypt method to get encrypted value
