@@ -432,8 +432,8 @@ public static class EnhancedExecuteAsyncExtensions
     /// <param name="item">The entity instance to put.</param>
     /// <returns>The builder instance for method chaining.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity conversion fails.</exception>
-    public static PutItemRequestBuilder WithItem<T>(
-        this PutItemRequestBuilder builder,
+    public static PutItemRequestBuilder<T> WithItem<T>(
+        this PutItemRequestBuilder<T> builder,
         T item)
         where T : class, IDynamoDbEntity
     {
@@ -463,8 +463,8 @@ public static class EnhancedExecuteAsyncExtensions
     /// <returns>A task that resolves to the builder instance for method chaining.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity conversion fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<PutItemRequestBuilder> WithItemAsync<T>(
-        this PutItemRequestBuilder builder,
+    public static async Task<PutItemRequestBuilder<T>> WithItemAsync<T>(
+        this PutItemRequestBuilder<T> builder,
         T item,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)

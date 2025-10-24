@@ -56,6 +56,9 @@ public static class TableGenerator
         // Query methods
         GenerateQueryMethods(sb, entity);
         
+        // Put method
+        GeneratePutMethod(sb, entity);
+        
         // Get/Update/Delete overloads based on key structure
         GenerateOperationOverloads(sb, entity);
         
@@ -173,6 +176,33 @@ public static class TableGenerator
         sb.AppendLine();
     }
 
+    private static void GeneratePutMethod(StringBuilder sb, EntityModel entity)
+    {
+        // Generic Put<TEntity>() method
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new PutItem operation builder for this table.");
+        sb.AppendLine($"    /// PutItem creates a new item or completely replaces an existing item with the same primary key.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <returns>A PutItemRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Put an entity");
+        sb.AppendLine($"    /// await table.Put()");
+        sb.AppendLine($"    ///     .WithItem(myEntity)");
+        sb.AppendLine($"    ///     .ExecuteAsync();");
+        sb.AppendLine($"    /// ");
+        sb.AppendLine($"    /// // Put with condition (only if item doesn't exist)");
+        sb.AppendLine($"    /// await table.Put()");
+        sb.AppendLine($"    ///     .WithItem(myEntity)");
+        sb.AppendLine($"    ///     .Where(\"attribute_not_exists(id)\")");
+        sb.AppendLine($"    ///     .ExecuteAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put() =>");
+        sb.AppendLine($"        base.Put<{entity.ClassName}>();");
+        sb.AppendLine();
+    }
+
     private static void GenerateOperationOverloads(StringBuilder sb, EntityModel entity)
     {
         var partitionKey = entity.PartitionKeyProperty;
@@ -230,9 +260,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// Deletes an item by its {pkAttributeName} (partition key).");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
-        sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder configured with the key.</returns>");
-        sb.AppendLine($"    public DeleteItemRequestBuilder Delete({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        base.Delete().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {paramName}) =>");
+        sb.AppendLine($"        base.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
     }
 
@@ -270,9 +300,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
-        sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder configured with the composite key.</returns>");
-        sb.AppendLine($"    public DeleteItemRequestBuilder Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        base.Delete().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+        sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+        sb.AppendLine($"        base.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
     }
 

@@ -106,7 +106,7 @@ public class FormatStringExamples
             .ExecuteAsync();
 
         // Put with conditional format strings
-        await _table.Put()
+        await _table.Put<PlaceholderEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = userId },

@@ -160,9 +160,24 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <summary>
     /// Creates a new PutItem operation builder for this table.
     /// </summary>
-    /// <returns>A PutItemRequestBuilder configured for this table.</returns>
-    public PutItemRequestBuilder Put() => 
-        new PutItemRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
+    /// <typeparam name="TEntity">The entity type to put.</typeparam>
+    /// <returns>A PutItemRequestBuilder&lt;TEntity&gt; configured for this table.</returns>
+    /// <example>
+    /// <code>
+    /// // Put an entity
+    /// await table.Put&lt;MyEntity&gt;()
+    ///     .WithItem(myEntity)
+    ///     .ExecuteAsync();
+    /// 
+    /// // Put with condition
+    /// await table.Put&lt;MyEntity&gt;()
+    ///     .WithItem(myEntity)
+    ///     .Where("attribute_not_exists(id)")
+    ///     .ExecuteAsync();
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class => 
+        new PutItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
 
 
 }

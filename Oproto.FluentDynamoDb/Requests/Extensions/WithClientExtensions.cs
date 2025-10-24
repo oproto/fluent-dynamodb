@@ -74,16 +74,20 @@ public static class WithClientExtensions
     /// Creates a new PutItemRequestBuilder instance with a different DynamoDB client.
     /// This preserves all existing configuration from the original builder.
     /// </summary>
+    /// <typeparam name="TEntity">The entity type being put.</typeparam>
     /// <param name="builder">The original PutItemRequestBuilder instance.</param>
     /// <param name="client">The scoped DynamoDB client to use.</param>
     /// <returns>A new PutItemRequestBuilder instance using the specified client with preserved configuration.</returns>
-    public static PutItemRequestBuilder WithClient(this PutItemRequestBuilder builder, IAmazonDynamoDB client)
+    public static PutItemRequestBuilder<TEntity> WithClient<TEntity>(
+        this PutItemRequestBuilder<TEntity> builder, 
+        IAmazonDynamoDB client)
+        where TEntity : class
     {
-        var newBuilder = new PutItemRequestBuilder(client);
+        var newBuilder = new PutItemRequestBuilder<TEntity>(client);
 
         // Copy the request configuration
         var originalRequest = builder.ToPutItemRequest();
-        var newBuilderRequestField = typeof(PutItemRequestBuilder).GetField("_req", BindingFlags.NonPublic | BindingFlags.Instance);
+        var newBuilderRequestField = typeof(PutItemRequestBuilder<TEntity>).GetField("_req", BindingFlags.NonPublic | BindingFlags.Instance);
         newBuilderRequestField?.SetValue(newBuilder, originalRequest);
 
         // Copy attribute mappings

@@ -42,19 +42,22 @@ public static class EncryptionExtensions
     /// Sets the encryption context for a PutItem operation.
     /// This context is used to determine which encryption key to use for encrypted fields.
     /// </summary>
+    /// <typeparam name="TEntity">The entity type being put.</typeparam>
     /// <param name="builder">The PutItemRequestBuilder instance.</param>
     /// <param name="context">The encryption context identifier (e.g., tenant ID, customer ID).</param>
     /// <returns>The builder instance for method chaining.</returns>
     /// <example>
     /// <code>
-    /// await table.PutItem(item)
+    /// await table.Put&lt;MyEntity&gt;()
+    ///     .WithItem(item)
     ///     .WithEncryptionContext("tenant-123")
     ///     .ExecuteAsync();
     /// </code>
     /// </example>
-    public static PutItemRequestBuilder WithEncryptionContext(
-        this PutItemRequestBuilder builder,
+    public static PutItemRequestBuilder<TEntity> WithEncryptionContext<TEntity>(
+        this PutItemRequestBuilder<TEntity> builder,
         string context)
+        where TEntity : class
     {
         _operationContext.Value = context;
         return builder;

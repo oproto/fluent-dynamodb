@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
+using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.Requests;
 
@@ -10,10 +11,16 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// PutItem creates a new item or completely replaces an existing item with the same primary key.
 /// Use conditional expressions to prevent overwriting existing items when needed.
 /// </summary>
+/// <typeparam name="TEntity">The entity type being put into DynamoDB.</typeparam>
 /// <example>
 /// <code>
-/// // Put a new item
-/// var response = await table.Put
+/// // Put an entity
+/// var response = await table.Put&lt;MyEntity&gt;()
+///     .WithItem(myEntity)
+///     .ExecuteAsync();
+/// 
+/// // Put with raw attributes
+/// var response = await table.Put&lt;MyEntity&gt;()
 ///     .WithItem(new Dictionary&lt;string, AttributeValue&gt;
 ///     {
 ///         ["id"] = new AttributeValue { S = "123" },
@@ -23,14 +30,15 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// 
 /// // Conditional put (only if item doesn't exist)
-/// var response = await table.Put
-///     .WithItem(item)
+/// var response = await table.Put&lt;MyEntity&gt;()
+///     .WithItem(myEntity)
 ///     .Where("attribute_not_exists(id)")
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>, IWithAttributeValues<PutItemRequestBuilder>,
-    IWithConditionExpression<PutItemRequestBuilder>
+public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequestBuilder<TEntity>>, IWithAttributeValues<PutItemRequestBuilder<TEntity>>,
+    IWithConditionExpression<PutItemRequestBuilder<TEntity>>
+    where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the PutItemRequestBuilder.
@@ -67,7 +75,7 @@ public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>,
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public PutItemRequestBuilder SetConditionExpression(string expression)
+    public PutItemRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
         if (string.IsNullOrEmpty(_req.ConditionExpression))
         {
@@ -83,9 +91,9 @@ public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>,
     /// <summary>
     /// Gets the builder instance for method chaining.
     /// </summary>
-    public PutItemRequestBuilder Self => this;
+    public PutItemRequestBuilder<TEntity> Self => this;
 
-    public PutItemRequestBuilder ForTable(string tableName)
+    public PutItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
         return this;
@@ -98,67 +106,101 @@ public class PutItemRequestBuilder : IWithAttributeNames<PutItemRequestBuilder>,
 
 
 
-    public PutItemRequestBuilder ReturnUpdatedNewValues()
+    public PutItemRequestBuilder<TEntity> ReturnUpdatedNewValues()
     {
         _req.ReturnValues = ReturnValue.UPDATED_NEW;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnUpdatedOldValues()
+    public PutItemRequestBuilder<TEntity> ReturnUpdatedOldValues()
     {
         _req.ReturnValues = ReturnValue.UPDATED_OLD;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnAllNewValues()
+    public PutItemRequestBuilder<TEntity> ReturnAllNewValues()
     {
         _req.ReturnValues = ReturnValue.ALL_NEW;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnAllOldValues()
+    public PutItemRequestBuilder<TEntity> ReturnAllOldValues()
     {
         _req.ReturnValues = ReturnValue.ALL_OLD;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnNone()
+    public PutItemRequestBuilder<TEntity> ReturnNone()
     {
         _req.ReturnValues = ReturnValue.NONE;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnTotalConsumedCapacity()
+    public PutItemRequestBuilder<TEntity> ReturnTotalConsumedCapacity()
     {
         _req.ReturnConsumedCapacity = Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
+    public PutItemRequestBuilder<TEntity> ReturnConsumedCapacity(ReturnConsumedCapacity consumedCapacity)
     {
         _req.ReturnConsumedCapacity = consumedCapacity;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnItemCollectionMetrics()
+    public PutItemRequestBuilder<TEntity> ReturnItemCollectionMetrics()
     {
         _req.ReturnItemCollectionMetrics = Amazon.DynamoDBv2.ReturnItemCollectionMetrics.SIZE;
         return this;
     }
 
-    public PutItemRequestBuilder ReturnOldValuesOnConditionCheckFailure()
+    public PutItemRequestBuilder<TEntity> ReturnOldValuesOnConditionCheckFailure()
     {
         _req.ReturnValuesOnConditionCheckFailure = Amazon.DynamoDBv2.ReturnValuesOnConditionCheckFailure.ALL_OLD;
         return this;
     }
 
-    public PutItemRequestBuilder WithItem(Dictionary<string, AttributeValue> item)
+    /// <summary>
+    /// Sets the item to put using an entity instance.
+    /// The entity must implement IDynamoDbEntity for automatic mapping.
+    /// </summary>
+    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <param name="entity">The entity instance to put.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// var myEntity = new MyEntity { Id = "123", Name = "John" };
+    /// await table.Put&lt;MyEntity&gt;()
+    ///     .WithItem(myEntity)
+    ///     .ExecuteAsync();
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> WithItem<T>(T entity) where T : class, TEntity, IDynamoDbEntity
+    {
+        _req.Item = T.ToDynamoDb(entity, _logger);
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the item to put using a raw DynamoDB attribute dictionary.
+    /// Use this for backward compatibility or when working with raw attributes.
+    /// </summary>
+    /// <param name="item">The DynamoDB attribute dictionary.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public PutItemRequestBuilder<TEntity> WithItem(Dictionary<string, AttributeValue> item)
     {
         _req.Item = item;
         return this;
     }
 
-    public PutItemRequestBuilder WithItem<TItemType>(TItemType item, Func<TItemType, Dictionary<string, AttributeValue>> modelMapper)
+    /// <summary>
+    /// Sets the item to put using a custom mapper function.
+    /// </summary>
+    /// <typeparam name="TItemType">The type of the item to map.</typeparam>
+    /// <param name="item">The item instance.</param>
+    /// <param name="modelMapper">Function to convert the item to DynamoDB attributes.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public PutItemRequestBuilder<TEntity> WithItem<TItemType>(TItemType item, Func<TItemType, Dictionary<string, AttributeValue>> modelMapper)
     {
         _req.Item = modelMapper(item);
         return this;

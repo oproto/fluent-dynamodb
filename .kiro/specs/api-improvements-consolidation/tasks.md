@@ -31,7 +31,7 @@
   - Ensure IndexName is automatically set in generated code
   - _Requirements: 19_
 
-- [ ] 4.2 Make PutItemRequestBuilder generic and add entity overload
+- [x] 4.2 Make PutItemRequestBuilder generic and add entity overload
   - Convert PutItemRequestBuilder to PutItemRequestBuilder<TEntity>
   - Add WithItem(TEntity entity) method that calls TEntity.ToDynamoDb<TEntity>(entity)
   - Keep existing WithItem(Dictionary<string, AttributeValue>) for backward compatibility

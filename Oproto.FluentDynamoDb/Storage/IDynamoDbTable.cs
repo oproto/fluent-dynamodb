@@ -21,13 +21,4 @@ public interface IDynamoDbTable
     /// </summary>
     string Name { get; }
 
-    // Note: These methods are intentionally removed from the interface.
-    // Derived table classes should provide generic Query<TEntity>(), Get<TEntity>(), etc. methods
-    // that return properly typed builders. The interface now only defines the common properties.
-
-    /// <summary>
-    /// Creates a new PutItem operation builder for this table.
-    /// </summary>
-    /// <returns>A PutItemRequestBuilder configured for this table.</returns>
-    PutItemRequestBuilder Put();
 }
