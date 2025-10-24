@@ -51,17 +51,21 @@ Note: Generic builder refactoring and LINQ expression overloads are already comp
 4. WHEN no format is specified, THE Expression_Translator SHALL use default serialization
 5. THE Expression_Translator SHALL support the same format specifications as text-based format string expressions
 
-### Requirement 3: Manual Encryption Helper for Query Parameters
+### Requirement 3: Manual Encryption Helpers for Query Parameters
 
-**User Story:** As a developer, I want a way to manually encrypt query parameters, so that I can query encrypted fields when appropriate without automatic encryption breaking non-equality operations.
+**User Story:** As a developer, I want to manually encrypt query parameters using the same ambient EncryptionContext pattern as Put/Get operations, so that I can query encrypted fields using LINQ expressions, format strings, or pre-encrypted variables without automatic encryption breaking non-equality operations.
 
 #### Acceptance Criteria
 
-1. WHEN calling WithEncryptedParameter(name, value, encryptionContext) on a request builder, THE System SHALL encrypt the value using IFieldEncryptor
-2. WHEN the encrypted parameter is used in an expression, THE System SHALL use the encrypted value in the DynamoDB query
-3. WHEN encryption is not available (no IFieldEncryptor configured), THE System SHALL throw a clear exception
-4. THE System SHALL NOT automatically encrypt values for properties marked with [Encrypted] in LINQ expressions
-5. THE Documentation SHALL explain when manual encryption is appropriate (equality comparisons only) and when it should be avoided (range queries, begins_with, etc.)
+1. WHEN calling table.Encrypt(value, fieldName) within a LINQ expression, THE Expression_Translator SHALL detect the method call and encrypt the value using IFieldEncryptor with ambient EncryptionContext.Current
+2. WHEN calling table.Encrypt(value, fieldName) in a format string expression, THE System SHALL encrypt the value using ambient EncryptionContext.Current
+3. WHEN calling table.Encrypt(value, fieldName) with WithValue, THE System SHALL encrypt the value using ambient EncryptionContext.Current
+4. WHEN calling table.EncryptValue(value, fieldName) before a query, THE System SHALL encrypt the value using ambient EncryptionContext.Current and return it for use in any expression type
+5. THE System SHALL use the same FieldEncryptionContext construction pattern as generated ToDynamoDb/FromDynamoDb code (ContextId from EncryptionContext.Current, default CacheTtlSeconds)
+6. WHEN encryption is not available (no IFieldEncryptor configured), THE System SHALL throw a clear exception with guidance
+7. THE System SHALL NOT automatically encrypt values for properties marked with [Encrypted] in LINQ expressions
+8. THE Documentation SHALL explain when manual encryption is appropriate (equality comparisons only) and when it should be avoided (range queries, begins_with, etc.)
+9. THE Documentation SHALL provide examples of table.Encrypt() in LINQ expressions, format strings, and WithValue, plus EncryptValue helper, all showing use of ambient EncryptionContext.Current
 
 ### ~~Requirements 4-26: Previously Completed or Out of Scope~~
 

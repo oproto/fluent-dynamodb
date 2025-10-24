@@ -137,40 +137,88 @@ private object ApplyFormat(object value, string format)
 }
 ```
 
-### 4. Manual Encryption Helper
+### 4. Manual Encryption Helpers
 
-Add explicit encryption method to request builders:
+Add encryption support through three compatible approaches:
+
+#### 4.1 Table-Level Encrypt Method (for LINQ expressions)
 
 ```csharp
-public class QueryRequestBuilder<TEntity> where TEntity : class
+public abstract class DynamoDbTableBase
 {
     private readonly IFieldEncryptor? _encryptor;
     
-    // NEW: Manual encryption helper
-    public QueryRequestBuilder<TEntity> WithEncryptedParameter(
-        string parameterName,
-        object value,
-        EncryptionContext encryptionContext)
+    // NEW: Encrypt method for use in LINQ expressions
+    // Uses ambient EncryptionContext.Current for context ID (compatible with existing pattern)
+    public string Encrypt(object value, string fieldName)
     {
         if (_encryptor == null)
         {
             throw new InvalidOperationException(
-                "Cannot encrypt parameter: IFieldEncryptor not configured. " +
+                "Cannot encrypt value: IFieldEncryptor not configured. " +
                 "Pass an IFieldEncryptor instance to the table constructor.");
         }
         
-        var encryptedValue = _encryptor.Encrypt(value, encryptionContext);
-        return WithValue(parameterName, encryptedValue);
+        // Build FieldEncryptionContext using same pattern as generated code
+        var context = new FieldEncryptionContext
+        {
+            ContextId = EncryptionContext.Current, // Uses ambient context
+            CacheTtlSeconds = 300 // Default, matches generated code
+        };
+        
+        var plaintext = System.Text.Encoding.UTF8.GetBytes(value.ToString());
+        var ciphertext = _encryptor.EncryptAsync(plaintext, fieldName, context).GetAwaiter().GetResult();
+        
+        // Return as base64 string for use in queries
+        return Convert.ToBase64String(ciphertext);
     }
 }
 
-// Usage example
+// Usage in LINQ expression - uses ambient EncryptionContext.Current
+EncryptionContext.Current = "tenant-123";
 var results = await table.Query<User>()
-    .Where("encrypted_field = :val")
-    .WithEncryptedParameter(":val", "sensitive-value", new EncryptionContext
+    .Where(x => x.Ssn == table.Encrypt(ssn, "Ssn"))
+    .ToListAsync();
+```
+
+#### 4.2 Pre-Encryption Helper (for variable reuse)
+
+```csharp
+public abstract class DynamoDbTableBase
+{
+    // NEW: Helper for pre-encrypting values
+    // Alias for Encrypt to make intent clear
+    public string EncryptValue(object value, string fieldName)
     {
-        { "tenant_id", "tenant-123" }
-    })
+        return Encrypt(value, fieldName);
+    }
+}
+
+// Usage with pre-encryption - uses ambient EncryptionContext.Current
+EncryptionContext.Current = "tenant-123";
+var encryptedSsn = table.EncryptValue(ssn, "Ssn");
+
+var results = await table.Query<User>()
+    .Where(x => x.Ssn == encryptedSsn)
+    .ToListAsync();
+```
+
+#### 4.3 String Expression Support (no new methods needed)
+
+The `table.Encrypt()` method works seamlessly with existing string expression methods:
+
+```csharp
+// Usage with format string syntax
+EncryptionContext.Current = "tenant-123";
+var results = await table.Query<User>()
+    .Where("ssn = {0}", table.Encrypt(ssn, "Ssn"))
+    .ToListAsync();
+
+// Usage with named parameters
+EncryptionContext.Current = "tenant-123";
+var results = await table.Query<User>()
+    .Where("ssn = :ssn")
+    .WithValue(":ssn", table.Encrypt(ssn, "Ssn"))
     .ToListAsync();
 ```
 
@@ -333,6 +381,39 @@ public async Task Query_WithFormattedDecimal_AppliesFormat()
 
 ```csharp
 [Fact]
+public async Task Query_WithTableEncrypt_InLinqExpression_EncryptsValue()
+{
+    // Arrange
+    var encryptor = new MockFieldEncryptor();
+    var table = new UserTable(client, encryptor: encryptor);
+    
+    // Act
+    var results = await table.Query<User>()
+        .Where(x => x.EncryptedField == table.Encrypt("secret", new EncryptionContext()))
+        .ToListAsync();
+    
+    // Assert
+    encryptor.EncryptCalls.Should().Contain(c => c.Value == "secret");
+}
+
+[Fact]
+public async Task Query_WithPreEncryptedValue_EncryptsValue()
+{
+    // Arrange
+    var encryptor = new MockFieldEncryptor();
+    var table = new UserTable(client, encryptor: encryptor);
+    
+    // Act
+    var encryptedValue = table.EncryptValue("secret", new EncryptionContext());
+    var results = await table.Query<User>()
+        .Where(x => x.EncryptedField == encryptedValue)
+        .ToListAsync();
+    
+    // Assert
+    encryptor.EncryptCalls.Should().Contain(c => c.Value == "secret");
+}
+
+[Fact]
 public async Task Query_WithEncryptedParameter_EncryptsValue()
 {
     // Arrange
@@ -350,15 +431,13 @@ public async Task Query_WithEncryptedParameter_EncryptsValue()
 }
 
 [Fact]
-public void Query_WithEncryptedParameter_NoEncryptor_ThrowsException()
+public void TableEncrypt_NoEncryptor_ThrowsException()
 {
     // Arrange - no encryptor configured
     var table = new UserTable(client);
     
     // Act & Assert
-    var act = () => table.Query<User>()
-        .Where("encrypted_field = :val")
-        .WithEncryptedParameter(":val", "secret", new EncryptionContext());
+    var act = () => table.Encrypt("secret", new EncryptionContext());
     
     act.Should().Throw<InvalidOperationException>()
         .WithMessage("*IFieldEncryptor not configured*");
@@ -385,9 +464,10 @@ public void Query_WithEncryptedParameter_NoEncryptor_ThrowsException()
 - Check IsSensitiveField before logging values
 - Add unit tests
 
-### Phase 5: Add Manual Encryption Helper
-- Add WithEncryptedParameter to QueryRequestBuilder
-- Add WithEncryptedParameter to ScanRequestBuilder
+### Phase 5: Add Manual Encryption Helpers
+- Add Encrypt method to DynamoDbTableBase for use in LINQ and string expressions
+- Add EncryptValue helper method to DynamoDbTableBase (alias for clarity)
+- Update ExpressionTranslator to detect and handle table.Encrypt() calls in LINQ expressions
 - Add error handling for missing encryptor
 - Add unit tests
 
@@ -449,16 +529,41 @@ public class Transaction
 
 ```csharp
 // Before - manual encryption outside query
-var encryptedValue = await encryptor.EncryptAsync(value, context);
+var context = new FieldEncryptionContext { ContextId = "tenant-123" };
+var plaintext = System.Text.Encoding.UTF8.GetBytes(value);
+var ciphertext = await encryptor.EncryptAsync(plaintext, "Ssn", context);
+var encryptedValue = Convert.ToBase64String(ciphertext);
 var results = await table.Query<User>()
-    .Where("encrypted_field = :val")
+    .Where("ssn = :val")
     .WithValue(":val", encryptedValue)
     .ToListAsync();
 
-// After - encryption helper
+// After - Option 1: LINQ expression with table.Encrypt()
+// Uses ambient EncryptionContext.Current (same as Put/Get operations)
+EncryptionContext.Current = "tenant-123";
 var results = await table.Query<User>()
-    .Where("encrypted_field = :val")
-    .WithEncryptedParameter(":val", value, context)
+    .Where(x => x.Ssn == table.Encrypt(value, "Ssn"))
+    .ToListAsync();
+
+// After - Option 2: Pre-encrypt helper
+// Uses ambient EncryptionContext.Current
+EncryptionContext.Current = "tenant-123";
+var encryptedValue = table.EncryptValue(value, "Ssn");
+var results = await table.Query<User>()
+    .Where(x => x.Ssn == encryptedValue)
+    .ToListAsync();
+
+// After - Option 3: String expression with table.Encrypt()
+// Uses ambient EncryptionContext.Current
+EncryptionContext.Current = "tenant-123";
+var results = await table.Query<User>()
+    .Where("ssn = {0}", table.Encrypt(value, "Ssn"))
+    .ToListAsync();
+
+// Or with named parameters
+var results = await table.Query<User>()
+    .Where("ssn = :val")
+    .WithValue(":val", table.Encrypt(value, "Ssn"))
     .ToListAsync();
 ```
 
