@@ -74,6 +74,43 @@ public class DynamoDbTableAttribute : Attribute
     public string? EntityDiscriminator { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this entity is the default entity for the table.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When multiple entities share the same table name, one entity must be marked as the default.
+    /// The default entity is used for table-level operations (e.g., <c>table.Get()</c>, <c>table.Query()</c>)
+    /// and provides the generic type parameter for the table class.
+    /// </para>
+    /// <para>
+    /// If only one entity is assigned to a table, it is automatically treated as the default
+    /// and this property does not need to be set.
+    /// </para>
+    /// <para>
+    /// If multiple entities share a table and no default is specified, or if multiple entities
+    /// are marked as default, the source generator will emit a compile-time error.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <para><strong>Single-table design with default entity:</strong></para>
+    /// <code>
+    /// [DynamoDbTable(TableName = "MyApp", IsDefault = true)]
+    /// public class Order
+    /// {
+    ///     // This is the default entity
+    ///     // Table-level operations use Order type: table.Get(), table.Query()
+    /// }
+    /// 
+    /// [DynamoDbTable(TableName = "MyApp")]
+    /// public class OrderLine
+    /// {
+    ///     // Access via entity accessor: table.OrderLines.Get()
+    /// }
+    /// </code>
+    /// </example>
+    public bool IsDefault { get; set; } = false;
+
+    /// <summary>
     /// Initializes a new instance of the DynamoDbTableAttribute class.
     /// </summary>
     /// <param name="tableName">The DynamoDB table name.</param>

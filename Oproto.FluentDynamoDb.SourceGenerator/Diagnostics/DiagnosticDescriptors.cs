@@ -674,4 +674,54 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "The [Encrypted] attribute requires the Oproto.FluentDynamoDb.Encryption.Kms package to provide encryption functionality.");
+
+    // Table Generation Redesign Diagnostics (FDDB001-FDDB004)
+
+    /// <summary>
+    /// Error when multiple entities share a table but no default entity is specified.
+    /// </summary>
+    public static readonly DiagnosticDescriptor NoDefaultEntitySpecified = new(
+        "FDDB001",
+        "No default entity specified",
+        "Table '{0}' has multiple entities but no default specified. Mark one entity with IsDefault = true in [DynamoDbTable] attribute",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities share the same table name, one entity must be marked as the default using IsDefault = true in the [DynamoDbTable] attribute. The default entity is used for table-level operations.");
+
+    /// <summary>
+    /// Error when multiple entities in the same table are marked as default.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MultipleDefaultEntities = new(
+        "FDDB002",
+        "Multiple default entities",
+        "Table '{0}' has multiple entities marked as default. Only one entity can be marked with IsDefault = true",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Only one entity per table can be marked as the default entity. Remove IsDefault = true from all but one entity in the table.");
+
+    /// <summary>
+    /// Error when multiple [GenerateAccessors] attributes target the same operation.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingAccessorConfiguration = new(
+        "FDDB003",
+        "Conflicting accessor configuration",
+        "Entity '{0}' has multiple [GenerateAccessors] attributes targeting the same operation '{1}'. Each operation can only be configured once",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Multiple [GenerateAccessors] attributes cannot target the same DynamoDB operation. Combine the configuration into a single attribute or use different operations.");
+
+    /// <summary>
+    /// Error when [GenerateEntityProperty] has an empty name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EmptyEntityPropertyName = new(
+        "FDDB004",
+        "Empty entity property name",
+        "Entity '{0}' has [GenerateEntityProperty] with empty Name. Provide a valid name or omit the Name property to use default naming",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The Name property in [GenerateEntityProperty] cannot be empty. Either provide a valid custom name or omit the Name property to use the default pluralized entity name.");
 }
