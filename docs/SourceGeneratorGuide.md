@@ -26,6 +26,8 @@ The source generator is automatically included as an analyzer and will run durin
 
 ### 2. Define Your Entity
 
+For the simplest case (one entity per table), see [Single-Entity Tables](getting-started/SingleEntityTables.md).
+
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;
 
@@ -124,10 +126,16 @@ public partial class Transaction : IDynamoDbEntity
 
 ## Using Generated Code
 
-### 1. Basic Operations
+The source generator creates table classes that provide type-safe access to DynamoDB operations. The generated code structure depends on whether you have a single entity or multiple entities per table.
+
+### Single-Entity Tables
+
+For tables with one entity, the generated table class provides table-level operations:
 
 ```csharp
-var table = new DynamoDbTableBase(dynamoDbClient, "transactions");
+// Generated table class for single-entity table
+// Table name is configurable at runtime for different environments
+var transactionsTable = new TransactionsTable(dynamoDbClient, "transactions");
 
 // Create a transaction
 var transaction = new Transaction
@@ -140,6 +148,72 @@ var transaction = new Transaction
     CreatedDate = DateTime.UtcNow
 };
 
+// Put item using table-level operation
+await transactionsTable.Put(transaction)
+    .ExecuteAsync();
+
+// Get item with strongly-typed response
+var response = await transactionsTable.Get()
+    .WithKey(TransactionFields.TenantId, TransactionKeys.Pk("tenant123"))
+    .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk("txn456"))
+    .ExecuteAsync();
+
+if (response.Item != null)
+{
+    Console.WriteLine($"Found transaction: {response.Item.Description}");
+}
+```
+
+See [Single-Entity Tables](getting-started/SingleEntityTables.md) for complete documentation.
+
+### Multi-Entity Tables
+
+For tables with multiple entities (single-table design), the generated table class provides entity-specific accessors:
+
+```csharp
+// Multiple entities sharing the same table
+[DynamoDbTable("ecommerce", IsDefault = true)]
+public partial class Order { }
+
+[DynamoDbTable("ecommerce")]
+public partial class OrderLine { }
+
+// Generated table class with entity accessors
+var ecommerceTable = new EcommerceTable(dynamoDbClient, "ecommerce");
+
+// Access operations via entity accessors
+await ecommerceTable.Orders.Put(order)
+    .ExecuteAsync();
+
+await ecommerceTable.OrderLines.Put(orderLine)
+    .ExecuteAsync();
+
+// Query specific entity type
+var orders = await ecommerceTable.Orders.Query()
+    .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
+    .ExecuteAsync();
+
+// Table-level operations use the default entity (Order)
+var defaultOrder = await ecommerceTable.Get()
+    .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
+    .ExecuteAsync();
+```
+
+See [Multi-Entity Tables](advanced-topics/MultiEntityTables.md) for complete documentation.
+
+### 1. Basic Operations (Manual Pattern)
+
+For manual usage without source generation, create a class that inherits from `DynamoDbTableBase`:
+
+```csharp
+public class TransactionsTableManual : DynamoDbTableBase
+{
+    public TransactionsTableManual(IAmazonDynamoDB client, string tableName) 
+        : base(client, tableName) { }
+}
+
+var table = new TransactionsTableManual(dynamoDbClient, "transactions");
+
 // Put item using generated mapping
 await table.Put()
     .WithItem(transaction)
@@ -150,11 +224,6 @@ var response = await table.Get()
     .WithKey(TransactionFields.TenantId, TransactionKeys.Pk("tenant123"))
     .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk("txn456"))
     .ExecuteAsync<Transaction>();
-
-if (response.Item != null)
-{
-    Console.WriteLine($"Found transaction: {response.Item.Description}");
-}
 ```
 
 ### 2. Query Operations

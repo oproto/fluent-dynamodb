@@ -16,6 +16,8 @@ related: ["BasicOperations.md", "BatchOperations.md", "ExpressionFormatting.md",
 
 DynamoDB transactions provide ACID (Atomicity, Consistency, Isolation, Durability) guarantees for multiple operations across one or more tables. All operations in a transaction succeed together or fail together, ensuring data consistency.
 
+> **Note**: Transaction and batch operations (`TransactWriteItems`, `TransactGetItems`, `BatchWriteItem`, `BatchGetItem`) are multi-table operations. You must specify the table for each operation in the transaction or batch, allowing you to work across multiple tables atomically.
+
 ## Overview
 
 DynamoDB supports two types of transactions:

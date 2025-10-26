@@ -236,8 +236,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// Initializes a new instance of the {className}.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
-        sb.AppendLine($"    public {className}(IAmazonDynamoDB client)");
-        sb.AppendLine($"        : base(client, \"{tableName}\")");
+        sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
+        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName)");
+        sb.AppendLine($"        : base(client, tableName)");
         sb.AppendLine($"    {{");
         
         // Initialize entity accessor properties
@@ -260,9 +261,10 @@ public static class TableGenerator
         sb.AppendLine($"    /// Initializes a new instance of the {className} with a logger.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
+        sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
         sb.AppendLine($"    /// <param name=\"logger\">Logger for DynamoDB operations.</param>");
-        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, IDynamoDbLogger logger)");
-        sb.AppendLine($"        : base(client, \"{tableName}\", logger)");
+        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, IDynamoDbLogger logger)");
+        sb.AppendLine($"        : base(client, tableName, logger)");
         sb.AppendLine($"    {{");
         
         // Initialize entity accessor properties
@@ -1132,8 +1134,9 @@ public static class TableGenerator
         sb.AppendLine($"    /// Initializes a new instance of the {className}.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
-        sb.AppendLine($"    public {className}(IAmazonDynamoDB client)");
-        sb.AppendLine($"        : base(client, \"{entity.TableName}\")");
+        sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
+        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName)");
+        sb.AppendLine($"        : base(client, tableName)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"    }}");
         sb.AppendLine();
@@ -1142,9 +1145,10 @@ public static class TableGenerator
         sb.AppendLine($"    /// Initializes a new instance of the {className} with a logger.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
+        sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
         sb.AppendLine($"    /// <param name=\"logger\">Logger for DynamoDB operations.</param>");
-        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, IDynamoDbLogger logger)");
-        sb.AppendLine($"        : base(client, \"{entity.TableName}\", logger)");
+        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, IDynamoDbLogger logger)");
+        sb.AppendLine($"        : base(client, tableName, logger)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"    }}");
         sb.AppendLine();

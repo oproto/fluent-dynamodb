@@ -27,7 +27,7 @@ Comprehensive guide to using Oproto.FluentDynamoDb with source generation and ex
 
 ## Overview
 
-The Oproto.FluentDynamoDb source generator automatically creates entity mapping code, field constants, key builders, and enhanced ExecuteAsync methods. This eliminates boilerplate code while maintaining AOT compatibility and providing an EF/LINQ-like developer experience.
+The Oproto.FluentDynamoDb source generator automatically creates entity mapping code, field constants, key builders, table classes, and enhanced ExecuteAsync methods. This eliminates boilerplate code while maintaining AOT compatibility and providing an EF/LINQ-like developer experience.
 
 ### Key Benefits
 
@@ -36,6 +36,16 @@ The Oproto.FluentDynamoDb source generator automatically creates entity mapping 
 - **AOT Compatible**: Works with Native AOT and trimming
 - **Incremental Adoption**: Use alongside existing fluent API code
 - **Performance**: Optimized generated code with minimal allocations
+- **Single-Table Design Support**: Multi-entity tables with entity-specific accessors
+
+### Table Generation Patterns
+
+The source generator supports two table patterns:
+
+- **Single-Entity Tables**: One entity per table with table-level operations (`usersTable.Get()`, `usersTable.Query()`, etc.)
+- **Multi-Entity Tables**: Multiple entities sharing one table with entity accessors (`ordersTable.Orders.Get()`, `ordersTable.OrderLines.Query()`, etc.)
+
+See [Single-Entity Tables](getting-started/SingleEntityTables.md) and [Multi-Entity Tables](advanced-topics/MultiEntityTables.md) for complete documentation.
 
 ## Getting Started
 

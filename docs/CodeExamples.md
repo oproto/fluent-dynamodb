@@ -14,6 +14,11 @@ This document provides comprehensive real-world code examples using the recommen
 
 > **Note**: For basic CRUD operations, see [Basic Operations](core-features/BasicOperations.md). For query examples, see [Querying Data](core-features/QueryingData.md). This document focuses on complete, real-world scenarios.
 
+> **Table Operation Patterns**: Examples in this document use a manual table class (inheriting from `DynamoDbTableBase`) for flexibility. For source-generated tables:
+> - **Single-entity tables**: Use table-level operations like `usersTable.Get()`, `usersTable.Query()`, etc.
+> - **Multi-entity tables**: Use entity accessor operations like `ordersTable.Orders.Get()`, `ordersTable.OrderLines.Query()`, etc.
+> - See [Single-Entity Tables](getting-started/SingleEntityTables.md) and [Multi-Entity Tables](advanced-topics/MultiEntityTables.md) for details.
+
 ## Table of Contents
 - [E-commerce Order System](#e-commerce-order-system)
 - [Multi-Tenant SaaS Application](#multi-tenant-saas-application)

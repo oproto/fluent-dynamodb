@@ -161,7 +161,7 @@
   - Test transaction methods NOT generated on entity accessors
   - _Requirements: 7_
 
-- [ ] 22. Update existing unit tests to use new accessor pattern
+- [x] 22. Update existing unit tests to use new accessor pattern
   - Identify all tests that use table.Get(), table.Query(), etc.
   - Update to use table.EntityName.Get(), table.EntityName.Query() where appropriate
   - Update tests that expect one table per entity to expect consolidated tables
@@ -169,20 +169,20 @@
   - Ensure all 1000+ tests pass with new generation model
   - _Requirements: 9_
 
-- [ ] 23. Add integration tests for single-entity tables
+- [x] 23. Add integration tests for single-entity tables
   - Test single entity table generates correctly
   - Test operations work end-to-end
   - Test default entity behavior with single entity
   - _Requirements: 1, 2_
 
-- [ ] 24. Add integration tests for multi-entity tables
+- [x] 24. Add integration tests for multi-entity tables
   - Test multi-entity table with default generates correctly
   - Test entity accessor properties work end-to-end
   - Test table-level operations use default entity
   - Test entity-specific operations work correctly
   - _Requirements: 1, 2, 3, 6_
 
-- [ ] 25. Add integration tests for custom configurations
+- [x] 25. Add integration tests for custom configurations
   - Test custom entity property names
   - Test Generate = false for entity properties
   - Test visibility modifiers on entity properties
@@ -190,27 +190,27 @@
   - Test visibility modifiers on operations
   - _Requirements: 4, 5, 8_
 
-- [ ] 26. Add integration tests for transaction operations
+- [x] 26. Add integration tests for transaction operations
   - Test TransactWrite with multiple entity types
   - Test TransactGet with multiple entity types
   - Test BatchWrite with multiple entity types
   - Test BatchGet with multiple entity types
   - _Requirements: 7_
 
-- [ ] 27. Update documentation with single-entity examples
+- [x] 27. Update documentation with single-entity examples
   - Show simple case with one entity per table
   - Show that IsDefault is not required for single entity
   - Show table-level operations work as before
   - _Requirements: 9_
 
-- [ ] 28. Update documentation with multi-entity examples
+- [x] 28. Update documentation with multi-entity examples
   - Show multiple entities sharing same table name
   - Show IsDefault = true on default entity
   - Show entity accessor usage (table.Orders.Get())
   - Show table-level operations using default entity
   - _Requirements: 9_
 
-- [ ] 29. Update documentation with customization examples
+- [x] 29. Update documentation with customization examples
   - Show [GenerateEntityProperty] with custom name
   - Show [GenerateEntityProperty] with Generate = false
   - Show [GenerateEntityProperty] with visibility modifiers
@@ -220,7 +220,7 @@
   - Show partial class pattern for custom public methods calling internal generated methods
   - _Requirements: 9_
 
-- [ ] 30. Update code examples in documentation
+- [x] 30. Update code examples in documentation
   - Update all examples showing table operations
   - Show both table-level and entity accessor patterns
   - Update examples to reflect new table class naming

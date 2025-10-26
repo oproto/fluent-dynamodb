@@ -93,9 +93,24 @@ using Oproto.FluentDynamoDb.Storage;
 // Create DynamoDB client
 var client = new AmazonDynamoDBClient();
 
-// Create table instance
-var table = new DynamoDbTableBase(client, "users");
+// Option 1: Manual approach - create a class that inherits from DynamoDbTableBase
+public class UsersTableManual : DynamoDbTableBase
+{
+    public UsersTableManual(IAmazonDynamoDB client, string tableName) 
+        : base(client, tableName) { }
+}
+var table = new UsersTableManual(client, "users");
+
+// Option 2: Use source-generated table class (recommended)
+// Table name is configurable at runtime for different environments
+var usersTable = new UsersTable(client, "users");
+
+// For multi-entity tables, use entity accessors
+var ordersTable = new OrdersTable(client, "orders");
+// Access via: ordersTable.Orders.Get(), ordersTable.OrderLines.Query(), etc.
 ```
+
+> **Note**: This guide uses source-generated table classes. For manual usage without source generation, create a class that inherits from `DynamoDbTableBase`. The table name is passed to the constructor, allowing you to use different table names per environment (e.g., "users-dev", "users-prod"). See [Single-Entity Tables](SingleEntityTables.md) and [Multi-Entity Tables](../advanced-topics/MultiEntityTables.md) for details.
 
 ### Put (Create/Update Item)
 

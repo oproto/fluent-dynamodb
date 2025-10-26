@@ -245,6 +245,11 @@ var loaded = await Entity.FromDynamoDbAsync<Entity>(item, blobProvider);
 
 ## Basic Operations
 
+> **Table Operation Patterns:**
+> - **Single-entity tables:** Use table-level operations like `table.Get()`, `table.Query()`, etc.
+> - **Multi-entity tables:** Use entity accessor operations like `table.Orders.Get()`, `table.OrderLines.Query()`, etc.
+> - See [Single-Entity Tables](getting-started/SingleEntityTables.md) and [Multi-Entity Tables](advanced-topics/MultiEntityTables.md) for details.
+
 ### Setup
 
 ```csharp
@@ -252,17 +257,33 @@ using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Storage;
 
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "table-name");
+
+// Option 1: Manual approach - create a class that inherits from DynamoDbTableBase
+public class UsersTableManual : DynamoDbTableBase
+{
+    public UsersTableManual(IAmazonDynamoDB client, string tableName) 
+        : base(client, tableName) { }
+}
+var table = new UsersTableManual(client, "users");
+
+// Option 2: Source-generated table class (recommended)
+// Table name is configurable at runtime for different environments
+var usersTable = new UsersTable(client, "users");  // Single entity table
+var ordersTable = new OrdersTable(client, "orders");  // Multi-entity table with accessors
 ```
 
-**Details:** [Quick Start](getting-started/QuickStart.md#setup-dynamodb-client)
+**Details:** [Quick Start](getting-started/QuickStart.md#setup-dynamodb-client) | [Single-Entity Tables](getting-started/SingleEntityTables.md) | [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
 
 ### Put (Create/Update)
 
 ```csharp
-// Simple put
+// Single-entity table: table-level operations
 await table.Put()
     .WithItem(entity)
+    .ExecuteAsync();
+
+// Multi-entity table: entity accessor operations
+await ordersTable.Orders.Put(order)
     .ExecuteAsync();
 
 // Conditional put
@@ -277,10 +298,15 @@ await table.Put()
 ### Get (Retrieve)
 
 ```csharp
-// Get by partition key only
+// Single-entity table: table-level operations
 var response = await table.Get()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .ExecuteAsync<Entity>();
+
+// Multi-entity table: entity accessor operations
+var response = await ordersTable.Orders.Get()
+    .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
+    .ExecuteAsync();
 
 // Get by partition and sort key
 var response = await table.Get()
@@ -376,9 +402,14 @@ var response = await table.Query()
 ### Basic Query
 
 ```csharp
-// Expression-based: Query by partition key
+// Single-entity table: Expression-based query
 var response = await table.Query()
     .Where<Entity>(x => x.PartitionKey == pk)
+    .ExecuteAsync();
+
+// Multi-entity table: Entity accessor query
+var response = await ordersTable.Orders.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
     .ExecuteAsync();
 
 // Format string: Query by partition key

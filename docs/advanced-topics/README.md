@@ -16,6 +16,28 @@ This section covers advanced patterns and optimization techniques for Oproto.Flu
 
 ## Topics
 
+### [Multi-Entity Tables](MultiEntityTables.md)
+Learn how to use single-table design patterns with multiple entity types sharing one DynamoDB table. Covers:
+- Table consolidation with multiple entities
+- Default entity selection with `IsDefault = true`
+- Entity accessor properties (`table.Orders.Get()`)
+- Table-level operations using the default entity
+- Transaction operations across entity types
+- Basic customization of entity accessors
+- Access pattern design for multi-entity tables
+- When to use multi-entity vs single-entity tables
+
+### [Table Generation Customization](TableGenerationCustomization.md)
+Master advanced customization of generated table classes and entity accessors. Covers:
+- Custom entity accessor names with `[GenerateEntityProperty]`
+- Disabling entity accessor generation with `Generate = false`
+- Visibility modifiers (Public, Internal, Protected, Private)
+- Selective operation generation with `[GenerateAccessors]`
+- Operation visibility control for fine-grained access
+- Partial class pattern for custom public methods
+- Business logic encapsulation with internal accessors
+- Complete library design patterns with clean public APIs
+
 ### [Composite Entities](CompositeEntities.md)
 Learn how to model complex relationships using multi-item entities and related data patterns. Covers:
 - Multi-item entities (collections stored as separate items)
@@ -89,12 +111,14 @@ Use DynamoDB's native collection types, TTL, JSON blobs, and external storage. C
 
 If you're new to advanced topics, we recommend starting with:
 
-1. **[Advanced Type System](AdvancedTypes.md)** - Use native DynamoDB types and advanced storage
-2. **[Composite Entities](CompositeEntities.md)** - Essential for modeling complex data
-3. **[Discriminators](Discriminators.md)** - Configure entity type identification for single-table design
-4. **[Field-Level Security](FieldLevelSecurity.md)** - Protect sensitive data with encryption and redaction
-5. **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - Enable alternative query patterns
-6. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
+1. **[Multi-Entity Tables](MultiEntityTables.md)** - Master single-table design patterns
+2. **[Table Generation Customization](TableGenerationCustomization.md)** - Control generated code and create clean APIs
+3. **[Advanced Type System](AdvancedTypes.md)** - Use native DynamoDB types and advanced storage
+4. **[Composite Entities](CompositeEntities.md)** - Essential for modeling complex data
+5. **[Discriminators](Discriminators.md)** - Configure entity type identification for single-table design
+6. **[Field-Level Security](FieldLevelSecurity.md)** - Protect sensitive data with encryption and redaction
+7. **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - Enable alternative query patterns
+8. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
 
 ## Prerequisites
 
