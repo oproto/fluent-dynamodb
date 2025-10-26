@@ -114,6 +114,20 @@ public class EntityAnalyzer
             entityModel.TableName = tableNameLiteral.Token.ValueText;
         }
 
+        // Extract IsDefault property from named arguments
+        if (tableAttribute.ArgumentList != null)
+        {
+            foreach (var arg in tableAttribute.ArgumentList.Arguments)
+            {
+                if (arg.NameEquals?.Name.Identifier.ValueText == "IsDefault" &&
+                    arg.Expression is LiteralExpressionSyntax isDefaultLiteral)
+                {
+                    entityModel.IsDefault = bool.Parse(isDefaultLiteral.Token.ValueText);
+                    break;
+                }
+            }
+        }
+
         // Extract discriminator configuration
         entityModel.Discriminator = DiscriminatorAnalyzer.AnalyzeTableDiscriminator(
             tableAttribute, 
@@ -130,6 +144,12 @@ public class EntityAnalyzer
         // Extract scannable attribute
         ExtractScannableAttribute(classDecl, semanticModel, entityModel);
 
+        // Extract entity property configuration
+        ExtractEntityPropertyConfiguration(classDecl, semanticModel, entityModel);
+
+        // Extract accessor configurations
+        ExtractAccessorConfigurations(classDecl, semanticModel, entityModel);
+
         return !string.IsNullOrEmpty(entityModel.TableName);
     }
 
@@ -137,6 +157,176 @@ public class EntityAnalyzer
     {
         var scannableAttribute = GetAttribute(classDecl, semanticModel, "ScannableAttribute");
         entityModel.IsScannable = scannableAttribute != null;
+    }
+
+    private void ExtractEntityPropertyConfiguration(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var entityPropertyAttribute = GetAttribute(classDecl, semanticModel, "GenerateEntityPropertyAttribute");
+        if (entityPropertyAttribute == null)
+        {
+            // Use default configuration
+            entityModel.EntityPropertyConfig = new EntityPropertyConfig();
+            return;
+        }
+
+        var config = new EntityPropertyConfig();
+
+        // Extract named arguments
+        if (entityPropertyAttribute.ArgumentList != null)
+        {
+            foreach (var arg in entityPropertyAttribute.ArgumentList.Arguments)
+            {
+                switch (arg.NameEquals?.Name.Identifier.ValueText)
+                {
+                    case "Name" when arg.Expression is LiteralExpressionSyntax nameLiteral:
+                        var name = nameLiteral.Token.ValueText;
+                        if (string.IsNullOrWhiteSpace(name))
+                        {
+                            // Emit FDDB004 diagnostic for empty entity property name
+                            ReportDiagnostic(DiagnosticDescriptors.EmptyEntityPropertyName,
+                                classDecl.Identifier.GetLocation(),
+                                entityModel.ClassName);
+                        }
+                        else
+                        {
+                            config.Name = name;
+                        }
+                        break;
+
+                    case "Generate" when arg.Expression is LiteralExpressionSyntax generateLiteral:
+                        config.Generate = bool.Parse(generateLiteral.Token.ValueText);
+                        break;
+
+                    case "Modifier" when arg.Expression is MemberAccessExpressionSyntax modifierExpr:
+                        // Extract the enum value (e.g., AccessModifier.Internal -> "Internal")
+                        var modifierName = modifierExpr.Name.Identifier.ValueText;
+                        if (Enum.TryParse<Oproto.FluentDynamoDb.Attributes.AccessModifier>(modifierName, out var modifier))
+                        {
+                            config.Modifier = modifier;
+                        }
+                        break;
+                }
+            }
+        }
+
+        entityModel.EntityPropertyConfig = config;
+    }
+
+    private void ExtractAccessorConfigurations(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var accessorAttributes = GetAttributes(classDecl, semanticModel, "GenerateAccessorsAttribute");
+        var configs = new List<AccessorConfig>();
+        var operationsSeen = new Dictionary<Oproto.FluentDynamoDb.Attributes.TableOperation, Location>();
+
+        foreach (var accessorAttr in accessorAttributes)
+        {
+            var config = new AccessorConfig();
+
+            // Extract named arguments
+            if (accessorAttr.ArgumentList != null)
+            {
+                foreach (var arg in accessorAttr.ArgumentList.Arguments)
+                {
+                    switch (arg.NameEquals?.Name.Identifier.ValueText)
+                    {
+                        case "Operations":
+                            config.Operations = ExtractOperationsFlags(arg.Expression);
+                            break;
+
+                        case "Generate" when arg.Expression is LiteralExpressionSyntax generateLiteral:
+                            config.Generate = bool.Parse(generateLiteral.Token.ValueText);
+                            break;
+
+                        case "Modifier" when arg.Expression is MemberAccessExpressionSyntax modifierExpr:
+                            var modifierName = modifierExpr.Name.Identifier.ValueText;
+                            if (Enum.TryParse<Oproto.FluentDynamoDb.Attributes.AccessModifier>(modifierName, out var modifier))
+                            {
+                                config.Modifier = modifier;
+                            }
+                            break;
+                    }
+                }
+            }
+
+            // Validate that operations don't conflict with previously seen configurations
+            var individualOperations = ExpandOperationFlags(config.Operations);
+            foreach (var operation in individualOperations)
+            {
+                if (operationsSeen.TryGetValue(operation, out var previousLocation))
+                {
+                    // Emit FDDB003 diagnostic for conflicting accessor configuration
+                    ReportDiagnostic(DiagnosticDescriptors.ConflictingAccessorConfiguration,
+                        accessorAttr.GetLocation(),
+                        entityModel.ClassName,
+                        operation.ToString());
+                }
+                else
+                {
+                    operationsSeen[operation] = accessorAttr.GetLocation();
+                }
+            }
+
+            configs.Add(config);
+        }
+
+        entityModel.AccessorConfigs = configs;
+    }
+
+    private Oproto.FluentDynamoDb.Attributes.TableOperation ExtractOperationsFlags(ExpressionSyntax expression)
+    {
+        // Handle single enum value: DynamoDbOperation.Get
+        if (expression is MemberAccessExpressionSyntax memberAccess)
+        {
+            var operationName = memberAccess.Name.Identifier.ValueText;
+            if (Enum.TryParse<Oproto.FluentDynamoDb.Attributes.TableOperation>(operationName, out var operation))
+            {
+                return operation;
+            }
+        }
+
+        // Handle bitwise OR: DynamoDbOperation.Get | DynamoDbOperation.Query
+        if (expression is BinaryExpressionSyntax binaryExpr && binaryExpr.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.BitwiseOrExpression))
+        {
+            var left = ExtractOperationsFlags(binaryExpr.Left);
+            var right = ExtractOperationsFlags(binaryExpr.Right);
+            return left | right;
+        }
+
+        // Default to All if we can't parse
+        return Oproto.FluentDynamoDb.Attributes.TableOperation.All;
+    }
+
+    private List<Oproto.FluentDynamoDb.Attributes.TableOperation> ExpandOperationFlags(Oproto.FluentDynamoDb.Attributes.TableOperation operations)
+    {
+        var result = new List<Oproto.FluentDynamoDb.Attributes.TableOperation>();
+
+        // If All is specified, expand to all individual operations
+        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.All))
+        {
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Get);
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Query);
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Scan);
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Put);
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete);
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Update);
+            return result;
+        }
+
+        // Otherwise, check each flag individually
+        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Get))
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Get);
+        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Query))
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Query);
+        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Scan))
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Scan);
+        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Put))
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Put);
+        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete))
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete);
+        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Update))
+            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Update);
+
+        return result;
     }
 
     private void ExtractProperties(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)

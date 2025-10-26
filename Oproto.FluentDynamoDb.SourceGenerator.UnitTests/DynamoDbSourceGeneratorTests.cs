@@ -132,6 +132,410 @@ namespace TestNamespace
         fieldsCode.Should().Contain("public const string SortKey = \"gsi_sk\";", "should define GSI sort key constant");
     }
 
+    [Fact]
+    public void Generator_WithSingleEntity_DoesNotRequireIsDefault()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - Single entity should work without IsDefault
+        result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "single entity tables don't require explicit IsDefault");
+        result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "single entity tables can't have multiple defaults");
+        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+    }
+
+    [Fact]
+    public void Generator_WithMultipleEntitiesNoDefault_EmitsFDDB001()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"")]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"")]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - Should emit FDDB001 error
+        result.Diagnostics.Should().Contain(d => d.Id == "FDDB001", "multiple entities without default should emit FDDB001");
+        var diagnostic = result.Diagnostics.First(d => d.Id == "FDDB001");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        diagnostic.GetMessage().Should().Contain("shared-table");
+        diagnostic.GetMessage().Should().Contain("no default specified");
+    }
+
+    [Fact]
+    public void Generator_WithMultipleEntitiesOneDefault_Succeeds()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"")]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - Should not emit FDDB001 or FDDB002
+        result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "one entity is marked as default");
+        result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "only one entity is marked as default");
+        result.GeneratedSources.Should().HaveCount(7); // 2 entities × (Fields + Keys + Entity) + 1 Table
+    }
+
+    [Fact]
+    public void Generator_WithMultipleEntitiesMultipleDefaults_EmitsFDDB002()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - Should emit FDDB002 error
+        result.Diagnostics.Should().Contain(d => d.Id == "FDDB002", "multiple entities marked as default should emit FDDB002");
+        var diagnostic = result.Diagnostics.First(d => d.Id == "FDDB002");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        diagnostic.GetMessage().Should().Contain("shared-table");
+        diagnostic.GetMessage().Should().Contain("multiple entities marked as default");
+    }
+
+    [Fact]
+    public void Generator_UsesTableNameForTableClass()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""my-app-table"")]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().BeEmpty();
+        
+        // Check that table class is named after the table name, not entity name
+        // Table name "my-app-table" should become "MyAppTableTable" (split by hyphen, capitalize each part, append "Table")
+        var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("Table.g.cs") && !s.FileName.Contains("Fields") && !s.FileName.Contains("Keys")).ToArray();
+        tableFiles.Should().HaveCount(1, "should generate exactly one table class");
+        
+        var tableCode = tableFiles[0].SourceText.ToString();
+        tableCode.ShouldContainClass("MyAppTableTable");
+        tableCode.Should().Contain("public partial class MyAppTableTable : DynamoDbTableBase", 
+            "table class should be named after table name (my-app-table -> MyAppTableTable), not entity name (Order)");
+        tableCode.Should().Contain("public MyAppTableTable(IAmazonDynamoDB client)", 
+            "constructor should use table class name");
+    }
+
+    [Fact]
+    public void Generator_MultipleEntitiesSameTable_GeneratesOneTableClass()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"")]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001" || d.Id == "FDDB002");
+        
+        // Should generate only one table class named after the table
+        var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("Table.g.cs") && !s.FileName.Contains("Fields") && !s.FileName.Contains("Keys")).ToArray();
+        tableFiles.Should().HaveCount(1, "multiple entities sharing same table should generate only one table class");
+        
+        var tableCode = tableFiles[0].SourceText.ToString();
+        // Table name "shared-table" should become "SharedTableTable" (split by hyphen, capitalize each part, append "Table")
+        tableCode.ShouldContainClass("SharedTableTable");
+        tableCode.Should().Contain("public partial class SharedTableTable : DynamoDbTableBase", 
+            "table class should be named after table name (shared-table -> SharedTableTable)");
+    }
+
+    [Fact]
+    public void Generator_WithMultipleEntities_GeneratesEntityAccessorProperties()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"")]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        // Debug: Check what files were generated
+        var allFiles = string.Join(", ", result.GeneratedSources.Select(s => System.IO.Path.GetFileName(s.FileName)));
+        
+        var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
+        tableFiles.Should().HaveCount(1, $"should generate one table class for shared-table. Generated files: {allFiles}");
+        
+        var tableCode = tableFiles[0].SourceText.ToString();
+        
+        // Should generate entity accessor properties with default pluralized names
+        tableCode.Should().Contain("public OrderAccessor Orders", "should generate accessor property for Order entity with pluralized name");
+        tableCode.Should().Contain("public OrderLineAccessor OrderLines", "should generate accessor property for OrderLine entity with pluralized name");
+        
+        // Should initialize accessors in constructor
+        tableCode.Should().Contain("Orders = new OrderAccessor(this);", "should initialize Order accessor in constructor");
+        tableCode.Should().Contain("OrderLines = new OrderLineAccessor(this);", "should initialize OrderLine accessor in constructor");
+    }
+
+    [Fact]
+    public void Generator_WithCustomEntityPropertyName_UsesCustomName()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    [GenerateEntityProperty(Name = ""CustomOrders"")]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"")]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
+        tableFiles.Should().HaveCount(1);
+        
+        var tableCode = tableFiles[0].SourceText.ToString();
+        
+        // Should use custom name instead of pluralized name
+        tableCode.Should().Contain("public OrderAccessor CustomOrders", "should use custom name from GenerateEntityProperty attribute");
+        tableCode.Should().Contain("CustomOrders = new OrderAccessor(this);", "should initialize accessor with custom name");
+    }
+
+    [Fact]
+    public void Generator_WithGenerateFalse_DoesNotGenerateAccessorProperty()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"")]
+    [GenerateEntityProperty(Generate = false)]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
+        tableFiles.Should().HaveCount(1);
+        
+        var tableCode = tableFiles[0].SourceText.ToString();
+        
+        // Should generate accessor for Order but not for OrderLine
+        tableCode.Should().Contain("public OrderAccessor Orders", "should generate accessor property for Order entity");
+        tableCode.Should().NotContain("OrderLineAccessor", "should not generate accessor for OrderLine when Generate = false");
+    }
+
+    [Fact]
+    public void Generator_WithInternalModifier_GeneratesInternalAccessorProperty()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""shared-table"", IsDefault = true)]
+    [GenerateEntityProperty(Modifier = AccessModifier.Internal)]
+    public partial class Order
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""shared-table"")]
+    public partial class OrderLine
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
+        tableFiles.Should().HaveCount(1);
+        
+        var tableCode = tableFiles[0].SourceText.ToString();
+        
+        // Should generate internal accessor property
+        tableCode.Should().Contain("internal OrderAccessor Orders", "should generate internal accessor property when Modifier = Internal");
+        tableCode.Should().Contain("public OrderLineAccessor OrderLines", "should generate public accessor property by default");
+    }
+
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(

@@ -11,6 +11,11 @@ keywords: ["index", "search", "topics", "alphabetical", "reference"]
 
 Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynamoDb documentation.
 
+> **Important**: The source generator supports both single-entity and multi-entity table patterns:
+> - **Single-entity tables**: Use table-level operations like `usersTable.Get()`, `usersTable.Query()`, etc.
+> - **Multi-entity tables**: Use entity accessor operations like `ordersTable.Orders.Get()`, `ordersTable.OrderLines.Query()`, etc.
+> - See [Single-Entity Tables](getting-started/SingleEntityTables.md) and [Multi-Entity Tables](advanced-topics/MultiEntityTables.md) for complete documentation.
+
 ---
 
 ## A
@@ -67,6 +72,14 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Complete guide: [Composite Entities](advanced-topics/CompositeEntities.md)
 - Concept: [Composite Entities](advanced-topics/CompositeEntities.md#concept-and-use-cases)
 - Examples: [Composite Entities](advanced-topics/CompositeEntities.md#real-world-examples)
+
+**Customization (Table Generation)**
+- Complete guide: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md)
+- Entity accessor names: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#custom-entity-accessor-names)
+- Disabling accessors: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#disabling-entity-accessor-generation)
+- Visibility modifiers: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#entity-accessor-visibility-modifiers)
+- Operation customization: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#operation-method-customization)
+- Partial class pattern: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#partial-class-pattern-for-custom-public-methods)
 
 **Composite Keys**
 - Definition: [Entity Definition](core-features/EntityDefinition.md#key-definitions)
@@ -183,6 +196,17 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Fields: [First Entity](getting-started/FirstEntity.md#generated-field-constants)
 - Keys: [First Entity](getting-started/FirstEntity.md#generated-key-builders)
 - Mapper: [First Entity](getting-started/FirstEntity.md#generated-mapper)
+- Customization: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md)
+
+**GenerateAccessors Attribute**
+- Reference: [Attribute Reference](reference/AttributeReference.md#generateaccessors-attribute)
+- Usage: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#operation-method-customization)
+- Examples: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#selective-operation-generation)
+
+**GenerateEntityProperty Attribute**
+- Reference: [Attribute Reference](reference/AttributeReference.md#generateentityproperty-attribute)
+- Usage: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#custom-entity-accessor-names)
+- Examples: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#custom-names)
 
 **Get Operations**
 - Basic get: [Basic Operations](core-features/BasicOperations.md#get-operations)
@@ -241,6 +265,12 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 **Migration Guide**
 - Complete guide: [Migration Guide](MigrationGuide.md)
 
+**Multi-Entity Tables**
+- Complete guide: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
+- Entity accessors: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#entity-accessor-properties)
+- Default entity: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#default-entity-selection)
+- Single-table design: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#single-table-design-pattern)
+
 **Multi-Item Entities**
 - Complete guide: [Composite Entities](advanced-topics/CompositeEntities.md#multi-item-entities-collections)
 - Examples: [Composite Entities](advanced-topics/CompositeEntities.md#example-1-e-commerce-order-with-line-items)
@@ -272,6 +302,7 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 **Partial Keyword**
 - Requirement: [First Entity](getting-started/FirstEntity.md#entity-class-requirements)
 - Troubleshooting: [Troubleshooting](reference/Troubleshooting.md#error-partial-class-required)
+- Custom methods: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#partial-class-pattern-for-custom-public-methods)
 
 **Partition Key**
 - Definition: [Entity Definition](core-features/EntityDefinition.md#partition-key)
@@ -367,13 +398,33 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 **Sensitive Data**
 - Logging redaction: [Field-Level Security](advanced-topics/FieldLevelSecurity.md#logging-redaction)
 - Encryption: [Field-Level Security](advanced-topics/FieldLevelSecurity.md#field-encryption)
+
+**Single-Entity Tables**
+- Complete guide: [Single-Entity Tables](getting-started/SingleEntityTables.md)
+- Table-level operations: [Single-Entity Tables](getting-started/SingleEntityTables.md#table-level-operations)
+- Generated table class: [Single-Entity Tables](getting-started/SingleEntityTables.md#generated-table-class)
 - Best practices: [Field-Level Security](advanced-topics/FieldLevelSecurity.md#best-practices)
 
 **Separators**
 - Custom separators: [Entity Definition](core-features/EntityDefinition.md#custom-separators)
 - In computed keys: [Entity Definition](core-features/EntityDefinition.md#default-separator-no-format)
 
+**Single-Entity Tables**
+- Complete guide: [Single-Entity Tables](getting-started/SingleEntityTables.md)
+- Simple pattern: [Single-Entity Tables](getting-started/SingleEntityTables.md#basic-single-entity-table)
+- No IsDefault required: [Single-Entity Tables](getting-started/SingleEntityTables.md#no-isdefault-required)
+- When to use: [Single-Entity Tables](getting-started/SingleEntityTables.md#when-to-use-single-entity-tables)
+
+**Multi-Entity Tables**
+- Complete guide: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
+- Default entity selection: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#default-entity-selection)
+- Entity accessors: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#entity-accessor-usage)
+- Table-level operations: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#table-level-operations-using-default-entity)
+- Customization: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#customizing-entity-accessors)
+- When to use: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#when-to-use-multi-entity-tables)
+
 **Single-Table Design**
+- Multi-entity tables: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
 - Discriminators: [Discriminators](advanced-topics/Discriminators.md)
 - Entity discriminator: [Entity Definition](core-features/EntityDefinition.md#flexible-discriminator-configuration)
 - Composite entities: [Composite Entities](advanced-topics/CompositeEntities.md)
@@ -400,6 +451,13 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Examples: [STS Integration](advanced-topics/STSIntegration.md#example-sts-scoped-credentials)
 
 ## T
+
+**Table Generation**
+- Single-entity tables: [Single-Entity Tables](getting-started/SingleEntityTables.md)
+- Multi-entity tables: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
+- Customization: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md)
+- Entity accessors: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#entity-accessor-properties)
+- Default entity: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md#default-entity-selection)
 
 **Templates**
 - Code examples: [Templates](templates/code-example-template.md)
@@ -441,6 +499,12 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 **Validation Errors**
 - Error handling: [Error Handling](reference/ErrorHandling.md#validation-errors)
 
+**Visibility Modifiers**
+- Overview: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#customization-attributes)
+- Entity accessors: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#entity-accessor-visibility-modifiers)
+- Operations: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#operation-visibility-modifiers)
+- Partial classes: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md#partial-class-pattern-for-custom-public-methods)
+
 ## W
 
 **Wildcard Patterns**
@@ -460,6 +524,7 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - [Quick Start](getting-started/QuickStart.md)
 - [Installation](getting-started/Installation.md)
 - [First Entity](getting-started/FirstEntity.md)
+- [Single-Entity Tables](getting-started/SingleEntityTables.md)
 
 **Core Features**
 - [Entity Definition](core-features/EntityDefinition.md)
@@ -471,6 +536,8 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - [Projection Models](core-features/ProjectionModels.md)
 
 **Advanced Topics**
+- [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
+- [Table Generation Customization](advanced-topics/TableGenerationCustomization.md)
 - [Composite Entities](advanced-topics/CompositeEntities.md)
 - [Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md)
 - [Field-Level Security](advanced-topics/FieldLevelSecurity.md)
@@ -493,6 +560,8 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Query data → [Querying Data](core-features/QueryingData.md)
 - Use format strings → [Expression Formatting](core-features/ExpressionFormatting.md)
 - Optimize queries with projections → [Projection Models](core-features/ProjectionModels.md)
+- Use single-table design → [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
+- Customize table generation → [Table Generation Customization](advanced-topics/TableGenerationCustomization.md)
 - Model complex relationships → [Composite Entities](advanced-topics/CompositeEntities.md)
 - Create GSIs → [Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md)
 - Protect sensitive data → [Field-Level Security](advanced-topics/FieldLevelSecurity.md)

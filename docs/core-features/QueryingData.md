@@ -16,6 +16,11 @@ related: ["BasicOperations.md", "ExpressionFormatting.md", "EntityDefinition.md"
 
 This guide covers querying and scanning data in DynamoDB using Oproto.FluentDynamoDb with expression formatting. Query operations are the most efficient way to retrieve multiple items when you know the partition key.
 
+> **Table Operation Patterns**: Examples in this guide use a manual table class (inheriting from `DynamoDbTableBase`) for clarity. For source-generated tables:
+> - **Single-entity tables**: Use table-level operations like `usersTable.Query()`, `usersTable.Get()`, etc.
+> - **Multi-entity tables**: Use entity accessor operations like `ordersTable.Orders.Query()`, `ordersTable.OrderLines.Get()`, etc.
+> - See [Single-Entity Tables](../getting-started/SingleEntityTables.md) and [Multi-Entity Tables](../advanced-topics/MultiEntityTables.md) for details.
+
 ## Query vs Scan
 
 **Query Operations:**

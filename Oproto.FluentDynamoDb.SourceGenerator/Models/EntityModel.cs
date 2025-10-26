@@ -62,6 +62,24 @@ public class EntityModel
     public bool IsScannable { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether this entity is the default entity for the table.
+    /// When multiple entities share the same table, the default entity is used for table-level operations.
+    /// </summary>
+    public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// Gets or sets the entity property configuration.
+    /// Controls how the entity accessor property is generated on the table class.
+    /// </summary>
+    public EntityPropertyConfig EntityPropertyConfig { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the list of accessor configurations.
+    /// Each configuration controls the generation and visibility of specific DynamoDB operations.
+    /// </summary>
+    public List<AccessorConfig> AccessorConfigs { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets the original class declaration syntax node.
     /// </summary>
     public ClassDeclarationSyntax? ClassDeclaration { get; set; }

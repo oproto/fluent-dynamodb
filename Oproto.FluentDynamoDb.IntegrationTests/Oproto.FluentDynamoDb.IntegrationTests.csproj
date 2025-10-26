@@ -47,15 +47,9 @@
 
     <!-- Include source generator as analyzer for compile-time generation -->
     <ItemGroup Condition="'$(DesignTimeBuild)' != 'true'">
-        <Analyzer Include="..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll" 
-                  Condition="Exists('..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll')" />
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
     </ItemGroup>
-
-    <!-- Build source generator before integration tests -->
-    <Target Name="BuildSourceGenerator" BeforeTargets="BeforeBuild;BeforeCompile" Condition="'$(DesignTimeBuild)' != 'true'">
-        <MSBuild Projects="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj" 
-                 Targets="Build" 
-                 Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0" />
-    </Target>
 
 </Project>

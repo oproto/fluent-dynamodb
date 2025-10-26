@@ -2,6 +2,8 @@
 
 Welcome to the documentation hub for Oproto.FluentDynamoDb - a fluent-style API wrapper for Amazon DynamoDB with automatic code generation capabilities.
 
+> **New**: The source generator now supports both single-entity and multi-entity table patterns, enabling true single-table design with entity-specific accessors. See [Single-Entity Tables](getting-started/SingleEntityTables.md) and [Multi-Entity Tables](advanced-topics/MultiEntityTables.md) for details.
+
 ## 📖 Documentation Structure
 
 This documentation is organized into four main sections to help you find what you need quickly:
@@ -12,6 +14,7 @@ New to the library? Start here to get up and running quickly.
 - **[Quick Start](getting-started/QuickStart.md)** - Get productive in 5 minutes
 - **[Installation](getting-started/Installation.md)** - Detailed installation and setup
 - **[First Entity](getting-started/FirstEntity.md)** - Deep dive into entity definition
+- **[Single-Entity Tables](getting-started/SingleEntityTables.md)** - Simple one-entity-per-table pattern
 
 ### 🔧 Core Features
 Learn the essential features you'll use every day.
@@ -31,6 +34,7 @@ Learn the essential features you'll use every day.
 ### 🎯 Advanced Topics
 Explore advanced patterns and optimizations.
 
+- **[Multi-Entity Tables](advanced-topics/MultiEntityTables.md)** - Single-table design with multiple entity types
 - **[Advanced Type System](advanced-topics/AdvancedTypes.md)** - Maps, Sets, Lists, TTL, JSON blobs, and blob storage
 - **[Composite Entities](advanced-topics/CompositeEntities.md)** - Multi-item and related entities
 - **[Discriminators](advanced-topics/Discriminators.md)** - Flexible entity type identification for single-table design
@@ -82,6 +86,9 @@ Practical code examples for common scenarios.
 
 **Optimize queries with projections**
 → [Projection Models](core-features/ProjectionModels.md)
+
+**Use single-table design**
+→ [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
 
 **Configure logging and diagnostics**
 → [Logging Configuration](core-features/LoggingConfiguration.md)

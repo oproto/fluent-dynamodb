@@ -568,4 +568,296 @@ namespace TestNamespace
 
         return (classDecl, semanticModel);
     }
+
+    [Fact]
+    public void AnalyzeEntity_WithIsDefaultTrue_ExtractsIsDefault()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"", IsDefault = true)]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.IsDefault.Should().BeTrue("entity has IsDefault = true");
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithoutIsDefault_DefaultsToFalse()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.IsDefault.Should().BeFalse("IsDefault not specified");
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithGenerateEntityProperty_ExtractsConfiguration()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [GenerateEntityProperty(Name = ""CustomOrders"", Generate = true, Modifier = AccessModifier.Internal)]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.EntityPropertyConfig.Should().NotBeNull();
+        result.EntityPropertyConfig.Name.Should().Be("CustomOrders");
+        result.EntityPropertyConfig.Generate.Should().BeTrue();
+        result.EntityPropertyConfig.Modifier.Should().Be(Oproto.FluentDynamoDb.Attributes.AccessModifier.Internal);
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithEmptyEntityPropertyName_ReportsDiagnostic()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [GenerateEntityProperty(Name = """")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "FDDB004");
+        analyzer.Diagnostics.First(d => d.Id == "FDDB004").Severity.Should().Be(DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithGenerateAccessors_ExtractsConfiguration()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [GenerateAccessors(Operations = TableOperation.Get | TableOperation.Query, Modifier = AccessModifier.Public)]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.AccessorConfigs.Should().HaveCount(1);
+        var config = result.AccessorConfigs[0];
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Get);
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Query);
+        config.Generate.Should().BeTrue();
+        config.Modifier.Should().Be(Oproto.FluentDynamoDb.Attributes.AccessModifier.Public);
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithMultipleGenerateAccessors_ExtractsAllConfigurations()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [GenerateAccessors(Operations = TableOperation.Get, Modifier = AccessModifier.Internal)]
+    [GenerateAccessors(Operations = TableOperation.Query, Modifier = AccessModifier.Public)]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.AccessorConfigs.Should().HaveCount(2);
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithConflictingGenerateAccessors_ReportsDiagnostic()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [GenerateAccessors(Operations = TableOperation.Get, Modifier = AccessModifier.Internal)]
+    [GenerateAccessors(Operations = TableOperation.Get, Modifier = AccessModifier.Public)]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "FDDB003");
+        analyzer.Diagnostics.First(d => d.Id == "FDDB003").Severity.Should().Be(DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithGenerateAccessorsAll_ExpandsToAllOperations()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [GenerateAccessors(Operations = TableOperation.All, Modifier = AccessModifier.Internal)]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.AccessorConfigs.Should().HaveCount(1);
+        var config = result.AccessorConfigs[0];
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.All);
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithGenerateAccessorsFalse_ExtractsGenerateFalse()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [GenerateAccessors(Operations = TableOperation.Delete, Generate = false)]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.AccessorConfigs.Should().HaveCount(1);
+        var config = result.AccessorConfigs[0];
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete);
+        config.Generate.Should().BeFalse();
+        analyzer.Diagnostics.Should().BeEmpty();
+    }
 }

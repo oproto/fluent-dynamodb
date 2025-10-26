@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Oproto.FluentDynamoDb.SourceGenerator.Analysis;
+using Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using System.Collections.Immutable;
@@ -144,15 +145,29 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             {
                 context.AddSource($"{entity.ClassName}SecurityMetadata.g.cs", securityMetadata);
             }
+        }
 
-            // Generate table class for table entities (not nested entities)
-            if (!isNestedEntity)
+        // Group entities by table name for table class generation
+        var entitiesByTable = GroupEntitiesByTableName(validEntityModels);
+
+        // Validate default entity configuration for each table
+        foreach (var tableGroup in entitiesByTable)
+        {
+            ValidateDefaultEntity(tableGroup.Value, context);
+        }
+
+        // Generate table classes for each table group
+        foreach (var tableGroup in entitiesByTable)
+        {
+            var tableName = tableGroup.Key;
+            var tableEntities = tableGroup.Value;
+            
+            var tableCode = TableGenerator.GenerateTableClass(tableName, tableEntities);
+            if (!string.IsNullOrEmpty(tableCode))
             {
-                var tableCode = TableGenerator.GenerateTableClass(entity);
-                if (!string.IsNullOrEmpty(tableCode))
-                {
-                    context.AddSource($"{entity.ClassName}Table.g.cs", tableCode);
-                }
+                // Use table name for the file name
+                var tableClassName = GetTableClassName(tableName);
+                context.AddSource($"{tableClassName}.g.cs", tableCode);
             }
         }
 
@@ -224,6 +239,83 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
     {
         // Use MapperGenerator as the single source of truth for entity implementation
         return MapperGenerator.GenerateEntityImplementation(entity);
+    }
+
+    /// <summary>
+    /// Groups entities by their table name.
+    /// Entities with the same TableName are grouped together for consolidated table generation.
+    /// Nested entities (with TableName starting with "_entity_") are excluded.
+    /// </summary>
+    /// <param name="entities">List of all entity models.</param>
+    /// <returns>Dictionary mapping table names to lists of entities.</returns>
+    private static Dictionary<string, List<EntityModel>> GroupEntitiesByTableName(List<EntityModel> entities)
+    {
+        return entities
+            .Where(e => !string.IsNullOrEmpty(e.TableName) && !e.TableName.StartsWith("_entity_"))
+            .GroupBy(e => e.TableName)
+            .ToDictionary(g => g.Key!, g => g.ToList());
+    }
+
+    /// <summary>
+    /// Validates default entity configuration for a table.
+    /// Ensures that:
+    /// - Single-entity tables work without explicit IsDefault
+    /// - Multi-entity tables have exactly one default entity
+    /// </summary>
+    /// <param name="entities">List of entities in the table.</param>
+    /// <param name="context">Source production context for reporting diagnostics.</param>
+    private static void ValidateDefaultEntity(List<EntityModel> entities, SourceProductionContext context)
+    {
+        if (entities.Count == 0)
+            return;
+
+        var tableName = entities[0].TableName;
+        var defaultEntities = entities.Where(e => e.IsDefault).ToList();
+
+        // Single entity table - no validation needed, it's implicitly the default
+        if (entities.Count == 1)
+            return;
+
+        // Multiple entities - must have exactly one default
+        if (defaultEntities.Count == 0)
+        {
+            // Error: Multiple entities but no default specified
+            var location = entities[0].ClassDeclaration?.Identifier.GetLocation() ?? Location.None;
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.NoDefaultEntitySpecified,
+                location,
+                tableName));
+        }
+        else if (defaultEntities.Count > 1)
+        {
+            // Error: Multiple defaults specified
+            // Report on the second default entity (first one is valid)
+            var location = defaultEntities[1].ClassDeclaration?.Identifier.GetLocation() ?? Location.None;
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.MultipleDefaultEntities,
+                location,
+                tableName));
+        }
+    }
+
+    /// <summary>
+    /// Gets the table class name from a table name.
+    /// Converts table name to PascalCase and appends "Table".
+    /// </summary>
+    /// <param name="tableName">The DynamoDB table name.</param>
+    /// <returns>The generated table class name.</returns>
+    private static string GetTableClassName(string tableName)
+    {
+        // Split by hyphens and underscores, capitalize each part
+        var parts = tableName.Split(new[] { '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        var cleanName = string.Join("", parts.Select(part => 
+        {
+            if (string.IsNullOrEmpty(part))
+                return part;
+            return char.ToUpperInvariant(part[0]) + part.Substring(1);
+        }));
+        
+        return $"{cleanName}Table";
     }
     
     /// <summary>
