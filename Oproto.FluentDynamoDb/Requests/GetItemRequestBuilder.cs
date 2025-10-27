@@ -53,7 +53,12 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// <returns>The AttributeNameInternal instance used by this builder.</returns>
     public AttributeNameInternal GetAttributeNameHelper() => _attrN;
 
-
+    /// <summary>
+    /// Gets the DynamoDB client for extension method access.
+    /// This is used by Primary API extension methods to call AWS SDK directly.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
 
     /// <summary>
     /// Sets key values using a configuration action for extension method access.
@@ -154,13 +159,15 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     }
 
     /// <summary>
-    /// Executes the GetItem operation asynchronously using the configured parameters.
+    /// Executes the GetItem operation asynchronously and returns the raw AWS SDK GetItemResponse.
+    /// This is the Advanced API method that does NOT populate DynamoDbOperationContext.
+    /// For most use cases, prefer the Primary API extension method GetItemAsync() which populates context.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, containing the GetItemResponse.</returns>
+    /// <returns>A task representing the asynchronous operation, containing the raw GetItemResponse from AWS SDK.</returns>
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table doesn't exist.</exception>
     /// <exception cref="ProvisionedThroughputExceededException">Thrown when the request rate is too high.</exception>
-    public async Task<GetItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<GetItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToGetItemRequest();
         

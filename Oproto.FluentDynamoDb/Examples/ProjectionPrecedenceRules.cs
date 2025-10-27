@@ -102,7 +102,7 @@ public class ProjectionPrecedenceRulesExamples
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .WithProjection("id") // Overrides index projection "id, amount, status, created_date"
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: Only "id" is fetched
 
         // Case 2: Manual projection overrides generated projection (when using ToListAsync<T>)
@@ -111,7 +111,7 @@ public class ProjectionPrecedenceRulesExamples
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .WithProjection("id, amount") // Overrides TransactionSummary's projection "id, amount, status"
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: Only "id, amount" are fetched
 
         // Case 3: Manual projection can expand or reduce the projection
@@ -119,7 +119,7 @@ public class ProjectionPrecedenceRulesExamples
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .WithProjection("id, amount, status, created_date, description, metadata") // Expands projection
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: All specified fields are fetched, including those not in index projection
     }
 
@@ -148,21 +148,21 @@ public class ProjectionPrecedenceRulesExamples
         var response1 = await table.StatusIndexWithProjection.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: "id, amount, status, created_date" are fetched (from index projection)
 
         // Case 2: Index without projection fetches all fields
         var response2 = await table.StatusIndexNoProjection.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: All fields are fetched (no projection configured)
 
         // Case 3: Generic index projection is also automatically applied
         var response3 = await table.StatusIndexTyped.Query<TransactionSummary>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: "id, amount, status, created_date" are fetched (from index projection)
     }
 
@@ -250,7 +250,7 @@ public class ProjectionPrecedenceRulesExamples
         var response = await table.StatusIndex.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: "id, amount" are fetched (from manual index definition)
     }
 
@@ -271,14 +271,14 @@ public class ProjectionPrecedenceRulesExamples
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .WithProjection("id") // Overrides everything
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Fetches: id
 
         // Level 2: Index constructor projection - Second precedence
         var indexProjection = await table.StatusIndexWithProjection.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Fetches: id, amount, status, created_date
 
         // Level 3: Generated projection - Third precedence
@@ -293,7 +293,7 @@ public class ProjectionPrecedenceRulesExamples
         var noProjection = await table.StatusIndexNoProjection.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Fetches: All fields
     }
 
@@ -347,21 +347,21 @@ public class ProjectionPrecedenceRulesExamples
             var standard = await table.StatusIndex.Query<Transaction>()
                 .Where("status = :status")
                 .WithValue(":status", "ACTIVE")
-                .ExecuteAsync();
+                .ToDynamoDbResponseAsync();
 
             // Exceptional case: need additional fields
             var detailed = await table.StatusIndex.Query<Transaction>()
                 .Where("status = :status")
                 .WithValue(":status", "ACTIVE")
                 .WithProjection("id, amount, status, created_date, description, metadata")
-                .ExecuteAsync();
+                .ToDynamoDbResponseAsync();
 
             // Exceptional case: need fewer fields
             var minimal = await table.StatusIndex.Query<Transaction>()
                 .Where("status = :status")
                 .WithValue(":status", "ACTIVE")
                 .WithProjection("id")
-                .ExecuteAsync();
+                .ToDynamoDbResponseAsync();
         }
 
         /// <summary>
@@ -425,7 +425,7 @@ public class ProjectionPrecedenceRulesExamples
             var phase1 = await table.StatusIndexWithProjection.Query<Transaction>()
                 .Where("status = :status")
                 .WithValue(":status", "ACTIVE")
-                .ExecuteAsync();
+                .ToDynamoDbResponseAsync();
 
             // Phase 2: Add projection models and use ToListAsync<T>
             // Manual index projection still works as fallback
@@ -455,21 +455,21 @@ public class ProjectionPrecedenceRulesExamples
                 .WithValue(":status", "ACTIVE")
                 .WithProjection("id, status") // Override for minimal data
                 .Take(100)
-                .ExecuteAsync();
+                .ToDynamoDbResponseAsync();
 
             // Detail query: use index default projection
             var detailItem = await table.StatusIndexWithProjection.Query<Transaction>()
                 .Where("status = :status AND id = :id")
                 .WithValue(":status", "ACTIVE")
                 .WithValue(":id", "TXN123")
-                .ExecuteAsync();
+                .ToDynamoDbResponseAsync();
 
             // Export query: fetch all fields
             var exportItems = await table.StatusIndexWithProjection.Query<Transaction>()
                 .Where("status = :status")
                 .WithValue(":status", "ACTIVE")
                 .WithProjection("id, amount, status, created_date, description, metadata") // Override for all data
-                .ExecuteAsync();
+                .ToDynamoDbResponseAsync();
         }
 
         /// <summary>
@@ -493,7 +493,7 @@ public class ProjectionPrecedenceRulesExamples
             }
             // Otherwise, use index default projection
 
-            var response = await query.ExecuteAsync();
+            var response = await query.ToDynamoDbResponseAsync();
         }
     }
 

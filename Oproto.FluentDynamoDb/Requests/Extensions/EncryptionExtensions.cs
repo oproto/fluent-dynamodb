@@ -22,7 +22,7 @@ namespace Oproto.FluentDynamoDb.Requests.Extensions;
 ///     .ExecuteAsync();
 /// 
 /// // Option 2: Ambient context (for middleware scenarios)
-/// EncryptionContext.Current = "tenant-123";
+/// DynamoDbOperationContext.EncryptionContextId = "tenant-123";
 /// await userTable.PutItem(user).ExecuteAsync();
 /// </code>
 /// </para>

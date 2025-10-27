@@ -11,30 +11,40 @@ namespace Oproto.FluentDynamoDb.Requests.Extensions;
 public static class EnhancedExecuteAsyncExtensions
 {
     /// <summary>
-    /// Executes a GetItem operation and maps the result to a strongly-typed entity.
+    /// Executes a GetItem operation and returns a strongly-typed entity (Primary API).
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The GetItemRequestBuilder instance.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A GetItemResponse containing the mapped entity or null if not found.</returns>
+    /// <returns>The mapped entity or null if not found.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
-    public static async Task<GetItemResponse<T>> ExecuteAsync<T>(
+    public static async Task<T?> GetItemAsync<T>(
         this GetItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of builder's ExecuteAsync
+            var request = builder.ToGetItemRequest();
+            var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken);
 
-            return new GetItemResponse<T>
+            // Populate context with GetItemResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
             {
-                Item = response.Item != null && T.MatchesEntity(response.Item)
-                    ? T.FromDynamoDb<T>(response.Item)
-                    : null,
+                OperationType = "GetItem",
+                TableName = request.TableName,
                 ConsumedCapacity = response.ConsumedCapacity,
+                RawItem = response.Item,
                 ResponseMetadata = response.ResponseMetadata
             };
+
+            // Return POCO (nullable)
+            if (response.Item == null || !T.MatchesEntity(response.Item))
+                return null;
+
+            return T.FromDynamoDb<T>(response.Item);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -44,17 +54,18 @@ public static class EnhancedExecuteAsyncExtensions
     }
 
     /// <summary>
-    /// Executes a GetItem operation and maps the result to a strongly-typed entity with blob reference support.
+    /// Executes a GetItem operation and returns a strongly-typed entity with blob reference support (Primary API).
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The GetItemRequestBuilder instance.</param>
     /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A GetItemResponse containing the mapped entity or null if not found.</returns>
+    /// <returns>The mapped entity or null if not found.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<GetItemResponse<T>> ExecuteAsync<T>(
+    public static async Task<T?> GetItemAsync<T>(
         this GetItemRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
@@ -65,17 +76,23 @@ public static class EnhancedExecuteAsyncExtensions
 
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of builder's ExecuteAsync
+            var request = builder.ToGetItemRequest();
+            var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken);
 
-            if (response.Item == null || !T.MatchesEntity(response.Item))
+            // Populate context with GetItemResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
             {
-                return new GetItemResponse<T>
-                {
-                    Item = null,
-                    ConsumedCapacity = response.ConsumedCapacity,
-                    ResponseMetadata = response.ResponseMetadata
-                };
-            }
+                OperationType = "GetItem",
+                TableName = request.TableName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                RawItem = response.Item,
+                ResponseMetadata = response.ResponseMetadata
+            };
+
+            // Return POCO (nullable)
+            if (response.Item == null || !T.MatchesEntity(response.Item))
+                return null;
 
             // Use reflection to check if the entity has async FromDynamoDb method
             var fromDynamoDbAsyncMethod = typeof(T).GetMethod(
@@ -85,25 +102,17 @@ public static class EnhancedExecuteAsyncExtensions
                 new[] { typeof(Dictionary<string, AttributeValue>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
                 null);
 
-            T? item;
             if (fromDynamoDbAsyncMethod != null)
             {
                 // Entity has blob references - use async method
                 var task = (Task<T>)fromDynamoDbAsyncMethod.Invoke(null, new object[] { response.Item, blobProvider, cancellationToken })!;
-                item = await task;
+                return await task;
             }
             else
             {
                 // Entity doesn't have blob references - use synchronous method
-                item = T.FromDynamoDb<T>(response.Item);
+                return T.FromDynamoDb<T>(response.Item);
             }
-
-            return new GetItemResponse<T>
-            {
-                Item = item,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ResponseMetadata = response.ResponseMetadata
-            };
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -116,6 +125,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Executes a Query operation and maps each DynamoDB item to a separate entity instance (1:1 mapping).
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Use this method when you want to work with individual items as separate entities.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -129,7 +139,23 @@ public static class EnhancedExecuteAsyncExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToQueryRequest();
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+
+            // Populate context with QueryResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Query",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
             var entityItems = response.Items
@@ -150,6 +176,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Executes a Query operation and maps each DynamoDB item to a separate entity instance (1:1 mapping) with blob reference support.
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -169,7 +196,23 @@ public static class EnhancedExecuteAsyncExtensions
 
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToQueryRequest();
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+
+            // Populate context with QueryResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Query",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter matching items
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -211,6 +254,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Multiple DynamoDB items with the same partition key are combined into single T instances.
     /// Primary entity is identified by sort key patterns, related entities populate properties using [RelatedEntity] attributes.
     /// Use this method when you want to work with composite entities that span multiple DynamoDB items.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -224,7 +268,23 @@ public static class EnhancedExecuteAsyncExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToQueryRequest();
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+
+            // Populate context with QueryResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Query",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter items that match the entity type
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -250,6 +310,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Executes a Query operation and combines multiple DynamoDB items into composite entities (N:1 mapping) with blob reference support.
     /// Multiple DynamoDB items with the same partition key are combined into single T instances.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -269,7 +330,23 @@ public static class EnhancedExecuteAsyncExtensions
 
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToQueryRequest();
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+
+            // Populate context with QueryResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Query",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter items that match the entity type
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -333,6 +410,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Multiple DynamoDB items with the same partition key are combined into a single T instance.
     /// Primary entity is identified by sort key patterns, related entities populate properties using [RelatedEntity] attributes.
     /// Use this method when you expect to get a single composite entity from the query.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -346,7 +424,23 @@ public static class EnhancedExecuteAsyncExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToQueryRequest();
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+
+            // Populate context with QueryResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Query",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter items that match the entity type
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -368,6 +462,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Executes a Query operation and returns a single composite entity (N:1 mapping) with blob reference support.
     /// Multiple DynamoDB items with the same partition key are combined into a single T instance.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -387,7 +482,23 @@ public static class EnhancedExecuteAsyncExtensions
 
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToQueryRequest();
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+
+            // Populate context with QueryResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Query",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter items that match the entity type
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -510,6 +621,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Executes a Scan operation and maps each DynamoDB item to a separate entity instance (1:1 mapping).
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The ScanRequestBuilder instance.</param>
@@ -523,7 +635,23 @@ public static class EnhancedExecuteAsyncExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToScanRequest();
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+
+            // Populate context with ScanResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Scan",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
             var entityItems = response.Items
@@ -545,6 +673,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The ScanRequestBuilder instance.</param>
@@ -564,7 +693,23 @@ public static class EnhancedExecuteAsyncExtensions
 
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToScanRequest();
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+
+            // Populate context with ScanResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Scan",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter matching items
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -605,6 +750,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Executes a Scan operation and combines multiple DynamoDB items into composite entities (N:1 mapping).
     /// Multiple DynamoDB items with the same partition key are combined into single T instances.
     /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The ScanRequestBuilder instance.</param>
@@ -618,7 +764,23 @@ public static class EnhancedExecuteAsyncExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToScanRequest();
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+
+            // Populate context with ScanResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Scan",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter items that match the entity type
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -645,6 +807,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Multiple DynamoDB items with the same partition key are combined into single T instances.
     /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The ScanRequestBuilder instance.</param>
@@ -664,7 +827,23 @@ public static class EnhancedExecuteAsyncExtensions
 
         try
         {
-            var response = await builder.ExecuteAsync(cancellationToken);
+            // Call AWS SDK directly instead of ExecuteAsync()
+            var request = builder.ToScanRequest();
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+
+            // Populate context with ScanResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Scan",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = response.Items,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Filter items that match the entity type
             var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
@@ -723,5 +902,171 @@ public static class EnhancedExecuteAsyncExtensions
         }
     }
 
+    /// <summary>
+    /// Executes a PutItem operation and stores the entity in DynamoDB (Primary API).
+    /// This method populates DynamoDbOperationContext.Current with operation metadata including PreOperationValues.
+    /// PutItem creates a new item or completely replaces an existing item with the same primary key.
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The PutItemRequestBuilder instance.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    public static async Task PutAsync<T>(
+        this PutItemRequestBuilder<T> builder,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        try
+        {
+            // Call AWS SDK directly instead of builder's ExecuteAsync
+            var request = builder.ToPutItemRequest();
+            var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken);
+
+            // Populate context with PutItemResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "PutItem",
+                TableName = request.TableName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCollectionMetrics = response.ItemCollectionMetrics,
+                PreOperationValues = response.Attributes, // If ReturnValues was set to ALL_OLD
+                ResponseMetadata = response.ResponseMetadata
+            };
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException))
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to execute PutItem operation. Error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Executes a PutItem operation with blob reference support and stores the entity in DynamoDB (Primary API).
+    /// This method populates DynamoDbOperationContext.Current with operation metadata including PreOperationValues.
+    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The PutItemRequestBuilder instance.</param>
+    /// <param name="blobProvider">The blob storage provider for storing blob references.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
+    public static async Task PutAsync<T>(
+        this PutItemRequestBuilder<T> builder,
+        IBlobStorageProvider blobProvider,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        if (blobProvider == null)
+            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
+
+        try
+        {
+            // Call AWS SDK directly instead of builder's ExecuteAsync
+            var request = builder.ToPutItemRequest();
+            var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken);
+
+            // Populate context with PutItemResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "PutItem",
+                TableName = request.TableName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCollectionMetrics = response.ItemCollectionMetrics,
+                PreOperationValues = response.Attributes, // If ReturnValues was set to ALL_OLD
+                ResponseMetadata = response.ResponseMetadata
+            };
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException))
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to execute PutItem operation. Error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Executes an UpdateItem operation and modifies the entity in DynamoDB (Primary API).
+    /// This method populates DynamoDbOperationContext.Current with operation metadata including Pre/PostOperationValues.
+    /// UpdateItem modifies existing items or creates them if they don't exist (upsert behavior).
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    public static async Task UpdateAsync<T>(
+        this UpdateItemRequestBuilder<T> builder,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        try
+        {
+            // Call AWS SDK directly instead of builder's ExecuteAsync
+            var request = builder.ToUpdateItemRequest();
+            var response = await builder.GetDynamoDbClient().UpdateItemAsync(request, cancellationToken);
+
+            // Populate context with UpdateItemResponse metadata
+            // Note: Attributes contains either pre-operation values (ALL_OLD/UPDATED_OLD) or post-operation values (ALL_NEW/UPDATED_NEW)
+            // depending on the ReturnValues setting
+            var isPreOperation = request.ReturnValues == ReturnValue.ALL_OLD || request.ReturnValues == ReturnValue.UPDATED_OLD;
+            var isPostOperation = request.ReturnValues == ReturnValue.ALL_NEW || request.ReturnValues == ReturnValue.UPDATED_NEW;
+
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "UpdateItem",
+                TableName = request.TableName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCollectionMetrics = response.ItemCollectionMetrics,
+                PreOperationValues = isPreOperation ? response.Attributes : null,
+                PostOperationValues = isPostOperation ? response.Attributes : null,
+                ResponseMetadata = response.ResponseMetadata
+            };
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException))
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to execute UpdateItem operation. Error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Executes a DeleteItem operation and removes the entity from DynamoDB (Primary API).
+    /// This method populates DynamoDbOperationContext.Current with operation metadata including PreOperationValues.
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The DeleteItemRequestBuilder instance.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    public static async Task DeleteAsync<T>(
+        this DeleteItemRequestBuilder<T> builder,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        try
+        {
+            // Call AWS SDK directly instead of builder's ExecuteAsync
+            var request = builder.ToDeleteItemRequest();
+            var response = await builder.GetDynamoDbClient().DeleteItemAsync(request, cancellationToken);
+
+            // Populate context with DeleteItemResponse metadata
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "DeleteItem",
+                TableName = request.TableName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCollectionMetrics = response.ItemCollectionMetrics,
+                PreOperationValues = response.Attributes, // If ReturnValues was set to ALL_OLD
+                ResponseMetadata = response.ResponseMetadata
+            };
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException))
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to execute DeleteItem operation. Error: {ex.Message}", ex);
+        }
+    }
 
 }

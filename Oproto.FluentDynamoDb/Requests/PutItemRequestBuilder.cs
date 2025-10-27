@@ -70,6 +70,13 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     public AttributeNameInternal GetAttributeNameHelper() => _attrN;
 
     /// <summary>
+    /// Gets the DynamoDB client for extension method access.
+    /// This is used by Primary API extension methods to call AWS SDK directly.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
@@ -214,11 +221,13 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     }
 
     /// <summary>
-    /// Executes the PutItem operation asynchronously using the configured parameters.
+    /// Executes the PutItem operation asynchronously and returns the raw AWS SDK PutItemResponse.
+    /// This is the Advanced API method that does NOT populate DynamoDbOperationContext.
+    /// For most use cases, prefer the Primary API extension method PutAsync() which populates context.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, containing the PutItemResponse.</returns>
-    public async Task<PutItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    /// <returns>A task representing the asynchronous operation, containing the raw PutItemResponse from AWS SDK.</returns>
+    public async Task<PutItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToPutItemRequest();
         

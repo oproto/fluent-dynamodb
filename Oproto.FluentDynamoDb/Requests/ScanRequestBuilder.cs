@@ -71,6 +71,13 @@ public class ScanRequestBuilder<TEntity> :
     public AttributeNameInternal GetAttributeNameHelper() => _attrN;
 
     /// <summary>
+    /// Gets the DynamoDB client for extension method access.
+    /// This is used by Primary API extension methods to call AWS SDK directly.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
     /// Sets the filter expression on the builder.
     /// If a filter expression already exists, combines them with AND logic.
     /// </summary>
@@ -250,7 +257,9 @@ public class ScanRequestBuilder<TEntity> :
     }
 
     /// <summary>
-    /// Executes the scan operation asynchronously.
+    /// Executes the Scan operation asynchronously and returns the raw AWS SDK ScanResponse.
+    /// This is the Advanced API method that does NOT populate DynamoDbOperationContext.
+    /// For most use cases, prefer the Primary API extension methods like ToListAsync() which populate context.
     /// 
     /// Performance Warning: This operation can be expensive on large tables.
     /// Consider the following best practices:
@@ -260,9 +269,9 @@ public class ScanRequestBuilder<TEntity> :
     /// - Monitor consumed capacity to avoid unexpected costs
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, containing the scan response.</returns>
+    /// <returns>A task representing the asynchronous operation, containing the raw ScanResponse from AWS SDK.</returns>
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table or index doesn't exist.</exception>
-    public async Task<ScanResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<ScanResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToScanRequest();
         

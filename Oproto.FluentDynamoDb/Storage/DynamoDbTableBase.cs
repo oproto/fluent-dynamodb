@@ -65,13 +65,21 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </summary>
     /// <returns>The current encryption context identifier, or null if not set.</returns>
     /// <remarks>
-    /// The encryption context can be set using EncryptionContext.Current or per-operation
+    /// The encryption context can be set using DynamoDbOperationContext.EncryptionContextId or per-operation
     /// using WithEncryptionContext() on request builders. The per-operation context takes
     /// precedence over the ambient context.
     /// </remarks>
     protected string? GetEncryptionContext()
     {
-        return EncryptionContext.GetEffectiveContext();
+        // Check for operation-specific context first (set via WithEncryptionContext extension)
+        var operationContext = Requests.Extensions.EncryptionExtensions.GetOperationContext();
+        if (operationContext != null)
+        {
+            return operationContext;
+        }
+
+        // Fall back to ambient context from unified context
+        return DynamoDbOperationContext.EncryptionContextId;
     }
 
     /// <summary>
@@ -181,7 +189,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
 
     /// <summary>
     /// Encrypts a value for use in query expressions.
-    /// Uses the ambient EncryptionContext.Current for the context ID.
+    /// Uses the ambient DynamoDbOperationContext.EncryptionContextId for the context ID.
     /// </summary>
     /// <param name="value">The value to encrypt.</param>
     /// <param name="fieldName">The name of the field being encrypted (used for encryption context).</param>
@@ -198,9 +206,9 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// as encrypted values cannot be compared or sorted.
     /// </para>
     /// <para>
-    /// The method uses EncryptionContext.Current for the context ID, which should be set before calling:
+    /// The method uses DynamoDbOperationContext.EncryptionContextId for the context ID, which should be set before calling:
     /// <code>
-    /// EncryptionContext.Current = "tenant-123";
+    /// DynamoDbOperationContext.EncryptionContextId = "tenant-123";
     /// var results = await table.Query&lt;User&gt;()
     ///     .Where(x => x.Ssn == table.Encrypt(ssn, "Ssn"))
     ///     .ToListAsync();
@@ -219,7 +227,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
         // Build FieldEncryptionContext using same pattern as generated code
         var context = new FieldEncryptionContext
         {
-            ContextId = EncryptionContext.Current, // Uses ambient context
+            ContextId = DynamoDbOperationContext.EncryptionContextId, // Uses ambient context from unified context
             CacheTtlSeconds = 300 // Default, matches generated code
         };
 
@@ -236,7 +244,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <summary>
     /// Encrypts a value for use in query expressions.
     /// This is an alias for <see cref="Encrypt"/> to make the intent clear when pre-encrypting values.
-    /// Uses the ambient EncryptionContext.Current for the context ID.
+    /// Uses the ambient DynamoDbOperationContext.EncryptionContextId for the context ID.
     /// </summary>
     /// <param name="value">The value to encrypt.</param>
     /// <param name="fieldName">The name of the field being encrypted (used for encryption context).</param>
@@ -247,7 +255,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// This method is identical to <see cref="Encrypt"/> but provides a clearer name when
     /// pre-encrypting values for later use in queries:
     /// <code>
-    /// EncryptionContext.Current = "tenant-123";
+    /// DynamoDbOperationContext.EncryptionContextId = "tenant-123";
     /// var encryptedSsn = table.EncryptValue(ssn, "Ssn");
     /// 
     /// var results = await table.Query&lt;User&gt;()

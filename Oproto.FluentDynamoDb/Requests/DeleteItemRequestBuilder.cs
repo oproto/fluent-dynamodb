@@ -64,6 +64,13 @@ public class DeleteItemRequestBuilder<TEntity> :
     public AttributeNameInternal GetAttributeNameHelper() => _attrN;
 
     /// <summary>
+    /// Gets the DynamoDB client for extension method access.
+    /// This is used by Primary API extension methods to call AWS SDK directly.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
@@ -196,13 +203,15 @@ public class DeleteItemRequestBuilder<TEntity> :
     }
 
     /// <summary>
-    /// Executes the delete operation asynchronously.
+    /// Executes the DeleteItem operation asynchronously and returns the raw AWS SDK DeleteItemResponse.
+    /// This is the Advanced API method that does NOT populate DynamoDbOperationContext.
+    /// For most use cases, prefer the Primary API extension method DeleteAsync() which populates context.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, containing the delete response.</returns>
+    /// <returns>A task representing the asynchronous operation, containing the raw DeleteItemResponse from AWS SDK.</returns>
     /// <exception cref="ConditionalCheckFailedException">Thrown when a condition expression fails.</exception>
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table doesn't exist.</exception>
-    public async Task<DeleteItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<DeleteItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToDeleteItemRequest();
         

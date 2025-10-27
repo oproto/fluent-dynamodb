@@ -480,7 +480,7 @@ public class ExpressionTranslator
             {
                 throw new ExpressionTranslationException(
                     $"Failed to encrypt value in expression: {ex.Message}. " +
-                    $"Ensure IFieldEncryptor is configured and EncryptionContext.Current is set.",
+                    $"Ensure IFieldEncryptor is configured and DynamoDbOperationContext.EncryptionContextId is set.",
                     ex,
                     node);
             }

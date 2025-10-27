@@ -85,7 +85,7 @@ public class ManualProjectionConfigurationExamples
         var response = await table.StatusIndexWithProjection.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Response contains only projected attributes: id, amount, status, created_date, entity_type
         // Description and Metadata are not fetched, reducing data transfer and cost
@@ -103,7 +103,7 @@ public class ManualProjectionConfigurationExamples
         var response = await table.StatusIndexTyped.Query<TransactionSummary>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // response.Items contains only projected properties populated
     }
@@ -121,7 +121,7 @@ public class ManualProjectionConfigurationExamples
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .WithProjection("id, amount") // Overrides automatic projection
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Response contains only: id, amount (manual projection takes precedence)
     }
@@ -138,7 +138,7 @@ public class ManualProjectionConfigurationExamples
         var response = await table.StatusIndexTyped.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // response.Items is List<Dictionary<string, AttributeValue>>
         // Note: If Transaction has a FromDynamoDb method, it will be used for hydration
@@ -162,21 +162,21 @@ public class ManualProjectionConfigurationExamples
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .WithProjection("id") // Takes precedence over index projection
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: Only "id" is fetched
 
         // Case 2: Index projection (medium precedence)
         var response2 = await table.StatusIndexWithProjection.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: "id, amount, status, created_date, entity_type" are fetched
 
         // Case 3: No projection (lowest precedence)
         var response3 = await table.StatusIndexFull.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Result: All fields are fetched
     }
 
@@ -244,20 +244,20 @@ public class ManualProjectionConfigurationExamples
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .Take(100)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Use standard projection for detail view (balanced)
         var detailItems = await table.StatusIndexStandard.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .Take(10)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Use full projection when all data is needed (slower, higher cost)
         var fullItems = await table.StatusIndexFull.Query<Transaction>()
             .Where("status = :status")
             .WithValue(":status", "ACTIVE")
             .Take(1)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
     }
 }

@@ -25,27 +25,27 @@ namespace Oproto.FluentDynamoDb.Examples;
 /// // Get a user by ID
 /// var user = await usersTable.Get("user-123")
 ///     .WithProjection("id, name, email")
-///     .ExecuteAsync();
+///     .ToDynamoDbResponseAsync();
 /// 
 /// // Update a user
 /// await usersTable.Update("user-123")
 ///     .Set("last_login", DateTime.UtcNow)
-///     .ExecuteAsync();
+///     .ToDynamoDbResponseAsync();
 /// 
 /// // Delete a user
 /// await usersTable.Delete("user-123")
 ///     .WithCondition("attribute_exists(id)")
-///     .ExecuteAsync();
+///     .ToDynamoDbResponseAsync();
 /// 
 /// // Query by email using GSI
 /// var usersByEmail = await usersTable.EmailIndex
 ///     .Query("email = {0}", "user@example.com")
-///     .ExecuteAsync();
+///     .ToDynamoDbResponseAsync();
 /// 
 /// // Query active users created after a date
 /// var activeUsers = await usersTable.StatusIndex
 ///     .Query("status = {0} AND created_at > {1}", "ACTIVE", "2024-01-01")
-///     .ExecuteAsync();
+///     .ToDynamoDbResponseAsync();
 /// </code>
 /// </example>
 public class UsersTable : DynamoDbTableBase
@@ -77,17 +77,17 @@ public class UsersTable : DynamoDbTableBase
     /// <example>
     /// <code>
     /// // Get user with all attributes
-    /// var user = await usersTable.Get("user-123").ExecuteAsync();
+    /// var user = await usersTable.Get("user-123").ToDynamoDbResponseAsync();
     /// 
     /// // Get user with specific attributes
     /// var user = await usersTable.Get("user-123")
     ///     .WithProjection("id, name, email")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Get user with consistent read
     /// var user = await usersTable.Get("user-123")
     ///     .WithConsistentRead()
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// </code>
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
@@ -105,19 +105,19 @@ public class UsersTable : DynamoDbTableBase
     /// await usersTable.Update("user-123")
     ///     .Set("name", "John Doe")
     ///     .Set("email", "john@example.com")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Update with condition
     /// await usersTable.Update("user-123")
     ///     .Set("status", "INACTIVE")
     ///     .WithCondition("attribute_exists(id)")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Increment a counter
     /// await usersTable.Update("user-123")
     ///     .Add("login_count", 1)
     ///     .Set("last_login", DateTime.UtcNow)
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// </code>
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
@@ -132,17 +132,17 @@ public class UsersTable : DynamoDbTableBase
     /// <example>
     /// <code>
     /// // Delete user
-    /// await usersTable.Delete("user-123").ExecuteAsync();
+    /// await usersTable.Delete("user-123").ToDynamoDbResponseAsync();
     /// 
     /// // Delete with condition
     /// await usersTable.Delete("user-123")
     ///     .WithCondition("attribute_exists(id)")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Delete and return old values
     /// var deletedUser = await usersTable.Delete("user-123")
     ///     .WithReturnValues(ReturnValue.ALL_OLD)
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// </code>
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
@@ -160,13 +160,13 @@ public class UsersTable : DynamoDbTableBase
     /// // Query by email
     /// var users = await usersTable.EmailIndex
     ///     .Query("email = {0}", "user@example.com")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Manual query configuration
     /// var users = await usersTable.EmailIndex.Query()
     ///     .Where("email = {0}", "user@example.com")
     ///     .WithLimit(10)
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// </code>
     /// </example>
     public DynamoDbIndex EmailIndex => 
@@ -184,23 +184,23 @@ public class UsersTable : DynamoDbTableBase
     /// // Query active users
     /// var activeUsers = await usersTable.StatusIndex
     ///     .Query("status = {0}", "ACTIVE")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Query active users created after a specific date
     /// var recentActiveUsers = await usersTable.StatusIndex
     ///     .Query("status = {0} AND created_at > {1}", "ACTIVE", "2024-01-01")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Query with begins_with on sort key
     /// var usersInJanuary = await usersTable.StatusIndex
     ///     .Query("status = {0} AND begins_with(created_at, {1})", "ACTIVE", "2024-01")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// 
     /// // Query with BETWEEN on sort key
     /// var usersInRange = await usersTable.StatusIndex
     ///     .Query("status = {0} AND created_at BETWEEN {1} AND {2}", 
     ///         "ACTIVE", "2024-01-01", "2024-12-31")
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// </code>
     /// </example>
     public DynamoDbIndex StatusIndex => 

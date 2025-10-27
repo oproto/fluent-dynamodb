@@ -67,6 +67,13 @@ public class UpdateItemRequestBuilder<TEntity> :
     public AttributeNameInternal GetAttributeNameHelper() => _attrN;
 
     /// <summary>
+    /// Gets the DynamoDB client for extension method access.
+    /// This is used by Primary API extension methods to call AWS SDK directly.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
@@ -190,11 +197,13 @@ public class UpdateItemRequestBuilder<TEntity> :
     }
 
     /// <summary>
-    /// Executes the UpdateItem operation asynchronously using the configured parameters.
+    /// Executes the UpdateItem operation asynchronously and returns the raw AWS SDK UpdateItemResponse.
+    /// This is the Advanced API method that does NOT populate DynamoDbOperationContext.
+    /// For most use cases, prefer the Primary API extension method UpdateAsync() which populates context.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, containing the UpdateItemResponse.</returns>
-    public async Task<UpdateItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    /// <returns>A task representing the asynchronous operation, containing the raw UpdateItemResponse from AWS SDK.</returns>
+    public async Task<UpdateItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToUpdateItemRequest();
         

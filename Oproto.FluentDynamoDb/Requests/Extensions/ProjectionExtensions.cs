@@ -59,7 +59,7 @@ public static class ProjectionExtensions
             ValidateGsiProjection<TEntity, TResult>(builder);
 
             // Execute the query
-            var response = await builder.ExecuteAsync(cancellationToken);
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
 
             // Hydrate results using the appropriate method
             return HydrateResults<TResult>(response.Items);

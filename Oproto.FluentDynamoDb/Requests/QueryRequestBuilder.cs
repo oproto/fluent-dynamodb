@@ -66,6 +66,13 @@ public class QueryRequestBuilder<TEntity> :
     public AttributeNameInternal GetAttributeNameHelper() => _attrN;
 
     /// <summary>
+    /// Gets the DynamoDB client for extension method access.
+    /// This is used by Primary API extension methods to call AWS SDK directly.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
     /// </summary>
@@ -290,15 +297,17 @@ public class QueryRequestBuilder<TEntity> :
     }
 
     /// <summary>
-    /// Executes the Query operation asynchronously using the configured parameters.
+    /// Executes the Query operation asynchronously and returns the raw AWS SDK QueryResponse.
+    /// This is the Advanced API method that does NOT populate DynamoDbOperationContext.
+    /// For most use cases, prefer the Primary API extension methods like ToListAsync() which populate context.
     /// Query operations are efficient and should be preferred over Scan operations whenever possible.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, containing the QueryResponse.</returns>
+    /// <returns>A task representing the asynchronous operation, containing the raw QueryResponse from AWS SDK.</returns>
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table or index doesn't exist.</exception>
     /// <exception cref="ProvisionedThroughputExceededException">Thrown when the request rate is too high.</exception>
     /// <exception cref="ValidationException">Thrown when the key condition expression is invalid.</exception>
-    public async Task<QueryResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<QueryResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToQueryRequest();
         

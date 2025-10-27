@@ -40,12 +40,12 @@ public class FormatStringExamples
             .Where("pk = :pk AND begins_with(sk, :prefix)")
             .WithValue(":pk", "USER#123")
             .WithValue(":prefix", "ORDER#")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // NEW APPROACH - Format strings
         var newResult = await _table.Query<ExampleEntity>()
             .Where("pk = {0} AND begins_with(sk, {1})", "USER#123", "ORDER#")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public class FormatStringExamples
         var result = await _table.Query<ExampleEntity>()
             .Where("pk = {0} AND created BETWEEN {1:o} AND {2:o}",
                    "USER#123", startDate, endDate)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Results in: ":p1" = "2024-01-01T00:00:00.000Z", ":p2" = "2024-01-15T10:30:00.000Z"
     }
 
@@ -73,7 +73,7 @@ public class FormatStringExamples
         var result = await _table.Query<ExampleEntity>()
             .Where("pk = {0} AND #status = {1}", "ORDER#123", status)
             .WithAttribute("#status", "status")  // Maps #status to actual "status" attribute
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         // Results in: ":p1" = "Processing"
     }
 
@@ -89,7 +89,7 @@ public class FormatStringExamples
         // Query with format strings
         await _table.Query<ExampleEntity>()
             .Where("pk = {0} AND begins_with(sk, {1})", userId, "ORDER#")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Update with conditional format strings
         await _table.Update<ExampleEntity>()
@@ -97,13 +97,13 @@ public class FormatStringExamples
             .Set("SET #status = :newStatus")  // Set still uses traditional parameters
             .Where("attribute_exists(pk) AND version = {0}", expectedVersion)
             .WithValue(":newStatus", "COMPLETED")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Delete with conditional format strings
         await _table.Delete<ExampleEntity>()
             .WithKey("pk", userId, "sk", orderId)
             .Where("version = {0}", expectedVersion)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Put with conditional format strings
         await _table.Put<PlaceholderEntity>()
@@ -113,7 +113,7 @@ public class FormatStringExamples
                 ["sk"] = new AttributeValue { S = orderId }
             })
             .Where("attribute_not_exists(pk)")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
     }
 
     /// <summary>
@@ -129,7 +129,7 @@ public class FormatStringExamples
                    userId, recentDate)
             .WithValue(":startSk", "ORDER#2024-01")
             .WithValue(":endSk", "ORDER#2024-12")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
     }
 
     /// <summary>
@@ -151,7 +151,7 @@ public class FormatStringExamples
             .WithFilter("#status = {0} AND #amount > {1:F2}", status, minAmount)
             .WithAttribute("#status", "status")
             .WithAttribute("#amount", "amount")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Complex filter with multiple conditions and types
         var result2 = await _table.Query<ExampleEntity>()
@@ -161,7 +161,7 @@ public class FormatStringExamples
             .WithAttribute("#status", "status")
             .WithAttribute("#amount", "amount")
             .WithAttribute("#created", "created_date")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Filter with DynamoDB functions
         var result3 = await _table.Query<ExampleEntity>()
@@ -171,7 +171,7 @@ public class FormatStringExamples
             .WithAttribute("#tags", "tags")
             .WithAttribute("#items", "items")
             .WithAttribute("#optional", "optional_field")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Filter with IN operator
         var result4 = await _table.Query<ExampleEntity>()
@@ -179,7 +179,7 @@ public class FormatStringExamples
             .WithFilter("#status IN ({0}, {1}, {2})",
                        OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Pending)
             .WithAttribute("#status", "status")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Mixed filter styles - format strings with traditional parameters
         var result5 = await _table.Query<ExampleEntity>()
@@ -188,7 +188,7 @@ public class FormatStringExamples
             .WithAttribute("#status", "status")
             .WithAttribute("#customField", "custom_field")
             .WithValue(":customValue", "custom data")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
     }
 
     /// <summary>
@@ -211,7 +211,7 @@ public class FormatStringExamples
     ///     .WithAttribute("#status", "status")
     ///     .WithAttribute("#amount", "amount")
     ///     .Take(100)
-    ///     .ExecuteAsync();
+    ///     .ToDynamoDbResponseAsync();
     /// </remarks>
     public async Task ScanWithFilterExpressionExamples()
     {
@@ -239,7 +239,7 @@ public class FormatStringExamples
             .Set("SET #name = {0}, #updated = {1:o}", newName, updatedTime)
             .WithAttribute("#name", "name")
             .WithAttribute("#updated", "updated_time")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // ADD operation with numeric formatting
         await _table.Update<ExampleEntity>()
@@ -247,7 +247,7 @@ public class FormatStringExamples
             .Set("ADD #count {0}, #amount {1:F2}", incrementValue, newAmount)
             .WithAttribute("#count", "count")
             .WithAttribute("#amount", "amount")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Complex update with multiple operations
         await _table.Update<ExampleEntity>()
@@ -258,7 +258,7 @@ public class FormatStringExamples
             .WithAttribute("#updated", "updated_time")
             .WithAttribute("#count", "count")
             .WithAttribute("#oldField", "old_field")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Mixed format strings and traditional parameters
         await _table.Update<ExampleEntity>()
@@ -267,6 +267,6 @@ public class FormatStringExamples
             .WithAttribute("#name", "name")
             .WithAttribute("#customField", "custom_field")
             .WithValue(":customValue", "custom data")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
     }
 }
