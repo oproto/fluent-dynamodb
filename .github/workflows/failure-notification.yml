@@ -1,0 +1,203 @@
+name: Failure Notification
+
+on:
+  workflow_run:
+    workflows: ["Build", "Test", "Release"]
+    types: [completed]
+    branches: [main, develop]
+
+permissions:
+  issues: write
+  actions: read
+
+jobs:
+  notify:
+    name: Create or Update Failure Issue
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    
+    steps:
+      - name: Get workflow run details
+        id: workflow
+        run: |
+          echo "workflow_name=${{ github.event.workflow_run.name }}" >> $GITHUB_OUTPUT
+          echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+          echo "sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          echo "run_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
+          echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
+          
+          # Get short SHA for display
+          SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+      
+      - name: Check for existing issue
+        id: check_issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflowName = '${{ steps.workflow.outputs.workflow_name }}';
+            const branch = '${{ steps.workflow.outputs.branch }}';
+            const issueTitle = `CI Failure: ${workflowName} on ${branch}`;
+            
+            // Search for existing open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'ci-failure',
+              per_page: 100
+            });
+            
+            const existingIssue = issues.data.find(issue => issue.title === issueTitle);
+            
+            if (existingIssue) {
+              core.setOutput('issue_number', existingIssue.number);
+              core.setOutput('issue_exists', 'true');
+              console.log(`Found existing issue #${existingIssue.number}`);
+            } else {
+              core.setOutput('issue_exists', 'false');
+              console.log('No existing issue found');
+            }
+      
+      - name: Create issue body
+        id: issue_body
+        run: |
+          cat << 'EOF' > issue_body.md
+          ## CI Failure Report
+          
+          **Workflow**: ${{ steps.workflow.outputs.workflow_name }}
+          **Branch**: `${{ steps.workflow.outputs.branch }}`
+          **Commit**: ${{ steps.workflow.outputs.short_sha }}
+          **Run**: ${{ steps.workflow.outputs.run_url }}
+          **Time**: ${{ github.event.workflow_run.updated_at }}
+          
+          ### Failure Details
+          
+          The workflow failed during execution. Please review the workflow run logs for detailed error information.
+          
+          ### Action Required
+          
+          Please investigate and fix the failing workflow. Common causes include:
+          - Build errors
+          - Test failures
+          - Dependency issues
+          - Configuration problems
+          
+          ### Recent Failures
+          
+          This issue tracks failures for this workflow on the `${{ steps.workflow.outputs.branch }}` branch.
+          
+          ---
+          *This issue was automatically created by the CI/CD system.*
+          EOF
+          
+          # Set multiline output
+          {
+            echo 'body<<EOF'
+            cat issue_body.md
+            echo EOF
+          } >> $GITHUB_OUTPUT
+      
+      - name: Create new issue
+        if: steps.check_issue.outputs.issue_exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflowName = '${{ steps.workflow.outputs.workflow_name }}';
+            const branch = '${{ steps.workflow.outputs.branch }}';
+            const issueTitle = `CI Failure: ${workflowName} on ${branch}`;
+            const issueBody = `${{ steps.issue_body.outputs.body }}`;
+            
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody,
+              labels: ['ci-failure', 'bug']
+            });
+            
+            console.log(`Created issue #${issue.data.number}`);
+      
+      - name: Update existing issue
+        if: steps.check_issue.outputs.issue_exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.check_issue.outputs.issue_number }};
+            const runUrl = '${{ steps.workflow.outputs.run_url }}';
+            const shortSha = '${{ steps.workflow.outputs.short_sha }}';
+            const timestamp = '${{ github.event.workflow_run.updated_at }}';
+            
+            const comment = `### Additional Failure
+            
+            **Commit**: ${shortSha}
+            **Run**: ${runUrl}
+            **Time**: ${timestamp}
+            
+            The workflow is still failing. Please review the latest run for details.`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: comment
+            });
+            
+            console.log(`Updated issue #${issueNumber} with new failure information`);
+
+  close-on-success:
+    name: Close Issue on Success
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Get workflow details
+        id: workflow
+        run: |
+          echo "workflow_name=${{ github.event.workflow_run.name }}" >> $GITHUB_OUTPUT
+          echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+      
+      - name: Find and close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflowName = '${{ steps.workflow.outputs.workflow_name }}';
+            const branch = '${{ steps.workflow.outputs.branch }}';
+            const issueTitle = `CI Failure: ${workflowName} on ${branch}`;
+            
+            // Search for existing open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'ci-failure',
+              per_page: 100
+            });
+            
+            const existingIssue = issues.data.find(issue => issue.title === issueTitle);
+            
+            if (existingIssue) {
+              // Add success comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `### ✅ Workflow Succeeded
+                
+                The workflow is now passing. Closing this issue.
+                
+                **Run**: ${{ github.event.workflow_run.html_url }}`
+              });
+              
+              // Close the issue
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                state: 'closed'
+              });
+              
+              console.log(`Closed issue #${existingIssue.number}`);
+            } else {
+              console.log('No open issue found to close');
+            }
