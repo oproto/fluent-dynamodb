@@ -1065,6 +1065,43 @@ public partial class User
 }
 ```
 
+## Testing Operation Context Assignments
+
+### `DynamoDbOperationContext.Current` is always null in unit tests
+
+**Symptoms**
+- After awaiting `GetItemAsync`, `ToListAsync`, `PutAsync`, etc., `DynamoDbOperationContext.Current` is unexpectedly `null`
+- FluentAssertions or xUnit assertions verifying context metadata fail
+
+**Cause**
+Unit test frameworks (e.g., xUnit) restore the original execution context when an awaited task completes. Because `DynamoDbOperationContext` uses `AsyncLocal`, the value assigned inside the library is lost once the framework resumes the test method.
+
+**Solution**
+Subscribe to the internal diagnostics event before invoking the operation and capture the context inside the same asynchronous flow. Remember to unsubscribe in a `finally` block.
+
+```csharp
+using Oproto.FluentDynamoDb.Storage;
+
+OperationContextData? captured = null;
+void Handler(OperationContextData? ctx) => captured = ctx;
+
+DynamoDbOperationContextDiagnostics.ContextAssigned += Handler;
+try
+{
+    await builder.ToListAsync<MyEntity>();
+
+    captured.Should().NotBeNull();
+    captured!.RawItems.Should().NotBeNull();
+}
+finally
+{
+    DynamoDbOperationContextDiagnostics.ContextAssigned -= Handler;
+}
+```
+
+> **Warning**  
+> `DynamoDbOperationContextDiagnostics` is intended for diagnostics and test scenarios only. Production code should continue to read metadata from `DynamoDbOperationContext.Current`.
+
 ## Getting Help
 
 If you're still experiencing issues:
@@ -1096,4 +1133,3 @@ If you're still experiencing issues:
 - [Format Specifiers](FormatSpecifiers.md)
 - [Performance Optimization](../advanced-topics/PerformanceOptimization.md)
 - [AWS DynamoDB Troubleshooting](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html)
-

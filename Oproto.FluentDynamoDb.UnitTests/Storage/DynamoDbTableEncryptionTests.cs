@@ -69,7 +69,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         var value = "123-45-6789";
 
         // Act
@@ -107,12 +107,12 @@ public class DynamoDbTableEncryptionTests
     }
 
     [Fact]
-    public void Encrypt_UsesAmbientEncryptionContext()
+    public void Encrypt_UsesAmbientDynamoDbOperationContext()
     {
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "customer-456";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "customer-456" };
         var value = "secret-data";
 
         // Act
@@ -129,7 +129,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = null;
+        DynamoDbOperationContext.Current = null;
         var value = "data";
 
         // Act
@@ -146,7 +146,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "region-us-east-1";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "region-us-east-1" };
         var value = "test-value";
 
         // Act
@@ -167,7 +167,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
 
         // Act
         var result = table.Encrypt(null, "Field");
@@ -183,7 +183,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         var value = 12345;
 
         // Act
@@ -207,7 +207,7 @@ public class DynamoDbTableEncryptionTests
             .Returns<Task<byte[]>>(_ => throw new Exception("Encryption failed"));
 
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
 
         // Act
         var act = () => table.Encrypt("value", "Field");
@@ -223,7 +223,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         
         var translator = new ExpressionTranslator();
         var metadata = new EntityMetadata
@@ -276,7 +276,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         
         var translator = new ExpressionTranslator();
         var metadata = new EntityMetadata
@@ -329,7 +329,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         var value = "secret-data";
 
         // Act
@@ -351,7 +351,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         var value = "test-value";
 
         // Act
@@ -369,7 +369,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         
         var translator = new ExpressionTranslator();
         var metadata = new EntityMetadata
@@ -416,12 +416,12 @@ public class DynamoDbTableEncryptionTests
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
 
         // Act & Assert - First call with context A
-        EncryptionContext.Current = "context-A";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "context-A" };
         var result1 = table.Encrypt("value1", "Field1");
         encryptor.EncryptCalls[0].Context.ContextId.Should().Be("context-A");
 
         // Act & Assert - Second call with context B
-        EncryptionContext.Current = "context-B";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "context-B" };
         var result2 = table.Encrypt("value2", "Field2");
         encryptor.EncryptCalls[1].Context.ContextId.Should().Be("context-B");
 
@@ -435,7 +435,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
 
         // Act
         var result = table.Encrypt("test", "Field");
@@ -454,7 +454,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
 
         // Act
         table.Encrypt("value1", "Ssn");
@@ -490,7 +490,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         
         // Pre-encrypt the value
         var encryptedSsn = table.EncryptValue("123-45-6789", "Ssn");
@@ -521,7 +521,7 @@ public class DynamoDbTableEncryptionTests
         // Arrange
         var encryptor = new MockFieldEncryptor();
         var table = new TestTable(Substitute.For<IAmazonDynamoDB>(), encryptor);
-        EncryptionContext.Current = "tenant-123";
+        DynamoDbOperationContext.Current = new OperationContextData { EncryptionContextId = "tenant-123" };
         
         // Pre-encrypt the value
         var encryptedEmail = table.EncryptValue("user@example.com", "Email");

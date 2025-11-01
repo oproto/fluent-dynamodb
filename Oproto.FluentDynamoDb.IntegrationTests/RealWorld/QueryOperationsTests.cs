@@ -110,10 +110,10 @@ public class QueryOperationsTests : IntegrationTestBase
     public async Task Query_ByPartitionKey_ReturnsAllMatchingItems()
     {
         // Act - Query all electronics products
-        var response = await _table.Query
+        var response = await _table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "product-1")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -129,13 +129,13 @@ public class QueryOperationsTests : IntegrationTestBase
     public async Task Query_WithFilterOnBasicProperty_FiltersCorrectly()
     {
         // Act - Query electronics products that are active
-        var response = await _table.Query
+        var response = await _table.Query()
             .Where("pk = :pk")
             .WithFilter("#active = :active")
             .WithValue(":pk", "product-2")
             .WithValue(":active", true)
             .WithAttribute("#active", "is_active")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -148,11 +148,11 @@ public class QueryOperationsTests : IntegrationTestBase
     public async Task Query_WithSortKeyCondition_ReturnsMatchingItems()
     {
         // Act - Query products with specific type
-        var response = await _table.Query
+        var response = await _table.Query()
             .Where("pk = :pk AND sk = :sk")
             .WithValue(":pk", "product-1")
             .WithValue(":sk", "electronics")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -167,12 +167,12 @@ public class QueryOperationsTests : IntegrationTestBase
     public async Task Query_WithProjection_ReturnsOnlyRequestedAttributes()
     {
         // Act - Query with projection to get only specific attributes
-        var response = await _table.Query
+        var response = await _table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "product-1")
             .WithProjection("pk, #name, tags")
             .WithAttribute("#name", "name")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -201,11 +201,11 @@ public class QueryOperationsTests : IntegrationTestBase
         await DynamoDb.PutItemAsync(TableName, item);
         
         // Act - Query with limit
-        var response = await _table.Query
+        var response = await _table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "product-1")
             .Take(1)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -230,11 +230,11 @@ public class QueryOperationsTests : IntegrationTestBase
         }
         
         // Act - Query in descending order
-        var response = await _table.Query
+        var response = await _table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "product-5")
             .OrderDescending()
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert - Items should be in reverse order
         response.Items.Should().HaveCount(3);
@@ -250,10 +250,10 @@ public class QueryOperationsTests : IntegrationTestBase
     public async Task Query_WithComplexEntity_PreservesAllAdvancedTypes()
     {
         // Act - Query and verify all advanced types are preserved
-        var response = await _table.Query
+        var response = await _table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "product-1")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);

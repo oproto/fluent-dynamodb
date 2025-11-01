@@ -58,12 +58,12 @@ public class MultiEntityTableTests : IntegrationTestBase
         };
 
         // Act - Put item using entity accessor
-        await table.Orders.Put(order).ExecuteAsync();
+        await table.Orders.Put(order).PutAsync();
 
         // Act - Get item using entity accessor
         var result = await table.Orders.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert
         result.Should().NotBeNull();
@@ -91,14 +91,14 @@ public class MultiEntityTableTests : IntegrationTestBase
 
         foreach (var order in orders)
         {
-            await table.Orders.Put(order).ExecuteAsync();
+            await table.Orders.Put(order).PutAsync();
         }
 
         // Act - Query using entity accessor
         var result = await table.Orders.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "ORDER#1")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         result.Should().NotBeNull();
@@ -124,12 +124,12 @@ public class MultiEntityTableTests : IntegrationTestBase
         };
 
         // Act - Put using entity accessor
-        await table.Orders.Put(order).ExecuteAsync();
+        await table.Orders.Put(order).PutAsync();
 
         // Assert - Verify item was saved
         var getResult = await table.Orders.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         getResult.Item.Should().NotBeNull();
         var retrieved = MultiEntityOrderTestEntity.FromDynamoDb<MultiEntityOrderTestEntity>(getResult.Item);
@@ -150,17 +150,17 @@ public class MultiEntityTableTests : IntegrationTestBase
             TotalAmount = 25.00m
         };
 
-        await table.Orders.Put(order).ExecuteAsync();
+        await table.Orders.Put(order).PutAsync();
 
         // Act - Delete using entity accessor
         await table.Orders.Delete()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .DeleteAsync();
 
         // Assert - Verify item was deleted
         var getResult = await table.Orders.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         getResult.Item.Should().BeNull();
     }
@@ -179,7 +179,7 @@ public class MultiEntityTableTests : IntegrationTestBase
             TotalAmount = 200.00m
         };
 
-        await table.Orders.Put(order).ExecuteAsync();
+        await table.Orders.Put(order).PutAsync();
 
         // Act - Update using entity accessor
         await table.Orders.Update()
@@ -187,12 +187,12 @@ public class MultiEntityTableTests : IntegrationTestBase
             .Set("#name = :name")
             .WithValue(":name", "Updated Customer")
             .WithAttribute("#name", "customer_name")
-            .ExecuteAsync();
+            .PutAsync();
 
         // Assert - Verify item was updated
         var getResult = await table.Orders.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         var retrieved = MultiEntityOrderTestEntity.FromDynamoDb<MultiEntityOrderTestEntity>(getResult.Item);
         retrieved.CustomerName.Should().Be("Updated Customer");
@@ -215,12 +215,12 @@ public class MultiEntityTableTests : IntegrationTestBase
 
         foreach (var order in orders)
         {
-            await table.Orders.Put(order).ExecuteAsync();
+            await table.Orders.Put(order).PutAsync();
         }
 
         // Act - Scan using entity accessor
         var result = await table.Orders.Scan()
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         result.Should().NotBeNull();
@@ -251,11 +251,11 @@ public class MultiEntityTableTests : IntegrationTestBase
         };
 
         // Act - Use table-level operations (should use default entity type)
-        await table.Put(order).ExecuteAsync();
+        await table.Put(order).PutAsync();
         
         var getResult = await table.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert - Table-level operations should work with default entity
         getResult.Item.Should().NotBeNull();
@@ -278,14 +278,14 @@ public class MultiEntityTableTests : IntegrationTestBase
 
         foreach (var order in orders)
         {
-            await table.Put(order).ExecuteAsync();
+            await table.Put(order).PutAsync();
         }
 
         // Act - Query at table level (should use default entity)
         var result = await table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "ORDER#X")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         result.Items.Should().HaveCount(1);
@@ -315,17 +315,17 @@ public class MultiEntityTableTests : IntegrationTestBase
         };
 
         // Act - Save both entity types
-        await table.Orders.Put(order).ExecuteAsync();
-        await table.OrderLines.Put(orderLine).ExecuteAsync();
+        await table.Orders.Put(order).PutAsync();
+        await table.OrderLines.Put(orderLine).PutAsync();
 
         // Act - Retrieve both entity types
         var orderResult = await table.Orders.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         var orderLineResult = await table.OrderLines.Get()
             .WithKey("pk", orderLine.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert - Both entities should be retrievable with correct types
         orderResult.Item.Should().NotBeNull();
@@ -392,16 +392,16 @@ public class MultiEntityTableTests : IntegrationTestBase
         };
 
         // Act - Mix table-level and entity accessor operations
-        await table.Put(order).ExecuteAsync(); // Table-level (default entity)
-        await table.OrderLines.Put(orderLine).ExecuteAsync(); // Entity accessor
+        await table.Put(order).ToDynamoDbResponseAsync(); // Table-level (default entity)
+        await table.OrderLines.Put(orderLine).PutAsync(); // Entity accessor
 
         var orderResult = await table.Get() // Table-level (default entity)
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .PutAsync();
 
         var orderLineResult = await table.OrderLines.Get() // Entity accessor
             .WithKey("pk", orderLine.Id)
-            .ExecuteAsync();
+            .PutAsync();
 
         // Assert - Both operations should work correctly
         orderResult.Item.Should().NotBeNull();

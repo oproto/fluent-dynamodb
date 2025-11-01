@@ -53,7 +53,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithKey("sk", "product")
             .Set("SET category_ids = :categoryIds")
             .WithValue(":categoryIds", categoryIdsAttributeValue)
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify the update
         var loaded = await SaveAndLoadAsync(entity);
@@ -88,7 +88,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithKey("sk", "product")
             .Set("SET tags = :tags")
             .WithValue(":tags", tagsAttributeValue)
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify the update
         var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
@@ -133,7 +133,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithKey("sk", "product")
             .Set("SET item_ids = :itemIds")
             .WithValue(":itemIds", itemIdsAttributeValue)
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify the update
         var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
@@ -178,7 +178,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithKey("sk", "product")
             .Set("SET prices = :prices")
             .WithValue(":prices", pricesAttributeValue)
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify the update
         var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
@@ -235,7 +235,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithKey("sk", "product")
             .Set("SET metadata = :metadata")
             .WithValue(":metadata", metadataAttributeValue)
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify the update
         var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
@@ -288,7 +288,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             { 
                 M = newMetadata.ToDictionary(kvp => kvp.Key, kvp => new AttributeValue { S = kvp.Value }) 
             })
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify all updates
         var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
@@ -337,7 +337,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithKey("pk", "update-test-7")
             .WithKey("sk", "product")
             .Remove("REMOVE category_ids, tags")
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify properties were removed
         var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
@@ -379,7 +379,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .Set("SET category_ids = :categoryIds")
             .Where("attribute_exists(category_ids)")
             .WithValue(":categoryIds", new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Assert - Verify the update succeeded
         var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
@@ -421,7 +421,7 @@ public class UpdateOperationsTests : IntegrationTestBase
             .Set("SET category_ids = :categoryIds")
             .Where("attribute_exists(category_ids)")
             .WithValue(":categoryIds", new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
-            .ExecuteAsync();
+            .UpdateAsync();
         
         await act.Should().ThrowAsync<ConditionalCheckFailedException>();
     }

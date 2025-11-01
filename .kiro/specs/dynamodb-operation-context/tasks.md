@@ -189,163 +189,163 @@
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
 - [ ] 10. Add batch and transaction support
-  - [ ] 10.1 Implement Primary API methods for BatchGetItem
+  - [x] 10.1 Implement Primary API methods for BatchGetItem
     - Add extension methods that populate context
     - Return POCOs
     - _Requirements: 1.1, 2.1, 2.2, 2.3_
   
-  - [ ] 10.2 Implement Primary API methods for BatchWriteItem
+  - [x] 10.2 Implement Primary API methods for BatchWriteItem
     - Add extension methods that populate context
     - Return void
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 10.3 Implement Primary API methods for TransactGetItems
+  - [x] 10.3 Implement Primary API methods for TransactGetItems
     - Add extension methods that populate context
     - Return POCOs
     - _Requirements: 1.1, 2.1, 2.2, 2.3_
   
-  - [ ] 10.4 Implement Primary API methods for TransactWriteItems
+  - [x] 10.4 Implement Primary API methods for TransactWriteItems
     - Add extension methods that populate context
     - Return void
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 10.5 Add ToDynamoDbResponseAsync for batch/transaction builders
+  - [x] 10.5 Add ToDynamoDbResponseAsync for batch/transaction builders
     - Rename ExecuteAsync to ToDynamoDbResponseAsync
     - Do NOT populate context
     - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 11. Update FluentResults integration
-  - [ ] 11.1 Rename `ExecuteAsyncResult<T>()` to `GetItemAsyncResult<T>()` for GetItemRequestBuilder
+- [x] 11. Update FluentResults integration
+  - [x] 11.1 Rename `ExecuteAsyncResult<T>()` to `GetItemAsyncResult<T>()` for GetItemRequestBuilder
     - Update to call `GetItemAsync<T>()` instead of `ExecuteAsync<T>()`
     - Return `Result<T?>` instead of `Result<GetItemResponse<T>>`
     - _Requirements: 1.2, 2.2, 2.4_
   
-  - [ ] 11.2 Update `ToListAsyncResult<T>()` methods
+  - [x] 11.2 Update `ToListAsyncResult<T>()` methods
     - Verify they work with updated ToListAsync implementations
     - Update return types if needed
     - _Requirements: 1.1, 2.1, 2.2, 2.3_
   
-  - [ ] 11.3 Update `ToCompositeEntityAsyncResult<T>()` methods
+  - [x] 11.3 Update `ToCompositeEntityAsyncResult<T>()` methods
     - Verify they work with updated implementations
     - _Requirements: 1.1, 2.1, 2.2, 2.3_
   
-  - [ ] 11.4 Update `ToCompositeEntityListAsyncResult<T>()` methods
+  - [x] 11.4 Update `ToCompositeEntityListAsyncResult<T>()` methods
     - Verify they work with updated implementations
     - _Requirements: 1.1, 2.1, 2.2, 2.3_
   
-  - [ ] 11.5 Add `PutAsyncResult<T>()` extension method
+  - [x] 11.5 Add `PutAsyncResult<T>()` extension method
     - Wrap `PutAsync<T>()` in Result
     - Return `Result` (not Result<T>)
     - _Requirements: 3.4, 8.1, 8.2, 8.3_
   
-  - [ ] 11.6 Add `UpdateAsyncResult()` extension method
+  - [x] 11.6 Add `UpdateAsyncResult()` extension method
     - Wrap `UpdateAsync()` in Result
     - Return `Result`
     - _Requirements: 3.1, 3.2, 8.1, 8.2, 8.3_
   
-  - [ ] 11.7 Add `DeleteAsyncResult()` extension method
+  - [x] 11.7 Add `DeleteAsyncResult()` extension method
     - Wrap `DeleteAsync()` in Result
     - Return `Result`
     - _Requirements: 3.3, 8.1, 8.2, 8.3_
   
-  - [ ] 11.8 Remove deprecated FluentResults methods
+  - [x] 11.8 Remove deprecated FluentResults methods
     - Remove `WithItemResult<T>()`
     - Remove old `ExecuteAsyncResult<T>()` for PutItemRequestBuilder
     - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 12. Update unit tests
-  - [ ] 12.1 Update GetItemRequestBuilder tests
+- [x] 12. Update unit tests
+  - [x] 12.1 Update GetItemRequestBuilder tests
     - Update tests to use `GetItemAsync<T>()` instead of `ExecuteAsync<T>()`
     - Add tests for context population
     - _Requirements: 1.2, 2.2, 2.4, 5.1, 5.2, 5.3, 5.4_
   
-  - [ ] 12.2 Update QueryRequestBuilder tests
+  - [x] 12.2 Update QueryRequestBuilder tests
     - Update tests to use new extension methods
     - Add tests for context population
     - Add tests for context isolation
     - _Requirements: 1.1, 2.1, 2.2, 2.3, 4.1, 4.4, 5.1, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ] 12.3 Update ScanRequestBuilder tests
+  - [x] 12.3 Update ScanRequestBuilder tests
     - Update tests to use new extension methods
     - Add tests for context population
     - _Requirements: 1.4, 2.1, 2.2, 2.3, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ] 12.4 Update PutItemRequestBuilder tests
+  - [x] 12.4 Update PutItemRequestBuilder tests
     - Update tests to use `PutAsync<T>()`
     - Add tests for context population
     - _Requirements: 3.4, 8.1, 8.2, 8.3_
   
-  - [ ] 12.5 Update UpdateItemRequestBuilder tests
+  - [x] 12.5 Update UpdateItemRequestBuilder tests
     - Update tests to use `UpdateAsync()`
     - Add tests for context population with Pre/PostOperationValues
     - _Requirements: 3.1, 3.2, 8.1, 8.2, 8.3_
   
-  - [ ] 12.6 Update DeleteItemRequestBuilder tests
+  - [x] 12.6 Update DeleteItemRequestBuilder tests
     - Update tests to use `DeleteAsync()`
     - Add tests for context population with PreOperationValues
     - _Requirements: 3.3, 8.1, 8.2, 8.3_
   
-  - [ ] 12.7 Add context deserialization tests
+  - [x] 12.7 Add context deserialization tests
     - Test `DeserializeRawItem<T>()`
     - Test `DeserializeRawItems<T>()`
     - Test `DeserializePreOperationValue<T>()`
     - Test `DeserializePostOperationValue<T>()`
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
   
-  - [ ] 12.8 Add context isolation tests
+  - [x] 12.8 Add context isolation tests
     - Test concurrent operations have separate contexts
     - Test context flows through async calls
     - Test context doesn't leak across async boundaries
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ] 12.9 Add encryption context migration tests
+  - [x] 12.9 Add encryption context migration tests
     - Test backward compatibility with EncryptionContext
     - Test delegation to unified context
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
   
-  - [ ] 12.10 Update FluentResults tests
+  - [x] 12.10 Update FluentResults tests
     - Update all FluentResults extension method tests
     - Test new methods (PutAsyncResult, UpdateAsyncResult, DeleteAsyncResult)
     - _Requirements: 1.1, 1.2, 3.1, 3.2, 3.3, 3.4_
   
-  - [ ] 12.11 Add AWS response extension method tests
+  - [x] 12.11 Add AWS response extension method tests
     - Test all ToList, ToEntity, ToPreOperationEntity, ToPostOperationEntity methods
     - Test blob provider overloads
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 13. Update integration tests
-  - [ ] 13.1 Update integration tests to use new API
+- [x] 13. Update integration tests
+  - [x] 13.1 Update integration tests to use new API
     - Replace all ExecuteAsync calls with new methods
     - _Requirements: 1.1, 1.2, 3.1, 3.2, 3.3, 3.4_
   
-  - [ ] 13.2 Add integration tests for context access
+  - [x] 13.2 Add integration tests for context access
     - Test real operations populate context correctly
     - Test metadata accuracy
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 14. Update documentation and examples
-  - [ ] 14.1 Update all code examples in XML documentation
+- [x] 14. Update documentation and examples
+  - [x] 14.1 Update all code examples in XML documentation
     - Update examples to use new API
     - Add examples showing context access
     - _Requirements: All_
   
-  - [ ] 14.2 Update README.md with migration guide
+  - [x] 14.2 Update README.md with migration guide
     - Document breaking changes
     - Provide before/after examples
     - Explain new context access pattern
     - _Requirements: All_
   
-  - [ ] 14.3 Update example projects
+  - [x] 14.3 Update example projects
     - Update all example code to use new API
     - Add examples demonstrating context usage
     - _Requirements: All_
   
-  - [ ] 14.4 Update FluentResults README
+  - [x] 14.4 Update FluentResults README
     - Document new FluentResults methods
     - Update examples
     - _Requirements: 1.1, 1.2, 3.1, 3.2, 3.3, 3.4_
   
-  - [ ] 14.5 Create migration guide document
+  - [x] 14.5 Create migration guide document
     - Detailed step-by-step migration instructions
     - Common patterns and their replacements
     - Troubleshooting section

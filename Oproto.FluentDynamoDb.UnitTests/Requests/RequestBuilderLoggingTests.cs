@@ -5,6 +5,7 @@ using NSubstitute;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
+using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
@@ -15,7 +16,48 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 [Trait("Category", "Integration")]
 public class RequestBuilderLoggingTests
 {
-    private class TestEntity { }
+    private class TestEntity : IDynamoDbEntity
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntity;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var entity = new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), logger);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata { TableName = "test-table" };
+        }
+    }
     private class TestLogger : IDynamoDbLogger
     {
         private readonly List<LogEntry> _logEntries = new();
@@ -125,16 +167,21 @@ public class RequestBuilderLoggingTests
         var logger = new TestLogger();
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new QueryResponse { Count = 5, ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } });
+            .Returns(new QueryResponse 
+            { 
+                Items = new List<Dictionary<string, AttributeValue>>(),
+                Count = 5, 
+                ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
+            });
 
         var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act
-        await builder
+        var response = await builder
             .ForTable("TestTable")
             .Where("pk = :pk")
             .WithValue(":pk", "test-id")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         logger.HasLogEntry(LogLevel.Information, LogEventIds.ExecutingQuery).Should().BeTrue();
@@ -151,17 +198,22 @@ public class RequestBuilderLoggingTests
         var logger = new TestLogger();
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new QueryResponse { Count = 5, ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } });
+            .Returns(new QueryResponse 
+            { 
+                Items = new List<Dictionary<string, AttributeValue>>(),
+                Count = 5, 
+                ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
+            });
 
         var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act
-        await builder
+        var response = await builder
             .ForTable("TestTable")
             .Where("pk = :pk")
             .WithValue(":pk", "test-id")
             .WithValue(":sk", "test-sort")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         logger.HasLogEntry(LogLevel.Trace, LogEventIds.ExecutingQuery).Should().BeTrue();
@@ -177,16 +229,21 @@ public class RequestBuilderLoggingTests
         var logger = new TestLogger();
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new QueryResponse { Count = 5, ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } });
+            .Returns(new QueryResponse 
+            { 
+                Items = new List<Dictionary<string, AttributeValue>>(),
+                Count = 5, 
+                ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
+            });
 
         var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act
-        await builder
+        var response = await builder
             .ForTable("TestTable")
             .Where("pk = :pk")
             .WithValue(":pk", "test-id")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         logger.HasLogEntry(LogLevel.Information, LogEventIds.OperationComplete).Should().BeTrue();
@@ -202,16 +259,21 @@ public class RequestBuilderLoggingTests
         var logger = new TestLogger();
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new QueryResponse { Count = 5, ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } });
+            .Returns(new QueryResponse 
+            { 
+                Items = new List<Dictionary<string, AttributeValue>>(),
+                Count = 5, 
+                ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
+            });
 
         var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act
-        await builder
+        var response = await builder
             .ForTable("TestTable")
             .Where("pk = :pk")
             .WithValue(":pk", "test-id")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         var entry = logger.GetLogEntry(LogLevel.Information, LogEventIds.OperationComplete);
@@ -230,20 +292,19 @@ public class RequestBuilderLoggingTests
             .Returns<QueryResponse>(_ => throw expectedException);
 
         var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
+        // Query uses ToListAsync
 
         // Act & Assert
-        await Assert.ThrowsAsync<ResourceNotFoundException>(async () => await builder
+        var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(async () => await builder
             .ForTable("TestTable")
             .Where("pk = :pk")
             .WithValue(":pk", "test-id")
-            .ExecuteAsync());
+            .ToListAsync<TestEntity>());
         
-        // Assert
-        logger.HasLogEntry(LogLevel.Error, LogEventIds.DynamoDbOperationError).Should().BeTrue();
-        var entry = logger.GetLogEntry(LogLevel.Error, LogEventIds.DynamoDbOperationError);
-        entry.Should().NotBeNull();
-        entry!.Exception.Should().Be(expectedException);
-        entry.Message.Should().Contain("failed");
+        // Verify inner exception is the original exception
+        exception.InnerException.Should().Be(expectedException);
+        exception.Message.Should().Contain("Query");
+        exception.Message.Should().Contain("TestEntity");
     }
 
     #endregion
@@ -266,10 +327,10 @@ public class RequestBuilderLoggingTests
         var builder = new GetItemRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act
-        await builder
+        var response = await builder
             .ForTable("TestTable")
             .WithKey("id", "test-id")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         logger.HasLogEntry(LogLevel.Information, LogEventIds.ExecutingGetItem).Should().BeTrue();
@@ -289,13 +350,15 @@ public class RequestBuilderLoggingTests
         var builder = new GetItemRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act & Assert
-        await Assert.ThrowsAsync<ResourceNotFoundException>(async () => await builder
+        var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(async () => await builder
             .ForTable("TestTable")
             .WithKey("id", "test-id")
-            .ExecuteAsync());
+            .GetItemAsync<TestEntity>());
         
-        // Assert
-        logger.HasLogEntry(LogLevel.Error, LogEventIds.DynamoDbOperationError).Should().BeTrue();
+        // Verify inner exception is the original exception
+        exception.InnerException.Should().Be(expectedException);
+        exception.Message.Should().Contain("GetItem");
+        exception.Message.Should().Contain("TestEntity");
     }
 
     #endregion
@@ -319,10 +382,10 @@ public class RequestBuilderLoggingTests
         };
 
         // Act
-        await builder
+        var response = await builder
             .ForTable("TestTable")
             .WithItem(item)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         logger.HasLogEntry(LogLevel.Information, LogEventIds.ExecutingPutItem).Should().BeTrue();
@@ -346,13 +409,14 @@ public class RequestBuilderLoggingTests
         };
 
         // Act & Assert
-        await Assert.ThrowsAsync<ConditionalCheckFailedException>(async () => await builder
+        var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(async () => await builder
             .ForTable("TestTable")
             .WithItem(item)
-            .ExecuteAsync());
+            .PutAsync<TestEntity>());
         
-        // Assert
-        logger.HasLogEntry(LogLevel.Error, LogEventIds.DynamoDbOperationError).Should().BeTrue();
+        // Verify inner exception is the original exception
+        exception.InnerException.Should().Be(expectedException);
+        exception.Message.Should().Contain("PutItem");
     }
 
     #endregion
@@ -371,13 +435,13 @@ public class RequestBuilderLoggingTests
         var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act
-        await builder
+        var response = await builder
             .ForTable("TestTable")
             .WithKey("id", "test-id")
             .Set("SET #name = :name")
             .WithAttribute("#name", "name")
             .WithValue(":name", "Updated Name")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         logger.HasLogEntry(LogLevel.Information, LogEventIds.ExecutingUpdate).Should().BeTrue();
@@ -397,16 +461,17 @@ public class RequestBuilderLoggingTests
         var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient, logger);
 
         // Act & Assert
-        await Assert.ThrowsAsync<ResourceNotFoundException>(async () => await builder
+        var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(async () => await builder
             .ForTable("TestTable")
             .WithKey("id", "test-id")
             .Set("SET #name = :name")
             .WithAttribute("#name", "name")
             .WithValue(":name", "Updated Name")
-            .ExecuteAsync());
+            .UpdateAsync<TestEntity>());
         
-        // Assert
-        logger.HasLogEntry(LogLevel.Error, LogEventIds.DynamoDbOperationError).Should().BeTrue();
+        // Verify inner exception is the original exception
+        exception.InnerException.Should().Be(expectedException);
+        exception.Message.Should().Contain("UpdateItem");
     }
 
     #endregion

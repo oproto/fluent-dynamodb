@@ -628,22 +628,22 @@ public class BackwardCompatibilityTests
     }
     
     [Fact]
-    public void QueryRequestBuilder_ExecuteAsync_WithoutToListAsync_ShouldWork()
+    public void QueryRequestBuilder_ToListAsync_ShouldWork()
     {
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
             .Returns(new QueryResponse { Items = new List<Dictionary<string, AttributeValue>>() });
         
-        // Act - Use ExecuteAsync directly (existing pattern)
+        // Act - Use ToListAsync (new Primary API pattern)
         var builder = new QueryRequestBuilder<TestEntity>(mockClient)
             .ForTable("TestTable")
             .Where("pk = :pk")
             .WithValue(":pk", "test-id");
         
-        var responseTask = builder.ExecuteAsync();
+        var responseTask = builder.ToListAsync<TestEntity>();
         
-        // Assert - Should work without ToListAsync
+        // Assert - Should work with ToListAsync
         responseTask.Should().NotBeNull();
     }
     
@@ -798,12 +798,52 @@ public class BackwardCompatibilityTests
     /// <summary>
     /// Simple test entity for generic index tests.
     /// </summary>
-    private class TestEntity
+    private class TestEntity : IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public int Amount { get; set; }
         public string Status { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntity;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty },
+                ["name"] = new AttributeValue { S = testEntity?.Name ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var entity = new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty,
+                Name = item.TryGetValue("name", out var name) ? name.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), logger);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata { TableName = "test-table" };
+        }
     }
     
     #endregion

@@ -90,7 +90,7 @@ public class FormatApplicationIntegrationTests : IntegrationTestBase
         
         // Act - Query using LINQ expression with formatted DateTime
         var response = await _table.Query<FormattedEntity>(x => x.Id == "item-1" && x.CreatedDate == date)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert - Should find the item because format strips time
         response.Items.Should().HaveCount(1);
@@ -213,7 +213,7 @@ public class FormatApplicationIntegrationTests : IntegrationTestBase
         
         // Act - Execute query end-to-end
         var response = await _table.Query<FormattedEntity>(x => x.Id == "item-2" && x.CreatedDate == date)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert - Should find the matching item
         response.Items.Should().HaveCount(1);
@@ -262,7 +262,7 @@ public class FormatApplicationIntegrationTests : IntegrationTestBase
         
         // Act - Execute scan end-to-end
         var response = await _table.Scan<FormattedEntity>(x => x.Amount == amount)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert - Should find the matching item
         response.Items.Should().HaveCount(1);
@@ -334,7 +334,7 @@ public class FormatApplicationIntegrationTests : IntegrationTestBase
         
         // Act - Execute query and deserialize results
         var response = await _table.Query<FormattedEntity>(x => x.Id == "item-1" && x.CreatedDate == date)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert - Verify deserialization preserves original values
         response.Items.Should().HaveCount(1);

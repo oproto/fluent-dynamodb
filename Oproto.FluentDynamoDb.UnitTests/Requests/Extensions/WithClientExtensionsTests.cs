@@ -2,14 +2,57 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
+using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests.Extensions;
 
 public class WithClientExtensionsTests
 {
-    private class TestEntity { }
+    private class TestEntity : IDynamoDbEntity
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntity;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var entity = new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), logger);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata { TableName = "test-table" };
+        }
+    }
     private readonly IAmazonDynamoDB _originalClient = Substitute.For<IAmazonDynamoDB>();
     private readonly IAmazonDynamoDB _scopedClient = Substitute.For<IAmazonDynamoDB>();
 
@@ -354,10 +397,10 @@ public class WithClientExtensionsTests
             .WithClient(_scopedClient);
 
         // Act
-        var response = await builder.ExecuteAsync();
+        var entity = await builder.GetItemAsync<TestEntity>();
 
         // Assert
-        response.Should().BeSameAs(expectedResponse);
+        entity.Should().NotBeNull();
         await _scopedClient.Received(1).GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>());
         await _originalClient.DidNotReceive().GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>());
     }

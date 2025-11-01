@@ -12,21 +12,22 @@ namespace Oproto.FluentDynamoDb.FluentResults;
 public static class FluentResultsExtensions
 {
     /// <summary>
-    /// Executes a GetItem operation and maps the result to a strongly-typed entity, returning a Result&lt;T&gt;.
+    /// Executes a GetItem operation and maps the result to a strongly-typed entity, returning a Result&lt;T?&gt;.
+    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The GetItemRequestBuilder instance.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A Result containing the GetItemResponse with mapped entity or error details.</returns>
-    public static async Task<Result<GetItemResponse<T>>> ExecuteAsyncResult<T>(
-        this GetItemRequestBuilder builder,
+    /// <returns>A Result containing the mapped entity (or null if not found) or error details.</returns>
+    public static async Task<Result<T?>> GetItemAsyncResult<T>(
+        this GetItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
         try
         {
-            var response = await EnhancedExecuteAsyncExtensions.ExecuteAsync<T>(builder, cancellationToken);
-            return Result.Ok(response);
+            var entity = await EnhancedExecuteAsyncExtensions.GetItemAsync<T>(builder, cancellationToken);
+            return Result.Ok(entity);
         }
         catch (OperationCanceledException)
         {
@@ -35,7 +36,40 @@ public static class FluentResultsExtensions
         }
         catch (Exception ex)
         {
-            return Result.Fail($"Failed to execute GetItem operation for {typeof(T).Name}: {ex.Message}")
+            return Result.Fail<T?>($"Failed to execute GetItem operation for {typeof(T).Name}: {ex.Message}")
+                .WithError(new ExceptionalError(ex));
+        }
+    }
+
+    /// <summary>
+    /// Executes a GetItem operation with blob reference support and maps the result to a strongly-typed entity, returning a Result&lt;T?&gt;.
+    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
+    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// </summary>
+    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <param name="builder">The GetItemRequestBuilder instance.</param>
+    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A Result containing the mapped entity (or null if not found) or error details.</returns>
+    public static async Task<Result<T?>> GetItemAsyncResult<T>(
+        this GetItemRequestBuilder<T> builder,
+        IBlobStorageProvider blobProvider,
+        CancellationToken cancellationToken = default)
+        where T : class, IDynamoDbEntity
+    {
+        try
+        {
+            var entity = await EnhancedExecuteAsyncExtensions.GetItemAsync<T>(builder, blobProvider, cancellationToken);
+            return Result.Ok(entity);
+        }
+        catch (OperationCanceledException)
+        {
+            // Re-throw cancellation exceptions as they should not be wrapped
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<T?>($"Failed to execute GetItem operation for {typeof(T).Name}: {ex.Message}")
                 .WithError(new ExceptionalError(ex));
         }
     }
@@ -193,48 +227,22 @@ public static class FluentResultsExtensions
     }
 
     /// <summary>
-    /// Configures the PutItem operation to use a strongly-typed entity, returning a Result.
-    /// The entity is automatically converted to DynamoDB AttributeValue format.
-    /// For multi-item entities, only the first item is used for PutItem operations.
+    /// Executes a PutItem operation and stores the entity in DynamoDB, returning a Result.
+    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
+    /// PutItem creates a new item or completely replaces an existing item with the same primary key.
     /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <typeparam name="T">The entity type.</typeparam>
     /// <param name="builder">The PutItemRequestBuilder instance.</param>
-    /// <param name="item">The entity instance to put.</param>
-    /// <returns>A Result containing the configured builder or error details.</returns>
-    public static Result<PutItemRequestBuilder> WithItemResult<T>(
-        this PutItemRequestBuilder builder,
-        T item)
-        where T : class, IDynamoDbEntity
-    {
-        try
-        {
-            var configuredBuilder = EnhancedExecuteAsyncExtensions.WithItem(builder, item);
-            return Result.Ok(configuredBuilder);
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail($"Failed to configure PutItem with {typeof(T).Name} entity: {ex.Message}")
-                .WithError(new ExceptionalError(ex));
-        }
-    }
-
-    /// <summary>
-    /// Executes a PutItem operation with a strongly-typed entity, returning a Result.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The PutItemRequestBuilder instance.</param>
-    /// <param name="item">The entity instance to put.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A Result indicating success or containing error details.</returns>
-    public static async Task<Result> ExecuteAsyncResult<T>(
-        this PutItemRequestBuilder builder,
-        T item,
+    public static async Task<Result> PutAsyncResult<T>(
+        this PutItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
+        where T : class
     {
         try
         {
-            await EnhancedExecuteAsyncExtensions.WithItem(builder, item).ExecuteAsync(cancellationToken);
+            await EnhancedExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
             return Result.Ok();
         }
         catch (OperationCanceledException)
@@ -244,7 +252,101 @@ public static class FluentResultsExtensions
         }
         catch (Exception ex)
         {
-            return Result.Fail($"Failed to execute PutItem operation for {typeof(T).Name}: {ex.Message}")
+            return Result.Fail($"Failed to execute PutItem operation: {ex.Message}")
+                .WithError(new ExceptionalError(ex));
+        }
+    }
+
+    /// <summary>
+    /// Executes a PutItem operation with blob reference support and stores the entity in DynamoDB, returning a Result.
+    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
+    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The PutItemRequestBuilder instance.</param>
+    /// <param name="blobProvider">The blob storage provider for storing blob references.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A Result indicating success or containing error details.</returns>
+    public static async Task<Result> PutAsyncResult<T>(
+        this PutItemRequestBuilder<T> builder,
+        IBlobStorageProvider blobProvider,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        try
+        {
+            await EnhancedExecuteAsyncExtensions.PutAsync(builder, blobProvider, cancellationToken);
+            return Result.Ok();
+        }
+        catch (OperationCanceledException)
+        {
+            // Re-throw cancellation exceptions as they should not be wrapped
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail($"Failed to execute PutItem operation: {ex.Message}")
+                .WithError(new ExceptionalError(ex));
+        }
+    }
+
+    /// <summary>
+    /// Executes an UpdateItem operation and modifies the entity in DynamoDB, returning a Result.
+    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
+    /// UpdateItem modifies existing items or creates them if they don't exist (upsert behavior).
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A Result indicating success or containing error details.</returns>
+    public static async Task<Result> UpdateAsyncResult<T>(
+        this UpdateItemRequestBuilder<T> builder,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        try
+        {
+            await EnhancedExecuteAsyncExtensions.UpdateAsync(builder, cancellationToken);
+            return Result.Ok();
+        }
+        catch (OperationCanceledException)
+        {
+            // Re-throw cancellation exceptions as they should not be wrapped
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail($"Failed to execute UpdateItem operation: {ex.Message}")
+                .WithError(new ExceptionalError(ex));
+        }
+    }
+
+    /// <summary>
+    /// Executes a DeleteItem operation and removes the entity from DynamoDB, returning a Result.
+    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The DeleteItemRequestBuilder instance.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A Result indicating success or containing error details.</returns>
+    public static async Task<Result> DeleteAsyncResult<T>(
+        this DeleteItemRequestBuilder<T> builder,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        try
+        {
+            await EnhancedExecuteAsyncExtensions.DeleteAsync(builder, cancellationToken);
+            return Result.Ok();
+        }
+        catch (OperationCanceledException)
+        {
+            // Re-throw cancellation exceptions as they should not be wrapped
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail($"Failed to execute DeleteItem operation: {ex.Message}")
                 .WithError(new ExceptionalError(ex));
         }
     }

@@ -37,11 +37,11 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use custom-named accessor
-        await table.CustomOrders.Put(order).ExecuteAsync();
+        await table.CustomOrders.Put(order).PutAsync();
         
         var result = await table.CustomOrders.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert
         result.Item.Should().NotBeNull();
@@ -69,11 +69,11 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Table-level operations should still work
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
         
         var result = await table.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert
         result.Item.Should().NotBeNull();
@@ -100,11 +100,11 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use internal accessor
-        await accessor.Put(entity).ExecuteAsync();
+        await accessor.Put(entity).PutAsync();
         
         var result = await accessor.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert
         result.Item.Should().NotBeNull();
@@ -129,16 +129,16 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Other operations should still work
-        await table.NoDeletes.Put(entity).ExecuteAsync();
+        await table.NoDeletes.Put(entity).PutAsync();
         
         var getResult = await table.NoDeletes.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         var queryResult = await table.NoDeletes.Query()
             .Where("pk = :pk")
             .WithValue(":pk", entity.Id)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert - Get, Query, Put should work
         getResult.Item.Should().NotBeNull();
@@ -164,11 +164,11 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use internal operations
-        await table.InternalOps.Put(entity).ExecuteAsync();
+        await table.InternalOps.Put(entity).PutAsync();
         
         var result = await table.InternalOps.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert
         result.Item.Should().NotBeNull();
@@ -193,12 +193,12 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use public Query operation
-        await table.MixedEntities.Put(entity).ExecuteAsync();
+        await table.MixedEntities.Put(entity).PutAsync();
         
         var queryResult = await table.MixedEntities.Query()
             .Where("pk = :pk")
             .WithValue(":pk", entity.Id)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert - Query should work (it's public)
         queryResult.Items.Should().HaveCount(1);
@@ -221,12 +221,12 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use table-level operations
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
         
         var result = await table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", entity.Id)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         result.Items.Should().HaveCount(1);
@@ -255,16 +255,16 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use both custom-named accessors
-        await table.CustomOrders.Put(order).ExecuteAsync();
-        await table.CustomItems.Put(item).ExecuteAsync();
+        await table.CustomOrders.Put(order).PutAsync();
+        await table.CustomItems.Put(item).PutAsync();
 
         var orderResult = await table.CustomOrders.Get()
             .WithKey("pk", order.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         var itemResult = await table.CustomItems.Get()
             .WithKey("pk", item.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert - Both custom configurations should work
         orderResult.Item.Should().NotBeNull();

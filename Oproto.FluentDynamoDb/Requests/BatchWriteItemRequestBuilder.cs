@@ -50,6 +50,12 @@ public class BatchWriteItemRequestBuilder
     }
 
     /// <summary>
+    /// Gets the DynamoDB client instance used by this builder.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
     /// Adds write operations (put or delete) for a specific table.
     /// You can call this method multiple times to write to different tables in the same batch.
     /// You can also call it multiple times for the same table to add more operations.
@@ -146,7 +152,8 @@ public class BatchWriteItemRequestBuilder
     }
 
     /// <summary>
-    /// Executes the batch write operation asynchronously.
+    /// Executes the batch write operation asynchronously and returns the raw AWS SDK response (Advanced API).
+    /// This method does NOT populate DynamoDbOperationContext. Use the Primary API extension methods for context population.
     /// 
     /// Note: Check the UnprocessedItems property in the response to handle any items
     /// that couldn't be processed due to capacity limits or other constraints.
@@ -155,7 +162,7 @@ public class BatchWriteItemRequestBuilder
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the batch write response.</returns>
     /// <exception cref="ResourceNotFoundException">Thrown when one of the specified tables doesn't exist.</exception>
-    public async Task<BatchWriteItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<BatchWriteItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToBatchWriteItemRequest();
         

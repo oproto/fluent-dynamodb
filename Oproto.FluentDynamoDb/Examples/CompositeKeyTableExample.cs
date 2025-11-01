@@ -26,41 +26,50 @@ namespace Oproto.FluentDynamoDb.Examples;
 /// // Initialize the table
 /// var ordersTable = new OrdersTable(dynamoDbClient);
 /// 
-/// // Get a specific order
+/// // Get a specific order (Primary API)
 /// var order = await ordersTable.Get("customer-123", "order-456")
 ///     .WithProjection("customer_id, order_id, amount, status")
-///     .ToDynamoDbResponseAsync();
+///     .GetItemAsync();
 /// 
-/// // Update an order
+/// // Update an order (Primary API)
 /// await ordersTable.Update("customer-123", "order-456")
 ///     .Set("status", "SHIPPED")
 ///     .Set("shipped_at", DateTime.UtcNow)
-///     .ToDynamoDbResponseAsync();
+///     .UpdateAsync();
 /// 
-/// // Delete an order
+/// // Delete an order (Primary API)
 /// await ordersTable.Delete("customer-123", "order-456")
 ///     .WithCondition("attribute_exists(customer_id)")
-///     .ToDynamoDbResponseAsync();
+///     .DeleteAsync();
 /// 
-/// // Query all orders for a customer
+/// // Query all orders for a customer (Primary API)
 /// var customerOrders = await ordersTable
 ///     .Query("customer_id = {0}", "customer-123")
-///     .ToDynamoDbResponseAsync();
+///     .ToListAsync&lt;Order&gt;();
 /// 
 /// // Query orders for a customer within a date range
 /// var recentOrders = await ordersTable
 ///     .Query("customer_id = {0} AND order_id > {1}", "customer-123", "2024-01-01#")
-///     .ToDynamoDbResponseAsync();
+///     .ToListAsync&lt;Order&gt;();
+/// 
+/// // Access operation metadata
+/// var context = DynamoDbOperationContext.Current;
+/// Console.WriteLine($"Consumed capacity: {context?.ConsumedCapacity?.CapacityUnits}");
 /// 
 /// // Query orders by status
 /// var pendingOrders = await ordersTable.StatusIndex
 ///     .Query("status = {0}", "PENDING")
-///     .ToDynamoDbResponseAsync();
+///     .ToListAsync&lt;Order&gt;();
 /// 
 /// // Query orders for a specific product
 /// var productOrders = await ordersTable.ProductIndex
 ///     .Query("product_id = {0}", "product-789")
+///     .ToListAsync&lt;Order&gt;();
+/// 
+/// // Advanced API - get raw response
+/// var response = await ordersTable.Get("customer-123", "order-456")
 ///     .ToDynamoDbResponseAsync();
+/// var order = response.ToEntity&lt;Order&gt;();
 /// </code>
 /// </example>
 public class OrdersTable : DynamoDbTableBase
@@ -92,18 +101,23 @@ public class OrdersTable : DynamoDbTableBase
     /// <returns>A GetItemRequestBuilder configured with the composite key.</returns>
     /// <example>
     /// <code>
-    /// // Get order with all attributes
-    /// var order = await ordersTable.Get("customer-123", "order-456").ToDynamoDbResponseAsync();
+    /// // Get order with all attributes (Primary API)
+    /// var order = await ordersTable.Get("customer-123", "order-456").GetItemAsync();
     /// 
     /// // Get order with specific attributes
     /// var order = await ordersTable.Get("customer-123", "order-456")
     ///     .WithProjection("customer_id, order_id, amount, status")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .GetItemAsync();
     /// 
     /// // Get order with consistent read
     /// var order = await ordersTable.Get("customer-123", "order-456")
     ///     .WithConsistentRead()
+    ///     .GetItemAsync();
+    /// 
+    /// // Advanced API - get raw response
+    /// var response = await ordersTable.Get("customer-123", "order-456")
     ///     .ToDynamoDbResponseAsync();
+    /// var order = response.ToEntity&lt;Order&gt;();
     /// </code>
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
@@ -118,27 +132,38 @@ public class OrdersTable : DynamoDbTableBase
     /// <returns>An UpdateItemRequestBuilder configured with the composite key.</returns>
     /// <example>
     /// <code>
-    /// // Update order status
+    /// // Update order status (Primary API)
     /// await ordersTable.Update("customer-123", "order-456")
     ///     .Set("status", "SHIPPED")
     ///     .Set("shipped_at", DateTime.UtcNow)
-    ///     .ToDynamoDbResponseAsync();
+    ///     .UpdateAsync();
     /// 
     /// // Update with condition
     /// await ordersTable.Update("customer-123", "order-456")
     ///     .Set("status", "CANCELLED")
     ///     .WithCondition("status = {0}", "PENDING")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .UpdateAsync();
     /// 
     /// // Add items to a list
     /// await ordersTable.Update("customer-123", "order-456")
     ///     .Add("tracking_numbers", new List&lt;string&gt; { "TRACK123" })
-    ///     .ToDynamoDbResponseAsync();
+    ///     .UpdateAsync();
     /// 
-    /// // Increment a counter
+    /// // Increment a counter and access old values
     /// await ordersTable.Update("customer-123", "order-456")
     ///     .Add("view_count", 1)
+    ///     .WithReturnValues(ReturnValue.ALL_OLD)
+    ///     .UpdateAsync();
+    /// 
+    /// var context = DynamoDbOperationContext.Current;
+    /// var oldOrder = context?.DeserializePreOperationValue&lt;Order&gt;();
+    /// 
+    /// // Advanced API - get raw response
+    /// var response = await ordersTable.Update("customer-123", "order-456")
+    ///     .Set("status", "SHIPPED")
+    ///     .WithReturnValues(ReturnValue.ALL_NEW)
     ///     .ToDynamoDbResponseAsync();
+    /// var updatedOrder = response.ToPostOperationEntity&lt;Order&gt;();
     /// </code>
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
@@ -153,18 +178,27 @@ public class OrdersTable : DynamoDbTableBase
     /// <returns>A DeleteItemRequestBuilder configured with the composite key.</returns>
     /// <example>
     /// <code>
-    /// // Delete order
-    /// await ordersTable.Delete("customer-123", "order-456").ToDynamoDbResponseAsync();
+    /// // Delete order (Primary API)
+    /// await ordersTable.Delete("customer-123", "order-456").DeleteAsync();
     /// 
     /// // Delete with condition
     /// await ordersTable.Delete("customer-123", "order-456")
     ///     .WithCondition("status = {0}", "CANCELLED")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .DeleteAsync();
     /// 
-    /// // Delete and return old values
-    /// var deletedOrder = await ordersTable.Delete("customer-123", "order-456")
+    /// // Delete and access old values via context
+    /// await ordersTable.Delete("customer-123", "order-456")
+    ///     .WithReturnValues(ReturnValue.ALL_OLD)
+    ///     .DeleteAsync();
+    /// 
+    /// var context = DynamoDbOperationContext.Current;
+    /// var deletedOrder = context?.DeserializePreOperationValue&lt;Order&gt;();
+    /// 
+    /// // Advanced API - get raw response
+    /// var response = await ordersTable.Delete("customer-123", "order-456")
     ///     .WithReturnValues(ReturnValue.ALL_OLD)
     ///     .ToDynamoDbResponseAsync();
+    /// var deletedOrder = response.ToPreOperationEntity&lt;Order&gt;();
     /// </code>
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
@@ -180,28 +214,38 @@ public class OrdersTable : DynamoDbTableBase
     /// </summary>
     /// <example>
     /// <code>
-    /// // Query all pending orders
+    /// // Query all pending orders (Primary API)
     /// var pendingOrders = await ordersTable.StatusIndex
     ///     .Query("status = {0}", "PENDING")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .ToListAsync&lt;Order&gt;();
     /// 
     /// // Query pending orders created after a specific date
     /// var recentPending = await ordersTable.StatusIndex
     ///     .Query("status = {0} AND created_at > {1}", "PENDING", "2024-01-01")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .ToListAsync&lt;Order&gt;();
     /// 
     /// // Query shipped orders in a date range
     /// var shippedInRange = await ordersTable.StatusIndex
     ///     .Query("status = {0} AND created_at BETWEEN {1} AND {2}", 
     ///         "SHIPPED", "2024-01-01", "2024-12-31")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .ToListAsync&lt;Order&gt;();
     /// 
     /// // Query with descending order (most recent first)
     /// var recentShipped = await ordersTable.StatusIndex.Query()
     ///     .Where("status = {0}", "SHIPPED")
     ///     .WithScanIndexForward(false)
     ///     .WithLimit(10)
+    ///     .ToListAsync&lt;Order&gt;();
+    /// 
+    /// // Access query metadata
+    /// var context = DynamoDbOperationContext.Current;
+    /// Console.WriteLine($"Items returned: {context?.ItemCount}");
+    /// 
+    /// // Advanced API - get raw response
+    /// var response = await ordersTable.StatusIndex
+    ///     .Query("status = {0}", "PENDING")
     ///     .ToDynamoDbResponseAsync();
+    /// var orders = response.ToList&lt;Order&gt;();
     /// </code>
     /// </example>
     public DynamoDbIndex StatusIndex => 
@@ -218,28 +262,38 @@ public class OrdersTable : DynamoDbTableBase
     /// </summary>
     /// <example>
     /// <code>
-    /// // Query all orders containing a specific product
+    /// // Query all orders containing a specific product (Primary API)
     /// var productOrders = await ordersTable.ProductIndex
     ///     .Query("product_id = {0}", "product-789")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .ToListAsync&lt;Order&gt;();
     /// 
     /// // Query orders for a product within a specific order ID range
     /// var productOrdersInRange = await ordersTable.ProductIndex
     ///     .Query("product_id = {0} AND order_id > {1}", "product-789", "2024-01-01#")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .ToListAsync&lt;Order&gt;();
     /// 
     /// // Query with begins_with on sort key
     /// var productOrdersPrefix = await ordersTable.ProductIndex
     ///     .Query("product_id = {0} AND begins_with(order_id, {1})", 
     ///         "product-789", "2024-01")
-    ///     .ToDynamoDbResponseAsync();
+    ///     .ToListAsync&lt;Order&gt;();
     /// 
     /// // Manual query configuration with additional filters
     /// var highValueOrders = await ordersTable.ProductIndex.Query()
     ///     .Where("product_id = {0}", "product-789")
     ///     .WithFilter("amount > {0}", 100)
     ///     .WithLimit(20)
+    ///     .ToListAsync&lt;Order&gt;();
+    /// 
+    /// // Access query metadata
+    /// var context = DynamoDbOperationContext.Current;
+    /// Console.WriteLine($"Scanned: {context?.ScannedCount}, Returned: {context?.ItemCount}");
+    /// 
+    /// // Advanced API - get raw response
+    /// var response = await ordersTable.ProductIndex
+    ///     .Query("product_id = {0}", "product-789")
     ///     .ToDynamoDbResponseAsync();
+    /// var orders = response.ToList&lt;Order&gt;();
     /// </code>
     /// </example>
     public DynamoDbIndex ProductIndex => 

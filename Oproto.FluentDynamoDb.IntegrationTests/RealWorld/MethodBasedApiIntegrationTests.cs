@@ -90,10 +90,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["name"] = new AttributeValue { S = "John Doe" },
                 ["email"] = new AttributeValue { S = "john@example.com" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Query with format string expression
-        var response = await _singleKeyTable.Query("pk = {0}", userId).ExecuteAsync();
+        var response = await _singleKeyTable.Query("pk = {0}", userId).PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -115,10 +115,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["name"] = new AttributeValue { S = "Laptop" },
                 ["price"] = new AttributeValue { N = "999.99" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Query with composite key condition
-        var response = await _compositeKeyTable.Query("pk = {0} AND sk = {1}", pk, sk).ExecuteAsync();
+        var response = await _compositeKeyTable.Query("pk = {0} AND sk = {1}", pk, sk).PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -139,7 +139,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["sk"] = new AttributeValue { S = "ORDER#001" },
                 ["amount"] = new AttributeValue { N = "100" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         await _compositeKeyTable.Put()
             .WithItem(new Dictionary<string, AttributeValue>
@@ -148,7 +148,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["sk"] = new AttributeValue { S = "ORDER#002" },
                 ["amount"] = new AttributeValue { N = "200" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         await _compositeKeyTable.Put()
             .WithItem(new Dictionary<string, AttributeValue>
@@ -157,10 +157,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["sk"] = new AttributeValue { S = "PROFILE" },
                 ["name"] = new AttributeValue { S = "Jane" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use begins_with in format string
-        var response = await _compositeKeyTable.Query("pk = {0} AND begins_with(sk, {1})", pk, "ORDER#").ExecuteAsync();
+        var response = await _compositeKeyTable.Query("pk = {0} AND begins_with(sk, {1})", pk, "ORDER#").PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -189,11 +189,11 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["sk"] = new AttributeValue { S = sk },
                     ["price"] = new AttributeValue { N = price }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Use >= operator
-        var response = await _compositeKeyTable.Query("pk = {0} AND sk >= {1}", pk, "VERSION#2.0").ExecuteAsync();
+        var response = await _compositeKeyTable.Query("pk = {0} AND sk >= {1}", pk, "VERSION#2.0").PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(3);
@@ -218,12 +218,12 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["sk"] = new AttributeValue { S = date },
                     ["event"] = new AttributeValue { S = $"Event on {date}" }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Use BETWEEN operator
         var response = await _compositeKeyTable.Query("pk = {0} AND sk BETWEEN {1} AND {2}", 
-            pk, "2024-02-01", "2024-03-31").ExecuteAsync();
+            pk, "2024-02-01", "2024-03-31").PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -248,10 +248,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["name"] = new AttributeValue { S = "Alice" },
                 ["email"] = new AttributeValue { S = "alice@example.com" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Get with key parameter
-        var response = await _singleKeyTable.Get(userId).ExecuteAsync();
+        var response = await _singleKeyTable.Get(userId).PutAsync();
         
         // Assert
         response.Item.Should().NotBeNull();
@@ -273,10 +273,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["name"] = new AttributeValue { S = "Widget" },
                 ["price"] = new AttributeValue { N = "49.99" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Get with composite key parameters
-        var response = await _compositeKeyTable.Get(pk, sk).ExecuteAsync();
+        var response = await _compositeKeyTable.Get(pk, sk).PutAsync();
         
         // Assert
         response.Item.Should().NotBeNull();
@@ -298,17 +298,17 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["name"] = new AttributeValue { S = "Bob" },
                 ["email"] = new AttributeValue { S = "bob@example.com" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Update with key parameter
         await _singleKeyTable.Update(userId)
             .Set("SET #name = :newName")
             .WithAttribute("#name", "name")
             .WithValue(":newName", "Robert")
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
-        var response = await _singleKeyTable.Get(userId).ExecuteAsync();
+        var response = await _singleKeyTable.Get(userId).PutAsync();
         response.Item["name"].S.Should().Be("Robert");
     }
     
@@ -326,16 +326,16 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["name"] = new AttributeValue { S = "Gadget" },
                 ["price"] = new AttributeValue { N = "99.99" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Update with composite key parameters
         await _compositeKeyTable.Update(pk, sk)
             .Set("SET price = :newPrice")
             .WithValue(":newPrice", 79.99m)
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
-        var response = await _compositeKeyTable.Get(pk, sk).ExecuteAsync();
+        var response = await _compositeKeyTable.Get(pk, sk).PutAsync();
         response.Item["price"].N.Should().Be("79.99");
     }
     
@@ -351,13 +351,13 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["sk"] = new AttributeValue { S = "METADATA" },
                 ["name"] = new AttributeValue { S = "Charlie" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Delete with key parameter
-        await _singleKeyTable.Delete(userId).ExecuteAsync();
+        await _singleKeyTable.Delete(userId).PutAsync();
         
         // Assert
-        var response = await _singleKeyTable.Get(userId).ExecuteAsync();
+        var response = await _singleKeyTable.Get(userId).PutAsync();
         response.Item.Should().BeNull();
     }
     
@@ -374,13 +374,13 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["sk"] = new AttributeValue { S = sk },
                 ["name"] = new AttributeValue { S = "Doohickey" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Use Delete with composite key parameters
-        await _compositeKeyTable.Delete(pk, sk).ExecuteAsync();
+        await _compositeKeyTable.Delete(pk, sk).PutAsync();
         
         // Assert
-        var response = await _compositeKeyTable.Get(pk, sk).ExecuteAsync();
+        var response = await _compositeKeyTable.Get(pk, sk).PutAsync();
         response.Item.Should().BeNull();
     }
     
@@ -410,13 +410,13 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["gsi1sk"] = new AttributeValue { S = date },
                     ["name"] = new AttributeValue { S = name }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Query index with format string
         var response = await _compositeKeyTable.StatusIndex
             .Query("gsi1pk = {0}", "STATUS#ACTIVE")
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -445,13 +445,13 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["gsi1pk"] = new AttributeValue { S = $"STATUS#{status}" },
                     ["gsi1sk"] = new AttributeValue { S = date }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Query index with composite key condition
         var response = await _compositeKeyTable.StatusIndex
             .Query("gsi1pk = {0} AND gsi1sk >= {1}", "STATUS#ACTIVE", "2024-02-01")
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -480,13 +480,13 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["gsi1pk"] = new AttributeValue { S = gsi1pk },
                     ["gsi1sk"] = new AttributeValue { S = gsi1sk }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Query index with begins_with
         var response = await _compositeKeyTable.StatusIndex
             .Query("gsi1pk = {0} AND begins_with(gsi1sk, {1})", "CATEGORY#ELECTRONICS", "PRODUCT#")
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -513,14 +513,14 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["phone"] = new AttributeValue { S = "555-1234" },
                 ["address"] = new AttributeValue { S = "123 Main St" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Combine format string with projection
         var response = await _compositeKeyTable
             .Query("pk = {0}", pk)
             .WithProjection("pk, sk, #name, email")
             .WithAttribute("#name", "name")
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -555,7 +555,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["price"] = new AttributeValue { N = price },
                     ["active"] = new AttributeValue { BOOL = bool.Parse(active) }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Combine format string with filter
@@ -563,7 +563,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .Query("pk = {0}", pk)
             .WithFilter("active = :active")
             .WithValue(":active", true)
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -585,14 +585,14 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["sk"] = new AttributeValue { S = $"ITEM#{i:D3}" },
                     ["name"] = new AttributeValue { S = $"Item {i}" }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Combine format string with limit
         var response = await _compositeKeyTable
             .Query("pk = {0}", pk)
             .Take(5)
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(5);
@@ -615,14 +615,14 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     ["sk"] = new AttributeValue { S = $"ITEM#{letter}" },
                     ["name"] = new AttributeValue { S = $"Item {letter}" }
                 })
-                .ExecuteAsync();
+                .PutAsync();
         }
         
         // Act - Combine format string with descending order
         var response = await _compositeKeyTable
             .Query("pk = {0}", pk)
             .OrderDescending()
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
         response.Items.Should().HaveCount(5);
@@ -644,7 +644,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 ["price"] = new AttributeValue { N = "100" },
                 ["stock"] = new AttributeValue { N = "50" }
             })
-            .ExecuteAsync();
+            .PutAsync();
         
         // Act - Update with key parameters and condition
         await _compositeKeyTable.Update(pk, sk)
@@ -652,10 +652,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .Where("stock > :minStock")
             .WithValue(":newPrice", 90m)
             .WithValue(":minStock", 10)
-            .ExecuteAsync();
+            .PutAsync();
         
         // Assert
-        var response = await _compositeKeyTable.Get(pk, sk).ExecuteAsync();
+        var response = await _compositeKeyTable.Get(pk, sk).PutAsync();
         response.Item["price"].N.Should().Be("90");
     }
     

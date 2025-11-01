@@ -40,6 +40,12 @@ public class TransactWriteItemsRequestBuilder
         _logger = logger ?? NoOpLogger.Instance;
     }
 
+    /// <summary>
+    /// Gets the DynamoDB client instance used by this builder.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
     public TransactWriteItemsRequestBuilder WithClientRequestToken(string token)
     {
         _req.ClientRequestToken = token;

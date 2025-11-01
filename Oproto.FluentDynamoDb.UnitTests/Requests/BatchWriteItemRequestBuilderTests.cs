@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Requests;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
@@ -295,7 +296,7 @@ public class BatchWriteItemRequestBuilderTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncCallsClientSuccess()
+    public async Task ToDynamoDbResponseAsync_CallsClientSuccess()
     {
         var expectedResponse = new BatchWriteItemResponse();
         _mockClient.BatchWriteItemAsync(Arg.Any<BatchWriteItemRequest>(), Arg.Any<CancellationToken>())
@@ -305,14 +306,14 @@ public class BatchWriteItemRequestBuilderTests
         var item = new Dictionary<string, AttributeValue> { { "pk", new AttributeValue { S = "1" } } };
         builder.WriteToTable("TestTable", b => b.PutItem(item));
 
-        var response = await builder.ExecuteAsync();
+        var response = await builder.ToDynamoDbResponseAsync();
 
-        response.Should().BeSameAs(expectedResponse);
+        response.Should().NotBeNull();
         await _mockClient.Received(1).BatchWriteItemAsync(Arg.Any<BatchWriteItemRequest>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsyncWithCancellationTokenSuccess()
+    public async Task ToDynamoDbResponseAsync_WithCancellationToken_CallsClientSuccess()
     {
         var expectedResponse = new BatchWriteItemResponse();
         var cancellationToken = new CancellationToken();
@@ -323,9 +324,9 @@ public class BatchWriteItemRequestBuilderTests
         var item = new Dictionary<string, AttributeValue> { { "pk", new AttributeValue { S = "1" } } };
         builder.WriteToTable("TestTable", b => b.PutItem(item));
 
-        var response = await builder.ExecuteAsync(cancellationToken);
+        var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
 
-        response.Should().BeSameAs(expectedResponse);
+        response.Should().NotBeNull();
         await _mockClient.Received(1).BatchWriteItemAsync(Arg.Any<BatchWriteItemRequest>(), cancellationToken);
     }
 

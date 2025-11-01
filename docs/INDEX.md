@@ -262,8 +262,7 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 **Mapper**
 - Generated mapper: [First Entity](getting-started/FirstEntity.md#generated-mapper)
 
-**Migration Guide**
-- Complete guide: [Migration Guide](MigrationGuide.md)
+
 
 **Multi-Entity Tables**
 - Complete guide: [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)

@@ -72,7 +72,7 @@ public class LinqEncryptionIntegrationTests : IntegrationTestBase
         var queryBuilder = table.Query<SecureTestEntity>()
             .Where(x => x.Id == "user-123");
         
-        var response = await queryBuilder.ExecuteAsync();
+        var response = await queryBuilder.ToDynamoDbResponseAsync();
 
         // Assert
         response.Items.Should().HaveCount(1);
@@ -225,7 +225,7 @@ public class LinqEncryptionIntegrationTests : IntegrationTestBase
         var queryBuilder = table.Query<SecureTestEntity>()
             .Where(x => x.Id == "user-999");
         
-        var response = await queryBuilder.ExecuteAsync();
+        var response = await queryBuilder.ToDynamoDbResponseAsync();
 
         // Assert
         response.Items.Should().HaveCount(1);
@@ -291,7 +291,7 @@ public class LinqEncryptionIntegrationTests : IntegrationTestBase
         var queryBuilder = table.Query<SecureTestEntity>()
             .Where(x => x.Id == "user-context-test");
         
-        var response = await queryBuilder.ExecuteAsync();
+        var response = await queryBuilder.ToDynamoDbResponseAsync();
 
         // Assert
         response.Items.Should().HaveCount(1);
@@ -433,7 +433,7 @@ public class LinqEncryptionIntegrationTests : IntegrationTestBase
         var queryBuilder = table.Query<SecureTestEntity>()
             .Where(x => x.Id == "user-null-context");
         
-        var response = await queryBuilder.ExecuteAsync();
+        var response = await queryBuilder.ToDynamoDbResponseAsync();
 
         // Assert
         response.Items.Should().HaveCount(1);

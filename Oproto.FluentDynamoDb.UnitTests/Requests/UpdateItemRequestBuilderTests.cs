@@ -1,15 +1,68 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Amazon.Runtime;
 using FluentAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
+using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 public class UpdateItemRequestBuilderTests
 {
-    private class TestEntity { }
+    private class TestEntity : IDynamoDbEntity
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntity;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty },
+                ["name"] = new AttributeValue { S = testEntity?.Name ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var entity = new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty,
+                Name = item.TryGetValue("name", out var name) ? name.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), logger);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata
+            {
+                TableName = "test-table",
+                Properties = Array.Empty<PropertyMetadata>(),
+                Indexes = Array.Empty<IndexMetadata>(),
+                Relationships = Array.Empty<RelationshipMetadata>()
+            };
+        }
+    }
     [Fact]
     public void ForTableSuccess()
     {
@@ -283,4 +336,344 @@ public class UpdateItemRequestBuilderTests
 
     #endregion ReturnValues
 
+    #region UpdateAsync Tests
+
+    [Fact]
+    public async Task UpdateAsync_Success_CompletesWithoutError()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name")
+            .WithAttribute("#name", "name")
+            .WithValue(":name", "new-name");
+
+        var mockResponse = new UpdateItemResponse
+        {
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        await builder.UpdateAsync();
+
+        // Assert
+        await mockClient.Received(1).UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithCancellationToken_PassesTokenToClient()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        var cancellationToken = new CancellationToken();
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name");
+
+        var mockResponse = new UpdateItemResponse();
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), cancellationToken)
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        await builder.UpdateAsync(cancellationToken);
+
+        // Assert
+        await mockClient.Received(1).UpdateItemAsync(Arg.Any<UpdateItemRequest>(), cancellationToken);
+    }
+
+    #endregion UpdateAsync Tests
+
+    #region Context Population Tests
+
+    [Fact]
+    public async Task UpdateAsync_PopulatesContext_WithResponseMetadata()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name");
+
+        var mockResponse = new UpdateItemResponse
+        {
+            ConsumedCapacity = new ConsumedCapacity
+            {
+                TableName = "TestTable",
+                CapacityUnits = 2.5
+            },
+            ItemCollectionMetrics = new ItemCollectionMetrics
+            {
+                ItemCollectionKey = new Dictionary<string, AttributeValue>
+                {
+                    ["pk"] = new AttributeValue { S = "test-id" }
+                }
+            },
+            ResponseMetadata = new ResponseMetadata
+            {
+                RequestId = "test-request-id"
+            }
+        };
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act - Call helper that returns context from within async flow
+        var context = await ExecuteUpdateAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.OperationType.Should().Be("UpdateItem");
+        context.TableName.Should().Be("TestTable");
+        context.ConsumedCapacity.Should().NotBeNull();
+        context.ConsumedCapacity!.CapacityUnits.Should().Be(2.5);
+        context.ItemCollectionMetrics.Should().NotBeNull();
+        context.ResponseMetadata.Should().NotBeNull();
+        context.ResponseMetadata!.RequestId.Should().Be("test-request-id");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithReturnAllOld_PopulatesPreOperationValues()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name")
+            .ReturnAllOldValues();
+
+        var oldAttributes = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = "test-id" },
+            ["name"] = new AttributeValue { S = "old-name" }
+        };
+
+        var mockResponse = new UpdateItemResponse
+        {
+            Attributes = oldAttributes,
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act - Call helper that returns context from within async flow
+        var context = await ExecuteUpdateAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.PreOperationValues.Should().NotBeNull();
+        context.PreOperationValues.Should().BeSameAs(oldAttributes);
+        context.PreOperationValues!["pk"].S.Should().Be("test-id");
+        context.PreOperationValues["name"].S.Should().Be("old-name");
+        context.PostOperationValues.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithReturnAllNew_PopulatesPostOperationValues()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name")
+            .ReturnAllNewValues();
+
+        var newAttributes = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = "test-id" },
+            ["name"] = new AttributeValue { S = "new-name" }
+        };
+
+        var mockResponse = new UpdateItemResponse
+        {
+            Attributes = newAttributes,
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act - Call helper that returns context from within async flow
+        var context = await ExecuteUpdateAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.PostOperationValues.Should().NotBeNull();
+        context.PostOperationValues.Should().BeSameAs(newAttributes);
+        context.PostOperationValues!["pk"].S.Should().Be("test-id");
+        context.PostOperationValues["name"].S.Should().Be("new-name");
+        context.PreOperationValues.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithReturnUpdatedOld_PopulatesPreOperationValues()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name")
+            .ReturnUpdatedOldValues();
+
+        var updatedOldAttributes = new Dictionary<string, AttributeValue>
+        {
+            ["name"] = new AttributeValue { S = "old-name" }
+        };
+
+        var mockResponse = new UpdateItemResponse
+        {
+            Attributes = updatedOldAttributes,
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act - Call helper that returns context from within async flow
+        var context = await ExecuteUpdateAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.PreOperationValues.Should().NotBeNull();
+        context.PreOperationValues.Should().BeSameAs(updatedOldAttributes);
+        context.PreOperationValues!["name"].S.Should().Be("old-name");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithReturnUpdatedNew_PopulatesPostOperationValues()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name")
+            .ReturnUpdatedNewValues();
+
+        var updatedNewAttributes = new Dictionary<string, AttributeValue>
+        {
+            ["name"] = new AttributeValue { S = "new-name" }
+        };
+
+        var mockResponse = new UpdateItemResponse
+        {
+            Attributes = updatedNewAttributes,
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act - Call helper that returns context from within async flow
+        var context = await ExecuteUpdateAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.PostOperationValues.Should().NotBeNull();
+        context.PostOperationValues.Should().BeSameAs(updatedNewAttributes);
+        context.PostOperationValues!["name"].S.Should().Be("new-name");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithoutReturnValues_PopulatesNullPreAndPostOperationValues()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name");
+
+        var mockResponse = new UpdateItemResponse
+        {
+            Attributes = null,
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act - Call helper that returns context from within async flow
+        var context = await ExecuteUpdateAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.PreOperationValues.Should().BeNull();
+        context.PostOperationValues.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Exception_DoesNotPopulateContext()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .Set("SET #name = :name");
+
+        // Clear any existing context
+        DynamoDbOperationContext.Clear();
+
+        var originalException = new Exception("Test exception");
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<UpdateItemResponse>(originalException));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(() => builder.UpdateAsync());
+
+        // Verify inner exception is preserved
+        exception.InnerException.Should().BeSameAs(originalException);
+
+        // Context should remain null
+        DynamoDbOperationContext.Current.Should().BeNull();
+    }
+
+    #endregion Context Population Tests
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Helper method to execute UpdateAsync and return the context from within the async flow.
+    /// This is necessary because xUnit's synchronization context prevents AsyncLocal values
+    /// from flowing back to the test method after await.
+    /// </summary>
+    private static async Task<OperationContextData?> ExecuteUpdateAndGetContextAsync(UpdateItemRequestBuilder<TestEntity> builder)
+    {
+        var tcs = new TaskCompletionSource<OperationContextData?>();
+        void Handler(OperationContextData? ctx) => tcs.TrySetResult(ctx);
+        DynamoDbOperationContextDiagnostics.ContextAssigned += Handler;
+
+        try
+        {
+            await builder.UpdateAsync<TestEntity>();
+            return await tcs.Task.ConfigureAwait(false);
+        }
+        finally
+        {
+            DynamoDbOperationContextDiagnostics.ContextAssigned -= Handler;
+        }
+    }
+
+    #endregion Helper Methods
 }

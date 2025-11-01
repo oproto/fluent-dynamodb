@@ -50,6 +50,12 @@ public class BatchGetItemRequestBuilder
     }
 
     /// <summary>
+    /// Gets the DynamoDB client instance used by this builder.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
     /// Adds items to retrieve from a specific table.
     /// You can call this method multiple times to retrieve items from different tables in the same batch.
     /// </summary>
@@ -93,7 +99,8 @@ public class BatchGetItemRequestBuilder
     }
 
     /// <summary>
-    /// Executes the batch get operation asynchronously.
+    /// Executes the batch get operation asynchronously and returns the raw AWS SDK response (Advanced API).
+    /// This method does NOT populate DynamoDbOperationContext. Use the Primary API extension methods for context population.
     /// 
     /// Note: Check the UnprocessedKeys property in the response to handle any items
     /// that couldn't be processed due to capacity limits or other constraints.
@@ -101,7 +108,7 @@ public class BatchGetItemRequestBuilder
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the batch get response.</returns>
     /// <exception cref="ResourceNotFoundException">Thrown when one of the specified tables doesn't exist.</exception>
-    public async Task<BatchGetItemResponse> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<BatchGetItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToBatchGetItemRequest();
         

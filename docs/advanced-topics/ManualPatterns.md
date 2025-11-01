@@ -1026,4 +1026,3 @@ public async Task<Dictionary<string, AttributeValue>?> GetTenantDataAsync(
 - [Source Generator Guide](../SourceGeneratorGuide.md)
 - [Attribute Reference](../reference/AttributeReference.md)
 - [Troubleshooting](../reference/Troubleshooting.md)
-- [Migration Guide](../MigrationGuide.md)

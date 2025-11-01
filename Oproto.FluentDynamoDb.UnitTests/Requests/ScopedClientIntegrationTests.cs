@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
@@ -15,7 +16,48 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 /// </summary>
 public class ScopedClientIntegrationTests
 {
-    private class TestEntity { }
+    private class TestEntity : IDynamoDbEntity
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntity;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var entity = new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), logger);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata { TableName = "test-table" };
+        }
+    }
     private readonly IAmazonDynamoDB _defaultClient = Substitute.For<IAmazonDynamoDB>();
     private readonly IAmazonDynamoDB _tenantScopedClient = Substitute.For<IAmazonDynamoDB>();
 
@@ -40,12 +82,11 @@ public class ScopedClientIntegrationTests
             .Returns(expectedResponse);
 
         // Act - Service layer uses scoped client for tenant-specific operation
-        var response = await SimulateServiceLayerGetTransaction(tenantId, transactionId);
+        var entity = await SimulateServiceLayerGetTransaction(tenantId, transactionId);
 
         // Assert
-        response.Should().NotBeNull();
-        response.Item.Should().ContainKey("pk");
-        response.Item["pk"].S.Should().Be($"{tenantId}#txn#{transactionId}");
+        entity.Should().NotBeNull();
+        entity!.Id.Should().Be($"{tenantId}#txn#{transactionId}");
 
         // Verify scoped client was used, not default client
         await _tenantScopedClient.Received(1).GetItemAsync(
@@ -91,13 +132,13 @@ public class ScopedClientIntegrationTests
             .Returns(expectedResponse);
 
         // Act
-        var response = await SimulateServiceLayerQueryTransactions(tenantId);
+        var entities = await SimulateServiceLayerQueryTransactions(tenantId);
 
         // Assert
-        response.Should().NotBeNull();
-        response.Items.Should().HaveCount(2);
-        response.Items.Should().AllSatisfy(item =>
-            item["pk"].S.Should().StartWith($"{tenantId}#txn#"));
+        entities.Should().NotBeNull();
+        entities.Should().HaveCount(2);
+        entities.Should().AllSatisfy(entity =>
+            entity.Id.Should().StartWith($"{tenantId}#txn#"));
 
         // Verify scoped client was used
         await _tenantScopedClient.Received(1).QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>());
@@ -126,10 +167,9 @@ public class ScopedClientIntegrationTests
             .Returns(expectedResponse);
 
         // Act
-        var response = await SimulateServiceLayerCreateTransaction(tenantId, transactionId, transactionItem);
+        await SimulateServiceLayerCreateTransaction(tenantId, transactionId, transactionItem);
 
-        // Assert
-        response.Should().NotBeNull();
+        // Assert - Method completes successfully
 
         // Verify scoped client was used with correct tenant constraint
         await _tenantScopedClient.Received(1).PutItemAsync(
@@ -164,12 +204,9 @@ public class ScopedClientIntegrationTests
             .Returns(expectedResponse);
 
         // Act
-        var response = await SimulateServiceLayerUpdateTransactionStatus(tenantId, transactionId, "COMPLETED");
+        await SimulateServiceLayerUpdateTransactionStatus(tenantId, transactionId, "COMPLETED");
 
-        // Assert
-        response.Should().NotBeNull();
-        response.Attributes.Should().ContainKey("status");
-        response.Attributes["status"].S.Should().Be("COMPLETED");
+        // Assert - Method completes successfully
 
         // Verify scoped client was used
         await _tenantScopedClient.Received(1).UpdateItemAsync(
@@ -204,12 +241,10 @@ public class ScopedClientIntegrationTests
             .Returns(expectedResponse);
 
         // Act
-        var response = await SimulateServiceLayerDeleteTransaction(tenantId, transactionId);
+        await SimulateServiceLayerDeleteTransaction(tenantId, transactionId);
 
-        // Assert
-        response.Should().NotBeNull();
-        response.Attributes.Should().ContainKey("pk");
-        response.Attributes["pk"].S.Should().Be($"{tenantId}#txn#{transactionId}");
+        // Assert - Method completes successfully
+        // Can access pre-operation values via DynamoDbOperationContext if needed
 
         // Verify scoped client was used
         await _tenantScopedClient.Received(1).DeleteItemAsync(
@@ -257,13 +292,13 @@ public class ScopedClientIntegrationTests
             .Returns(expectedResponse);
 
         // Act
-        var response = await SimulateServiceLayerScanTransactions(tenantId);
+        var entities = await SimulateServiceLayerScanTransactions(tenantId);
 
         // Assert
-        response.Should().NotBeNull();
-        response.Items.Should().HaveCount(2);
-        response.Items.Should().AllSatisfy(item =>
-            item["pk"].S.Should().StartWith($"{tenantId}#txn#"));
+        entities.Should().NotBeNull();
+        entities.Should().HaveCount(2);
+        entities.Should().AllSatisfy(entity =>
+            entity.Id.Should().StartWith($"{tenantId}#txn#"));
 
         // Verify scoped client was used
         await _tenantScopedClient.Received(1).ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>());
@@ -306,7 +341,7 @@ public class ScopedClientIntegrationTests
 
     // Simulate service layer methods that would use scoped clients
 
-    private async Task<GetItemResponse> SimulateServiceLayerGetTransaction(string tenantId, string transactionId)
+    private async Task<TestEntity?> SimulateServiceLayerGetTransaction(string tenantId, string transactionId)
     {
         // This simulates how a service layer would use a scoped client
         return await new GetItemRequestBuilder<TestEntity>(_defaultClient)
@@ -314,34 +349,34 @@ public class ScopedClientIntegrationTests
             .WithKey("pk", $"{tenantId}#txn#{transactionId}")
             .WithKey("sk", "metadata")
             .WithClient(_tenantScopedClient) // Service provides tenant-scoped client
-            .ExecuteAsync();
+            .GetItemAsync<TestEntity>();
     }
 
-    private async Task<QueryResponse> SimulateServiceLayerQueryTransactions(string tenantId)
+    private async Task<List<TestEntity>> SimulateServiceLayerQueryTransactions(string tenantId)
     {
         return await new QueryRequestBuilder<TestEntity>(_defaultClient)
             .ForTable("transactions")
             .Where("pk = :pk")
             .WithValue(":pk", $"{tenantId}#txn#")
             .WithClient(_tenantScopedClient)
-            .ExecuteAsync();
+            .ToListAsync<TestEntity>();
     }
 
-    private async Task<PutItemResponse> SimulateServiceLayerCreateTransaction(
+    private async Task SimulateServiceLayerCreateTransaction(
         string tenantId, string transactionId, Dictionary<string, AttributeValue> item)
     {
-        return await new PutItemRequestBuilder<TestEntity>(_defaultClient)
+        await new PutItemRequestBuilder<TestEntity>(_defaultClient)
             .ForTable("transactions")
             .WithItem(item)
             .Where("attribute_not_exists(pk)")
             .WithClient(_tenantScopedClient)
-            .ExecuteAsync();
+            .PutAsync<TestEntity>();
     }
 
-    private async Task<UpdateItemResponse> SimulateServiceLayerUpdateTransactionStatus(
+    private async Task SimulateServiceLayerUpdateTransactionStatus(
         string tenantId, string transactionId, string newStatus)
     {
-        return await new UpdateItemRequestBuilder<TestEntity>(_defaultClient)
+        await new UpdateItemRequestBuilder<TestEntity>(_defaultClient)
             .ForTable("transactions")
             .WithKey("pk", $"{tenantId}#txn#{transactionId}")
             .WithKey("sk", "metadata")
@@ -352,22 +387,22 @@ public class ScopedClientIntegrationTests
             .WithValue(":status", newStatus)
             .WithValue(":updatedAt", DateTime.UtcNow.ToString("O"))
             .WithClient(_tenantScopedClient)
-            .ExecuteAsync();
+            .UpdateAsync<TestEntity>();
     }
 
-    private async Task<DeleteItemResponse> SimulateServiceLayerDeleteTransaction(string tenantId, string transactionId)
+    private async Task SimulateServiceLayerDeleteTransaction(string tenantId, string transactionId)
     {
-        return await new DeleteItemRequestBuilder<TestEntity>(_defaultClient)
+        await new DeleteItemRequestBuilder<TestEntity>(_defaultClient)
             .ForTable("transactions")
             .WithKey("pk", $"{tenantId}#txn#{transactionId}")
             .WithKey("sk", "metadata")
             .Where("attribute_exists(pk)")
             .ReturnAllOldValues()
             .WithClient(_tenantScopedClient)
-            .ExecuteAsync();
+            .DeleteAsync<TestEntity>();
     }
 
-    private async Task<ScanResponse> SimulateServiceLayerScanTransactions(string tenantId)
+    private async Task<List<TestEntity>> SimulateServiceLayerScanTransactions(string tenantId)
     {
         return await new ScanRequestBuilder<TestEntity>(_defaultClient)
             .ForTable("transactions")
@@ -378,6 +413,6 @@ public class ScopedClientIntegrationTests
             .WithAttribute("#status", "status")
             .Take(100)
             .WithClient(_tenantScopedClient)
-            .ExecuteAsync();
+            .ToListAsync<TestEntity>();
     }
 }

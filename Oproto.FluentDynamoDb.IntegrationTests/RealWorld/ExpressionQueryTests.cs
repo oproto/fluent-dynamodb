@@ -136,7 +136,7 @@ public class ExpressionQueryTests : IntegrationTestBase
         // Act - Query using expression-based Where()
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2); // product-1 has 2 items (electronics and accessories)
@@ -158,7 +158,7 @@ public class ExpressionQueryTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == productId && x.Type == productType, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -186,7 +186,7 @@ public class ExpressionQueryTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == productId && x.Type!.StartsWith(prefix), 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -209,7 +209,7 @@ public class ExpressionQueryTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == productId && x.Type!.Between(lowValue, highValue), 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2); // "accessories" and "electronics" are both in range
@@ -236,7 +236,7 @@ public class ExpressionQueryTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == productId && x.Type! >= compareValue, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1); // Only "electronics" is >= "d"
@@ -262,7 +262,7 @@ public class ExpressionQueryTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == productId && x.Type == productType, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -284,7 +284,7 @@ public class ExpressionQueryTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == searchCriteria.ProductId && x.Type == searchCriteria.ProductType, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -313,13 +313,13 @@ public class ExpressionQueryTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == productId && x.Type == type1, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         var response2 = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(
                 x => x.Id == productId && x.Type == type2, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response1.Items.Should().HaveCount(1);
@@ -345,7 +345,7 @@ public class ExpressionQueryTests : IntegrationTestBase
         // Act - Query without metadata (validation skipped)
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);

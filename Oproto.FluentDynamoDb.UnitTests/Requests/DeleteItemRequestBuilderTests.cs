@@ -1,15 +1,68 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Amazon.Runtime;
 using FluentAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
+using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 public class DeleteItemRequestBuilderTests
 {
-    private class TestEntity { }
+    private class TestEntity : IDynamoDbEntity
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntity;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty },
+                ["name"] = new AttributeValue { S = testEntity?.Name ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var entity = new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty,
+                Name = item.TryGetValue("name", out var name) ? name.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), logger);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata
+            {
+                TableName = "test-table",
+                Properties = Array.Empty<PropertyMetadata>(),
+                Indexes = Array.Empty<IndexMetadata>(),
+                Relationships = Array.Empty<RelationshipMetadata>()
+            };
+        }
+    }
     [Fact]
     public void ForTableSuccess()
     {
@@ -507,9 +560,8 @@ public class DeleteItemRequestBuilderTests
         var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
         builder.ForTable("TestTable").WithKey("pk", "test-key");
 
-        var response = await builder.ExecuteAsync();
+        await builder.DeleteAsync<TestEntity>();
 
-        response.Should().Be(expectedResponse);
         await mockClient.Received(1).DeleteItemAsync(Arg.Any<DeleteItemRequest>(), Arg.Any<CancellationToken>());
     }
 
@@ -526,9 +578,8 @@ public class DeleteItemRequestBuilderTests
         var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
         builder.ForTable("TestTable").WithKey("pk", "test-key");
 
-        var response = await builder.ExecuteAsync(cancellationToken);
+        await builder.DeleteAsync<TestEntity>(cancellationToken);
 
-        response.Should().Be(expectedResponse);
         await mockClient.Received(1).DeleteItemAsync(Arg.Any<DeleteItemRequest>(), cancellationToken);
     }
 
@@ -583,4 +634,211 @@ public class DeleteItemRequestBuilderTests
     }
 
     #endregion Fluent Interface Tests
+
+    #region DeleteAsync Tests
+
+    [Fact]
+    public async Task DeleteAsync_Success_CompletesWithoutError()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable").WithKey("pk", "test-id");
+
+        var mockResponse = new DeleteItemResponse
+        {
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.DeleteItemAsync(Arg.Any<DeleteItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        await builder.DeleteAsync();
+
+        // Assert
+        await mockClient.Received(1).DeleteItemAsync(Arg.Any<DeleteItemRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithCancellationToken_PassesTokenToClient()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
+        var cancellationToken = new CancellationToken();
+        
+        builder.ForTable("TestTable").WithKey("pk", "test-id");
+
+        var mockResponse = new DeleteItemResponse();
+
+        mockClient.DeleteItemAsync(Arg.Any<DeleteItemRequest>(), cancellationToken)
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        await builder.DeleteAsync(cancellationToken);
+
+        // Assert
+        await mockClient.Received(1).DeleteItemAsync(Arg.Any<DeleteItemRequest>(), cancellationToken);
+    }
+
+    #endregion DeleteAsync Tests
+
+    #region Context Population Tests
+
+    [Fact]
+    public async Task DeleteAsync_PopulatesContext_WithResponseMetadata()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable").WithKey("pk", "test-id");
+
+        var mockResponse = new DeleteItemResponse
+        {
+            ConsumedCapacity = new ConsumedCapacity
+            {
+                TableName = "TestTable",
+                CapacityUnits = 2.5
+            },
+            ItemCollectionMetrics = new ItemCollectionMetrics
+            {
+                ItemCollectionKey = new Dictionary<string, AttributeValue>
+                {
+                    ["pk"] = new AttributeValue { S = "test-id" }
+                }
+            },
+            ResponseMetadata = new ResponseMetadata
+            {
+                RequestId = "test-request-id"
+            }
+        };
+
+        mockClient.DeleteItemAsync(Arg.Any<DeleteItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        var context = await ExecuteDeleteAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.OperationType.Should().Be("DeleteItem");
+        context.TableName.Should().Be("TestTable");
+        context.ConsumedCapacity.Should().NotBeNull();
+        context.ConsumedCapacity!.CapacityUnits.Should().Be(2.5);
+        context.ItemCollectionMetrics.Should().NotBeNull();
+        context.ResponseMetadata.Should().NotBeNull();
+        context.ResponseMetadata!.RequestId.Should().Be("test-request-id");
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithReturnAllOld_PopulatesPreOperationValues()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .ReturnAllOldValues();
+
+        var deletedAttributes = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = "test-id" },
+            ["name"] = new AttributeValue { S = "deleted-name" }
+        };
+
+        var mockResponse = new DeleteItemResponse
+        {
+            Attributes = deletedAttributes,
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.DeleteItemAsync(Arg.Any<DeleteItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        var context = await ExecuteDeleteAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.PreOperationValues.Should().NotBeNull();
+        context.PreOperationValues.Should().BeSameAs(deletedAttributes);
+        context.PreOperationValues!["pk"].S.Should().Be("test-id");
+        context.PreOperationValues["name"].S.Should().Be("deleted-name");
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithoutReturnValues_PopulatesNullPreOperationValues()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable").WithKey("pk", "test-id");
+
+        var mockResponse = new DeleteItemResponse
+        {
+            Attributes = null,
+            ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
+        };
+
+        mockClient.DeleteItemAsync(Arg.Any<DeleteItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        var context = await ExecuteDeleteAndGetContextAsync(builder);
+
+        // Assert
+        context.Should().NotBeNull();
+        context!.PreOperationValues.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_Exception_DoesNotPopulateContext()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var builder = new DeleteItemRequestBuilder<TestEntity>(mockClient);
+        
+        builder.ForTable("TestTable").WithKey("pk", "test-id");
+
+        // Clear any existing context
+        DynamoDbOperationContext.Clear();
+
+        var originalException = new Exception("Test exception");
+        mockClient.DeleteItemAsync(Arg.Any<DeleteItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<DeleteItemResponse>(originalException));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(() => builder.DeleteAsync());
+
+        // Verify inner exception is preserved
+        exception.InnerException.Should().BeSameAs(originalException);
+
+        // Context should remain null
+        DynamoDbOperationContext.Current.Should().BeNull();
+    }
+
+    #endregion Context Population Tests
+
+    #region Helper Methods
+
+    private static async Task<OperationContextData?> ExecuteDeleteAndGetContextAsync(DeleteItemRequestBuilder<TestEntity> builder)
+    {
+        var tcs = new TaskCompletionSource<OperationContextData?>();
+        void Handler(OperationContextData? ctx) => tcs.TrySetResult(ctx);
+        DynamoDbOperationContextDiagnostics.ContextAssigned += Handler;
+
+        try
+        {
+            await builder.DeleteAsync();
+            return await tcs.Task.ConfigureAwait(false);
+        }
+        finally
+        {
+            DynamoDbOperationContextDiagnostics.ContextAssigned -= Handler;
+        }
+    }
+
+    #endregion Helper Methods
 }

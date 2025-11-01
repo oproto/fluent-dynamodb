@@ -57,7 +57,7 @@ using Oproto.FluentDynamoDb.Requests.Extensions;
 var client = new AmazonDynamoDBClient();
 var table = new DynamoDbTableBase(client, "users");
 
-// Create a user
+// Create a user (Primary API - returns void, populates context)
 var user = new User 
 { 
     UserId = "user123", 
@@ -68,34 +68,36 @@ var user = new User
 await table.Put
     .WithItem(UserMapper.ToItem(user))
     .Where("attribute_not_exists({0})", UserFields.UserId)
-    .ExecuteAsync();
+    .PutAsync();
 
-// Get a user
-var response = await table.Get
+// Get a user (Primary API - returns entity, populates context)
+var retrievedUser = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync();
+    .GetItemAsync<User>();
 
-var retrievedUser = UserMapper.FromItem(response.Item);
+// Access operation metadata via context
+var context = DynamoDbOperationContext.Current;
+Console.WriteLine($"Consumed capacity: {context?.ConsumedCapacity?.CapacityUnits}");
 
-// Query users with expression formatting
+// Query users with expression formatting (Primary API - returns list, populates context)
 var activeUsers = await table.Query
     .Where("{0} = {1} AND {2} = {3}", 
            UserFields.UserId, UserKeys.Pk("user123"),
            UserFields.Status, "active")
-    .ExecuteAsync();
+    .ToListAsync<User>();
 
-// Update with type-safe fields and format strings
+// Update with type-safe fields and format strings (Primary API - returns void, populates context)
 await table.Update
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Status} = {{0}}, {UserFields.CreatedAt} = {{1:o}}", 
          "inactive", DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 
-// Delete with condition
+// Delete with condition (Primary API - returns void, populates context)
 await table.Delete
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where("{0} = {1}", UserFields.Status, "inactive")
-    .ExecuteAsync();
+    .DeleteAsync();
 ```
 
 **Next Steps:** See the [Getting Started Guide](docs/getting-started/QuickStart.md) for detailed setup instructions and more examples.
@@ -288,7 +290,6 @@ Detailed API and troubleshooting information.
 ### 📄 Additional Resources
 - [Developer Guide](docs/DeveloperGuide.md) - Comprehensive usage guide
 - [Code Examples](docs/CodeExamples.md) - Real-world examples
-- [Migration Guide](docs/MigrationGuide.md) - Adoption strategies
 - [Source Generator Guide](docs/SourceGeneratorGuide.md) - Generator details
 
 ## Approaches
@@ -348,6 +349,8 @@ await table.Update
 **Learn more:** See [Manual Patterns Guide](docs/advanced-topics/ManualPatterns.md) for detailed examples and migration strategies.
 
 **Note:** Both approaches can be mixed in the same codebase. You can use source generation for most entities while using manual patterns for specific dynamic scenarios.
+
+
 
 ## Community & Support
 

@@ -142,7 +142,7 @@ public class ExpressionFilterTests : IntegrationTestBase
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2); // Both items with product-1 are active
@@ -162,7 +162,7 @@ public class ExpressionFilterTests : IntegrationTestBase
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Name == "Laptop", metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -182,7 +182,7 @@ public class ExpressionFilterTests : IntegrationTestBase
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Name!.StartsWith("Lap"), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -202,7 +202,7 @@ public class ExpressionFilterTests : IntegrationTestBase
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Description!.Contains("laptop"), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -228,7 +228,7 @@ public class ExpressionFilterTests : IntegrationTestBase
             .WithFilter<QueryRequestBuilder, ComplexEntity>(
                 x => x.IsActive == true && x.Name!.StartsWith("L"), 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -251,7 +251,7 @@ public class ExpressionFilterTests : IntegrationTestBase
             .WithFilter<QueryRequestBuilder, ComplexEntity>(
                 x => x.IsActive == true && x.Name == "Laptop" && x.Description!.Contains("performance"), 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -273,7 +273,7 @@ public class ExpressionFilterTests : IntegrationTestBase
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => !(x.Name == "Mouse"), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -297,7 +297,7 @@ public class ExpressionFilterTests : IntegrationTestBase
         var response = await _table.Query()
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -324,7 +324,7 @@ public class ExpressionFilterTests : IntegrationTestBase
                 x => x.Id == productId && x.Type == productType, 
                 metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -350,7 +350,7 @@ public class ExpressionFilterTests : IntegrationTestBase
             .WithFilter<ScanRequestBuilder, ComplexEntity>(
                 x => x.Type == "electronics" && x.IsActive == true, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);

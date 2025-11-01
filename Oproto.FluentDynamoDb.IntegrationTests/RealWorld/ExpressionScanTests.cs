@@ -120,7 +120,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan with filter on IsActive
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -138,7 +138,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan with filter on Type
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Type == "electronics", metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(3); // 3 electronics items
@@ -160,7 +160,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan with equality filter
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Name == "Laptop", metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -178,7 +178,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan with inequality filter
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Type != "electronics", metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -198,7 +198,7 @@ public class ExpressionScanTests : IntegrationTestBase
             .WithFilter<ScanRequestBuilder, ComplexEntity>(
                 x => x.Type == "electronics" && x.IsActive == true, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -222,7 +222,7 @@ public class ExpressionScanTests : IntegrationTestBase
             .WithFilter<ScanRequestBuilder, ComplexEntity>(
                 x => x.Type == "electronics" || x.Type == "furniture", 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -243,7 +243,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan with NOT operator
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => !(x.IsActive == false), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -265,7 +265,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan with StartsWith function
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Name!.StartsWith("L"), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -283,7 +283,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan with Contains function
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Description!.Contains("laptop"), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -305,7 +305,7 @@ public class ExpressionScanTests : IntegrationTestBase
             .WithFilter<ScanRequestBuilder, ComplexEntity>(
                 x => x.Type!.Between(lowValue, highValue), 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -334,7 +334,7 @@ public class ExpressionScanTests : IntegrationTestBase
             .WithFilter<ScanRequestBuilder, ComplexEntity>(
                 x => x.Type == "electronics" && x.IsActive == true && x.Name!.StartsWith("L"), 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -356,7 +356,7 @@ public class ExpressionScanTests : IntegrationTestBase
             .WithFilter<ScanRequestBuilder, ComplexEntity>(
                 x => (x.Type == "electronics" || x.Type == "accessories") && x.IsActive == true, 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -379,7 +379,7 @@ public class ExpressionScanTests : IntegrationTestBase
         // Act - Scan without metadata (validation skipped)
         var response = await _table.Scan()
             .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.IsActive == true)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);

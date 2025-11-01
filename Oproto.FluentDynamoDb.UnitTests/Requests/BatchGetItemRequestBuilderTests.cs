@@ -2,13 +2,58 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
+using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 public class BatchGetItemRequestBuilderTests
 {
+    private class TestEntity : IDynamoDbEntity
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntity;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            var entity = new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), logger);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata { TableName = "test-table" };
+        }
+    }
+
     private readonly IAmazonDynamoDB _mockClient;
 
     public BatchGetItemRequestBuilderTests()
@@ -197,25 +242,31 @@ public class BatchGetItemRequestBuilderTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncCallsClientSuccess()
+    public async Task ToDynamoDbResponseAsync_CallsClientSuccess()
     {
-        var expectedResponse = new BatchGetItemResponse();
+        var expectedResponse = new BatchGetItemResponse
+        {
+            Responses = new Dictionary<string, List<Dictionary<string, AttributeValue>>>()
+        };
         _mockClient.BatchGetItemAsync(Arg.Any<BatchGetItemRequest>(), Arg.Any<CancellationToken>())
                   .Returns(Task.FromResult(expectedResponse));
 
         var builder = new BatchGetItemRequestBuilder(_mockClient);
         builder.GetFromTable("TestTable", b => b.WithKey("pk", "1"));
 
-        var response = await builder.ExecuteAsync();
+        var response = await builder.ToDynamoDbResponseAsync();
 
-        response.Should().BeSameAs(expectedResponse);
+        response.Should().NotBeNull();
         await _mockClient.Received(1).BatchGetItemAsync(Arg.Any<BatchGetItemRequest>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsyncWithCancellationTokenSuccess()
+    public async Task ToDynamoDbResponseAsync_WithCancellationToken_CallsClientSuccess()
     {
-        var expectedResponse = new BatchGetItemResponse();
+        var expectedResponse = new BatchGetItemResponse
+        {
+            Responses = new Dictionary<string, List<Dictionary<string, AttributeValue>>>()
+        };
         var cancellationToken = new CancellationToken();
         _mockClient.BatchGetItemAsync(Arg.Any<BatchGetItemRequest>(), cancellationToken)
                   .Returns(Task.FromResult(expectedResponse));
@@ -223,9 +274,9 @@ public class BatchGetItemRequestBuilderTests
         var builder = new BatchGetItemRequestBuilder(_mockClient);
         builder.GetFromTable("TestTable", b => b.WithKey("pk", "1"));
 
-        var response = await builder.ExecuteAsync(cancellationToken);
+        var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
 
-        response.Should().BeSameAs(expectedResponse);
+        response.Should().NotBeNull();
         await _mockClient.Received(1).BatchGetItemAsync(Arg.Any<BatchGetItemRequest>(), cancellationToken);
     }
 

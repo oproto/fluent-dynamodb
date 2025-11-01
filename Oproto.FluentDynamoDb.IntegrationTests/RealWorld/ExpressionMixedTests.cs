@@ -114,7 +114,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithFilter("#active = :active")
             .WithAttribute("#active", "is_active")
             .WithValue(":active", true)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -139,7 +139,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter("#active = {0}", true)
             .WithAttribute("#active", "is_active")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -168,7 +168,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .Where("pk = :pk")
             .WithValue(":pk", productId)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -192,7 +192,7 @@ public class ExpressionMixedTests : IntegrationTestBase
         var response = await _table.Query()
             .Where("pk = {0}", productId)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -221,7 +221,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Name!.StartsWith("L"), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -246,7 +246,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithFilter("#name = :name")
             .WithAttribute("#name", "name")
             .WithValue(":name", "Laptop")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -269,7 +269,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithFilter("#active = :active")
             .WithAttribute("#active", "is_active")
             .WithValue(":active", true)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCountGreaterThan(0);
@@ -301,7 +301,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithAttribute("#name", "name")
             .WithValue(":customName", "Laptop")
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Type == "electronics", metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -330,7 +330,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithFilter("#desc = {0}", "High-performance laptop")
             .WithAttribute("#desc", "description")
             .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Name!.StartsWith("L"), metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -362,7 +362,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithAttribute("#name", "name")
             .WithValue(":active", true)
             .WithValue(":prefix", "L")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -384,7 +384,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .Where("pk = {0}", productId)
             .WithFilter("#active = {0}", true)
             .WithAttribute("#active", "is_active")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -410,7 +410,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithFilter<QueryRequestBuilder, ComplexEntity>(
                 x => x.IsActive == true && x.Name!.StartsWith("L"), 
                 metadata)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);

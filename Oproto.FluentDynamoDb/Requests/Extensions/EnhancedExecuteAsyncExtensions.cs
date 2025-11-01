@@ -39,6 +39,7 @@ public static class EnhancedExecuteAsyncExtensions
                 RawItem = response.Item,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Return POCO (nullable)
             if (response.Item == null || !T.MatchesEntity(response.Item))
@@ -89,6 +90,7 @@ public static class EnhancedExecuteAsyncExtensions
                 RawItem = response.Item,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Return POCO (nullable)
             if (response.Item == null || !T.MatchesEntity(response.Item))
@@ -142,6 +144,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -153,12 +156,13 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
-            var entityItems = response.Items
+            var entityItems = items
                 .Where(T.MatchesEntity)
                 .Select(item => T.FromDynamoDb<T>(item))
                 .ToList();
@@ -199,6 +203,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -210,12 +215,13 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Filter matching items
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Check if entity has async FromDynamoDb method
             var fromDynamoDbAsyncMethod = typeof(T).GetMethod(
@@ -271,6 +277,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -282,12 +289,13 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Filter items that match the entity type
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Group items by partition key for multi-item entities
             var entityItems = matchingItems
@@ -333,6 +341,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -344,12 +353,13 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Filter items that match the entity type
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Check if entity has async FromDynamoDb method for multi-item
             var fromDynamoDbMultiAsyncMethod = typeof(T).GetMethod(
@@ -427,6 +437,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -438,12 +449,12 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
 
             // Filter items that match the entity type
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             if (matchingItems.Count == 0)
                 return null;
@@ -485,6 +496,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -496,12 +508,12 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
 
             // Filter items that match the entity type
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             if (matchingItems.Count == 0)
                 return null;
@@ -638,6 +650,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
             var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with ScanResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -649,12 +662,13 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
-            var entityItems = response.Items
+            var entityItems = items
                 .Where(T.MatchesEntity)
                 .Select(item => T.FromDynamoDb<T>(item))
                 .ToList();
@@ -696,6 +710,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
             var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with ScanResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -707,12 +722,13 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Filter matching items
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Check if entity has async FromDynamoDb method
             var fromDynamoDbAsyncMethod = typeof(T).GetMethod(
@@ -767,6 +783,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
             var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with ScanResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -778,12 +795,13 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
 
             // Filter items that match the entity type
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Group items by partition key for multi-item entities
             var entityItems = matchingItems
@@ -830,6 +848,7 @@ public static class EnhancedExecuteAsyncExtensions
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
             var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with ScanResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -841,12 +860,12 @@ public static class EnhancedExecuteAsyncExtensions
                 ItemCount = response.Count,
                 ScannedCount = response.ScannedCount,
                 LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = response.Items,
+                RawItems = items,
                 ResponseMetadata = response.ResponseMetadata
             };
 
             // Filter items that match the entity type
-            var matchingItems = response.Items.Where(T.MatchesEntity).ToList();
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Check if entity has async FromDynamoDb method for multi-item
             var fromDynamoDbMultiAsyncMethod = typeof(T).GetMethod(
@@ -933,6 +952,7 @@ public static class EnhancedExecuteAsyncExtensions
                 PreOperationValues = response.Attributes, // If ReturnValues was set to ALL_OLD
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -978,6 +998,7 @@ public static class EnhancedExecuteAsyncExtensions
                 PreOperationValues = response.Attributes, // If ReturnValues was set to ALL_OLD
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -1023,6 +1044,7 @@ public static class EnhancedExecuteAsyncExtensions
                 PostOperationValues = isPostOperation ? response.Attributes : null,
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -1061,6 +1083,7 @@ public static class EnhancedExecuteAsyncExtensions
                 PreOperationValues = response.Attributes, // If ReturnValues was set to ALL_OLD
                 ResponseMetadata = response.ResponseMetadata
             };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {

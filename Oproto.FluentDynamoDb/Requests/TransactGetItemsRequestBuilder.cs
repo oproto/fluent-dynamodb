@@ -36,6 +36,12 @@ public class TransactGetItemsRequestBuilder
         _logger = logger ?? NoOpLogger.Instance;
     }
 
+    /// <summary>
+    /// Gets the DynamoDB client instance used by this builder.
+    /// </summary>
+    /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
+    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
     private readonly TransactGetItemsRequest _req = new() { TransactItems = new List<TransactGetItem>() };

@@ -47,12 +47,12 @@ public class SingleEntityTableTests : IntegrationTestBase
 
         // Act - Put item
         await table.Put(entity)
-            .ExecuteAsync();
+            .PutAsync();
 
         // Act - Get item
         var result = await table.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert
         result.Should().NotBeNull();
@@ -80,14 +80,14 @@ public class SingleEntityTableTests : IntegrationTestBase
 
         foreach (var entity in entities)
         {
-            await table.Put(entity).ExecuteAsync();
+            await table.Put(entity).PutAsync();
         }
 
         // Act - Query for specific item
         var result = await table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", "test-id-1")
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         result.Should().NotBeNull();
@@ -113,12 +113,12 @@ public class SingleEntityTableTests : IntegrationTestBase
         };
 
         // Act
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
 
         // Assert - Verify item was saved
         var getResult = await table.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         getResult.Item.Should().NotBeNull();
         var retrieved = SingleEntityTestEntity.FromDynamoDb<SingleEntityTestEntity>(getResult.Item);
@@ -139,17 +139,17 @@ public class SingleEntityTableTests : IntegrationTestBase
             Value = 50
         };
 
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
 
         // Act - Delete the item
         await table.Delete()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .DeleteAsync();
 
         // Assert - Verify item was deleted
         var getResult = await table.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         getResult.Item.Should().BeNull();
     }
@@ -168,7 +168,7 @@ public class SingleEntityTableTests : IntegrationTestBase
             Value = 10
         };
 
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
 
         // Act - Update the item
         await table.Update()
@@ -176,12 +176,12 @@ public class SingleEntityTableTests : IntegrationTestBase
             .Set("#name = :name")
             .WithValue(":name", "Updated Name")
             .WithAttribute("#name", "name")
-            .ExecuteAsync();
+            .UpdateAsync();
 
         // Assert - Verify item was updated
         var getResult = await table.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         var retrieved = SingleEntityTestEntity.FromDynamoDb<SingleEntityTestEntity>(getResult.Item);
         retrieved.Name.Should().Be("Updated Name");
@@ -204,12 +204,12 @@ public class SingleEntityTableTests : IntegrationTestBase
 
         foreach (var entity in entities)
         {
-            await table.Put(entity).ExecuteAsync();
+            await table.Put(entity).PutAsync();
         }
 
         // Act - Scan all items
         var result = await table.Scan()
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert
         result.Should().NotBeNull();
@@ -240,11 +240,11 @@ public class SingleEntityTableTests : IntegrationTestBase
         };
 
         // Act - All operations should work without explicit IsDefault
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
         
         var getResult = await table.Get()
             .WithKey("pk", entity.Id)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert - Table-level operations should use the single entity as default
         getResult.Item.Should().NotBeNull();
@@ -267,12 +267,12 @@ public class SingleEntityTableTests : IntegrationTestBase
         };
 
         // Act - Use table-level operations (not entity accessor)
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
         
         var queryResult = await table.Query()
             .Where("pk = :pk")
             .WithValue(":pk", entity.Id)
-            .ExecuteAsync();
+            .ToDynamoDbResponseAsync();
 
         // Assert - Operations should return correct entity type
         queryResult.Items.Should().HaveCount(1);
@@ -295,12 +295,12 @@ public class SingleEntityTableTests : IntegrationTestBase
         };
 
         // Act
-        await table.Put(entity).ExecuteAsync();
+        await table.Put(entity).PutAsync();
         
         var result = await table.Get()
             .WithKey("pk", entity.PartitionKey)
             .WithKey("sk", entity.SortKey)
-            .ExecuteAsync();
+            .GetItemAsync();
 
         // Assert
         result.Item.Should().NotBeNull();
