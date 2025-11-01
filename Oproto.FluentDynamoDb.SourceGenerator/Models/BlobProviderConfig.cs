@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Configuration for blob storage provider.
 /// </summary>
-public class BlobProviderConfig
+internal class BlobProviderConfig
 {
     /// <summary>
     /// Gets or sets the provider type (S3, Custom).

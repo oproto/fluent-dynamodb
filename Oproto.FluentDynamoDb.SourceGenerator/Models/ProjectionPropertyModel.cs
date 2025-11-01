@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents a property in a projection model.
 /// </summary>
-public class ProjectionPropertyModel
+internal class ProjectionPropertyModel
 {
     /// <summary>
     /// Gets or sets the property name in the projection class.

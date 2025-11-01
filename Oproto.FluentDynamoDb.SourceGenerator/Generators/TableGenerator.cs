@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <summary>
 /// Generates table class implementations with method-based builder access.
 /// </summary>
-public static class TableGenerator
+internal static class TableGenerator
 {
     /// <summary>
     /// Generates a table class implementation for multiple entities sharing the same table.
@@ -38,6 +38,7 @@ public static class TableGenerator
         sb.AppendLine();
         
         // Usings
+        sb.AppendLine("using System;");
         sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
@@ -119,6 +120,7 @@ public static class TableGenerator
         sb.AppendLine();
         
         // Usings
+        sb.AppendLine("using System;");
         sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
@@ -215,14 +217,14 @@ public static class TableGenerator
     /// <summary>
     /// Gets the C# modifier string from AccessModifier enum.
     /// </summary>
-    private static string GetModifierString(Attributes.AccessModifier modifier)
+    private static string GetModifierString(AccessModifier modifier)
     {
         return modifier switch
         {
-            Attributes.AccessModifier.Public => "public",
-            Attributes.AccessModifier.Internal => "internal",
-            Attributes.AccessModifier.Protected => "protected",
-            Attributes.AccessModifier.Private => "private",
+            AccessModifier.Public => "public",
+            AccessModifier.Internal => "internal",
+            AccessModifier.Protected => "protected",
+            AccessModifier.Private => "private",
             _ => "public"
         };
     }
@@ -344,27 +346,27 @@ public static class TableGenerator
             
             switch (operation)
             {
-                case Attributes.TableOperation.Query:
+                case TableOperation.Query:
                     GenerateAccessorQueryMethods(sb, entity, modifierStr);
                     break;
                     
-                case Attributes.TableOperation.Put:
+                case TableOperation.Put:
                     GenerateAccessorPutMethod(sb, entity, modifierStr);
                     break;
                     
-                case Attributes.TableOperation.Get:
+                case TableOperation.Get:
                     GenerateAccessorGetMethod(sb, entity, modifierStr);
                     break;
                     
-                case Attributes.TableOperation.Update:
+                case TableOperation.Update:
                     GenerateAccessorUpdateMethod(sb, entity, modifierStr);
                     break;
                     
-                case Attributes.TableOperation.Delete:
+                case TableOperation.Delete:
                     GenerateAccessorDeleteMethod(sb, entity, modifierStr);
                     break;
                     
-                case Attributes.TableOperation.Scan:
+                case TableOperation.Scan:
                     if (entity.IsScannable)
                     {
                         GenerateAccessorScanMethods(sb, entity, modifierStr);
@@ -378,17 +380,17 @@ public static class TableGenerator
     /// Determines which operations to generate based on the entity's AccessorConfig list.
     /// Returns a list of operations with their visibility modifiers.
     /// </summary>
-    private static List<(Attributes.TableOperation, Attributes.AccessModifier)> GetOperationsToGenerate(EntityModel entity)
+    private static List<(TableOperation, AccessModifier)> GetOperationsToGenerate(EntityModel entity)
     {
         // Default: all operations are public
-        var defaultOps = new Dictionary<Attributes.TableOperation, Attributes.AccessModifier>
+        var defaultOps = new Dictionary<TableOperation, AccessModifier>
         {
-            [Attributes.TableOperation.Get] = Attributes.AccessModifier.Public,
-            [Attributes.TableOperation.Query] = Attributes.AccessModifier.Public,
-            [Attributes.TableOperation.Scan] = Attributes.AccessModifier.Public,
-            [Attributes.TableOperation.Put] = Attributes.AccessModifier.Public,
-            [Attributes.TableOperation.Delete] = Attributes.AccessModifier.Public,
-            [Attributes.TableOperation.Update] = Attributes.AccessModifier.Public,
+            [TableOperation.Get] = AccessModifier.Public,
+            [TableOperation.Query] = AccessModifier.Public,
+            [TableOperation.Scan] = AccessModifier.Public,
+            [TableOperation.Put] = AccessModifier.Public,
+            [TableOperation.Delete] = AccessModifier.Public,
+            [TableOperation.Update] = AccessModifier.Public,
         };
         
         // Apply [GenerateAccessors] configurations
@@ -417,27 +419,27 @@ public static class TableGenerator
     /// <summary>
     /// Expands TableOperation flags into individual operations.
     /// </summary>
-    private static List<Attributes.TableOperation> ExpandOperationFlags(Attributes.TableOperation operations)
+    private static List<TableOperation> ExpandOperationFlags(TableOperation operations)
     {
-        var result = new List<Attributes.TableOperation>();
+        var result = new List<TableOperation>();
         
-        if (operations.HasFlag(Attributes.TableOperation.Get))
-            result.Add(Attributes.TableOperation.Get);
+        if (operations.HasFlag(TableOperation.Get))
+            result.Add(TableOperation.Get);
         
-        if (operations.HasFlag(Attributes.TableOperation.Query))
-            result.Add(Attributes.TableOperation.Query);
+        if (operations.HasFlag(TableOperation.Query))
+            result.Add(TableOperation.Query);
         
-        if (operations.HasFlag(Attributes.TableOperation.Scan))
-            result.Add(Attributes.TableOperation.Scan);
+        if (operations.HasFlag(TableOperation.Scan))
+            result.Add(TableOperation.Scan);
         
-        if (operations.HasFlag(Attributes.TableOperation.Put))
-            result.Add(Attributes.TableOperation.Put);
+        if (operations.HasFlag(TableOperation.Put))
+            result.Add(TableOperation.Put);
         
-        if (operations.HasFlag(Attributes.TableOperation.Delete))
-            result.Add(Attributes.TableOperation.Delete);
+        if (operations.HasFlag(TableOperation.Delete))
+            result.Add(TableOperation.Delete);
         
-        if (operations.HasFlag(Attributes.TableOperation.Update))
-            result.Add(Attributes.TableOperation.Update);
+        if (operations.HasFlag(TableOperation.Update))
+            result.Add(TableOperation.Update);
         
         return result;
     }
@@ -722,27 +724,27 @@ public static class TableGenerator
         {
             switch (operation)
             {
-                case Attributes.TableOperation.Query:
+                case TableOperation.Query:
                     GenerateTableLevelQueryMethods(sb, defaultEntity, entityPropertyName);
                     break;
                     
-                case Attributes.TableOperation.Put:
+                case TableOperation.Put:
                     GenerateTableLevelPutMethod(sb, defaultEntity, entityPropertyName);
                     break;
                     
-                case Attributes.TableOperation.Get:
+                case TableOperation.Get:
                     GenerateTableLevelGetMethod(sb, defaultEntity, entityPropertyName);
                     break;
                     
-                case Attributes.TableOperation.Update:
+                case TableOperation.Update:
                     GenerateTableLevelUpdateMethod(sb, defaultEntity, entityPropertyName);
                     break;
                     
-                case Attributes.TableOperation.Delete:
+                case TableOperation.Delete:
                     GenerateTableLevelDeleteMethod(sb, defaultEntity, entityPropertyName);
                     break;
                     
-                case Attributes.TableOperation.Scan:
+                case TableOperation.Scan:
                     if (defaultEntity.IsScannable)
                     {
                         GenerateTableLevelScanMethods(sb, defaultEntity, entityPropertyName);

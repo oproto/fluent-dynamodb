@@ -5,7 +5,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents a projection model during source generation.
 /// </summary>
-public class ProjectionModel
+internal class ProjectionModel
 {
     /// <summary>
     /// Gets or sets the projection class name.

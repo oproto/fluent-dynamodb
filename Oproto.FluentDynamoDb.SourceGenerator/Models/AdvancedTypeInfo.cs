@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Contains information about advanced type features for a property.
 /// </summary>
-public class AdvancedTypeInfo
+internal class AdvancedTypeInfo
 {
     /// <summary>
     /// Gets or sets the property name.

@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents a Global Secondary Index attribute on a property.
 /// </summary>
-public class GlobalSecondaryIndexModel
+internal class GlobalSecondaryIndexModel
 {
     /// <summary>
     /// Gets or sets the name of the Global Secondary Index.

@@ -68,31 +68,18 @@ internal class SecurityAttributeAnalyzer
         if (propertyDecl.AttributeLists.Count == 0)
             return null;
 
+        var targetName = attributeName.Replace("Attribute", "");
+
         return propertyDecl.AttributeLists
             .SelectMany(al => al.Attributes)
             .FirstOrDefault(attr =>
             {
-                // First try semantic model resolution
-                var symbolInfo = semanticModel.GetSymbolInfo(attr);
-                if (symbolInfo.Symbol is IMethodSymbol method)
-                {
-                    var containingType = method.ContainingType.ToDisplayString();
-                    if (containingType.EndsWith(attributeName) ||
-                        containingType.EndsWith(attributeName.Replace("Attribute", "")))
-                    {
-                        return true;
-                    }
-                }
-
-                // Fallback to syntax-based matching
                 var attributeNameText = attr.Name.ToString();
-                var targetName = attributeName.Replace("Attribute", "");
 
                 return attributeNameText == attributeName ||
                        attributeNameText == targetName ||
                        attributeNameText.EndsWith("." + attributeName) ||
-                       attributeNameText.EndsWith("." + targetName) ||
-                       (attributeName.EndsWith("Attribute") && attributeNameText == attributeName.Substring(0, attributeName.Length - 9));
+                       attributeNameText.EndsWith("." + targetName);
             });
     }
 }

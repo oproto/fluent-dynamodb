@@ -8,7 +8,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 /// <summary>
 /// Analyzes discriminator configuration from attributes and determines matching strategy.
 /// </summary>
-public static class DiscriminatorAnalyzer
+internal static class DiscriminatorAnalyzer
 {
     /// <summary>
     /// Extracts discriminator configuration from a DynamoDbTable attribute.

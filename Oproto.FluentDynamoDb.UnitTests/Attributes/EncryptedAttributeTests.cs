@@ -1,6 +1,6 @@
 using Oproto.FluentDynamoDb.Attributes;
 
-namespace Oproto.FluentDynamoDb.Attributes.UnitTests;
+namespace Oproto.FluentDynamoDb.UnitTests.Attributes;
 
 public class EncryptedAttributeTests
 {

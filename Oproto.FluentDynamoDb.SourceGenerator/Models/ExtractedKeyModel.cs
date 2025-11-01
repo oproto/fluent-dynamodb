@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents extracted key information for a property.
 /// </summary>
-public class ExtractedKeyModel
+internal class ExtractedKeyModel
 {
     /// <summary>
     /// Gets or sets the name of the source property containing the composite key.

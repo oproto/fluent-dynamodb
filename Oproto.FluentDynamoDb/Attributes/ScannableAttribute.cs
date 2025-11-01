@@ -37,53 +37,6 @@ namespace Oproto.FluentDynamoDb.Attributes;
 /// <item><description>Development and testing scenarios with small datasets</description></item>
 /// </list>
 /// </remarks>
-/// <example>
-/// <para>Basic usage with the Scannable attribute:</para>
-/// <code>
-/// using Oproto.FluentDynamoDb.Attributes;
-/// using Oproto.FluentDynamoDb.Storage;
-/// 
-/// [DynamoDbTable("Users")]
-/// [Scannable]
-/// public partial class UsersTable : DynamoDbTableBase
-/// {
-///     // Scan() methods will be generated automatically by the source generator
-/// }
-/// 
-/// // Usage - parameterless scan:
-/// var allUsers = await usersTable.Scan()
-///     .ExecuteAsync();
-/// 
-/// // Usage - scan with filter expression:
-/// var activeUsers = await usersTable.Scan("status = {0}", "ACTIVE")
-///     .ExecuteAsync();
-/// 
-/// // Usage - scan with complex filter:
-/// var recentUsers = await usersTable.Scan()
-///     .WithFilter("createdAt > {0} AND accountType = {1}", 
-///         DateTime.UtcNow.AddDays(-30), 
-///         "PREMIUM")
-///     .ExecuteAsync();
-/// </code>
-/// <para>Manual implementation without source generation:</para>
-/// <code>
-/// using Oproto.FluentDynamoDb.Storage;
-/// using Oproto.FluentDynamoDb.Requests;
-/// 
-/// public class UsersTable : DynamoDbTableBase
-/// {
-///     public ScanRequestBuilder Scan() => 
-///         new ScanRequestBuilder(DynamoDbClient, Logger).ForTable(Name);
-///     
-///     public ScanRequestBuilder Scan(string filterExpression, params object[] values)
-///     {
-///         var builder = Scan();
-///         return Requests.Extensions.WithFilterExpressionExtensions
-///             .WithFilter(builder, filterExpression, values);
-///     }
-/// }
-/// </code>
-/// </example>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
 public sealed class ScannableAttribute : Attribute
 {

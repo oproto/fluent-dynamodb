@@ -18,38 +18,6 @@ namespace Oproto.FluentDynamoDb.Attributes;
 /// If multiple entities define the same GSI with different [UseProjection] attributes,
 /// the first one encountered will be used. To query the same GSI with different projections,
 /// use the Query&lt;TResult&gt;() method with different type parameters on the generated index property.</para>
-/// 
-/// Example:
-/// <code>
-/// [DynamoDbAttribute("status_pk")]
-/// [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
-/// [UseProjection(typeof(TransactionSummary))]
-/// public string StatusIndexPk { get; set; }
-/// </code>
-/// 
-/// This will generate:
-/// <code>
-/// public DynamoDbIndex&lt;TransactionSummary&gt; StatusIndex => 
-///     new DynamoDbIndex&lt;TransactionSummary&gt;(
-///         this, 
-///         "StatusIndex", 
-///         "id, amount, status, entity_type");
-/// </code>
-/// 
-/// To use an alternative projection on the same GSI:
-/// <code>
-/// // Use default projection (TransactionSummary)
-/// var summaries = await table.StatusIndex.Query&lt;TransactionSummary&gt;()
-///     .Where("status = :s")
-///     .WithValue(":s", "ACTIVE")
-///     .ToListAsync();
-/// 
-/// // Override with different projection
-/// var minimal = await table.StatusIndex.Query&lt;MinimalTransaction&gt;()
-///     .Where("status = :s")
-///     .WithValue(":s", "ACTIVE")
-///     .ToListAsync();
-/// </code>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
 public sealed class UseProjectionAttribute : Attribute

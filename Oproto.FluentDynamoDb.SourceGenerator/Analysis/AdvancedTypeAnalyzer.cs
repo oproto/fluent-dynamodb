@@ -8,7 +8,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 /// Analyzes properties for advanced DynamoDB type support including Maps, Sets, Lists,
 /// TTL fields, JSON blobs, and blob references.
 /// </summary>
-public class AdvancedTypeAnalyzer
+internal class AdvancedTypeAnalyzer
 {
     /// <summary>
     /// Analyzes a property to detect advanced type information.

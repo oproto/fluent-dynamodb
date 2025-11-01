@@ -87,8 +87,8 @@ namespace TestNamespace
         // Use absolute time difference instead of percentage to avoid flakiness with small values
         var difference = Math.Abs(withLoggerMs - withNullMs);
         
-        // Allow up to 20ms absolute difference (accounts for timing variations)
-        difference.Should().BeLessThan(20, 
+        // Allow up to 50ms absolute difference (accounts for timing variations and JIT effects)
+        difference.Should().BeLessThan(50, 
             $"NoOpLogger should have minimal overhead. WithLogger: {withLoggerMs}ms, WithNull: {withNullMs}ms, Difference: {difference}ms");
     }
 

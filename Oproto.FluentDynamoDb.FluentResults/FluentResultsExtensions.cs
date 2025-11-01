@@ -83,7 +83,7 @@ public static class FluentResultsExtensions
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A Result containing the list of mapped entities or error details.</returns>
     public static async Task<Result<List<T>>> ToListAsyncResult<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -113,7 +113,7 @@ public static class FluentResultsExtensions
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A Result containing the list of composite entities or error details.</returns>
     public static async Task<Result<List<T>>> ToCompositeEntityListAsyncResult<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -143,7 +143,7 @@ public static class FluentResultsExtensions
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A Result containing the single composite entity or error details.</returns>
     public static async Task<Result<T?>> ToCompositeEntityAsyncResult<T>(
-        this QueryRequestBuilder builder,
+        this QueryRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -174,7 +174,7 @@ public static class FluentResultsExtensions
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A Result containing the list of mapped entities or error details.</returns>
     public static async Task<Result<List<T>>> ToListAsyncResult<T>(
-        this ScanRequestBuilder builder,
+        this ScanRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {
@@ -205,7 +205,7 @@ public static class FluentResultsExtensions
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A Result containing the list of composite entities or error details.</returns>
     public static async Task<Result<List<T>>> ToCompositeEntityListAsyncResult<T>(
-        this ScanRequestBuilder builder,
+        this ScanRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
         where T : class, IDynamoDbEntity
     {

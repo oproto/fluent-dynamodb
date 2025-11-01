@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents a related entity relationship model.
 /// </summary>
-public class RelationshipModel
+internal class RelationshipModel
 {
     /// <summary>
     /// Gets or sets the property name that holds the related entity.

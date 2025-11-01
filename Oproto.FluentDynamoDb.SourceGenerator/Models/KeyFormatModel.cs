@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents key formatting information for partition and sort keys.
 /// </summary>
-public class KeyFormatModel
+internal class KeyFormatModel
 {
     /// <summary>
     /// Gets or sets the prefix for the key value.

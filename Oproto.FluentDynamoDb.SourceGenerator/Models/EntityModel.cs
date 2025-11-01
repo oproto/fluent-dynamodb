@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents a complete entity model extracted from source analysis.
 /// </summary>
-public class EntityModel
+internal class EntityModel
 {
     /// <summary>
     /// Gets or sets the class name of the entity.

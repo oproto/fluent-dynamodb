@@ -5,7 +5,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
 /// <summary>
 /// Diagnostic descriptors for DynamoDB source generator errors and warnings.
 /// </summary>
-public static class DiagnosticDescriptors
+internal static class DiagnosticDescriptors
 {
     /// <summary>
     /// Error when an entity is missing a partition key.

@@ -22,28 +22,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.5.0" PrivateAssets="all" />
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.SourceGenerator.UnitTests" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Oproto.FluentDynamoDb.Attributes\Oproto.FluentDynamoDb.Attributes.csproj" PrivateAssets="all" GeneratePathProperty="true" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.5.0" PrivateAssets="all" />
     </ItemGroup>
-    
-    <!-- Include the Attributes assembly in the analyzer output -->
-    <ItemGroup>
-        <None Include="$(OutputPath)\Oproto.FluentDynamoDb.Attributes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    </ItemGroup>
-    
-    <!-- Copy Attributes assembly to output directory after build -->
-    <Target Name="CopyAttributesAssembly" AfterTargets="Build">
-        <Copy SourceFiles="$(PkgOproto_FluentDynamoDb_Attributes)\lib\netstandard2.0\Oproto.FluentDynamoDb.Attributes.dll" 
-              DestinationFolder="$(OutputPath)" 
-              Condition="Exists('$(PkgOproto_FluentDynamoDb_Attributes)\lib\netstandard2.0\Oproto.FluentDynamoDb.Attributes.dll')" />
-        <Copy SourceFiles="..\Oproto.FluentDynamoDb.Attributes\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.Attributes.dll" 
-              DestinationFolder="$(OutputPath)" 
-              Condition="Exists('..\Oproto.FluentDynamoDb.Attributes\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.Attributes.dll')" />
-    </Target>
 
 
 

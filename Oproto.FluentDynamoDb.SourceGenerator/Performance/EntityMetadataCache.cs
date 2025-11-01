@@ -7,7 +7,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Performance;
 /// High-performance cache for entity metadata to improve source generator performance.
 /// Uses weak references and automatic cleanup to prevent memory leaks.
 /// </summary>
-public static class EntityMetadataCache
+internal static class EntityMetadataCache
 {
     private static readonly ConcurrentDictionary<string, WeakReference<CachedEntityMetadata>> _cache = new();
     private static readonly object _cleanupLock = new object();
@@ -157,7 +157,7 @@ public static class EntityMetadataCache
 /// <summary>
 /// Cache statistics for monitoring and optimization.
 /// </summary>
-public class CacheStatistics
+internal class CacheStatistics
 {
     public int TotalEntries { get; set; }
     public int AliveEntries { get; set; }
@@ -170,7 +170,7 @@ public class CacheStatistics
 /// <summary>
 /// Cached entity metadata for source generator use.
 /// </summary>
-public class CachedEntityMetadata
+internal class CachedEntityMetadata
 {
     public string TableName { get; set; } = string.Empty;
     public CachedPropertyMetadata[] Properties { get; set; } = Array.Empty<CachedPropertyMetadata>();
@@ -181,7 +181,7 @@ public class CachedEntityMetadata
 /// <summary>
 /// Cached property metadata for source generator use.
 /// </summary>
-public class CachedPropertyMetadata
+internal class CachedPropertyMetadata
 {
     public string PropertyName { get; set; } = string.Empty;
     public string AttributeName { get; set; } = string.Empty;
@@ -195,7 +195,7 @@ public class CachedPropertyMetadata
 /// <summary>
 /// Cached index metadata for source generator use.
 /// </summary>
-public class CachedIndexMetadata
+internal class CachedIndexMetadata
 {
     public string IndexName { get; set; } = string.Empty;
     public string PartitionKeyProperty { get; set; } = string.Empty;
@@ -206,7 +206,7 @@ public class CachedIndexMetadata
 /// <summary>
 /// Cached relationship metadata for source generator use.
 /// </summary>
-public class CachedRelationshipMetadata
+internal class CachedRelationshipMetadata
 {
     public string PropertyName { get; set; } = string.Empty;
     public string SortKeyPattern { get; set; } = string.Empty;

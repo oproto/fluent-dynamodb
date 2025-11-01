@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents encryption configuration extracted from EncryptedAttribute.
 /// </summary>
-public class EncryptionConfig
+internal class EncryptionConfig
 {
     /// <summary>
     /// Gets or sets the cache TTL in seconds for data keys.

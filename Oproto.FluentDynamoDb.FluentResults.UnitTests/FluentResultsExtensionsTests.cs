@@ -21,7 +21,7 @@ public class FluentResultsExtensionsTests
     public async Task ExecuteAsyncResult_GetItem_Success_ReturnsOkResult()
     {
         // Arrange
-        var builder = new GetItemRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new GetItemRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var mockResponse = new GetItemResponse
         {
             Item = new Dictionary<string, AttributeValue>
@@ -35,26 +35,25 @@ public class FluentResultsExtensionsTests
             .Returns(Task.FromResult(mockResponse));
 
         // Act
-        var result = await builder.ExecuteAsyncResult<TestEntity>();
+        var result = await builder.GetItemAsyncResult();
 
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
-        result.Value.Item.Should().NotBeNull();
     }
 
     [Fact]
     public async Task ExecuteAsyncResult_GetItem_Exception_ReturnsFailResult()
     {
         // Arrange
-        var builder = new GetItemRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new GetItemRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var exception = new Exception("Test exception");
 
         _mockClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException<GetItemResponse>(exception));
 
         // Act
-        var result = await builder.ExecuteAsyncResult<TestEntity>();
+        var result = await builder.GetItemAsyncResult();
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -66,7 +65,7 @@ public class FluentResultsExtensionsTests
     public async Task ToListAsyncResult_Query_Success_ReturnsOkResult()
     {
         // Arrange
-        var builder = new QueryRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new QueryRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var mockResponse = new QueryResponse
         {
             Items = new List<Dictionary<string, AttributeValue>>
@@ -96,7 +95,7 @@ public class FluentResultsExtensionsTests
     public async Task ToListAsyncResult_Query_Exception_ReturnsFailResult()
     {
         // Arrange
-        var builder = new QueryRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new QueryRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var exception = new Exception("Test exception");
 
         _mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
@@ -115,7 +114,7 @@ public class FluentResultsExtensionsTests
     public async Task ToListAsyncResult_Scan_Success_ReturnsOkResult()
     {
         // Arrange
-        var builder = new ScanRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new ScanRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var mockResponse = new ScanResponse
         {
             Items = new List<Dictionary<string, AttributeValue>>
@@ -145,7 +144,7 @@ public class FluentResultsExtensionsTests
     public async Task ToListAsyncResult_Scan_Exception_ReturnsFailResult()
     {
         // Arrange
-        var builder = new ScanRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new ScanRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var exception = new Exception("Test exception");
 
         _mockClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>())
@@ -160,27 +159,12 @@ public class FluentResultsExtensionsTests
         result.Errors[0].Message.Should().Contain("Failed to execute Scan operation for TestEntity");
     }
 
-    [Fact]
-    public void WithItemResult_Success_ReturnsOkResult()
-    {
-        // Arrange
-        var builder = new PutItemRequestBuilder(_mockClient).ForTable("test-table");
-        var entity = new TestEntity { Id = "test-id", Name = "test-name" };
-
-        // Act
-        var result = builder.WithItemResult(entity);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().NotBeNull();
-        result.Value.Should().BeOfType<PutItemRequestBuilder>();
-    }
 
     [Fact]
-    public async Task ExecuteAsyncResult_PutItem_Success_ReturnsOkResult()
+    public async Task PutAsyncResult_PutItem_Success_ReturnsOkResult()
     {
         // Arrange
-        var builder = new PutItemRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new PutItemRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var entity = new TestEntity { Id = "test-id", Name = "test-name" };
         var mockResponse = new PutItemResponse();
 
@@ -188,17 +172,17 @@ public class FluentResultsExtensionsTests
             .Returns(Task.FromResult(mockResponse));
 
         // Act
-        var result = await builder.ExecuteAsyncResult(entity);
+        var result = await builder.WithItem(entity).PutAsyncResult();
 
         // Assert
         result.IsSuccess.Should().BeTrue();
     }
 
     [Fact]
-    public async Task ExecuteAsyncResult_PutItem_Exception_ReturnsFailResult()
+    public async Task PutAsyncResult_PutItem_Exception_ReturnsFailResult()
     {
         // Arrange
-        var builder = new PutItemRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new PutItemRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var entity = new TestEntity { Id = "test-id", Name = "test-name" };
         var exception = new Exception("Test exception");
 
@@ -206,12 +190,12 @@ public class FluentResultsExtensionsTests
             .Returns(Task.FromException<PutItemResponse>(exception));
 
         // Act
-        var result = await builder.ExecuteAsyncResult(entity);
+        var result = await builder.WithItem(entity).PutAsyncResult();
 
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors.Should().HaveCountGreaterOrEqualTo(1);
-        result.Errors[0].Message.Should().Contain("Failed to execute PutItem operation for TestEntity");
+        result.Errors[0].Message.Should().Contain("Failed to execute PutItem operation");
     }
 
     // Test removed - GetDynamoDbItemsResult method was removed in Task 41
@@ -221,7 +205,7 @@ public class FluentResultsExtensionsTests
     public async Task ExecuteAsyncResult_OperationCanceled_RethrowsException()
     {
         // Arrange
-        var builder = new GetItemRequestBuilder(_mockClient).ForTable("test-table");
+        var builder = new GetItemRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
         var cancellationToken = new CancellationToken(true);
 
         _mockClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
@@ -229,7 +213,7 @@ public class FluentResultsExtensionsTests
 
         // Act & Assert
         await Assert.ThrowsAsync<TaskCanceledException>(
-            () => builder.ExecuteAsyncResult<TestEntity>(cancellationToken));
+            () => builder.GetItemAsyncResult(cancellationToken));
     }
 }
 

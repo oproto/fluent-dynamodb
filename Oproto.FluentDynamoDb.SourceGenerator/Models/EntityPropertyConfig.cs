@@ -1,12 +1,10 @@
-using Oproto.FluentDynamoDb.Attributes;
-
 namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 
 /// <summary>
 /// Represents configuration for entity accessor property generation.
 /// Controls how the entity accessor property is generated on the table class.
 /// </summary>
-public class EntityPropertyConfig
+internal class EntityPropertyConfig
 {
     /// <summary>
     /// Gets or sets the custom name for the entity accessor property.

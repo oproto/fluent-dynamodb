@@ -5,7 +5,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents a property model extracted from source analysis.
 /// </summary>
-public class PropertyModel
+internal class PropertyModel
 {
     /// <summary>
     /// Gets or sets the property name in C#.

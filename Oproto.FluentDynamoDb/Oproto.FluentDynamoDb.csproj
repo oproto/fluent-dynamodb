@@ -34,10 +34,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Oproto.FluentDynamoDb.Attributes\Oproto.FluentDynamoDb.Attributes.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
         <Compile Remove="RealworldExample/**" />
     </ItemGroup>
 

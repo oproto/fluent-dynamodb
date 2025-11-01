@@ -51,7 +51,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <summary>
     /// Gets the logger for DynamoDB operations.
     /// </summary>
-    internal IDynamoDbLogger Logger { get; private init; }
+    protected IDynamoDbLogger Logger { get; private init; }
 
     /// <summary>
     /// Gets the field encryptor for encrypting and decrypting sensitive properties.

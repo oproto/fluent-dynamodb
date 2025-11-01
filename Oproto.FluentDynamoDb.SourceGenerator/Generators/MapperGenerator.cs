@@ -32,7 +32,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <item><description>Static abstract methods: Enables generic constraints while maintaining AOT compatibility</description></item>
 /// </list>
 /// </remarks>
-public static class MapperGenerator
+internal static class MapperGenerator
 {
     /// <summary>
     /// Generates the complete entity implementation with IDynamoDbEntity interface methods.
@@ -2827,7 +2827,7 @@ public static class MapperGenerator
         // Create encryption context
         sb.AppendLine("                    var encryptionContext = new FieldEncryptionContext");
         sb.AppendLine("                    {");
-        sb.AppendLine("                        ContextId = EncryptionContext.Current,");
+        sb.AppendLine("                        ContextId = DynamoDbOperationContext.EncryptionContextId,");
         sb.AppendLine($"                        CacheTtlSeconds = {cacheTtlSeconds},");
         
         // Add EntityId for external blob storage path
@@ -2894,7 +2894,7 @@ public static class MapperGenerator
         // Create encryption context
         sb.AppendLine("                            var encryptionContext = new FieldEncryptionContext");
         sb.AppendLine("                            {");
-        sb.AppendLine("                                ContextId = EncryptionContext.Current,");
+        sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
         sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
         sb.AppendLine("                            };");
         sb.AppendLine();

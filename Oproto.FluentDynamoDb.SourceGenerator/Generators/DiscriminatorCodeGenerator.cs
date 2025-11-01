@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <summary>
 /// Generates discriminator matching code for entity and projection hydration.
 /// </summary>
-public static class DiscriminatorCodeGenerator
+internal static class DiscriminatorCodeGenerator
 {
     /// <summary>
     /// Generates discriminator validation code for FromDynamoDb methods.

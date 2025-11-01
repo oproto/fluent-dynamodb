@@ -7,7 +7,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 /// <summary>
 /// Validates advanced type configurations and reports diagnostics for invalid configurations.
 /// </summary>
-public class AdvancedTypeValidator
+internal class AdvancedTypeValidator
 {
     private readonly List<Diagnostic> _diagnostics = new();
 

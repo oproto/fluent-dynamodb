@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents discriminator configuration for an entity or GSI.
 /// </summary>
-public class DiscriminatorConfig
+internal class DiscriminatorConfig
 {
     /// <summary>
     /// Gets or sets the property name containing the discriminator (e.g., "entity_type", "SK", "PK").
@@ -35,7 +35,7 @@ public class DiscriminatorConfig
 /// <summary>
 /// Defines the strategy for matching discriminator values.
 /// </summary>
-public enum DiscriminatorStrategy
+internal enum DiscriminatorStrategy
 {
     /// <summary>
     /// No discriminator matching.

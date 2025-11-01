@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Simplified EntityMetadata for source generator use (avoids circular dependencies).
 /// </summary>
-public class EntityMetadata
+internal class EntityMetadata
 {
     public string TableName { get; set; } = string.Empty;
     public string? EntityDiscriminator { get; set; }
@@ -16,7 +16,7 @@ public class EntityMetadata
 /// <summary>
 /// Simplified PropertyMetadata for source generator use.
 /// </summary>
-public class PropertyMetadata
+internal class PropertyMetadata
 {
     public string PropertyName { get; set; } = string.Empty;
     public string AttributeName { get; set; } = string.Empty;
@@ -32,7 +32,7 @@ public class PropertyMetadata
 /// <summary>
 /// Simplified IndexMetadata for source generator use.
 /// </summary>
-public class IndexMetadata
+internal class IndexMetadata
 {
     public string IndexName { get; set; } = string.Empty;
     public string PartitionKeyProperty { get; set; } = string.Empty;
@@ -43,7 +43,7 @@ public class IndexMetadata
 /// <summary>
 /// Simplified RelationshipMetadata for source generator use.
 /// </summary>
-public class RelationshipMetadata
+internal class RelationshipMetadata
 {
     public string PropertyName { get; set; } = string.Empty;
     public string SortKeyPattern { get; set; } = string.Empty;

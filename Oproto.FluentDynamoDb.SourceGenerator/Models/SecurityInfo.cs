@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents security information for a property.
 /// </summary>
-public class SecurityInfo
+internal class SecurityInfo
 {
     /// <summary>
     /// Gets or sets a value indicating whether the property is marked as sensitive.

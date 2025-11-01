@@ -659,7 +659,7 @@ namespace TestNamespace
         result!.EntityPropertyConfig.Should().NotBeNull();
         result.EntityPropertyConfig.Name.Should().Be("CustomOrders");
         result.EntityPropertyConfig.Generate.Should().BeTrue();
-        result.EntityPropertyConfig.Modifier.Should().Be(Oproto.FluentDynamoDb.Attributes.AccessModifier.Internal);
+        result.EntityPropertyConfig.Modifier.Should().Be(Oproto.FluentDynamoDb.SourceGenerator.Models.AccessModifier.Internal);
         analyzer.Diagnostics.Should().BeEmpty();
     }
 
@@ -723,10 +723,10 @@ namespace TestNamespace
         result.Should().NotBeNull();
         result!.AccessorConfigs.Should().HaveCount(1);
         var config = result.AccessorConfigs[0];
-        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Get);
-        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Query);
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.SourceGenerator.Models.TableOperation.Get);
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.SourceGenerator.Models.TableOperation.Query);
         config.Generate.Should().BeTrue();
-        config.Modifier.Should().Be(Oproto.FluentDynamoDb.Attributes.AccessModifier.Public);
+        config.Modifier.Should().Be(Oproto.FluentDynamoDb.SourceGenerator.Models.AccessModifier.Public);
         analyzer.Diagnostics.Should().BeEmpty();
     }
 
@@ -823,7 +823,7 @@ namespace TestNamespace
         result.Should().NotBeNull();
         result!.AccessorConfigs.Should().HaveCount(1);
         var config = result.AccessorConfigs[0];
-        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.All);
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.SourceGenerator.Models.TableOperation.All);
         analyzer.Diagnostics.Should().BeEmpty();
     }
 
@@ -856,7 +856,7 @@ namespace TestNamespace
         result.Should().NotBeNull();
         result!.AccessorConfigs.Should().HaveCount(1);
         var config = result.AccessorConfigs[0];
-        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete);
+        config.Operations.Should().HaveFlag(Oproto.FluentDynamoDb.SourceGenerator.Models.TableOperation.Delete);
         config.Generate.Should().BeFalse();
         analyzer.Diagnostics.Should().BeEmpty();
     }

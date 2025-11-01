@@ -8,7 +8,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 /// <summary>
 /// Analyzes projection model classes and validates their configuration.
 /// </summary>
-public class ProjectionModelAnalyzer
+internal class ProjectionModelAnalyzer
 {
     private readonly List<Diagnostic> _diagnostics = new();
     
@@ -115,14 +115,6 @@ public class ProjectionModelAnalyzer
             .SelectMany(al => al.Attributes)
             .FirstOrDefault(attr =>
             {
-                var symbolInfo = semanticModel.GetSymbolInfo(attr);
-                if (symbolInfo.Symbol is IMethodSymbol method)
-                {
-                    var containingType = method.ContainingType.ToDisplayString();
-                    return containingType.Contains("DynamoDbProjectionAttribute") ||
-                           containingType.EndsWith("DynamoDbProjection");
-                }
-                
                 var attributeName = attr.Name.ToString();
                 return attributeName.Contains("DynamoDbProjection");
             });

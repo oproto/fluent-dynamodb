@@ -7,7 +7,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Advanced;
 /// Provides support for custom type converters in generated entity mapping code.
 /// Enables extensible type conversion for complex or custom types.
 /// </summary>
-public static class CustomTypeConverterSupport
+internal static class CustomTypeConverterSupport
 {
     /// <summary>
     /// Generates custom type converter support code for entities with complex types.

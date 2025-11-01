@@ -33,9 +33,6 @@
     <ItemGroup>
         <!-- Reference to main library -->
         <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
-        
-        <!-- Reference to attributes for entity definitions -->
-        <ProjectReference Include="..\Oproto.FluentDynamoDb.Attributes\Oproto.FluentDynamoDb.Attributes.csproj" />
     </ItemGroup>
 
     <ItemGroup>

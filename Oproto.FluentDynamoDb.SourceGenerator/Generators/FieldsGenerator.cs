@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <summary>
 /// Generates static field name constant classes for DynamoDB entities.
 /// </summary>
-public static class FieldsGenerator
+internal static class FieldsGenerator
 {
     /// <summary>
     /// Generates a static Fields class containing field name constants for the entity.

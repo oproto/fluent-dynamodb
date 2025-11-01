@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <summary>
 /// Generates static key builder methods for DynamoDB entities.
 /// </summary>
-public static class KeysGenerator
+internal static class KeysGenerator
 {
     /// <summary>
     /// Generates a static Keys class containing key builder methods for the entity.

@@ -9,8 +9,9 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
-        <Analyzer Include="..\..\Oproto.FluentDynamoDb.SourceGenerator\bin\Debug\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll" 
-                  Condition="Exists('..\..\Oproto.FluentDynamoDb.SourceGenerator\bin\Debug\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll')" />
+        <ProjectReference Include="..\..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false" />
     </ItemGroup>
 
 </Project>

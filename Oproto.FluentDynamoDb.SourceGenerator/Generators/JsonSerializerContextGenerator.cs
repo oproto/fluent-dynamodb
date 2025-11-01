@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <summary>
 /// Generates JsonSerializerContext classes for System.Text.Json AOT compatibility.
 /// </summary>
-public static class JsonSerializerContextGenerator
+internal static class JsonSerializerContextGenerator
 {
     /// <summary>
     /// Generates a JsonSerializerContext class for an entity with JSON blob properties.

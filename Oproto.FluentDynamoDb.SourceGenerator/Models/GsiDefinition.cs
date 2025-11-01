@@ -4,7 +4,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// Represents a Global Secondary Index definition aggregated across multiple entities.
 /// Used during source generation to create index properties on table classes.
 /// </summary>
-public class GsiDefinition
+internal class GsiDefinition
 {
     /// <summary>
     /// Gets or sets the GSI name.

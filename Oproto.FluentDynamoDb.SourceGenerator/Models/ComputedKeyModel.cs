@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// <summary>
 /// Represents computed key information for a property.
 /// </summary>
-public class ComputedKeyModel
+internal class ComputedKeyModel
 {
     /// <summary>
     /// Gets or sets the names of the source properties used to compute this property's value.

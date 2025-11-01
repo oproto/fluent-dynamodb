@@ -7,7 +7,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Advanced;
 /// Generates foundation code for future LINQ expression support.
 /// Provides metadata and infrastructure needed for AOT-compatible LINQ translation.
 /// </summary>
-public static class LinqExpressionFoundation
+internal static class LinqExpressionFoundation
 {
     /// <summary>
     /// Generates LINQ expression foundation code for an entity.

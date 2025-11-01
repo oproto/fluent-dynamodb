@@ -9,7 +9,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 /// <summary>
 /// Analyzes class declarations to extract DynamoDB entity information.
 /// </summary>
-public class EntityAnalyzer
+internal class EntityAnalyzer
 {
     private readonly List<Diagnostic> _diagnostics = new();
 
@@ -200,7 +200,7 @@ public class EntityAnalyzer
                     case "Modifier" when arg.Expression is MemberAccessExpressionSyntax modifierExpr:
                         // Extract the enum value (e.g., AccessModifier.Internal -> "Internal")
                         var modifierName = modifierExpr.Name.Identifier.ValueText;
-                        if (Enum.TryParse<Oproto.FluentDynamoDb.Attributes.AccessModifier>(modifierName, out var modifier))
+                        if (Enum.TryParse<AccessModifier>(modifierName, out var modifier))
                         {
                             config.Modifier = modifier;
                         }
@@ -216,7 +216,7 @@ public class EntityAnalyzer
     {
         var accessorAttributes = GetAttributes(classDecl, semanticModel, "GenerateAccessorsAttribute");
         var configs = new List<AccessorConfig>();
-        var operationsSeen = new Dictionary<Oproto.FluentDynamoDb.Attributes.TableOperation, Location>();
+        var operationsSeen = new Dictionary<TableOperation, Location>();
 
         foreach (var accessorAttr in accessorAttributes)
         {
@@ -239,7 +239,7 @@ public class EntityAnalyzer
 
                         case "Modifier" when arg.Expression is MemberAccessExpressionSyntax modifierExpr:
                             var modifierName = modifierExpr.Name.Identifier.ValueText;
-                            if (Enum.TryParse<Oproto.FluentDynamoDb.Attributes.AccessModifier>(modifierName, out var modifier))
+                            if (Enum.TryParse<AccessModifier>(modifierName, out var modifier))
                             {
                                 config.Modifier = modifier;
                             }
@@ -272,13 +272,13 @@ public class EntityAnalyzer
         entityModel.AccessorConfigs = configs;
     }
 
-    private Oproto.FluentDynamoDb.Attributes.TableOperation ExtractOperationsFlags(ExpressionSyntax expression)
+    private TableOperation ExtractOperationsFlags(ExpressionSyntax expression)
     {
         // Handle single enum value: DynamoDbOperation.Get
         if (expression is MemberAccessExpressionSyntax memberAccess)
         {
             var operationName = memberAccess.Name.Identifier.ValueText;
-            if (Enum.TryParse<Oproto.FluentDynamoDb.Attributes.TableOperation>(operationName, out var operation))
+            if (Enum.TryParse<TableOperation>(operationName, out var operation))
             {
                 return operation;
             }
@@ -293,38 +293,38 @@ public class EntityAnalyzer
         }
 
         // Default to All if we can't parse
-        return Oproto.FluentDynamoDb.Attributes.TableOperation.All;
+        return TableOperation.All;
     }
 
-    private List<Oproto.FluentDynamoDb.Attributes.TableOperation> ExpandOperationFlags(Oproto.FluentDynamoDb.Attributes.TableOperation operations)
+    private List<TableOperation> ExpandOperationFlags(TableOperation operations)
     {
-        var result = new List<Oproto.FluentDynamoDb.Attributes.TableOperation>();
+        var result = new List<TableOperation>();
 
         // If All is specified, expand to all individual operations
-        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.All))
+        if (operations.HasFlag(TableOperation.All))
         {
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Get);
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Query);
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Scan);
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Put);
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete);
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Update);
+            result.Add(TableOperation.Get);
+            result.Add(TableOperation.Query);
+            result.Add(TableOperation.Scan);
+            result.Add(TableOperation.Put);
+            result.Add(TableOperation.Delete);
+            result.Add(TableOperation.Update);
             return result;
         }
 
         // Otherwise, check each flag individually
-        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Get))
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Get);
-        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Query))
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Query);
-        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Scan))
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Scan);
-        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Put))
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Put);
-        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete))
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Delete);
-        if (operations.HasFlag(Oproto.FluentDynamoDb.Attributes.TableOperation.Update))
-            result.Add(Oproto.FluentDynamoDb.Attributes.TableOperation.Update);
+        if (operations.HasFlag(TableOperation.Get))
+            result.Add(TableOperation.Get);
+        if (operations.HasFlag(TableOperation.Query))
+            result.Add(TableOperation.Query);
+        if (operations.HasFlag(TableOperation.Scan))
+            result.Add(TableOperation.Scan);
+        if (operations.HasFlag(TableOperation.Put))
+            result.Add(TableOperation.Put);
+        if (operations.HasFlag(TableOperation.Delete))
+            result.Add(TableOperation.Delete);
+        if (operations.HasFlag(TableOperation.Update))
+            result.Add(TableOperation.Update);
 
         return result;
     }
@@ -1206,38 +1206,18 @@ public class EntityAnalyzer
         if (attributeLists.Count == 0)
             return Enumerable.Empty<AttributeSyntax>();
 
+        var targetName = attributeName.Replace("Attribute", "");
+
         return attributeLists
             .SelectMany(al => al.Attributes)
             .Where(attr =>
             {
-                // First try semantic model resolution
-                var symbolInfo = semanticModel.GetSymbolInfo(attr);
-                if (symbolInfo.Symbol is IMethodSymbol method)
-                {
-                    var containingType = method.ContainingType.ToDisplayString();
-                    if (containingType.EndsWith(attributeName) ||
-                        containingType.EndsWith(attributeName.Replace("Attribute", "")))
-                    {
-                        return true;
-                    }
-                }
-
-                // Fallback to syntax-based matching for cases where semantic model can't resolve
                 var attributeNameText = attr.Name.ToString();
-                var targetName = attributeName.Replace("Attribute", "");
 
-                // More comprehensive matching for attribute names
                 return attributeNameText == attributeName ||
                        attributeNameText == targetName ||
                        attributeNameText.EndsWith("." + attributeName) ||
-                       attributeNameText.EndsWith("." + targetName) ||
-                       // Handle cases where the attribute name in source doesn't have "Attribute" suffix
-                       (attributeName.EndsWith("Attribute") && attributeNameText == attributeName.Substring(0, attributeName.Length - 9)) ||
-                       // Additional matching for common patterns
-                       (attributeName == "PartitionKeyAttribute" && (attributeNameText == "PartitionKey" || attributeNameText.EndsWith(".PartitionKey"))) ||
-                       (attributeName == "SortKeyAttribute" && (attributeNameText == "SortKey" || attributeNameText.EndsWith(".SortKey"))) ||
-                       (attributeName == "DynamoDbTableAttribute" && (attributeNameText == "DynamoDbTable" || attributeNameText.EndsWith(".DynamoDbTable"))) ||
-                       (attributeName == "DynamoDbAttributeAttribute" && (attributeNameText == "DynamoDbAttribute" || attributeNameText.EndsWith(".DynamoDbAttribute")));
+                       attributeNameText.EndsWith("." + targetName);
             });
     }
 

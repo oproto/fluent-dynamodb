@@ -1,12 +1,10 @@
-using Oproto.FluentDynamoDb.Attributes;
-
 namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 
 /// <summary>
 /// Represents configuration for operation method generation on entity accessors.
 /// Controls which DynamoDB operations are generated and their visibility.
 /// </summary>
-public class AccessorConfig
+internal class AccessorConfig
 {
     /// <summary>
     /// Gets or sets the operations to configure.

@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 /// <summary>
 /// Detects blob provider package references.
 /// </summary>
-public class BlobProviderDetector
+internal class BlobProviderDetector
 {
     /// <summary>
     /// Detects which blob provider packages are referenced in the compilation.
@@ -32,7 +32,7 @@ public class BlobProviderDetector
 /// <summary>
 /// Information about detected blob provider configuration.
 /// </summary>
-public class BlobProviderInfo
+internal class BlobProviderInfo
 {
     /// <summary>
     /// Gets or sets a value indicating whether Oproto.FluentDynamoDb.BlobStorage.S3 is referenced.

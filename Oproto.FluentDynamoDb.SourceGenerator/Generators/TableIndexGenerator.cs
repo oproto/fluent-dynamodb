@@ -8,7 +8,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <summary>
 /// Generates index properties on table classes for Global Secondary Indexes.
 /// </summary>
-public static class TableIndexGenerator
+internal static class TableIndexGenerator
 {
     private static readonly List<Diagnostic> _diagnostics = new();
     /// <summary>

@@ -4,7 +4,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 /// Defines the supported DynamoDB operations for a property.
 /// This mirrors the enum from the main library for source generator use.
 /// </summary>
-public enum DynamoDbOperation
+internal enum DynamoDbOperation
 {
     /// <summary>
     /// Equality comparison (=).
@@ -45,7 +45,7 @@ public enum DynamoDbOperation
 /// <summary>
 /// Represents queryable information for a property.
 /// </summary>
-public class QueryableModel
+internal class QueryableModel
 {
     /// <summary>
     /// Gets or sets the supported DynamoDB operations for this property.

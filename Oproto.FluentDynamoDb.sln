@@ -1,17 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-#
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb", "Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj", "{988B3792-D039-496B-99D7-5362FC913AF0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.UnitTests", "Oproto.FluentDynamoDb.UnitTests\Oproto.FluentDynamoDb.UnitTests.csproj", "{950913A4-B4B1-42B0-97B3-FDBE7B692004}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.SourceGenerator", "Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.SourceGenerator.UnitTests", "Oproto.FluentDynamoDb.SourceGenerator.UnitTests\Oproto.FluentDynamoDb.SourceGenerator.UnitTests.csproj", "{00000000-0000-0000-0000-000000000000}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.SourceGenerator.UnitTests", "Oproto.FluentDynamoDb.SourceGenerator.UnitTests\Oproto.FluentDynamoDb.SourceGenerator.UnitTests.csproj", "{B2C3D4E5-F6G7-8901-BCDE-F23456789012}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.FluentResults", "Oproto.FluentDynamoDb.FluentResults\Oproto.FluentDynamoDb.FluentResults.csproj", "{00000000-0000-0000-0000-000000000000}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.FluentResults.UnitTests", "Oproto.FluentDynamoDb.FluentResults.UnitTests\Oproto.FluentDynamoDb.FluentResults.UnitTests.csproj", "{00000000-0000-0000-0000-000000000000}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.BlobStorage.S3", "Oproto.FluentDynamoDb.BlobStorage.S3\Oproto.FluentDynamoDb.BlobStorage.S3.csproj", "{00000000-0000-0000-0000-000000000000}"
 EndProject
@@ -28,11 +26,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Loggi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Encryption.Kms", "Oproto.FluentDynamoDb.Encryption.Kms\Oproto.FluentDynamoDb.Encryption.Kms.csproj", "{EF169CFD-1510-4E41-923B-756FAFFF1B7C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Attributes.UnitTests", "Oproto.FluentDynamoDb.Attributes.UnitTests\Oproto.FluentDynamoDb.Attributes.UnitTests.csproj", "{8E87C0C5-7C83-4248-A713-6E387D01BE33}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.AotTests", "Oproto.FluentDynamoDb.AotTests\Oproto.FluentDynamoDb.AotTests.csproj", "{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Attributes", "Oproto.FluentDynamoDb.Attributes\Oproto.FluentDynamoDb.Attributes.csproj", "{3335B258-E0E2-4622-AC3C-EC53FFA34602}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Encryption.Kms.UnitTests", "Oproto.FluentDynamoDb.Encryption.Kms.UnitTests\Oproto.FluentDynamoDb.Encryption.Kms.UnitTests.csproj", "{F85977FA-BBC9-437E-A825-DC96D477A18F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.NewtonsoftJson.UnitTests", "Oproto.FluentDynamoDb.NewtonsoftJson.UnitTests\Oproto.FluentDynamoDb.NewtonsoftJson.UnitTests.csproj", "{C85302B5-80E2-4360-A07D-3538635D3654}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.SystemTextJson.UnitTests", "Oproto.FluentDynamoDb.SystemTextJson.UnitTests\Oproto.FluentDynamoDb.SystemTextJson.UnitTests.csproj", "{D4A00A91-C925-425F-9D87-5C18465457F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.FluentResults.UnitTests", "Oproto.FluentDynamoDb.FluentResults.UnitTests\Oproto.FluentDynamoDb.FluentResults.UnitTests.csproj", "{8008239E-BF5C-4CF2-952F-63ED1F15AB34}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -53,6 +55,10 @@ Global
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B2C3D4E5-F6G7-8901-BCDE-F23456789012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-F6G7-8901-BCDE-F23456789012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C3D4E5-F6G7-8901-BCDE-F23456789012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-F6G7-8901-BCDE-F23456789012}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3D4E5F6-G7H8-9012-CDEF-345678901234}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B2C3D4E5-F6G7-8901-BCDE-F23456789012}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2C3D4E5-F6G7-8901-BCDE-F23456789012}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2C3D4E5-F6G7-8901-BCDE-F23456789012}.Release|Any CPU.Build.0 = Release|Any CPU
@@ -80,17 +86,25 @@ Global
 		{EF169CFD-1510-4E41-923B-756FAFFF1B7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EF169CFD-1510-4E41-923B-756FAFFF1B7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EF169CFD-1510-4E41-923B-756FAFFF1B7C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8E87C0C5-7C83-4248-A713-6E387D01BE33}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8E87C0C5-7C83-4248-A713-6E387D01BE33}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8E87C0C5-7C83-4248-A713-6E387D01BE33}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8E87C0C5-7C83-4248-A713-6E387D01BE33}.Release|Any CPU.Build.0 = Release|Any CPU
 		{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{724C78A9-1ED7-4CD0-9473-AE47C853A6ED}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3335B258-E0E2-4622-AC3C-EC53FFA34602}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F85977FA-BBC9-437E-A825-DC96D477A18F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F85977FA-BBC9-437E-A825-DC96D477A18F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F85977FA-BBC9-437E-A825-DC96D477A18F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F85977FA-BBC9-437E-A825-DC96D477A18F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C85302B5-80E2-4360-A07D-3538635D3654}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C85302B5-80E2-4360-A07D-3538635D3654}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C85302B5-80E2-4360-A07D-3538635D3654}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C85302B5-80E2-4360-A07D-3538635D3654}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4A00A91-C925-425F-9D87-5C18465457F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4A00A91-C925-425F-9D87-5C18465457F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4A00A91-C925-425F-9D87-5C18465457F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4A00A91-C925-425F-9D87-5C18465457F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8008239E-BF5C-4CF2-952F-63ED1F15AB34}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8008239E-BF5C-4CF2-952F-63ED1F15AB34}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8008239E-BF5C-4CF2-952F-63ED1F15AB34}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8008239E-BF5C-4CF2-952F-63ED1F15AB34}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

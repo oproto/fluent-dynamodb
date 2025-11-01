@@ -21,7 +21,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <item><description>Structured Logging: Uses message templates with parameters for structured logging</description></item>
 /// </list>
 /// </remarks>
-public static class LoggingCodeGenerator
+internal static class LoggingCodeGenerator
 {
     /// <summary>
     /// Generates entry logging code for ToDynamoDb method.

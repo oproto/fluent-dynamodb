@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 /// <summary>
 /// Detects JSON serializer package references and assembly-level configuration.
 /// </summary>
-public class JsonSerializerDetector
+internal class JsonSerializerDetector
 {
     /// <summary>
     /// Detects which JSON serializer is configured for the compilation.
@@ -84,7 +84,7 @@ public class JsonSerializerDetector
 /// <summary>
 /// Information about detected JSON serializer configuration.
 /// </summary>
-public class JsonSerializerInfo
+internal class JsonSerializerInfo
 {
     /// <summary>
     /// Gets or sets a value indicating whether Oproto.FluentDynamoDb.SystemTextJson is referenced.
@@ -115,7 +115,7 @@ public class JsonSerializerInfo
 /// <summary>
 /// Enum representing the available JSON serializer types.
 /// </summary>
-public enum JsonSerializerType
+internal enum JsonSerializerType
 {
     /// <summary>
     /// No serializer configured.

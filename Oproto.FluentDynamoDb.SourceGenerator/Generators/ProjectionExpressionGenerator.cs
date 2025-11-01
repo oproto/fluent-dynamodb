@@ -6,7 +6,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 /// <summary>
 /// Generates projection expression strings and metadata for projection models.
 /// </summary>
-public static class ProjectionExpressionGenerator
+internal static class ProjectionExpressionGenerator
 {
     /// <summary>
     /// Generates a projection expression string for a projection model.

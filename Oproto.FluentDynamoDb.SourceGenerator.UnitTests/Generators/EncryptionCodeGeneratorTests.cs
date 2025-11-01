@@ -100,7 +100,7 @@ public class EncryptionCodeGeneratorTests
         // Assert - Verify FieldEncryptionContext is passed correctly
         result.Should().Contain("var encryptionContext = new FieldEncryptionContext",
             "should create FieldEncryptionContext");
-        result.Should().Contain("ContextId = EncryptionContext.Current",
+        result.Should().Contain("ContextId = DynamoDbOperationContext.EncryptionContextId",
             "should set ContextId from ambient context");
         result.Should().Contain("CacheTtlSeconds = 600",
             "should set CacheTtlSeconds from attribute configuration");

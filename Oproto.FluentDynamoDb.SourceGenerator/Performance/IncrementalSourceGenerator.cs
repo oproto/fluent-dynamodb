@@ -10,7 +10,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Performance;
 /// Incremental source generator with caching and performance optimizations.
 /// Provides transform caching and efficient change detection.
 /// </summary>
-public static class IncrementalSourceGenerator
+internal static class IncrementalSourceGenerator
 {
     /// <summary>
     /// Transforms entity class with caching for improved performance.
@@ -97,7 +97,7 @@ public static class IncrementalSourceGenerator
 /// <summary>
 /// Cache for entity transformation results to improve incremental generation performance.
 /// </summary>
-public static class EntityTransformCache
+internal static class EntityTransformCache
 {
     private static readonly ConcurrentDictionary<string, WeakReference<EntityModel>> _cache = new();
     private static readonly object _maintenanceLock = new object();

@@ -306,8 +306,8 @@ namespace TestNamespace
         tableCode.ShouldContainClass("MyAppTableTable");
         tableCode.Should().Contain("public partial class MyAppTableTable : DynamoDbTableBase", 
             "table class should be named after table name (my-app-table -> MyAppTableTable), not entity name (Order)");
-        tableCode.Should().Contain("public MyAppTableTable(IAmazonDynamoDB client)", 
-            "constructor should use table class name");
+        tableCode.Should().Contain("public MyAppTableTable(IAmazonDynamoDB client, string tableName)", 
+            "constructor should use table class name and require tableName parameter");
     }
 
     [Fact]
