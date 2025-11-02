@@ -32,7 +32,7 @@ jobs:
       
       - name: Check for existing issue
         id: check_issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const workflowName = '${{ steps.workflow.outputs.workflow_name }}';
@@ -100,7 +100,7 @@ jobs:
       
       - name: Create new issue
         if: steps.check_issue.outputs.issue_exists == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const workflowName = '${{ steps.workflow.outputs.workflow_name }}';
@@ -120,7 +120,7 @@ jobs:
       
       - name: Update existing issue
         if: steps.check_issue.outputs.issue_exists == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const issueNumber = ${{ steps.check_issue.outputs.issue_number }};
@@ -158,7 +158,7 @@ jobs:
           echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
       
       - name: Find and close issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const workflowName = '${{ steps.workflow.outputs.workflow_name }}';
