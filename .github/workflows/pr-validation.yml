@@ -1,0 +1,282 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+
+jobs:
+  validate-pr:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    outputs:
+      changelog-modified: ${{ steps.check-changelog.outputs.modified }}
+      changelog-valid: ${{ steps.validate-changelog.outputs.valid }}
+      skip-changelog: ${{ steps.check-labels.outputs.skip }}
+      validation-message: ${{ steps.validate-changelog.outputs.message }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check for skip-changelog label
+        id: check-labels
+        run: |
+          # Check if PR has skip-changelog label
+          SKIP="false"
+          if gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -q "skip-changelog"; then
+            SKIP="true"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "✅ skip-changelog label found - skipping changelog validation"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      
+      - name: Check if CHANGELOG.md was modified
+        id: check-changelog
+        run: |
+          # Get the list of changed files in this PR
+          git fetch origin ${{ github.base_ref }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          if echo "$CHANGED_FILES" | grep -q "^CHANGELOG.md$"; then
+            echo "modified=true" >> $GITHUB_OUTPUT
+            echo "✅ CHANGELOG.md was modified in this PR"
+          else
+            echo "modified=false" >> $GITHUB_OUTPUT
+            echo "⚠️ CHANGELOG.md was not modified in this PR"
+          fi
+      
+      - name: Validate CHANGELOG.md format
+        id: validate-changelog
+        run: |
+          SKIP="${{ steps.check-labels.outputs.skip }}"
+          MODIFIED="${{ steps.check-changelog.outputs.modified }}"
+          
+          # If skip-changelog label is present, skip validation
+          if [ "$SKIP" = "true" ]; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+            echo "message=Changelog validation skipped (skip-changelog label)" >> $GITHUB_OUTPUT
+            echo "✅ Changelog validation skipped due to skip-changelog label"
+            exit 0
+          fi
+          
+          # If CHANGELOG.md was not modified, fail validation
+          if [ "$MODIFIED" = "false" ]; then
+            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "message=CHANGELOG.md was not updated. Please add your changes to the Unreleased section." >> $GITHUB_OUTPUT
+            echo "❌ CHANGELOG.md was not modified"
+            exit 1
+          fi
+          
+          # Validate CHANGELOG.md format
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "message=CHANGELOG.md file not found" >> $GITHUB_OUTPUT
+            echo "❌ CHANGELOG.md file not found"
+            exit 1
+          fi
+          
+          # Check for required sections
+          ERRORS=""
+          
+          # Check for "Unreleased" section
+          if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+            ERRORS="${ERRORS}- Missing [Unreleased] section\n"
+          fi
+          
+          # Check for Keep a Changelog reference
+          if ! grep -q "Keep a Changelog" CHANGELOG.md; then
+            ERRORS="${ERRORS}- Missing Keep a Changelog reference\n"
+          fi
+          
+          # Check for Semantic Versioning reference
+          if ! grep -q "Semantic Versioning" CHANGELOG.md; then
+            ERRORS="${ERRORS}- Missing Semantic Versioning reference\n"
+          fi
+          
+          # Check if Unreleased section has any content (at least one category with content)
+          UNRELEASED_CONTENT=$(sed -n '/^## \[Unreleased\]/,/^## \[/p' CHANGELOG.md | grep -E "^### (Added|Changed|Deprecated|Removed|Fixed|Security)" -A 1 | grep -v "^### " | grep -v "^$" | grep -v "^--" || true)
+          
+          if [ -z "$UNRELEASED_CONTENT" ]; then
+            ERRORS="${ERRORS}- Unreleased section appears empty. Please add your changes under the appropriate category (Added, Changed, Fixed, etc.)\n"
+          fi
+          
+          if [ -n "$ERRORS" ]; then
+            echo "valid=false" >> $GITHUB_OUTPUT
+            MESSAGE="Changelog validation failed:\n${ERRORS}"
+            echo "message<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$MESSAGE" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "❌ Changelog validation failed:"
+            echo -e "$ERRORS"
+            exit 1
+          fi
+          
+          echo "valid=true" >> $GITHUB_OUTPUT
+          echo "message=Changelog format is valid" >> $GITHUB_OUTPUT
+          echo "✅ Changelog format is valid"
+
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+    needs: validate-pr
+
+  test:
+    name: Test
+    uses: ./.github/workflows/test.yml
+    needs: build
+
+  summary:
+    name: PR Validation Summary
+    runs-on: ubuntu-latest
+    needs: [validate-pr, build, test]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Aggregate validation results
+        id: aggregate
+        run: |
+          # Collect job statuses
+          VALIDATE_PR_STATUS="${{ needs.validate-pr.result }}"
+          BUILD_STATUS="${{ needs.build.result }}"
+          TEST_STATUS="${{ needs.test.result }}"
+          
+          # Determine overall status
+          OVERALL_STATUS="success"
+          
+          if [ "$VALIDATE_PR_STATUS" != "success" ]; then
+            OVERALL_STATUS="failure"
+          fi
+          
+          if [ "$BUILD_STATUS" != "success" ]; then
+            OVERALL_STATUS="failure"
+          fi
+          
+          if [ "$TEST_STATUS" != "success" ]; then
+            OVERALL_STATUS="failure"
+          fi
+          
+          echo "overall-status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+          
+          # Store individual statuses
+          echo "validate-pr-status=$VALIDATE_PR_STATUS" >> $GITHUB_OUTPUT
+          echo "build-status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+          echo "test-status=$TEST_STATUS" >> $GITHUB_OUTPUT
+      
+      - name: Generate PR comment
+        id: generate-comment
+        run: |
+          # Create comment body
+          cat > comment.md << 'EOF'
+          ## 🔍 PR Validation Results
+          
+          ### Validation Checks
+          
+          | Check | Status | Details |
+          |-------|--------|---------|
+          | Changelog | ${{ needs.validate-pr.outputs.changelog-valid == 'true' && '✅ Valid' || '❌ Failed' }} | ${{ needs.validate-pr.outputs.validation-message }} |
+          | Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} | Build completed on all platforms |
+          | Tests | ${{ needs.test.result == 'success' && '✅ Passed' || '❌ Failed' }} | Unit and integration tests executed |
+          
+          ### Overall Status
+          
+          ${{ steps.aggregate.outputs.overall-status == 'success' && '✅ **All validations passed!** This PR is ready for review.' || '❌ **Some validations failed.** Please review the details above and fix any issues.' }}
+          
+          ---
+          
+          <details>
+          <summary>📋 Validation Details</summary>
+          
+          #### Changelog Validation
+          - Modified: ${{ needs.validate-pr.outputs.changelog-modified == 'true' && '✅ Yes' || '⚠️ No' }}
+          - Valid Format: ${{ needs.validate-pr.outputs.changelog-valid == 'true' && '✅ Yes' || '❌ No' }}
+          - Skip Label: ${{ needs.validate-pr.outputs.skip-changelog == 'true' && '✅ Yes' || 'No' }}
+          
+          ${{ needs.validate-pr.outputs.skip-changelog != 'true' && needs.validate-pr.outputs.changelog-modified != 'true' && '
+          > ⚠️ **Note:** CHANGELOG.md was not modified. Please update the Unreleased section with your changes, or add the `skip-changelog` label if this PR does not require changelog updates (e.g., documentation-only changes).
+          ' || '' }}
+          
+          #### Build Status
+          - Status: ${{ needs.build.result }}
+          - Platforms: ubuntu-latest, windows-latest, macos-latest
+          
+          #### Test Status
+          - Status: ${{ needs.test.result }}
+          - Unit Tests: Executed on all platforms
+          - Integration Tests: Executed with DynamoDB Local
+          
+          </details>
+          
+          ---
+          
+          *This comment was automatically generated by the PR validation workflow.*
+          EOF
+          
+          # Output the comment file path
+          echo "comment-file=comment.md" >> $GITHUB_OUTPUT
+      
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const commentBody = fs.readFileSync('comment.md', 'utf8');
+            
+            // Find existing comment from this workflow
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🔍 PR Validation Results')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+              console.log('Updated existing PR comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log('Created new PR comment');
+            }
+      
+      - name: Set final status check
+        run: |
+          OVERALL_STATUS="${{ steps.aggregate.outputs.overall-status }}"
+          
+          if [ "$OVERALL_STATUS" = "success" ]; then
+            echo "✅ All PR validations passed"
+            exit 0
+          else
+            echo "❌ PR validation failed"
+            exit 1
+          fi

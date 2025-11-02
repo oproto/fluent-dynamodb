@@ -1,0 +1,551 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  JAVA_VERSION: '17'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+
+jobs:
+  unit-tests:
+    name: Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            **/obj
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.os }}
+          path: ./
+        continue-on-error: true
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Build solution (if artifacts not available)
+        run: dotnet build --configuration Release --no-restore
+      
+      - name: Run Unit Tests with Coverage
+        run: dotnet test --configuration Release --filter "Category=Unit" --logger "trx;LogFileName=unit-test-results.trx" --results-directory ./TestResults/Unit --collect:"XPlat Code Coverage" --settings coverlet.runsettings
+        continue-on-error: false
+      
+      - name: Upload Unit Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ matrix.os }}
+          path: ./TestResults/Unit/*.trx
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: Upload Unit Test Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage-${{ matrix.os }}
+          path: ./TestResults/Unit/**/coverage.cobertura.xml
+          retention-days: 30
+          if-no-files-found: warn
+
+  integration-tests:
+    name: Integration Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Setup Java (for DynamoDB Local)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      
+      - name: Download DynamoDB Local (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          echo "Downloading DynamoDB Local..."
+          mkdir -p dynamodb-local
+          cd dynamodb-local
+          wget -q https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz
+          tar -xzf dynamodb_local_latest.tar.gz
+          rm dynamodb_local_latest.tar.gz
+          ls -la
+          echo "DynamoDB Local downloaded successfully"
+      
+      - name: Download DynamoDB Local (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Downloading DynamoDB Local..."
+          New-Item -ItemType Directory -Force -Path dynamodb-local
+          Set-Location dynamodb-local
+          Invoke-WebRequest -Uri "https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz" -OutFile "dynamodb_local_latest.tar.gz"
+          tar -xzf dynamodb_local_latest.tar.gz
+          Remove-Item dynamodb_local_latest.tar.gz
+          Get-ChildItem
+          Write-Host "DynamoDB Local downloaded successfully"
+      
+      - name: Verify Java and DynamoDB Local
+        shell: bash
+        run: |
+          echo "Java version:"
+          java -version
+          echo ""
+          echo "DynamoDB Local files:"
+          ls -la dynamodb-local/
+      
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            **/obj
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.os }}
+          path: ./
+        continue-on-error: true
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Build solution (if artifacts not available)
+        run: dotnet build --configuration Release --no-restore
+      
+      - name: Build integration test project explicitly
+        run: dotnet build Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-restore
+      
+      - name: Run Integration Tests with Coverage
+        run: dotnet test Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-build --logger "trx;LogFileName=integration-test-results.trx" --results-directory ./TestResults/Integration --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings
+        env:
+          DYNAMODB_LOCAL_PATH: ${{ github.workspace }}/dynamodb-local
+          TEST_METRICS_EXPORT_PATH: ./TestResults/test-metrics-${{ matrix.os }}.json
+          TEST_METRICS_FORMAT: json
+          TEST_FAILURES_EXPORT_PATH: ./TestResults/test-failures-${{ matrix.os }}.json
+        continue-on-error: false
+      
+      - name: Upload Integration Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-${{ matrix.os }}
+          path: ./TestResults/Integration/*.trx
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: Upload Integration Test Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-coverage-${{ matrix.os }}
+          path: ./TestResults/Integration/**/coverage.cobertura.xml
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: Upload Test Metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-metrics-${{ matrix.os }}
+          path: ./TestResults/test-metrics-*.json
+          retention-days: 30
+          if-no-files-found: ignore
+      
+      - name: Upload Failure Analysis
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failures-${{ matrix.os }}
+          path: ./TestResults/test-failures-*.json
+          retention-days: 30
+          if-no-files-found: ignore
+      
+      - name: Collect DynamoDB Local Logs (on failure)
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Test Failure Diagnostics ==="
+          echo ""
+          echo "DynamoDB Local directory contents:"
+          ls -la dynamodb-local/ || echo "Directory not found"
+          echo ""
+          echo "Checking for DynamoDB Local process:"
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            tasklist | findstr java || echo "No Java process found"
+          else
+            ps aux | grep -i dynamodb || echo "No DynamoDB process found"
+          fi
+          echo ""
+          echo "Test results summary:"
+          find ./TestResults -name "*.trx" -exec echo "Found: {}" \;
+      
+      - name: Upload DynamoDB Local Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamodb-logs-${{ matrix.os }}
+          path: |
+            dynamodb-local/*.log
+            TestResults/**/*.trx
+          retention-days: 7
+          if-no-files-found: ignore
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: always()
+    
+    steps:
+      - name: Download all unit test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'unit-test-results-*'
+          path: ./test-results/unit
+        continue-on-error: true
+      
+      - name: Download all integration test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'integration-test-results-*'
+          path: ./test-results/integration
+        continue-on-error: true
+      
+      - name: Download unit test coverage
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'unit-coverage-*'
+          path: ./coverage/unit
+        continue-on-error: true
+      
+      - name: Download integration test coverage
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'integration-coverage-*'
+          path: ./coverage/integration
+        continue-on-error: true
+      
+      - name: Download test metrics
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'test-metrics-*'
+          path: ./test-metrics
+        continue-on-error: true
+      
+      - name: Download failure analysis
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'test-failures-*'
+          path: ./test-failures
+        continue-on-error: true
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq xmlstarlet bc
+          dotnet tool install --global dotnet-reportgenerator-globaltool || dotnet tool update --global dotnet-reportgenerator-globaltool
+      
+      - name: Generate Combined Coverage Report
+        shell: bash
+        run: |
+          mkdir -p ./coverage-report
+          
+          # Find all coverage files
+          COVERAGE_FILES=$(find ./coverage -name "coverage.cobertura.xml" -type f | tr '\n' ';')
+          
+          if [ ! -z "$COVERAGE_FILES" ]; then
+            echo "Found coverage files, generating combined report..."
+            reportgenerator \
+              "-reports:$COVERAGE_FILES" \
+              "-targetdir:./coverage-report" \
+              "-reporttypes:Html;JsonSummary;Cobertura;Badges" \
+              "-title:Oproto.FluentDynamoDb Combined Coverage" \
+              "-tag:${{ github.sha }}"
+            
+            echo "Coverage report generated successfully"
+          else
+            echo "No coverage files found"
+          fi
+      
+      - name: Upload Combined Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-coverage-report
+          path: ./coverage-report/
+          retention-days: 30
+          if-no-files-found: ignore
+      
+      - name: Parse Test Results and Generate Summary
+        shell: bash
+        run: |
+          echo "# 📊 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Initialize counters
+          total_unit_tests=0
+          total_unit_passed=0
+          total_unit_failed=0
+          total_unit_skipped=0
+          
+          total_integration_tests=0
+          total_integration_passed=0
+          total_integration_failed=0
+          total_integration_skipped=0
+          
+          # Parse unit test results
+          echo "Parsing unit test results..."
+          for trx_file in $(find ./test-results/unit -name "*.trx" -type f 2>/dev/null); do
+            if [ -f "$trx_file" ]; then
+              echo "Processing: $trx_file"
+              
+              # Extract test counts using xmlstarlet
+              total=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@total" "$trx_file" 2>/dev/null || echo "0")
+              passed=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@passed" "$trx_file" 2>/dev/null || echo "0")
+              failed=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@failed" "$trx_file" 2>/dev/null || echo "0")
+              skipped=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@notExecuted" "$trx_file" 2>/dev/null || echo "0")
+              
+              total_unit_tests=$((total_unit_tests + total))
+              total_unit_passed=$((total_unit_passed + passed))
+              total_unit_failed=$((total_unit_failed + failed))
+              total_unit_skipped=$((total_unit_skipped + skipped))
+            fi
+          done
+          
+          # Parse integration test results
+          echo "Parsing integration test results..."
+          for trx_file in $(find ./test-results/integration -name "*.trx" -type f 2>/dev/null); do
+            if [ -f "$trx_file" ]; then
+              echo "Processing: $trx_file"
+              
+              total=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@total" "$trx_file" 2>/dev/null || echo "0")
+              passed=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@passed" "$trx_file" 2>/dev/null || echo "0")
+              failed=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@failed" "$trx_file" 2>/dev/null || echo "0")
+              skipped=$(xmlstarlet sel -t -v "//TestRun/ResultSummary/Counters/@notExecuted" "$trx_file" 2>/dev/null || echo "0")
+              
+              total_integration_tests=$((total_integration_tests + total))
+              total_integration_passed=$((total_integration_passed + passed))
+              total_integration_failed=$((total_integration_failed + failed))
+              total_integration_skipped=$((total_integration_skipped + skipped))
+            fi
+          done
+          
+          # Calculate totals
+          grand_total=$((total_unit_tests + total_integration_tests))
+          grand_passed=$((total_unit_passed + total_integration_passed))
+          grand_failed=$((total_unit_failed + total_integration_failed))
+          grand_skipped=$((total_unit_skipped + total_integration_skipped))
+          
+          echo "## Test Execution Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count platforms
+          unit_platforms=$(find ./test-results/unit -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+          integration_platforms=$(find ./test-results/integration -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+          
+          echo "- Unit Test Results: $unit_platforms platform(s)" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Test Results: $integration_platforms platform(s)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## Platform Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tests executed on:" >> $GITHUB_STEP_SUMMARY
+          
+          for os in ubuntu-latest windows-latest macos-latest; do
+            unit_exists=$(find ./test-results/unit -name "*$os*" -type d 2>/dev/null | wc -l)
+            integration_exists=$(find ./test-results/integration -name "*$os*" -type d 2>/dev/null | wc -l)
+            
+            if [ $unit_exists -gt 0 ] || [ $integration_exists -gt 0 ]; then
+              echo "- ✅ $os" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ $os (failed or skipped)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Display test metrics
+          if [ $grand_total -gt 0 ]; then
+            echo "## 📈 Test Metrics" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Calculate pass rate
+            pass_rate=$(awk "BEGIN {printf \"%.1f\", ($grand_passed * 100.0 / $grand_total)}")
+            
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total Tests | $grand_total |" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Passed | $grand_passed (${pass_rate}%) |" >> $GITHUB_STEP_SUMMARY
+            
+            if [ $grand_failed -gt 0 ]; then
+              echo "| ❌ Failed | $grand_failed |" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ $grand_skipped -gt 0 ]; then
+              echo "| ⏭️ Skipped | $grand_skipped |" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Breakdown by test type
+            echo "### Test Breakdown" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Test Type | Total | Passed | Failed | Skipped |" >> $GITHUB_STEP_SUMMARY
+            echo "|-----------|-------|--------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Unit Tests | $total_unit_tests | $total_unit_passed | $total_unit_failed | $total_unit_skipped |" >> $GITHUB_STEP_SUMMARY
+            echo "| Integration Tests | $total_integration_tests | $total_integration_passed | $total_integration_failed | $total_integration_skipped |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No test results found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Process coverage reports
+          if [ -f "./coverage-report/Summary.json" ]; then
+            echo "## 📊 Code Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            line_coverage=$(jq -r '.summary.linecoverage' "./coverage-report/Summary.json" 2>/dev/null || echo "N/A")
+            branch_coverage=$(jq -r '.summary.branchcoverage' "./coverage-report/Summary.json" 2>/dev/null || echo "N/A")
+            
+            echo "| Metric | Coverage |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|----------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Line Coverage | ${line_coverage}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Branch Coverage | ${branch_coverage}% |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Coverage threshold check
+            threshold=70
+            if [ "$line_coverage" != "N/A" ]; then
+              line_num=$(echo "$line_coverage" | sed 's/%//')
+              if (( $(echo "$line_num >= $threshold" | bc -l) )); then
+                echo "✅ **Coverage meets threshold** (≥ ${threshold}%)" >> $GITHUB_STEP_SUMMARY
+              else
+                deficit=$(echo "$threshold - $line_num" | bc)
+                echo "⚠️ **Coverage below threshold** (need ${deficit}% more)" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Process test metrics if available
+          if [ -d "./test-metrics" ]; then
+            echo "## ⏱️ Performance Metrics" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            total_duration=0
+            metrics_count=0
+            
+            for metrics_file in $(find ./test-metrics -name "test-metrics-*.json" -type f 2>/dev/null); do
+              if [ -f "$metrics_file" ]; then
+                duration=$(jq -r '.totalDurationMs // 0' "$metrics_file")
+                total_duration=$((total_duration + duration))
+                metrics_count=$((metrics_count + 1))
+              fi
+            done
+            
+            if [ $metrics_count -gt 0 ]; then
+              # Calculate average duration per platform
+              avg_duration=$((total_duration / metrics_count))
+              
+              # Format duration
+              if [ $avg_duration -lt 1000 ]; then
+                duration_str="${avg_duration}ms"
+              elif [ $avg_duration -lt 60000 ]; then
+                duration_sec=$(awk "BEGIN {printf \"%.2f\", ($avg_duration / 1000.0)}")
+                duration_str="${duration_sec}s"
+              else
+                duration_min=$(($avg_duration / 60000))
+                duration_sec=$(awk "BEGIN {printf \"%.2f\", (($avg_duration % 60000) / 1000.0)}")
+                duration_str="${duration_min}m ${duration_sec}s"
+              fi
+              
+              echo "Average test execution time per platform: **${duration_str}**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              # Performance target check (10 minutes = 600000ms)
+              target_ms=600000
+              if [ $avg_duration -le $target_ms ]; then
+                echo "✅ **Performance Target Met** (≤ 10m per platform)" >> $GITHUB_STEP_SUMMARY
+              else
+                excess=$((avg_duration - target_ms))
+                excess_min=$(($excess / 60000))
+                excess_sec=$(awk "BEGIN {printf \"%.2f\", (($excess % 60000) / 1000.0)}")
+                echo "⚠️ **Performance Target Exceeded** by ${excess_min}m ${excess_sec}s" >> $GITHUB_STEP_SUMMARY
+              fi
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          # Process failure analysis if available
+          if [ -d "./test-failures" ] && [ $grand_failed -gt 0 ]; then
+            echo "## 🔍 Failure Analysis" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "**Total Failures:** $grand_failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📋 View detailed failure analysis in the artifacts section." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **Artifacts Available:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Test results (TRX files) for all platforms" >> $GITHUB_STEP_SUMMARY
+          echo "- Combined coverage report with detailed metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- Individual platform coverage reports" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "./test-metrics" ]; then
+            echo "- Performance metrics" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ $grand_failed -gt 0 ]; then
+            echo "- Failure analysis and diagnostics" >> $GITHUB_STEP_SUMMARY
+          fi

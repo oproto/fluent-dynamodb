@@ -119,6 +119,10 @@ _TeamCity*
 *.coverage
 *.coveragexml
 
+# Test Results
+TestResults/
+*.trx
+
 # NCrunch
 _NCrunch_*
 .*crunch*.local.xml
@@ -162,6 +166,7 @@ PublishScripts/
 
 # NuGet Packages
 *.nupkg
+*.snupkg
 # The packages folder can be ignored because of Package Restore
 **/packages/*
 # except build/, which is used as an MSBuild target.
@@ -287,4 +292,6 @@ __pycache__/
 *.btm.cs
 *.odx.cs
 *.xsd.cs
+# OS files
 .DS_Store
+Thumbs.db

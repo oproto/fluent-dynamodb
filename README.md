@@ -1,5 +1,9 @@
 # Oproto.FluentDynamoDb
 
+[![Build](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/build.yml)
+[![Tests](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/test.yml)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
+
 A modern, fluent-style API wrapper for Amazon DynamoDB that combines automatic code generation with type-safe operations. Built for .NET 8+, this library eliminates boilerplate through source generation while providing an intuitive, expression-based syntax for all DynamoDB operations. Whether you're building serverless applications, microservices, or enterprise systems, Oproto.FluentDynamoDb delivers a developer-friendly experience without sacrificing performance or flexibility.
 
 The library is designed with AOT (Ahead-of-Time) compilation compatibility in mind, making it ideal for AWS Lambda functions and other performance-critical scenarios. With built-in support for complex patterns like composite entities, transactions, and stream processing, you can focus on your business logic while the library handles the DynamoDB complexity.
