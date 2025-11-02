@@ -62,7 +62,7 @@ jobs:
       
       - name: Upload Unit Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: unit-test-results-${{ matrix.os }}
           path: ./TestResults/Unit/*.trx
@@ -71,7 +71,7 @@ jobs:
       
       - name: Upload Unit Test Coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: unit-coverage-${{ matrix.os }}
           path: ./TestResults/Unit/**/coverage.cobertura.xml
@@ -173,7 +173,7 @@ jobs:
       
       - name: Upload Integration Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: integration-test-results-${{ matrix.os }}
           path: ./TestResults/Integration/*.trx
@@ -182,7 +182,7 @@ jobs:
       
       - name: Upload Integration Test Coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: integration-coverage-${{ matrix.os }}
           path: ./TestResults/Integration/**/coverage.cobertura.xml
@@ -191,7 +191,7 @@ jobs:
       
       - name: Upload Test Metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-metrics-${{ matrix.os }}
           path: ./TestResults/test-metrics-*.json
@@ -200,7 +200,7 @@ jobs:
       
       - name: Upload Failure Analysis
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-failures-${{ matrix.os }}
           path: ./TestResults/test-failures-*.json
@@ -228,7 +228,7 @@ jobs:
       
       - name: Upload DynamoDB Local Logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dynamodb-logs-${{ matrix.os }}
           path: |
@@ -316,7 +316,7 @@ jobs:
       
       - name: Upload Combined Coverage Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: combined-coverage-report
           path: ./coverage-report/
