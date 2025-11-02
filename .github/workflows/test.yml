@@ -44,7 +44,7 @@ jobs:
             ${{ runner.os }}-nuget-
       
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: build-artifacts-${{ matrix.os }}
           path: ./
@@ -147,7 +147,7 @@ jobs:
             ${{ runner.os }}-nuget-
       
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: build-artifacts-${{ matrix.os }}
           path: ./
@@ -245,42 +245,42 @@ jobs:
     
     steps:
       - name: Download all unit test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'unit-test-results-*'
           path: ./test-results/unit
         continue-on-error: true
       
       - name: Download all integration test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'integration-test-results-*'
           path: ./test-results/integration
         continue-on-error: true
       
       - name: Download unit test coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'unit-coverage-*'
           path: ./coverage/unit
         continue-on-error: true
       
       - name: Download integration test coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'integration-coverage-*'
           path: ./coverage/integration
         continue-on-error: true
       
       - name: Download test metrics
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'test-metrics-*'
           path: ./test-metrics
         continue-on-error: true
       
       - name: Download failure analysis
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'test-failures-*'
           path: ./test-failures
