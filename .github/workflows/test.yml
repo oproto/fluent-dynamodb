@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       
@@ -44,7 +44,7 @@ jobs:
             ${{ runner.os }}-nuget-
       
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: build-artifacts-${{ matrix.os }}
           path: ./
@@ -62,7 +62,7 @@ jobs:
       
       - name: Upload Unit Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: unit-test-results-${{ matrix.os }}
           path: ./TestResults/Unit/*.trx
@@ -71,7 +71,7 @@ jobs:
       
       - name: Upload Unit Test Coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: unit-coverage-${{ matrix.os }}
           path: ./TestResults/Unit/**/coverage.cobertura.xml
@@ -92,12 +92,12 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       
       - name: Setup Java (for DynamoDB Local)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -147,7 +147,7 @@ jobs:
             ${{ runner.os }}-nuget-
       
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: build-artifacts-${{ matrix.os }}
           path: ./
@@ -173,7 +173,7 @@ jobs:
       
       - name: Upload Integration Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: integration-test-results-${{ matrix.os }}
           path: ./TestResults/Integration/*.trx
@@ -182,7 +182,7 @@ jobs:
       
       - name: Upload Integration Test Coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: integration-coverage-${{ matrix.os }}
           path: ./TestResults/Integration/**/coverage.cobertura.xml
@@ -191,7 +191,7 @@ jobs:
       
       - name: Upload Test Metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-metrics-${{ matrix.os }}
           path: ./TestResults/test-metrics-*.json
@@ -200,7 +200,7 @@ jobs:
       
       - name: Upload Failure Analysis
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-failures-${{ matrix.os }}
           path: ./TestResults/test-failures-*.json
@@ -228,7 +228,7 @@ jobs:
       
       - name: Upload DynamoDB Local Logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dynamodb-logs-${{ matrix.os }}
           path: |
@@ -245,42 +245,42 @@ jobs:
     
     steps:
       - name: Download all unit test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'unit-test-results-*'
           path: ./test-results/unit
         continue-on-error: true
       
       - name: Download all integration test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'integration-test-results-*'
           path: ./test-results/integration
         continue-on-error: true
       
       - name: Download unit test coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'unit-coverage-*'
           path: ./coverage/unit
         continue-on-error: true
       
       - name: Download integration test coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'integration-coverage-*'
           path: ./coverage/integration
         continue-on-error: true
       
       - name: Download test metrics
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'test-metrics-*'
           path: ./test-metrics
         continue-on-error: true
       
       - name: Download failure analysis
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: 'test-failures-*'
           path: ./test-failures
@@ -316,7 +316,7 @@ jobs:
       
       - name: Upload Combined Coverage Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: combined-coverage-report
           path: ./coverage-report/
