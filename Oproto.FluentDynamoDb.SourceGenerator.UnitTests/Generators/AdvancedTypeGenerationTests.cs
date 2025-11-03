@@ -3,7 +3,7 @@
 // - Semantic assertions: Replaced structural string checks
 // - DynamoDB-specific checks: Preserved with descriptive "because" messages
 
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator;

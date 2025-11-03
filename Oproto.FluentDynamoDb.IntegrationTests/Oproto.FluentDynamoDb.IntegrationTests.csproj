@@ -23,11 +23,14 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         
-        <!-- Assertions - Using 7.x to avoid Apache 2.0 licensing issues -->
-        <PackageReference Include="FluentAssertions" Version="6.12.1" />
+        <!-- Assertions - Using AwesomeAssertions (fork of FluentAssertions) -->
+        <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
         
         <!-- AWS SDK for DynamoDB -->
         <PackageReference Include="AWSSDK.DynamoDBv2" Version="[4.0.0,5.0.0)" />
+        
+        <!-- Roslyn for source generator support -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -43,7 +46,7 @@
     </ItemGroup>
 
     <!-- Include source generator as analyzer for compile-time generation -->
-    <ItemGroup Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
         <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false" />

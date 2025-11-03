@@ -57,7 +57,7 @@ public class FluentResultsExtensionsTests
 
         // Assert
         result.IsFailed.Should().BeTrue();
-        result.Errors.Should().HaveCountGreaterOrEqualTo(1);
+        result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
         result.Errors[0].Message.Should().Contain("Failed to execute GetItem operation for TestEntity");
     }
 
@@ -106,7 +106,7 @@ public class FluentResultsExtensionsTests
 
         // Assert
         result.IsFailed.Should().BeTrue();
-        result.Errors.Should().HaveCountGreaterOrEqualTo(1);
+        result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
         result.Errors[0].Message.Should().Contain("Failed to execute Query operation for TestEntity");
     }
 
@@ -155,7 +155,7 @@ public class FluentResultsExtensionsTests
 
         // Assert
         result.IsFailed.Should().BeTrue();
-        result.Errors.Should().HaveCountGreaterOrEqualTo(1);
+        result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
         result.Errors[0].Message.Should().Contain("Failed to execute Scan operation for TestEntity");
     }
 
@@ -194,7 +194,7 @@ public class FluentResultsExtensionsTests
 
         // Assert
         result.IsFailed.Should().BeTrue();
-        result.Errors.Should().HaveCountGreaterOrEqualTo(1);
+        result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
         result.Errors[0].Message.Should().Contain("Failed to execute PutItem operation");
     }
 

@@ -3,7 +3,7 @@
 // instead of brittle string matching. Key format strings are preserved with descriptive messages.
 // See: .kiro/specs/unit-test-fixes/design.md for migration patterns
 
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;

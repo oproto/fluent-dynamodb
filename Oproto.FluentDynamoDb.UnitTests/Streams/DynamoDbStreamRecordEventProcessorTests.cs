@@ -1,5 +1,5 @@
 using Amazon.Lambda.DynamoDBEvents;
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.Streams;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Streams;

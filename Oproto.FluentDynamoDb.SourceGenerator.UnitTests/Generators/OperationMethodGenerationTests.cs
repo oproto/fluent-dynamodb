@@ -516,7 +516,7 @@ namespace TestNamespace
             accessorCode.Substring(0, Math.Min(1000, accessorCode.Length)), 
             @"(public|internal|protected|private)\s+\w+\s+\w+\(").Count;
         
-        methodCount.Should().BeLessOrEqualTo(1,
+        methodCount.Should().BeLessThanOrEqualTo(1,
             "should have at most the constructor when all operations are disabled");
     }
 

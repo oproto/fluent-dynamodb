@@ -1,5 +1,5 @@
 using Amazon.DynamoDBv2;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests;

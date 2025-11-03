@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Models;

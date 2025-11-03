@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
-using FluentAssertions.Execution;
+using AwesomeAssertions;
+using AwesomeAssertions.Execution;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 

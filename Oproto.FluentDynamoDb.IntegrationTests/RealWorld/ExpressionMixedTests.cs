@@ -431,7 +431,7 @@ public class ExpressionMixedTests : IntegrationTestBase
         {
         }
         
-        public ScanRequestBuilder Scan() => 
-            new ScanRequestBuilder(DynamoDbClient).ForTable(Name);
+        public ScanRequestBuilder<ComplexEntity> Scan() => 
+            new ScanRequestBuilder<ComplexEntity>(DynamoDbClient).ForTable(Name);
     }
 }

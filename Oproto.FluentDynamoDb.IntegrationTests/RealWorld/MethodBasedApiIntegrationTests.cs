@@ -675,16 +675,16 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         }
         
         // Override Get to provide key-specific overload
-        public GetItemRequestBuilder Get(string userId) => 
-            base.Get().WithKey("pk", userId).WithKey("sk", "METADATA");
+        public GetItemRequestBuilder<object> Get(string userId) => 
+            base.Get<object>().WithKey("pk", userId).WithKey("sk", "METADATA");
         
         // Override Update to provide key-specific overload
-        public UpdateItemRequestBuilder Update(string userId) => 
-            base.Update().WithKey("pk", userId).WithKey("sk", "METADATA");
+        public UpdateItemRequestBuilder<object> Update(string userId) => 
+            base.Update<object>().WithKey("pk", userId).WithKey("sk", "METADATA");
         
         // Override Delete to provide key-specific overload
-        public DeleteItemRequestBuilder Delete(string userId) => 
-            base.Delete().WithKey("pk", userId).WithKey("sk", "METADATA");
+        public DeleteItemRequestBuilder<object> Delete(string userId) => 
+            base.Delete<object>().WithKey("pk", userId).WithKey("sk", "METADATA");
     }
     
     /// <summary>
@@ -699,16 +699,16 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         }
         
         // Override Get to provide composite key overload
-        public GetItemRequestBuilder Get(string pk, string sk) => 
-            base.Get().WithKey("pk", pk).WithKey("sk", sk);
+        public GetItemRequestBuilder<object> Get(string pk, string sk) => 
+            base.Get<object>().WithKey("pk", pk).WithKey("sk", sk);
         
         // Override Update to provide composite key overload
-        public UpdateItemRequestBuilder Update(string pk, string sk) => 
-            base.Update().WithKey("pk", pk).WithKey("sk", sk);
+        public UpdateItemRequestBuilder<object> Update(string pk, string sk) => 
+            base.Update<object>().WithKey("pk", pk).WithKey("sk", sk);
         
         // Override Delete to provide composite key overload
-        public DeleteItemRequestBuilder Delete(string pk, string sk) => 
-            base.Delete().WithKey("pk", pk).WithKey("sk", sk);
+        public DeleteItemRequestBuilder<object> Delete(string pk, string sk) => 
+            base.Delete<object>().WithKey("pk", pk).WithKey("sk", sk);
         
         // Define index with projection
         public DynamoDbIndex StatusIndex => 

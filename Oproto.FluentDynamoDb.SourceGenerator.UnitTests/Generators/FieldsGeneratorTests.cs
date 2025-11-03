@@ -16,7 +16,7 @@
 // still catching actual errors.
 // ============================================================================
 
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;

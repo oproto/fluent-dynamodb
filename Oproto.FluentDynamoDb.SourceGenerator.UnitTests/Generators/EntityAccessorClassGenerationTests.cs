@@ -172,7 +172,7 @@ namespace TestNamespace
             tableCode, 
             @"private readonly MyTableTable _table;").Count;
         
-        fieldCount.Should().BeGreaterOrEqualTo(2,
+        fieldCount.Should().BeGreaterThanOrEqualTo(2,
             "should have parent table field in each accessor class");
     }
 
@@ -524,7 +524,7 @@ namespace TestNamespace
         var fieldMatches = System.Text.RegularExpressions.Regex.Matches(
             tableCode, 
             @"private readonly MultiTableTable _table;");
-        fieldMatches.Count.Should().BeGreaterOrEqualTo(3,
+        fieldMatches.Count.Should().BeGreaterThanOrEqualTo(3,
             "each accessor should have parent table field");
         
         // All should have constructors
