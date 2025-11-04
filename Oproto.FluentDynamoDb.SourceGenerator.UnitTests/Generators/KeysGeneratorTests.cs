@@ -380,4 +380,119 @@ public class KeysGeneratorTests
         result.Should().Contain("var keyValue = \"custom_\" + id;",
             "should parse custom format string 'custom_{0}_suffix' and generate concatenation with prefix 'custom_'");
     }
+
+    [Fact]
+    public void GenerateNestedKeysClass_ProducesSameMethodSignatures_AsGenerateKeysClass()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "TenantId",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "tenant", Separator = "#" }
+                },
+                new PropertyModel
+                {
+                    PropertyName = "TransactionId",
+                    AttributeName = "sk",
+                    PropertyType = "System.Guid",
+                    IsSortKey = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "txn", Separator = "#" }
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Status",
+                    AttributeName = "status",
+                    PropertyType = "string",
+                    GlobalSecondaryIndexes = new[]
+                    {
+                        new GlobalSecondaryIndexModel
+                        {
+                            IndexName = "StatusIndex",
+                            IsPartitionKey = true
+                        }
+                    }
+                }
+            },
+            Indexes = new[]
+            {
+                new IndexModel
+                {
+                    IndexName = "StatusIndex",
+                    PartitionKeyProperty = "Status"
+                }
+            }
+        };
+
+        // Act - Generate both versions
+        var topLevelResult = KeysGenerator.GenerateKeysClass(entity);
+        
+        var sb = new System.Text.StringBuilder();
+        KeysGenerator.GenerateNestedKeysClass(sb, entity);
+        var nestedResult = sb.ToString();
+
+        // Verify both compile
+        CompilationVerifier.AssertGeneratedCodeCompiles(topLevelResult);
+        CompilationVerifier.AssertGeneratedCodeCompiles($"namespace TestNamespace {{ public partial class TestEntity {{ {nestedResult} }} }}");
+
+        // Assert - Main table Pk method signature
+        topLevelResult.Should().Contain("public static string Pk(string tenantId)",
+            "top-level class should have Pk method with string parameter");
+        nestedResult.Should().Contain("public static string Pk(string tenantId)",
+            "nested class should have identical Pk method signature");
+
+        // Assert - Main table Sk method signature
+        topLevelResult.Should().Contain("public static string Sk(System.Guid transactionId)",
+            "top-level class should have Sk method with Guid parameter");
+        nestedResult.Should().Contain("public static string Sk(System.Guid transactionId)",
+            "nested class should have identical Sk method signature");
+
+        // Assert - Main table Key method signature
+        topLevelResult.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, System.Guid transactionId)",
+            "top-level class should have Key method returning tuple");
+        nestedResult.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, System.Guid transactionId)",
+            "nested class should have identical Key method signature");
+
+        // Assert - GSI class name differs (intentional breaking change)
+        // Note: The old GenerateKeysClass already uses "StatusIndexKeys" suffix
+        // The new GenerateNestedKeysClass removes the redundant "Keys" suffix
+        topLevelResult.Should().Contain("public static partial class StatusIndexKeys",
+            "top-level class should have GSI class with 'Keys' suffix");
+        nestedResult.Should().Contain("public static partial class StatusIndex",
+            "nested class should have GSI class without redundant 'Keys' suffix");
+        nestedResult.Should().NotContain("StatusIndexKeys",
+            "nested class should not have redundant 'Keys' suffix in GSI class name");
+
+        // Assert - GSI Pk method signature remains identical
+        topLevelResult.Should().Contain("public static string Pk(string status)",
+            "top-level GSI class should have Pk method");
+        nestedResult.Should().Contain("public static string Pk(string status)",
+            "nested GSI class should have identical Pk method signature");
+
+        // Assert - Parameter validation logic is identical
+        topLevelResult.Should().Contain("if (tenantId == null)",
+            "top-level class should validate null parameters");
+        nestedResult.Should().Contain("if (tenantId == null)",
+            "nested class should have identical parameter validation");
+
+        topLevelResult.Should().Contain("throw new System.ArgumentNullException(nameof(tenantId), \"Key parameter cannot be null.\")",
+            "top-level class should throw ArgumentNullException");
+        nestedResult.Should().Contain("throw new System.ArgumentNullException(nameof(tenantId), \"Key parameter cannot be null.\")",
+            "nested class should throw identical exception");
+
+        // Assert - Key building logic is identical
+        topLevelResult.Should().Contain("var keyValue = \"tenant#\" + tenantId;",
+            "top-level class should use same key format");
+        nestedResult.Should().Contain("var keyValue = \"tenant#\" + tenantId;",
+            "nested class should use identical key format");
+    }
 }

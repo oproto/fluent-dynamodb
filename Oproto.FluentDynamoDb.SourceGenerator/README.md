@@ -91,7 +91,7 @@ public partial class YourEntity
 
 ### 3. KeysGenerator (`Generators/KeysGenerator.cs`)
 
-**Purpose**: Generates static key builder methods for DynamoDB entities.
+**Purpose**: Generates static key builder methods for DynamoDB entities as nested classes.
 
 **Responsibilities**:
 - Generates partition key and sort key builder methods
@@ -99,60 +99,90 @@ public partial class YourEntity
 - Generates separate key builders for each Global Secondary Index
 - Creates extraction helper methods for composite keys
 - Ensures type safety for all key builder parameters
+- Generates Keys class as a nested static partial class within the entity
 
 **Generated Code Structure**:
 ```csharp
-public static partial class YourEntityKeys
+public partial class YourEntity
 {
-    // Main table keys
-    public static string Pk(string tenantId, string customerId) 
-        => $"{tenantId}#{customerId}";
-    
-    public static string Sk(DateTime date) 
-        => date.ToString("yyyy-MM-dd");
-    
-    // GSI keys
-    public static partial class StatusIndex
+    // Nested Keys class for better organization
+    public static partial class Keys
     {
-        public static string Pk(string status) => $"STATUS#{status}";
-    }
-    
-    // Extraction helpers
-    public static (string TenantId, string CustomerId) ExtractPkComponents(string pk)
-    {
-        var parts = pk.Split('#');
-        return (parts[0], parts[1]);
+        // Main table keys
+        public static string Pk(string tenantId, string customerId) 
+            => $"{tenantId}#{customerId}";
+        
+        public static string Sk(DateTime date) 
+            => date.ToString("yyyy-MM-dd");
+        
+        // GSI keys (nested without redundant suffix)
+        public static partial class StatusIndex
+        {
+            public static string Pk(string status) => $"STATUS#{status}";
+        }
+        
+        // Extraction helpers
+        public static (string TenantId, string CustomerId) ExtractPkComponents(string pk)
+        {
+            var parts = pk.Split('#');
+            return (parts[0], parts[1]);
+        }
     }
 }
 ```
 
+**Access Pattern**:
+```csharp
+// Access keys through entity class
+var pk = YourEntity.Keys.Pk("tenant1", "customer123");
+var sk = YourEntity.Keys.Sk(DateTime.UtcNow);
+
+// Access GSI keys without redundant suffix
+var gsiPk = YourEntity.Keys.StatusIndex.Pk("ACTIVE");
+```
+
 ### 4. FieldsGenerator (`Generators/FieldsGenerator.cs`)
 
-**Purpose**: Generates static field name constant classes for DynamoDB entities.
+**Purpose**: Generates static field name constant classes for DynamoDB entities as nested classes.
 
 **Responsibilities**:
 - Generates string constants for all DynamoDB attribute names
 - Creates nested classes for Global Secondary Index fields
 - Provides compile-time safety when referencing attribute names
 - Handles reserved word mapping and special cases
+- Generates Fields class as a nested static partial class within the entity
 
 **Generated Code Structure**:
 ```csharp
-public static partial class YourEntityFields
+public partial class YourEntity
 {
-    // Main table fields
-    public const string PartitionKey = "pk";
-    public const string SortKey = "sk";
-    public const string Amount = "amount";
-    public const string Status = "status";
-    
-    // GSI fields
-    public static partial class StatusIndex
+    // Nested Fields class for better organization
+    public static partial class Fields
     {
+        // Main table fields
+        public const string PartitionKey = "pk";
+        public const string SortKey = "sk";
+        public const string Amount = "amount";
         public const string Status = "status";
-        public const string CreatedDate = "created_date";
+        
+        // GSI fields (nested without redundant suffix)
+        public static partial class StatusIndex
+        {
+            public const string Status = "status";
+            public const string CreatedDate = "created_date";
+        }
     }
 }
+```
+
+**Access Pattern**:
+```csharp
+// Access fields through entity class
+var pkField = YourEntity.Fields.PartitionKey;
+var amountField = YourEntity.Fields.Amount;
+
+// Access GSI fields without redundant suffix
+var gsiStatusField = YourEntity.Fields.StatusIndex.Status;
 ```
 
 ## Code Generation Pipeline
@@ -182,7 +212,7 @@ public static partial class YourEntityFields
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 4. Code Generation (Three Generators)                           │
+│ 4. Code Generation (Consolidated)                               │
 │    ┌──────────────────────────────────────────────────────────┐ │
 │    │ MapperGenerator → YourEntity.g.cs                        │ │
 │    │   - ToDynamoDb method                                    │ │
@@ -190,18 +220,20 @@ public static partial class YourEntityFields
 │    │   - GetPartitionKey method                               │ │
 │    │   - MatchesEntity method                                 │ │
 │    │   - GetEntityMetadata method                             │ │
+│    │   - Nested Keys class (from KeysGenerator)               │ │
+│    │     • Partition key builder                              │ │
+│    │     • Sort key builder                                   │ │
+│    │     • GSI key builders (nested without suffix)           │ │
+│    │     • Extraction helpers                                 │ │
+│    │   - Nested Fields class (from FieldsGenerator)           │ │
+│    │     • Field name constants                               │ │
+│    │     • GSI field constants (nested without suffix)        │ │
 │    └──────────────────────────────────────────────────────────┘ │
 │    ┌──────────────────────────────────────────────────────────┐ │
-│    │ KeysGenerator → YourEntityKeys.g.cs                      │ │
-│    │   - Partition key builder                                │ │
-│    │   - Sort key builder                                     │ │
-│    │   - GSI key builders                                     │ │
-│    │   - Extraction helpers                                   │ │
-│    └──────────────────────────────────────────────────────────┘ │
-│    ┌──────────────────────────────────────────────────────────┐ │
-│    │ FieldsGenerator → YourEntityFields.g.cs                  │ │
-│    │   - Field name constants                                 │ │
-│    │   - GSI field constants                                  │ │
+│    │ TableGenerator → YourTable.g.cs                          │ │
+│    │   - Table class with index properties                    │ │
+│    │   - Nested typed index classes (e.g., StatusIndexIndex)  │ │
+│    │   - Query and scan methods with projection support       │ │
 │    └──────────────────────────────────────────────────────────┘ │
 └────────────────────────────┬────────────────────────────────────┘
                              │
@@ -210,6 +242,7 @@ public static partial class YourEntityFields
 │ 5. Compilation                                                  │
 │    - Generated code compiled with user project                  │
 │    - Full type safety and IntelliSense support                  │
+│    - Nested classes provide better organization                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -318,6 +351,7 @@ When modifying the source generator:
 3. **Update Documentation**: Keep this README and inline docs current
 4. **Add Tests**: Cover new functionality with unit and integration tests
 5. **Consider AOT**: Ensure generated code remains AOT-compatible
+6. **Nested Structure**: Generate support classes as nested classes within entities
 
 ## References
 

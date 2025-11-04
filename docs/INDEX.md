@@ -280,6 +280,12 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 
 ## N
 
+**Nested Classes**
+- Source generator structure: [Source Generator README](../Oproto.FluentDynamoDb.SourceGenerator/README.md)
+- Keys access: [First Entity Guide](getting-started/FirstEntity.md#2-keys-class-key-builder-methods)
+- Fields access: [First Entity Guide](getting-started/FirstEntity.md#1-fields-class-type-safe-field-names)
+- Generated code: [First Entity Guide](getting-started/FirstEntity.md#generated-code-overview)
+
 **Numeric Formatting**
 - Format specifiers: [Format Specifiers](reference/FormatSpecifiers.md#numeric-formats)
 - In computed keys: [Entity Definition](core-features/EntityDefinition.md#numeric-format-strings)

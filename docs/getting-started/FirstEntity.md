@@ -192,26 +192,29 @@ public partial class Order
 
 ## Generated Code Overview
 
-When you build your project, the source generator creates three classes for each entity:
+When you build your project, the source generator creates nested support classes within your entity:
 
 ### 1. Fields Class (Type-Safe Field Names)
 
 ```csharp
-// Generated: UserFields.g.cs
-public static class UserFields
+// Generated: User.g.cs (nested within User class)
+public partial class User
 {
-    public const string UserId = "pk";
-    public const string Email = "email";
-    public const string FullName = "full_name";
+    public static partial class Fields
+    {
+        public const string UserId = "pk";
+        public const string Email = "email";
+        public const string FullName = "full_name";
+    }
 }
 ```
 
 **Usage:**
 ```csharp
-// Use in queries and updates
+// Access through entity class
 await table.Query
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Email} = {{0}}", "john@example.com")
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .Where($"{User.Fields.Email} = {{0}}", "john@example.com")
     .ExecuteAsync<User>();
 ```
 
@@ -219,28 +222,32 @@ await table.Query
 - Compile-time safety (typos caught at build time)
 - IntelliSense support
 - Refactoring support (rename property → field name updates automatically)
+- No namespace pollution - Fields class is nested within entity
 
 ### 2. Keys Class (Key Builder Methods)
 
 ```csharp
-// Generated: UserKeys.g.cs
-public static class UserKeys
+// Generated: User.g.cs (nested within User class)
+public partial class User
 {
-    public static string Pk(string userId)
+    public static partial class Keys
     {
-        return $"USER#{userId}";
+        public static string Pk(string userId)
+        {
+            return $"USER#{userId}";
+        }
     }
 }
 ```
 
 **Usage:**
 ```csharp
-// Build partition key value
-var key = UserKeys.Pk("user123");  // Returns "USER#user123"
+// Build partition key value through entity class
+var key = User.Keys.Pk("user123");  // Returns "USER#user123"
 
 // Use in operations
 await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
     .ExecuteAsync<User>();
 ```
 
@@ -248,6 +255,7 @@ await table.Get
 - Consistent key formatting
 - Prevents key format errors
 - Supports composite key patterns
+- Clear relationship between entity and its keys
 
 ### 3. Mapper Class (Serialization/Deserialization)
 
@@ -301,7 +309,7 @@ public partial class User
 
 // Usage
 await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
     .ExecuteAsync<User>();
 ```
 
@@ -490,21 +498,21 @@ await table.Put.WithItem(user).ExecuteAsync();
 
 // Retrieve user using generated fields and keys
 var response = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .WithKey(UserFields.RecordType, UserKeys.Sk())
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.RecordType, User.Keys.Sk())
     .ExecuteAsync<User>();
 
 // Query with filter using generated fields
 var activeUsers = await table.Query
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Status} = {{0}}", "active")
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .Where($"{User.Fields.Status} = {{0}}", "active")
     .ExecuteAsync<User>();
 
 // Update using generated fields
 await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .WithKey(UserFields.RecordType, UserKeys.Sk())
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.RecordType, User.Keys.Sk())
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)
     .ExecuteAsync();
