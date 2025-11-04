@@ -10,12 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- Source generation now uses nested classes to avoid namespace collissions
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- Fixed duplicate index generation on tables
 
 ### Security
 

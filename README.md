@@ -47,9 +47,11 @@ public partial class User
 ```
 
 The source generator automatically creates:
-- **Field constants** (`UserFields.UserId`, `UserFields.Username`, etc.)
-- **Key builders** (`UserKeys.Pk(userId)`)
+- **Field constants** (`User.Fields.UserId`, `User.Fields.Username`, etc.)
+- **Key builders** (`User.Keys.Pk(userId)`)
 - **Mapper methods** for converting between your model and DynamoDB items
+
+All support classes are generated as nested classes within your entity for better organization.
 
 ### Basic Operations
 
@@ -71,12 +73,12 @@ var user = new User
 
 await table.Put
     .WithItem(UserMapper.ToItem(user))
-    .Where("attribute_not_exists({0})", UserFields.UserId)
+    .Where("attribute_not_exists({0})", User.Fields.UserId)
     .PutAsync();
 
 // Get a user (Primary API - returns entity, populates context)
 var retrievedUser = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
     .GetItemAsync<User>();
 
 // Access operation metadata via context
@@ -86,21 +88,21 @@ Console.WriteLine($"Consumed capacity: {context?.ConsumedCapacity?.CapacityUnits
 // Query users with expression formatting (Primary API - returns list, populates context)
 var activeUsers = await table.Query
     .Where("{0} = {1} AND {2} = {3}", 
-           UserFields.UserId, UserKeys.Pk("user123"),
-           UserFields.Status, "active")
+           User.Fields.UserId, User.Keys.Pk("user123"),
+           User.Fields.Status, "active")
     .ToListAsync<User>();
 
 // Update with type-safe fields and format strings (Primary API - returns void, populates context)
 await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Status} = {{0}}, {UserFields.CreatedAt} = {{1:o}}", 
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .Set($"SET {User.Fields.Status} = {{0}}, {User.Fields.CreatedAt} = {{1:o}}", 
          "inactive", DateTime.UtcNow)
     .UpdateAsync();
 
 // Delete with condition (Primary API - returns void, populates context)
 await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where("{0} = {1}", UserFields.Status, "inactive")
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .Where("{0} = {1}", User.Fields.Status, "inactive")
     .DeleteAsync();
 ```
 
@@ -325,8 +327,8 @@ public partial class Order
 
 // Use generated code with expression formatting
 await table.Update
-    .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
-    .Set($"SET {OrderFields.Amount} = {{0:F2}}", 99.99m)
+    .WithKey(OrderEntity.Fields.OrderId, OrderEntity.Keys.Pk("order123"))
+    .Set($"SET {OrderEntity.Fields.Amount} = {{0:F2}}", 99.99m)
     .ExecuteAsync();
 ```
 
