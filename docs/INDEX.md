@@ -158,6 +158,17 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Common errors: [Troubleshooting](reference/Troubleshooting.md)
 - Conditional failures: [Error Handling](reference/ErrorHandling.md#conditional-check-failures)
 
+**Expression-Based Updates**
+- Complete guide: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md)
+- Quick start: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#quick-start)
+- SET operations: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#set-operations)
+- ADD operations: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#add-operations)
+- REMOVE operations: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#remove-operations)
+- DELETE operations: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#delete-operations)
+- DynamoDB functions: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#dynamodb-functions)
+- Arithmetic operations: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#arithmetic-operations)
+- Migration guide: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#migration-guide)
+
 **Expression Formatting**
 - Complete guide: [Expression Formatting](core-features/ExpressionFormatting.md)
 - Overview: [Expression Formatting](core-features/ExpressionFormatting.md#overview-and-benefits)
@@ -497,7 +508,16 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Basic update: [Basic Operations](core-features/BasicOperations.md#update-operations)
 - SET expressions: [Basic Operations](core-features/BasicOperations.md#set-expressions)
 - Conditional update: [Basic Operations](core-features/BasicOperations.md#conditional-update)
+- Expression-based updates: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md)
 - Quick start: [Quick Start](getting-started/QuickStart.md#update-modify-item)
+
+**UpdateExpressionProperty**
+- Overview: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#source-generated-classes)
+- Extension methods: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#add-operations)
+
+**UpdateModel**
+- Overview: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#source-generated-classes)
+- Usage: [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#quick-start)
 
 ## V
 

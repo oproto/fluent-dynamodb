@@ -361,12 +361,3 @@ public static class DynamoDbExpressionExtensions
     public static int Size<T>(this IEnumerable<T> collection)
         => throw new InvalidOperationException("This method is only for use in expressions and should not be called directly.");
 }
-
-/// <summary>
-/// Marks methods that are only valid within expression trees.
-/// These methods should never be called directly at runtime.
-/// </summary>
-[AttributeUsage(AttributeTargets.Method)]
-public class ExpressionOnlyAttribute : Attribute
-{
-}

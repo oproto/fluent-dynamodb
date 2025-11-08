@@ -14,6 +14,12 @@ public interface IWithUpdateExpression<out TBuilder>
     AttributeValueInternal GetAttributeValueHelper();
 
     /// <summary>
+    /// Gets the internal attribute name helper for attribute name mapping in extension methods.
+    /// </summary>
+    /// <returns>The AttributeNameInternal instance used by this builder.</returns>
+    AttributeNameInternal GetAttributeNameHelper();
+
+    /// <summary>
     /// Sets the update expression on the builder.
     /// </summary>
     /// <param name="expression">The processed update expression to set.</param>

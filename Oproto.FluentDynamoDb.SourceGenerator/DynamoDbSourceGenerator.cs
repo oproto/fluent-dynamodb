@@ -141,6 +141,13 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                     context.AddSource($"{entity.ClassName}StreamMapper.g.cs", streamCode);
                 }
             }
+
+            // Generate UpdateExpressions and UpdateModel classes for type-safe update operations
+            var updateExpressionsCode = UpdateExpressionsGenerator.GenerateUpdateExpressionsClass(entity);
+            context.AddSource($"{entity.ClassName}UpdateExpressions.g.cs", updateExpressionsCode);
+
+            var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity);
+            context.AddSource($"{entity.ClassName}UpdateModel.g.cs", updateModelCode);
         }
 
         // Group entities by table name for table class generation

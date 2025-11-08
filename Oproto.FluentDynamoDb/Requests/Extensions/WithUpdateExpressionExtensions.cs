@@ -1,5 +1,8 @@
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
+using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Utility;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
@@ -148,6 +151,199 @@ public static class WithUpdateExpressionExtensions
     {
         var (processedExpression, _) = FormatStringProcessor.ProcessFormatString(format, args, builder.GetAttributeValueHelper());
         return builder.SetUpdateExpression(processedExpression);
+    }
+
+    /// <summary>
+    /// Specifies update operations using a type-safe C# lambda expression.
+    /// This method provides compile-time checking, IntelliSense support, and automatic parameter generation
+    /// for update expressions. The expression uses source-generated UpdateExpressions and UpdateModel classes
+    /// to enable type-safe operations like Add(), Remove(), Delete(), and DynamoDB functions.
+    /// </summary>
+    /// <typeparam name="T">The type of the builder implementing IWithUpdateExpression.</typeparam>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TUpdateExpressions">The source-generated UpdateExpressions type (e.g., UserUpdateExpressions).</typeparam>
+    /// <typeparam name="TUpdateModel">The source-generated UpdateModel type (e.g., UserUpdateModel).</typeparam>
+    /// <param name="builder">The builder instance.</param>
+    /// <param name="expression">Lambda expression returning an UpdateModel with property assignments.</param>
+    /// <param name="metadata">Optional entity metadata. If not provided, attempts to resolve from entity type.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when expression is null.</exception>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the expression pattern is not supported.</exception>
+    /// <exception cref="InvalidUpdateOperationException">Thrown when attempting to update key properties.</exception>
+    /// <exception cref="UnmappedPropertyException">Thrown when a property doesn't map to a DynamoDB attribute.</exception>
+    /// <example>
+    /// <code>
+    /// // Simple SET operations
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         Name = "John",
+    ///         Status = "Active"
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // Atomic ADD operation
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         LoginCount = x.LoginCount.Add(1)
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // Arithmetic in SET
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         Score = x.Score + 10
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // REMOVE operation
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         TempData = x.TempData.Remove()
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // DELETE from set
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         Tags = x.Tags.Delete("old-tag")
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // if_not_exists function
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         ViewCount = x.ViewCount.IfNotExists(0)
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // list_append function
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         History = x.History.ListAppend("new-event")
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // Combined operations
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         Name = "John",
+    ///         LoginCount = x.LoginCount.Add(1),
+    ///         TempData = x.TempData.Remove(),
+    ///         Tags = x.Tags.Delete("old-tag")
+    ///     })
+    ///     .UpdateAsync();
+    /// 
+    /// // With captured variables
+    /// var newName = "John Doe";
+    /// var increment = 5;
+    /// table.Users.Update(userId)
+    ///     .Set&lt;User, UserUpdateExpressions, UserUpdateModel&gt;(x => new UserUpdateModel 
+    ///     {
+    ///         Name = newName,
+    ///         Score = x.Score + increment
+    ///     })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    /// <remarks>
+    /// <para><strong>Source Generation:</strong> This method requires source-generated UpdateExpressions and UpdateModel classes.
+    /// The source generator creates these classes for entities marked with [DynamoDbTable] attribute.</para>
+    /// 
+    /// <para><strong>Supported Operations:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>SET: Simple value assignments (Name = "John")</description></item>
+    /// <item><description>SET with arithmetic: x.Score + 10, x.Count - 5</description></item>
+    /// <item><description>ADD: x.LoginCount.Add(1) for atomic increment/decrement</description></item>
+    /// <item><description>ADD: x.Tags.Add("tag1", "tag2") for set union</description></item>
+    /// <item><description>REMOVE: x.TempData.Remove() to delete attributes</description></item>
+    /// <item><description>DELETE: x.Tags.Delete("old-tag") to remove set elements</description></item>
+    /// <item><description>if_not_exists: x.ViewCount.IfNotExists(0) for conditional initialization</description></item>
+    /// <item><description>list_append: x.History.ListAppend("event") to append to lists</description></item>
+    /// <item><description>list_prepend: x.History.ListPrepend("event") to prepend to lists</description></item>
+    /// </list>
+    /// 
+    /// <para><strong>Format Strings:</strong> Format strings defined in entity metadata are automatically applied to values.</para>
+    /// 
+    /// <para><strong>Encryption:</strong> Properties marked with [Encrypted] attribute will have values encrypted automatically
+    /// if an IFieldEncryptor is configured in the operation context.</para>
+    /// 
+    /// <para><strong>Validation:</strong> Key properties (partition key, sort key) cannot be updated and will throw InvalidUpdateOperationException.</para>
+    /// 
+    /// <para><strong>Type Safety:</strong> Extension methods are only available for appropriate property types:
+    /// Add() for numeric and set types, Delete() for set types, ListAppend/ListPrepend for list types.</para>
+    /// 
+    /// <para><strong>AOT Compatibility:</strong> This method is fully AOT-compatible and doesn't use runtime code generation.</para>
+    /// 
+    /// <para><strong>Mixing with String-Based Methods:</strong> This method can be combined with string-based Set() methods
+    /// in the same builder. The update expressions will be merged appropriately.</para>
+    /// </remarks>
+    public static T Set<T, TEntity, TUpdateExpressions, TUpdateModel>(
+        this IWithUpdateExpression<T> builder,
+        Expression<Func<TUpdateExpressions, TUpdateModel>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class
+        where TUpdateExpressions : new()
+        where TUpdateModel : new()
+    {
+        if (expression == null)
+            throw new ArgumentNullException(nameof(expression));
+
+        // Resolve metadata if not provided
+        if (metadata == null)
+        {
+            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
+        }
+
+        // Create expression context
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None);
+
+        // Create translator (no encryption support for now as it requires async)
+        var translator = new UpdateExpressionTranslator(
+            logger: null,
+            isSensitiveField: null,
+            fieldEncryptor: null,
+            encryptionContextId: null);
+
+        // Translate the expression
+        var updateExpression = translator.TranslateUpdateExpression(expression, context);
+
+        // Apply to builder
+        return builder.SetUpdateExpression(updateExpression);
+    }
+
+    /// <summary>
+    /// Specifies update operations using a type-safe C# lambda expression for UpdateItemRequestBuilder.
+    /// This overload provides better type inference for update operations.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TUpdateExpressions">The source-generated UpdateExpressions type.</typeparam>
+    /// <typeparam name="TUpdateModel">The source-generated UpdateModel type.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="expression">Lambda expression returning an UpdateModel with property assignments.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public static UpdateItemRequestBuilder<TEntity> Set<TEntity, TUpdateExpressions, TUpdateModel>(
+        this UpdateItemRequestBuilder<TEntity> builder,
+        Expression<Func<TUpdateExpressions, TUpdateModel>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class
+        where TUpdateExpressions : new()
+        where TUpdateModel : new()
+    {
+        return Set<UpdateItemRequestBuilder<TEntity>, TEntity, TUpdateExpressions, TUpdateModel>(
+            builder, expression, metadata);
     }
 
 }

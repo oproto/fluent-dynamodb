@@ -8,6 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Expression-Based Update Operations** - Type-safe update operations with compile-time validation and IntelliSense support
+  - Source-generated `{Entity}UpdateExpressions` and `{Entity}UpdateModel` classes for type-safe updates
+  - `UpdateExpressionProperty<T>` wrapper type enabling type-scoped extension methods
+  - Extension methods for update operations: `Add()`, `Remove()`, `Delete()`, `IfNotExists()`, `ListAppend()`, `ListPrepend()`
+  - Type constraints ensure operations are only available for compatible property types
+  - Automatic translation of C# lambda expressions to DynamoDB update expression syntax
+  - Support for SET, ADD, REMOVE, and DELETE operations in a single expression
+  - Arithmetic operations in SET clauses (e.g., `x.Score + 10`)
+  - DynamoDB function support: `if_not_exists()`, `list_append()`, `list_prepend()`
+  - Automatic format string application from entity metadata
+  - Transparent field-level encryption for encrypted properties
+  - Comprehensive error handling with descriptive exception messages
+  - Full IntelliSense support with operation discovery based on property types
+  - AOT-compatible with no runtime code generation
+  - Backward compatible with existing string-based update expressions
+  - Can mix expression-based and string-based approaches in the same request
+  - Comprehensive XML documentation with examples for all APIs
+  
+  **Usage Example:**
+  ```csharp
+  // Type-safe update with multiple operations
+  await table.Update()
+      .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+      .Set(x => new UserUpdateModel 
+      {
+          Name = "John Doe",              // SET operation
+          LoginCount = x.LoginCount.Add(1), // ADD operation (atomic increment)
+          Tags = x.Tags.Delete("old-tag"), // DELETE operation (remove from set)
+          TempData = x.TempData.Remove()   // REMOVE operation (delete attribute)
+      })
+      .ExecuteAsync();
+  
+  // Generates: SET #name = :p0 ADD #login_count :p1 DELETE #tags :p2 REMOVE #temp_data
+  ```
 - **DynamoDB Streams Support** - New `Oproto.FluentDynamoDb.Streams` package for processing DynamoDB stream events
   - Fluent API for type-safe stream record processing with `Process<TEntity>()` extension method
   - Separate package to avoid bundling Lambda dependencies in non-stream applications

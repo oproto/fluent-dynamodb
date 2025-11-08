@@ -26,6 +26,7 @@ class Program
             failureCount += ExpressionTranslationTests.Run();
             failureCount += GenericMethodTests.Run();
             failureCount += TrimmingCompatibilityTests.Run();
+            failureCount += UpdateExpressionAotTests.Run();
 
             Console.WriteLine();
             if (failureCount == 0)

@@ -23,6 +23,7 @@ Learn the essential features you'll use every day.
 - **[Basic Operations](core-features/BasicOperations.md)** - CRUD operations (Put, Get, Update, Delete)
 - **[Querying Data](core-features/QueryingData.md)** - Query and scan operations
 - **[Expression Formatting](core-features/ExpressionFormatting.md)** - String.Format-style expressions
+- **[Expression-Based Updates](core-features/ExpressionBasedUpdates.md)** - Type-safe update operations with IntelliSense
 - **[Batch Operations](core-features/BatchOperations.md)** - Batch get and write operations
 - **[Transactions](core-features/Transactions.md)** - DynamoDB transactions
 - **[Projection Models](core-features/ProjectionModels.md)** - Optimize queries with automatic projections
@@ -83,6 +84,9 @@ Practical code examples for common scenarios.
 
 **Use expression formatting**
 → [Expression Formatting](core-features/ExpressionFormatting.md)
+
+**Write type-safe update operations**
+→ [Expression-Based Updates](core-features/ExpressionBasedUpdates.md)
 
 **Optimize queries with projections**
 → [Projection Models](core-features/ProjectionModels.md)

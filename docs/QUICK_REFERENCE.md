@@ -326,27 +326,38 @@ if (response.IsSuccess)
 ### Update
 
 ```csharp
-// SET expression
+// Expression-based (type-safe, recommended)
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Name = "New Name",
+        UpdatedAt = DateTime.UtcNow,
+        ViewCount = x.ViewCount.Add(1)
+    })
+    .ExecuteAsync();
+
+// String-based SET expression
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"SET {EntityFields.Name} = {{0}}, {EntityFields.UpdatedAt} = {{1:o}}", 
          "New Name", DateTime.UtcNow)
     .ExecuteAsync();
 
-// ADD expression (increment)
+// String-based ADD expression (increment)
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"ADD {EntityFields.ViewCount} {{0}}", 1)
     .ExecuteAsync();
 
-// REMOVE expression
+// String-based REMOVE expression
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"REMOVE {EntityFields.TempField}")
     .ExecuteAsync();
 ```
 
-**Details:** [Basic Operations](core-features/BasicOperations.md#update-operations)
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md) | [Basic Operations](core-features/BasicOperations.md#update-operations)
 
 ### Delete
 
@@ -490,6 +501,133 @@ var response = await table.Scan()
 ```
 
 **Details:** [Querying Data](core-features/QueryingData.md#scan-operations)
+
+---
+
+## Expression-Based Updates
+
+### SET Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Name = "John Doe",
+        Email = "john@example.com",
+        Status = "active"
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#set-operations)
+
+### ADD Operations (Atomic Increment)
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        LoginCount = x.LoginCount.Add(1),
+        Credits = x.Credits.Add(-10)  // Decrement
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#add-operations)
+
+### REMOVE Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        TempData = x.TempData.Remove()
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#remove-operations)
+
+### DELETE Operations (Remove Set Elements)
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Tags = x.Tags.Delete("old-tag", "deprecated")
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#delete-operations)
+
+### DynamoDB Functions
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        // if_not_exists
+        ViewCount = x.ViewCount.IfNotExists(0),
+        
+        // list_append
+        History = x.History.ListAppend("new-event"),
+        
+        // list_prepend
+        RecentActivity = x.RecentActivity.ListPrepend("latest-event")
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#dynamodb-functions)
+
+### Arithmetic Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Score = x.Score + 10,
+        Balance = x.Balance - 5.00m
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#arithmetic-operations)
+
+### Combined Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        // SET
+        Name = "John Doe",
+        Status = "active",
+        
+        // ADD
+        LoginCount = x.LoginCount.Add(1),
+        
+        // Arithmetic
+        Score = x.Score + 10,
+        
+        // Functions
+        ViewCount = x.ViewCount.IfNotExists(0),
+        
+        // REMOVE
+        TempData = x.TempData.Remove()
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#combined-operations)
 
 ---
 
