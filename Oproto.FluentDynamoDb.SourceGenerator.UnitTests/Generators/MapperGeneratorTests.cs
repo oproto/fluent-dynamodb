@@ -415,7 +415,7 @@ public class MapperGeneratorTests
         
         // Check FromDynamoDb conversions use correct parsing
         result.ShouldContainAssignment("entity.Id");
-        result.ShouldContainAssignment("entity.Count");
+        result.ShouldContainAssignment("entity.@Count"); // COUNT is a DynamoDB reserved word, so it's escaped
         result.ShouldContainAssignment("entity.IsActive");
         result.ShouldContainAssignment("entity.CreatedDate");
         result.ShouldContainAssignment("entity.UniqueId");

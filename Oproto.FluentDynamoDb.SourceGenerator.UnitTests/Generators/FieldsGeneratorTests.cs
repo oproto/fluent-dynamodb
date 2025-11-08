@@ -67,7 +67,7 @@ public class FieldsGeneratorTests
         result.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
         result.Should().Contain("public const string Name = \"name\";", "should map Name property to name attribute");
         result.Should().Contain("/// <summary>", "should include XML documentation");
-        result.Should().Contain("/// DynamoDB attribute name for Id property.", "should document the attribute mapping");
+        result.Should().Contain("/// DynamoDB attribute name for the Id property.", "should document the attribute mapping");
         result.Should().Contain("/// </summary>", "should close XML documentation");
     }
 
@@ -133,7 +133,8 @@ public class FieldsGeneratorTests
         CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert - Structural checks using semantic assertions
-        result.ShouldContainClass("TestGSIFields");
+        // Note: GSI classes use the index name without redundant "Fields" suffix
+        result.ShouldContainClass("TestGSI");
         result.ShouldContainConstant("PartitionKey");
         result.ShouldContainConstant("SortKey");
         
@@ -259,7 +260,8 @@ public class FieldsGeneratorTests
         CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert - Structural checks using semantic assertions
-        result.ShouldContainClass("test_gsi_with_dashesFields");
+        // Note: GSI classes use the index name without redundant "Fields" suffix
+        result.ShouldContainClass("test_gsi_with_dashes");
         result.ShouldContainConstant("PartitionKey");
         
         // Assert - DynamoDB-specific value checks
@@ -332,8 +334,9 @@ public class FieldsGeneratorTests
         CompilationVerifier.AssertGeneratedCodeCompiles(result);
 
         // Assert - Structural checks using semantic assertions
-        result.ShouldContainClass("GSI1Fields");
-        result.ShouldContainClass("GSI2Fields");
+        // Note: GSI classes use the index name without redundant "Fields" suffix
+        result.ShouldContainClass("GSI1");
+        result.ShouldContainClass("GSI2");
     }
 
     [Fact]

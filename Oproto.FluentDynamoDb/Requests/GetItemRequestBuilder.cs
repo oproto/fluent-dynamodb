@@ -154,7 +154,14 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// <returns>A configured GetItemRequest ready for execution.</returns>
     public GetItemRequest ToGetItemRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        else if (_req.ExpressionAttributeNames == null)
+        {
+            _req.ExpressionAttributeNames = new Dictionary<string, string>();
+        }
         return _req;
     }
 

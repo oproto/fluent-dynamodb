@@ -55,8 +55,18 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithValues(attrs => attrs.Add(":categoryIds", categoryIdsAttributeValue))
             .UpdateAsync();
         
-        // Assert - Verify the update
-        var loaded = await SaveAndLoadAsync(entity);
+        // Assert - Verify the update by loading the entity from DynamoDB
+        var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
+        {
+            TableName = TableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = "update-test-1" },
+                ["sk"] = new AttributeValue { S = "product" }
+            }
+        });
+        
+        var loaded = ComplexEntity.FromDynamoDb<ComplexEntity>(getResponse.Item);
         loaded.CategoryIds.Should().NotBeNull();
         loaded.CategoryIds.Should().BeEquivalentTo(newCategoryIds);
     }
@@ -426,7 +436,9 @@ public class UpdateOperationsTests : IntegrationTestBase
             .WithValues(values => values[":categoryIds"] = new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
             .UpdateAsync();
         
-        await act.Should().ThrowAsync<ConditionalCheckFailedException>();
+        // The library wraps AWS exceptions in DynamoDbMappingException
+        var exception = await act.Should().ThrowAsync<DynamoDbMappingException>();
+        exception.Which.InnerException.Should().BeOfType<ConditionalCheckFailedException>();
     }
     
     // Helper class to create a table instance for update operations

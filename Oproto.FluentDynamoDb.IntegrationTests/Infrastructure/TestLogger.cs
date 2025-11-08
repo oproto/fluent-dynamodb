@@ -86,7 +86,19 @@ public class TestLogger : IDynamoDbLogger
             return;
         }
 
-        var formattedMessage = args.Length > 0 ? string.Format(message, args) : message;
+        // Handle structured logging format (e.g., "{PropertyName}") by converting to positional format
+        var formattedMessage = message;
+        if (args.Length > 0)
+        {
+            // Replace named placeholders like {PropertyName} with positional ones {0}, {1}, etc.
+            var index = 0;
+            formattedMessage = System.Text.RegularExpressions.Regex.Replace(
+                message,
+                @"\{[^}]+\}",
+                _ => $"{{{index++}}}");
+            
+            formattedMessage = string.Format(formattedMessage, args);
+        }
         
         _logEntries.Add(new LogEntry
         {

@@ -65,7 +65,11 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                         new KeySchemaElement { AttributeName = "gsi1pk", KeyType = KeyType.HASH },
                         new KeySchemaElement { AttributeName = "gsi1sk", KeyType = KeyType.RANGE }
                     },
-                    Projection = new Projection { ProjectionType = ProjectionType.ALL }
+                    Projection = new Projection 
+                    { 
+                        ProjectionType = ProjectionType.INCLUDE,
+                        NonKeyAttributes = new List<string> { "pk", "sk" }
+                    }
                 }
             },
             BillingMode = BillingMode.PAY_PER_REQUEST
@@ -159,8 +163,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             })
             .PutAsync();
         
-        // Act - Use begins_with in format string
-        var response = await _compositeKeyTable.Query<object>("pk = {0} AND begins_with(sk, {1})", pk, "ORDER#").ToDynamoDbResponseAsync();
+        // Act - Use begins_with in format string with projection
+        var response = await _compositeKeyTable.Query<object>("pk = {0} AND begins_with(sk, {1})", pk, "ORDER#")
+            .WithProjection("pk, sk, amount")
+            .ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(2);
@@ -250,9 +256,8 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             })
             .PutAsync();
         
-        // Act - Use Get with key parameter
-        var response = await _singleKeyTable.Get<object>()
-            .WithKey("pk", userId)
+        // Act - Use Get with key parameter (using the convenience method)
+        var response = await _singleKeyTable.Get(userId)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -315,6 +320,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         // Assert
         var response = await _singleKeyTable.Get<object>()
             .WithKey("pk", userId)
+            .WithKey("sk", "METADATA")
             .ToDynamoDbResponseAsync();
         response.Item["name"].S.Should().Be("Robert");
     }
@@ -369,6 +375,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         // Assert
         var response = await _singleKeyTable.Get<object>()
             .WithKey("pk", userId)
+            .WithKey("sk", "METADATA")
             .ToDynamoDbResponseAsync();
         response.Item.Should().BeNull();
     }
@@ -463,9 +470,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 .PutAsync();
         }
         
-        // Act - Query index with composite key condition
+        // Act - Query index with composite key condition and projection to avoid reserved keyword
         var response = await _compositeKeyTable.StatusIndex
             .Query<object>("gsi1pk = {0} AND gsi1sk >= {1}", "STATUS#ACTIVE", "2024-02-01")
+            .WithProjection("pk, sk, gsi1pk, gsi1sk")
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -498,9 +506,10 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                 .PutAsync();
         }
         
-        // Act - Query index with begins_with
+        // Act - Query index with begins_with and projection to avoid reserved keyword
         var response = await _compositeKeyTable.StatusIndex
             .Query<object>("gsi1pk = {0} AND begins_with(gsi1sk, {1})", "CATEGORY#ELECTRONICS", "PRODUCT#")
+            .WithProjection("pk, sk, gsi1pk, gsi1sk")
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -728,9 +737,9 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         public DeleteItemRequestBuilder<object> Delete(string pk, string sk) => 
             base.Delete<object>().WithKey("pk", pk).WithKey("sk", sk);
         
-        // Define index with projection
+        // Define index with projection (excluding 'name' which is a reserved keyword)
         public DynamoDbIndex StatusIndex => 
-            new DynamoDbIndex(this, "StatusIndex", "pk, sk, gsi1pk, gsi1sk, name");
+            new DynamoDbIndex(this, "StatusIndex", "pk, sk, gsi1pk, gsi1sk");
     }
     
     #endregion

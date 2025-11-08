@@ -289,10 +289,10 @@ internal class EntityAnalyzer
 
     private void ValidateLambdaEventsPackageReference(SemanticModel semanticModel, EntityModel entityModel)
     {
-        // Check if Amazon.Lambda.DynamoDBEvents.AttributeValue type is available in the compilation
-        var lambdaAttributeValueType = semanticModel.Compilation.GetTypeByMetadataName("Amazon.Lambda.DynamoDBEvents.AttributeValue");
+        // Check if Amazon.Lambda.DynamoDBEvents.DynamoDBEvent type is available in the compilation
+        var lambdaEventType = semanticModel.Compilation.GetTypeByMetadataName("Amazon.Lambda.DynamoDBEvents.DynamoDBEvent");
 
-        if (lambdaAttributeValueType == null)
+        if (lambdaEventType == null)
         {
             // Package is not referenced - emit diagnostic error
             ReportDiagnostic(

@@ -197,8 +197,23 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// <returns>A configured DeleteItemRequest ready for execution.</returns>
     public DeleteItemRequest ToDeleteItemRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        else if (_req.ExpressionAttributeNames == null)
+        {
+            _req.ExpressionAttributeNames = new Dictionary<string, string>();
+        }
+        
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
+        else if (_req.ExpressionAttributeValues == null)
+        {
+            _req.ExpressionAttributeValues = new Dictionary<string, AttributeValue>();
+        }
         return _req;
     }
 

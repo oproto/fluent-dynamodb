@@ -291,8 +291,14 @@ public class QueryRequestBuilder<TEntity> :
     /// <returns>A configured QueryRequest ready for execution.</returns>
     public QueryRequest ToQueryRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
         return _req;
     }
 

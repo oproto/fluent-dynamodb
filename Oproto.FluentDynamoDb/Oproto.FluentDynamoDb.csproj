@@ -11,6 +11,15 @@
         <IsPackable>true</IsPackable>
         <StripSymbols>false</StripSymbols>
         <LangVersion>12.0</LangVersion>
+    </PropertyGroup>
+
+    <!-- Make internal types visible to test projects -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.UnitTests" />
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.IntegrationTests" />
+    </ItemGroup>
+
+    <PropertyGroup>
         
         <!-- Package metadata -->
         <PackageId>Oproto.FluentDynamoDb</PackageId>

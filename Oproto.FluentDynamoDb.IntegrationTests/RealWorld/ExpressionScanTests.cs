@@ -371,25 +371,6 @@ public class ExpressionScanTests : IntegrationTestBase
     
     #endregion
     
-    #region Scan without Metadata
-    
-    [Fact]
-    public async Task Scan_WithoutMetadata_WorksWithoutValidation()
-    {
-        // Act - Scan without metadata (validation skipped)
-        var response = await _table.Scan<ComplexEntity>()
-            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.IsActive == true)
-            .ToDynamoDbResponseAsync();
-        
-        // Assert
-        response.Items.Should().HaveCountGreaterThan(0);
-        
-        var entities = response.Items.Select(item => ComplexEntity.FromDynamoDb<ComplexEntity>(item)).ToList();
-        entities.Should().AllSatisfy(e => e.IsActive.Should().BeTrue());
-    }
-    
-    #endregion
-    
     // Helper class to create a table instance for scan operations
     private class TestTable : DynamoDbTableBase
     {

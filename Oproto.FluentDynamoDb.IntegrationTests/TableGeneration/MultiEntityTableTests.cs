@@ -67,9 +67,8 @@ public class MultiEntityTableTests : IntegrationTestBase
 
         // Assert
         result.Should().NotBeNull();
-        result.Item.Should().NotBeNull();
         
-        result.Id.Should().Be(order.Id);
+        result!.Id.Should().Be(order.Id);
         result.CustomerName.Should().Be(order.CustomerName);
         result.TotalAmount.Should().Be(order.TotalAmount);
     }
@@ -177,7 +176,7 @@ public class MultiEntityTableTests : IntegrationTestBase
 
         // Act - Update using entity accessor
         await table.Orders.Update(order.Id)
-            .Set("#name = :name")
+            .Set("SET #name = :name")
             .WithValue(":name", "Updated Customer")
             .WithAttribute("#name", "customer_name")
             .UpdateAsync();

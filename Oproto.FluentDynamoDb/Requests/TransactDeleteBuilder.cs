@@ -83,8 +83,14 @@ public class TransactDeleteBuilder :
 
     public TransactWriteItem ToWriteItem()
     {
-        _req.Delete.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.Delete.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.Delete.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.Delete.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
         return _req;
     }
 }

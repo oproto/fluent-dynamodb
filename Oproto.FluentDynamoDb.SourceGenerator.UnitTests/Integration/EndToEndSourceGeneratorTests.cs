@@ -78,7 +78,7 @@ namespace TestNamespace
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word "status"
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warnings for collections
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB009"); // Unsupported type for Summary
-        result.GeneratedSources.Should().HaveCount(5); // Fields, Keys, Entity, Table, Table.Indexes (has GSI)
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
 
         // Verify entity implementation
         var entityCode = GetGeneratedSource(result, "TransactionEntity.g.cs");
@@ -90,27 +90,25 @@ namespace TestNamespace
         entityCode.Should().Contain("public static bool MatchesEntity(Dictionary<string, AttributeValue> item)");
         entityCode.Should().Contain("public static EntityMetadata GetEntityMetadata()");
 
-        // Verify fields class
-        var fieldsCode = GetGeneratedSource(result, "TransactionEntityFields.g.cs");
-        fieldsCode.Should().Contain("public static partial class TransactionEntityFields");
-        fieldsCode.Should().Contain("public const string TenantId = \"pk\";");
-        fieldsCode.Should().Contain("public const string TransactionId = \"sk\";");
-        fieldsCode.Should().Contain("public const string Amount = \"amount\";");
-        fieldsCode.Should().Contain("public const string Status = \"status\";");
-        fieldsCode.Should().Contain("public static partial class StatusIndexFields");
-        fieldsCode.Should().Contain("public const string PartitionKey = \"status\";");
-        fieldsCode.Should().Contain("public const string SortKey = \"created_date\";");
+        // Verify nested fields class
+        entityCode.Should().Contain("public static partial class Fields");
+        entityCode.Should().Contain("public const string TenantId = \"pk\";");
+        entityCode.Should().Contain("public const string TransactionId = \"sk\";");
+        entityCode.Should().Contain("public const string Amount = \"amount\";");
+        entityCode.Should().Contain("public const string Status = \"status\";");
+        entityCode.Should().Contain("public static partial class StatusIndex");
+        entityCode.Should().Contain("public const string PartitionKey = \"status\";");
+        entityCode.Should().Contain("public const string SortKey = \"created_date\";");
 
-        // Verify keys class
-        var keysCode = GetGeneratedSource(result, "TransactionEntityKeys.g.cs");
-        keysCode.Should().Contain("public static partial class TransactionEntityKeys");
-        keysCode.Should().Contain("public static string Pk(string tenantId)");
+        // Verify nested keys class
+        entityCode.Should().Contain("public static partial class Keys");
+        entityCode.Should().Contain("public static string Pk(string tenantId)");
         // Generator uses intermediate variable for better debugging
-        keysCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
-        keysCode.Should().Contain("public static string Sk(string transactionId)");
-        keysCode.Should().Contain("var keyValue = \"txn#\" + transactionId;");
-        keysCode.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, string transactionId)");
-        keysCode.Should().Contain("public static partial class StatusIndexKeys");
+        entityCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
+        entityCode.Should().Contain("public static string Sk(string transactionId)");
+        entityCode.Should().Contain("var keyValue = \"txn#\" + transactionId;");
+        entityCode.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, string transactionId)");
+        entityCode.Should().Contain("public static partial class StatusIndex");
     }
 
     [Fact]
@@ -248,7 +246,7 @@ namespace TestNamespace
         // Should generate basic entity mapping (only properties with DynamoDbAttribute)
         entityCode.Should().Contain("item[\"pk\"] = new AttributeValue { S = typedEntity.Id };");
         entityCode.Should().Contain("item[\"sk\"] = new AttributeValue { S = typedEntity.SortKey };");
-        entityCode.Should().Contain("item[\"name\"] = new AttributeValue { S = typedEntity.Name };");
+        entityCode.Should().Contain("item[\"name\"] = new AttributeValue { S = typedEntity.@Name };"); // NAME is a DynamoDB reserved word
     }
 
     [Fact]
@@ -302,11 +300,11 @@ namespace TestNamespace
         // The source generator should still produce code despite compilation errors
         result.Diagnostics.Should().NotBeEmpty(); // Will have compilation errors
 
-        // Check if source generator produced any files (it should generate 4 files)
+        // Check if source generator produced any files (it should generate 2 files)
         if (result.GeneratedSources.Length > 0)
         {
             // If code was generated, verify it has the expected structure
-            result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+            result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
         }
         else
         {
@@ -464,7 +462,7 @@ namespace TestNamespace
         relatedEntityWarning.GetMessage().Should().Contain("WarningEntity");
         relatedEntityWarning.GetMessage().Should().Contain("related entity properties but no sort key");
 
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table - Should still generate code despite warning
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table - Should still generate code despite warning
     }
 
     private static GeneratorTestResult GenerateCode(string source)
@@ -569,7 +567,7 @@ namespace TestNamespace
         }
 
         // Should still generate code despite warnings
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
     }
 
     [Fact]
@@ -628,7 +626,7 @@ namespace TestNamespace
         // accurately detected at compile time (e.g., sequential ID patterns require runtime analysis)
 
         // Should still generate code despite warnings
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
     }
 
     [Fact]
@@ -684,7 +682,7 @@ namespace TestNamespace
 
         // Assert
         // Should generate code successfully even with many GSIs
-        result.GeneratedSources.Should().HaveCount(5); // Fields, Keys, Entity, Table, Table.Indexes (has GSI)
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
 
         // No scalability warnings expected - these were removed in Task 39
         // The source generator focuses on correctness, not runtime performance predictions

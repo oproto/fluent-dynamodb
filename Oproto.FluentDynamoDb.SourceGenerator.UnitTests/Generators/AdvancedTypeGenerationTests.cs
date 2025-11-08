@@ -571,8 +571,8 @@ namespace TestNamespace
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
         // Verify empty collection check exists
-        entityCode.Should().Contain("if (typedEntity.Items != null && typedEntity.Items.Count > 0)",
-            "should check for null and empty to omit empty List from DynamoDB item");
+        entityCode.Should().Contain("if (typedEntity.@Items != null && typedEntity.@Items.Count > 0)",
+            "should check for null and empty to omit empty List from DynamoDB item (Items is a DynamoDB reserved word)");
     }
 
     #endregion
@@ -1406,8 +1406,8 @@ namespace TestNamespace
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
         // Check ToDynamoDb calls StoreAsync
-        entityCode.Should().Contain("if (typedEntity.Data != null)",
-            "should check for null before storing blob");
+        entityCode.Should().Contain("if (typedEntity.@Data != null)",
+            "should check for null before storing blob (Data is a DynamoDB reserved word)");
         entityCode.ShouldReferenceType("MemoryStream");
         entityCode.Should().Contain("await blobProvider.StoreAsync",
             "should call StoreAsync to store blob data");
@@ -1497,7 +1497,7 @@ namespace TestNamespace
         entityCode.ShouldReferenceType("MemoryStream");
         entityCode.Should().Contain("await stream.CopyToAsync(memoryStream, cancellationToken)",
             "should copy blob stream to memory");
-        entityCode.ShouldContainAssignment("entity.Data");
+        entityCode.ShouldContainAssignment("entity.@Data"); // Data is a DynamoDB reserved word
         
         // Check error handling
         entityCode.Should().Contain("catch (Exception ex)",

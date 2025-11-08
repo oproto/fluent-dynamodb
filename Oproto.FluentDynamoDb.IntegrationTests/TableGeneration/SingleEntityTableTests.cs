@@ -165,7 +165,7 @@ public class SingleEntityTableTests : IntegrationTestBase
 
         // Act - Update the item
         await table.Update(entity.Id)
-            .Set("#name = :name")
+            .Set("SET #name = :name")
             .WithValue(":name", "Updated Name")
             .WithAttribute("#name", "name")
             .UpdateAsync();

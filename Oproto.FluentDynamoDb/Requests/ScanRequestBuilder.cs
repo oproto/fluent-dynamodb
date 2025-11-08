@@ -251,8 +251,23 @@ public class ScanRequestBuilder<TEntity> :
     /// <returns>A configured ScanRequest ready for execution.</returns>
     public ScanRequest ToScanRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        else if (_req.ExpressionAttributeNames == null)
+        {
+            _req.ExpressionAttributeNames = new Dictionary<string, string>();
+        }
+        
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
+        else if (_req.ExpressionAttributeValues == null)
+        {
+            _req.ExpressionAttributeValues = new Dictionary<string, AttributeValue>();
+        }
         return _req;
     }
 

@@ -11,6 +11,7 @@ using Oproto.FluentDynamoDb.Storage;
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 [Trait("Category", "Unit")]
+[Collection("OperationContext")]
 public class QueryRequestBuilderTests
 {
     private class TestEntity : IDynamoDbEntity

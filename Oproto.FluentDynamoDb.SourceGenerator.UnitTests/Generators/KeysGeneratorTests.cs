@@ -176,7 +176,8 @@ public class KeysGeneratorTests
         // Assert - Class and documentation checks (DynamoDB-specific)
         result.Should().Contain("public static partial class TestEntityKeys",
             "should generate main keys class for entity");
-        result.Should().Contain("public static partial class StatusIndexKeys",
+        // Note: GSI classes use the index name without redundant "Keys" suffix
+        result.Should().Contain("public static partial class StatusIndex",
             "should generate nested keys class for GSI");
         result.Should().Contain("/// Key builder methods for StatusIndex Global Secondary Index.",
             "should include XML documentation describing the GSI key builder purpose");
@@ -375,7 +376,8 @@ public class KeysGeneratorTests
         result.ShouldContainMethod("Pk", "should generate partition key builder method for GSI");
         
         // Assert - Class and custom key format parsing (DynamoDB-specific)
-        result.Should().Contain("public static partial class CustomIndexKeys",
+        // Note: GSI classes use the index name without redundant "Keys" suffix
+        result.Should().Contain("public static partial class CustomIndex",
             "should generate nested keys class for custom GSI");
         result.Should().Contain("var keyValue = \"custom_\" + id;",
             "should parse custom format string 'custom_{0}_suffix' and generate concatenation with prefix 'custom_'");
@@ -462,13 +464,14 @@ public class KeysGeneratorTests
         nestedResult.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, System.Guid transactionId)",
             "nested class should have identical Key method signature");
 
-        // Assert - GSI class name differs (intentional breaking change)
-        // Note: The old GenerateKeysClass already uses "StatusIndexKeys" suffix
-        // The new GenerateNestedKeysClass removes the redundant "Keys" suffix
-        topLevelResult.Should().Contain("public static partial class StatusIndexKeys",
-            "top-level class should have GSI class with 'Keys' suffix");
+        // Assert - GSI class name is consistent between both methods
+        // Note: Both methods now use the index name without redundant "Keys" suffix
+        topLevelResult.Should().Contain("public static partial class StatusIndex",
+            "top-level class should have GSI class without redundant 'Keys' suffix");
         nestedResult.Should().Contain("public static partial class StatusIndex",
             "nested class should have GSI class without redundant 'Keys' suffix");
+        topLevelResult.Should().NotContain("StatusIndexKeys",
+            "top-level class should not have redundant 'Keys' suffix in GSI class name");
         nestedResult.Should().NotContain("StatusIndexKeys",
             "nested class should not have redundant 'Keys' suffix in GSI class name");
 

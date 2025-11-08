@@ -57,7 +57,10 @@ public class TransactGetItemBuilder : IWithKey<TransactGetItemBuilder>, IWithAtt
 
     public TransactGetItem ToGetItem()
     {
-        _req.Get.ExpressionAttributeNames = _attrN.AttributeNames;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.Get.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
         return _req;
     }
 

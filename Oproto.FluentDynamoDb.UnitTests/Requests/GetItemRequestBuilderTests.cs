@@ -10,6 +10,7 @@ using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
+[Collection("OperationContext")]
 public class GetItemRequestBuilderTests
 {
     private class TestEntity : IDynamoDbEntity

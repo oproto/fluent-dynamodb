@@ -382,6 +382,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         // Handle encrypted properties - these require async methods
         if (property.Security?.IsEncrypted == true)
@@ -424,11 +425,11 @@ internal static class MapperGenerator
         // Handle nullable properties
         if (property.IsNullable)
         {
-            sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("            {");
             // Generate logging for basic property mapping
             sb.Append(LoggingCodeGenerator.GeneratePropertyMappingLogging(propertyName, GetBaseType(property.PropertyType), "ToDynamoDb"));
-            sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{propertyName}")};");
+            sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
             sb.AppendLine("            }");
             sb.AppendLine("            else");
             sb.AppendLine("            {");
@@ -440,7 +441,7 @@ internal static class MapperGenerator
         {
             // Generate logging for basic property mapping
             sb.Append(LoggingCodeGenerator.GeneratePropertyMappingLogging(propertyName, GetBaseType(property.PropertyType), "ToDynamoDb"));
-            sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{propertyName}")};");
+            sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
         }
     }
 
@@ -448,6 +449,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         // Handle encrypted properties (must be before other handlers)
         if (property.Security?.IsEncrypted == true)
@@ -501,14 +503,14 @@ internal static class MapperGenerator
         // Handle nullable properties
         if (property.IsNullable)
         {
-            sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("            {");
-            sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{propertyName}")};");
+            sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
             sb.AppendLine("            }");
         }
         else
         {
-            sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{propertyName}")};");
+            sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
         }
     }
 
@@ -516,6 +518,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
 
@@ -524,7 +527,7 @@ internal static class MapperGenerator
         var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
 
         sb.AppendLine($"            // Store blob reference property {propertyName} externally");
-        sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+        sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
         sb.AppendLine("            {");
         sb.AppendLine("                string suggestedKey;");
         if (partitionKeyProperty != null)
@@ -553,24 +556,24 @@ internal static class MapperGenerator
         if (baseType == "byte[]" || baseType == "System.Byte[]")
         {
             // byte[] - convert to MemoryStream
-            sb.AppendLine($"                    using var stream = new MemoryStream(typedEntity.{propertyName});");
+            sb.AppendLine($"                    using var stream = new MemoryStream(typedEntity.{escapedPropertyName});");
         }
         else if (baseType == "Stream" || baseType == "System.IO.Stream" || baseType == "MemoryStream")
         {
             // Already a stream - use directly
-            sb.AppendLine($"                    var stream = typedEntity.{propertyName};");
+            sb.AppendLine($"                    var stream = typedEntity.{escapedPropertyName};");
         }
         else if (baseType == "string" || baseType == "System.String")
         {
             // string - convert to UTF8 bytes then stream
-            sb.AppendLine($"                    var bytes = System.Text.Encoding.UTF8.GetBytes(typedEntity.{propertyName});");
+            sb.AppendLine($"                    var bytes = System.Text.Encoding.UTF8.GetBytes(typedEntity.{escapedPropertyName});");
             sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
         }
         else
         {
             // Complex type - serialize to JSON first, then to stream
             sb.AppendLine($"                    // Serialize complex type to JSON");
-            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{propertyName});");
+            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
             sb.AppendLine("                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
             sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
         }
@@ -618,6 +621,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
         var serializerType = property.AdvancedType?.JsonSerializerType;
@@ -627,7 +631,7 @@ internal static class MapperGenerator
         var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
 
         sb.AppendLine($"            // Combined JSON blob + blob reference: serialize to JSON, then store as external blob");
-        sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+        sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
         sb.AppendLine("            {");
         sb.AppendLine("                string suggestedKey;");
         if (partitionKeyProperty != null)
@@ -654,17 +658,17 @@ internal static class MapperGenerator
         if (serializerType == "SystemTextJson")
         {
             // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{propertyName});");
+            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
         }
         else if (serializerType == "NewtonsoftJson")
         {
             // Use Newtonsoft.Json
-            sb.AppendLine($"                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{propertyName});");
+            sb.AppendLine($"                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{escapedPropertyName});");
         }
         else
         {
             // Fallback to System.Text.Json without context
-            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{propertyName});");
+            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
         }
 
         // Step 2: Convert JSON string to stream
@@ -701,6 +705,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
 
@@ -713,21 +718,21 @@ internal static class MapperGenerator
             // DateTime TTL conversion
             if (property.IsNullable)
             {
-                sb.AppendLine($"            if (typedEntity.{propertyName}.HasValue)");
+                sb.AppendLine($"            if (typedEntity.{escapedPropertyName}.HasValue)");
                 sb.AppendLine("            {");
                 sb.AppendLine("                try");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);");
                 sb.AppendLine("                    // Validate DateTime is within valid Unix epoch range");
-                sb.AppendLine($"                    if (typedEntity.{propertyName}.Value.ToUniversalTime() < epoch)");
+                sb.AppendLine($"                    if (typedEntity.{escapedPropertyName}.Value.ToUniversalTime() < epoch)");
                 sb.AppendLine("                    {");
-                sb.AppendLine($"                        throw new ArgumentOutOfRangeException(nameof(typedEntity.{propertyName}), $\"DateTime value {{typedEntity.{propertyName}.Value.ToUniversalTime()}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
+                sb.AppendLine($"                        throw new ArgumentOutOfRangeException(nameof(typedEntity.{escapedPropertyName}), $\"DateTime value {{typedEntity.{escapedPropertyName}.Value.ToUniversalTime()}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
                 sb.AppendLine("                    }");
-                sb.AppendLine($"                    if (typedEntity.{propertyName}.Value.ToUniversalTime() > new DateTime(2038, 1, 19, 3, 14, 7, DateTimeKind.Utc))");
+                sb.AppendLine($"                    if (typedEntity.{escapedPropertyName}.Value.ToUniversalTime() > new DateTime(2038, 1, 19, 3, 14, 7, DateTimeKind.Utc))");
                 sb.AppendLine("                    {");
-                sb.AppendLine($"                        throw new ArgumentOutOfRangeException(nameof(typedEntity.{propertyName}), $\"DateTime value {{typedEntity.{propertyName}.Value.ToUniversalTime()}} exceeds maximum Unix timestamp (2038-01-19). Consider using DateTimeOffset for dates beyond 2038.\");");
+                sb.AppendLine($"                        throw new ArgumentOutOfRangeException(nameof(typedEntity.{escapedPropertyName}), $\"DateTime value {{typedEntity.{escapedPropertyName}.Value.ToUniversalTime()}} exceeds maximum Unix timestamp (2038-01-19). Consider using DateTimeOffset for dates beyond 2038.\");");
                 sb.AppendLine("                    }");
-                sb.AppendLine($"                    var seconds = (long)(typedEntity.{propertyName}.Value.ToUniversalTime() - epoch).TotalSeconds;");
+                sb.AppendLine($"                    var seconds = (long)(typedEntity.{escapedPropertyName}.Value.ToUniversalTime() - epoch).TotalSeconds;");
                 sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
                 sb.AppendLine("                }");
                 sb.AppendLine("                catch (Exception ex)");
@@ -735,10 +740,10 @@ internal static class MapperGenerator
                 sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
                 sb.AppendLine($"                        typeof({entity.ClassName}),");
                 sb.AppendLine($"                        \"{propertyName}\",");
-                sb.AppendLine($"                        new AttributeValue {{ S = typedEntity.{propertyName}.Value.ToString(\"O\") }},");
+                sb.AppendLine($"                        new AttributeValue {{ S = typedEntity.{escapedPropertyName}.Value.ToString(\"O\") }},");
                 sb.AppendLine($"                        typeof({GetTypeForMetadata(propertyType)}),");
                 sb.AppendLine("                        ex)");
-                sb.AppendLine($"                        .WithContext(\"TtlValue\", typedEntity.{propertyName}.Value.ToString(\"O\"))");
+                sb.AppendLine($"                        .WithContext(\"TtlValue\", typedEntity.{escapedPropertyName}.Value.ToString(\"O\"))");
                 sb.AppendLine($"                        .WithContext(\"Operation\", \"TtlConversion\");");
                 sb.AppendLine("                }");
                 sb.AppendLine("            }");
@@ -748,15 +753,15 @@ internal static class MapperGenerator
                 sb.AppendLine("            try");
                 sb.AppendLine("            {");
                 sb.AppendLine("                var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);");
-                sb.AppendLine($"                var dateTimeUtc = typedEntity.{propertyName}.ToUniversalTime();");
+                sb.AppendLine($"                var dateTimeUtc = typedEntity.{escapedPropertyName}.ToUniversalTime();");
                 sb.AppendLine("                // Validate DateTime is within valid Unix epoch range");
                 sb.AppendLine("                if (dateTimeUtc < epoch)");
                 sb.AppendLine("                {");
-                sb.AppendLine($"                    throw new ArgumentOutOfRangeException(nameof(typedEntity.{propertyName}), $\"DateTime value {{dateTimeUtc}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
+                sb.AppendLine($"                    throw new ArgumentOutOfRangeException(nameof(typedEntity.{escapedPropertyName}), $\"DateTime value {{dateTimeUtc}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
                 sb.AppendLine("                }");
                 sb.AppendLine("                if (dateTimeUtc > new DateTime(2038, 1, 19, 3, 14, 7, DateTimeKind.Utc))");
                 sb.AppendLine("                {");
-                sb.AppendLine($"                    throw new ArgumentOutOfRangeException(nameof(typedEntity.{propertyName}), $\"DateTime value {{dateTimeUtc}} exceeds maximum Unix timestamp (2038-01-19). Consider using DateTimeOffset for dates beyond 2038.\");");
+                sb.AppendLine($"                    throw new ArgumentOutOfRangeException(nameof(typedEntity.{escapedPropertyName}), $\"DateTime value {{dateTimeUtc}} exceeds maximum Unix timestamp (2038-01-19). Consider using DateTimeOffset for dates beyond 2038.\");");
                 sb.AppendLine("                }");
                 sb.AppendLine("                var seconds = (long)(dateTimeUtc - epoch).TotalSeconds;");
                 sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
@@ -766,10 +771,10 @@ internal static class MapperGenerator
                 sb.AppendLine($"                throw DynamoDbMappingException.PropertyConversionFailed(");
                 sb.AppendLine($"                    typeof({entity.ClassName}),");
                 sb.AppendLine($"                    \"{propertyName}\",");
-                sb.AppendLine($"                    new AttributeValue {{ S = typedEntity.{propertyName}.ToString(\"O\") }},");
+                sb.AppendLine($"                    new AttributeValue {{ S = typedEntity.{escapedPropertyName}.ToString(\"O\") }},");
                 sb.AppendLine($"                    typeof({GetTypeForMetadata(propertyType)}),");
                 sb.AppendLine("                    ex)");
-                sb.AppendLine($"                    .WithContext(\"TtlValue\", typedEntity.{propertyName}.ToString(\"O\"))");
+                sb.AppendLine($"                    .WithContext(\"TtlValue\", typedEntity.{escapedPropertyName}.ToString(\"O\"))");
                 sb.AppendLine($"                    .WithContext(\"Operation\", \"TtlConversion\");");
                 sb.AppendLine("            }");
             }
@@ -779,16 +784,16 @@ internal static class MapperGenerator
             // DateTimeOffset TTL conversion
             if (property.IsNullable)
             {
-                sb.AppendLine($"            if (typedEntity.{propertyName}.HasValue)");
+                sb.AppendLine($"            if (typedEntity.{escapedPropertyName}.HasValue)");
                 sb.AppendLine("            {");
                 sb.AppendLine("                try");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    // Validate DateTimeOffset is within valid Unix epoch range");
-                sb.AppendLine($"                    if (typedEntity.{propertyName}.Value < DateTimeOffset.UnixEpoch)");
+                sb.AppendLine($"                    if (typedEntity.{escapedPropertyName}.Value < DateTimeOffset.UnixEpoch)");
                 sb.AppendLine("                    {");
-                sb.AppendLine($"                        throw new ArgumentOutOfRangeException(nameof(typedEntity.{propertyName}), $\"DateTimeOffset value {{typedEntity.{propertyName}.Value}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
+                sb.AppendLine($"                        throw new ArgumentOutOfRangeException(nameof(typedEntity.{escapedPropertyName}), $\"DateTimeOffset value {{typedEntity.{escapedPropertyName}.Value}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
                 sb.AppendLine("                    }");
-                sb.AppendLine($"                    var seconds = typedEntity.{propertyName}.Value.ToUnixTimeSeconds();");
+                sb.AppendLine($"                    var seconds = typedEntity.{escapedPropertyName}.Value.ToUnixTimeSeconds();");
                 sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
                 sb.AppendLine("                }");
                 sb.AppendLine("                catch (Exception ex)");
@@ -796,10 +801,10 @@ internal static class MapperGenerator
                 sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
                 sb.AppendLine($"                        typeof({entity.ClassName}),");
                 sb.AppendLine($"                        \"{propertyName}\",");
-                sb.AppendLine($"                        new AttributeValue {{ S = typedEntity.{propertyName}.Value.ToString(\"O\") }},");
+                sb.AppendLine($"                        new AttributeValue {{ S = typedEntity.{escapedPropertyName}.Value.ToString(\"O\") }},");
                 sb.AppendLine($"                        typeof({GetTypeForMetadata(propertyType)}),");
                 sb.AppendLine("                        ex)");
-                sb.AppendLine($"                        .WithContext(\"TtlValue\", typedEntity.{propertyName}.Value.ToString(\"O\"))");
+                sb.AppendLine($"                        .WithContext(\"TtlValue\", typedEntity.{escapedPropertyName}.Value.ToString(\"O\"))");
                 sb.AppendLine($"                        .WithContext(\"Operation\", \"TtlConversion\");");
                 sb.AppendLine("                }");
                 sb.AppendLine("            }");
@@ -809,11 +814,11 @@ internal static class MapperGenerator
                 sb.AppendLine("            try");
                 sb.AppendLine("            {");
                 sb.AppendLine("                // Validate DateTimeOffset is within valid Unix epoch range");
-                sb.AppendLine($"                if (typedEntity.{propertyName} < DateTimeOffset.UnixEpoch)");
+                sb.AppendLine($"                if (typedEntity.{escapedPropertyName} < DateTimeOffset.UnixEpoch)");
                 sb.AppendLine("                {");
-                sb.AppendLine($"                    throw new ArgumentOutOfRangeException(nameof(typedEntity.{propertyName}), $\"DateTimeOffset value {{typedEntity.{propertyName}}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
+                sb.AppendLine($"                    throw new ArgumentOutOfRangeException(nameof(typedEntity.{escapedPropertyName}), $\"DateTimeOffset value {{typedEntity.{escapedPropertyName}}} is before Unix epoch (1970-01-01). TTL values must be after 1970-01-01.\");");
                 sb.AppendLine("                }");
-                sb.AppendLine($"                var seconds = typedEntity.{propertyName}.ToUnixTimeSeconds();");
+                sb.AppendLine($"                var seconds = typedEntity.{escapedPropertyName}.ToUnixTimeSeconds();");
                 sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ N = seconds.ToString() }};");
                 sb.AppendLine("            }");
                 sb.AppendLine("            catch (Exception ex)");
@@ -821,10 +826,10 @@ internal static class MapperGenerator
                 sb.AppendLine($"                throw DynamoDbMappingException.PropertyConversionFailed(");
                 sb.AppendLine($"                    typeof({entity.ClassName}),");
                 sb.AppendLine($"                    \"{propertyName}\",");
-                sb.AppendLine($"                    new AttributeValue {{ S = typedEntity.{propertyName}.ToString(\"O\") }},");
+                sb.AppendLine($"                    new AttributeValue {{ S = typedEntity.{escapedPropertyName}.ToString(\"O\") }},");
                 sb.AppendLine($"                    typeof({GetTypeForMetadata(propertyType)}),");
                 sb.AppendLine("                    ex)");
-                sb.AppendLine($"                    .WithContext(\"TtlValue\", typedEntity.{propertyName}.ToString(\"O\"))");
+                sb.AppendLine($"                    .WithContext(\"TtlValue\", typedEntity.{escapedPropertyName}.ToString(\"O\"))");
                 sb.AppendLine($"                    .WithContext(\"Operation\", \"TtlConversion\");");
                 sb.AppendLine("            }");
             }
@@ -835,6 +840,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var serializerType = property.AdvancedType?.JsonSerializerType;
         var baseType = GetBaseType(property.PropertyType);
 
@@ -842,7 +848,7 @@ internal static class MapperGenerator
 
         if (property.IsNullable)
         {
-            sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("            {");
             // Generate logging for JSON blob operation
             sb.Append(LoggingCodeGenerator.GenerateJsonBlobLogging(propertyName, baseType, serializerType ?? "SystemTextJson", "Serialization"));
@@ -852,13 +858,13 @@ internal static class MapperGenerator
             if (serializerType == "SystemTextJson")
             {
                 // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-                sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{propertyName});");
+                sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
                 sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
             }
             else if (serializerType == "NewtonsoftJson")
             {
                 // Use Newtonsoft.Json
-                sb.AppendLine($"                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{propertyName});");
+                sb.AppendLine($"                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{escapedPropertyName});");
                 sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
             }
 
@@ -889,13 +895,13 @@ internal static class MapperGenerator
             if (serializerType == "SystemTextJson")
             {
                 // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-                sb.AppendLine($"                var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{propertyName});");
+                sb.AppendLine($"                var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
                 sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
             }
             else if (serializerType == "NewtonsoftJson")
             {
                 // Use Newtonsoft.Json
-                sb.AppendLine($"                var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{propertyName});");
+                sb.AppendLine($"                var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{escapedPropertyName});");
                 sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
             }
 
@@ -923,6 +929,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
         var varName = attributeName.ToLowerInvariant().Replace("-", "").Replace("_", "");
@@ -938,13 +945,13 @@ internal static class MapperGenerator
             // DateTime TTL reconstruction
             sb.AppendLine($"                    var seconds = long.Parse({varName}Value.N);");
             sb.AppendLine("                    var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);");
-            sb.AppendLine($"                    entity.{propertyName} = epoch.AddSeconds(seconds);");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = epoch.AddSeconds(seconds);");
         }
         else if (baseType == "DateTimeOffset" || baseType == "System.DateTimeOffset")
         {
             // DateTimeOffset TTL reconstruction
             sb.AppendLine($"                    var seconds = long.Parse({varName}Value.N);");
-            sb.AppendLine($"                    entity.{propertyName} = DateTimeOffset.FromUnixTimeSeconds(seconds);");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = DateTimeOffset.FromUnixTimeSeconds(seconds);");
         }
 
         sb.AppendLine("                }");
@@ -966,6 +973,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
         var serializerType = property.AdvancedType?.JsonSerializerType;
@@ -981,12 +989,12 @@ internal static class MapperGenerator
         if (serializerType == "SystemTextJson")
         {
             // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-            sb.AppendLine($"                        entity.{propertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>({propertyName.ToLowerInvariant()}Value.S);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>({propertyName.ToLowerInvariant()}Value.S);");
         }
         else if (serializerType == "NewtonsoftJson")
         {
             // Use Newtonsoft.Json
-            sb.AppendLine($"                        entity.{propertyName} = Newtonsoft.Json.JsonConvert.DeserializeObject<{baseType}>({propertyName.ToLowerInvariant()}Value.S);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = Newtonsoft.Json.JsonConvert.DeserializeObject<{baseType}>({propertyName.ToLowerInvariant()}Value.S);");
         }
 
         sb.AppendLine("                    }");
@@ -1014,6 +1022,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
 
         sb.AppendLine($"            // Convert Map property {propertyName} to DynamoDB Map (M)");
@@ -1024,14 +1033,14 @@ internal static class MapperGenerator
             propertyType.Contains("Dictionary<System.String, System.String>"))
         {
             // Dictionary<string, string> - simple string map
-            sb.AppendLine($"            if (typedEntity.{propertyName} != null && typedEntity.{propertyName}.Count > 0)");
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null && typedEntity.{escapedPropertyName}.Count > 0)");
             sb.AppendLine("            {");
             // Generate logging for Map conversion
-            sb.Append(LoggingCodeGenerator.GenerateMapConversionLogging(propertyName, $"typedEntity.{propertyName}.Count", "ToDynamoDb"));
+            sb.Append(LoggingCodeGenerator.GenerateMapConversionLogging(propertyName, $"typedEntity.{escapedPropertyName}.Count", "ToDynamoDb"));
             sb.AppendLine("                try");
             sb.AppendLine("                {");
             sb.AppendLine($"                    var {propertyName.ToLowerInvariant()}Map = new Dictionary<string, AttributeValue>();");
-            sb.AppendLine($"                    foreach (var kvp in typedEntity.{propertyName})");
+            sb.AppendLine($"                    foreach (var kvp in typedEntity.{escapedPropertyName})");
             sb.AppendLine("                    {");
             sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Map[kvp.Key] = new AttributeValue {{ S = kvp.Value }};");
             sb.AppendLine("                    }");
@@ -1059,14 +1068,14 @@ internal static class MapperGenerator
                  propertyType.Contains("Dictionary<System.String, System.Object>"))
         {
             // Dictionary<string, object> - convert object to AttributeValue
-            sb.AppendLine($"            if (typedEntity.{propertyName} != null && typedEntity.{propertyName}.Count > 0)");
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null && typedEntity.{escapedPropertyName}.Count > 0)");
             sb.AppendLine("            {");
             // Generate logging for Map conversion
-            sb.Append(LoggingCodeGenerator.GenerateMapConversionLogging(propertyName, $"typedEntity.{propertyName}.Count", "ToDynamoDb"));
+            sb.Append(LoggingCodeGenerator.GenerateMapConversionLogging(propertyName, $"typedEntity.{escapedPropertyName}.Count", "ToDynamoDb"));
             sb.AppendLine("                try");
             sb.AppendLine("                {");
             sb.AppendLine($"                    var {propertyName.ToLowerInvariant()}Map = new Dictionary<string, AttributeValue>();");
-            sb.AppendLine($"                    foreach (var kvp in typedEntity.{propertyName})");
+            sb.AppendLine($"                    foreach (var kvp in typedEntity.{escapedPropertyName})");
             sb.AppendLine("                    {");
             sb.AppendLine($"                        if (kvp.Value is AttributeValue av)");
             sb.AppendLine($"                            {propertyName.ToLowerInvariant()}Map[kvp.Key] = av;");
@@ -1097,13 +1106,13 @@ internal static class MapperGenerator
                  propertyType.Contains("Dictionary<System.String, Amazon.DynamoDBv2.Model.AttributeValue>"))
         {
             // Dictionary<string, AttributeValue> - direct map
-            sb.AppendLine($"            if (typedEntity.{propertyName} != null && typedEntity.{propertyName}.Count > 0)");
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null && typedEntity.{escapedPropertyName}.Count > 0)");
             sb.AppendLine("            {");
             // Generate logging for Map conversion
-            sb.Append(LoggingCodeGenerator.GenerateMapConversionLogging(propertyName, $"typedEntity.{propertyName}.Count", "ToDynamoDb"));
+            sb.Append(LoggingCodeGenerator.GenerateMapConversionLogging(propertyName, $"typedEntity.{escapedPropertyName}.Count", "ToDynamoDb"));
             sb.AppendLine("                try");
             sb.AppendLine("                {");
-            sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ M = typedEntity.{propertyName} }};");
+            sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ M = typedEntity.{escapedPropertyName} }};");
             sb.AppendLine("                }");
             sb.AppendLine("                catch (Exception ex)");
             sb.AppendLine("                {");
@@ -1127,12 +1136,12 @@ internal static class MapperGenerator
             // Custom object with [DynamoDbMap] - use nested ToDynamoDb call
             // The nested type must also be marked with [DynamoDbEntity] to have its own mapping generated
             var simpleTypeName = GetSimpleTypeName(propertyType);
-            sb.AppendLine($"            if (typedEntity.{propertyName} != null)");
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("            {");
             sb.AppendLine("                try");
             sb.AppendLine("                {");
             sb.AppendLine($"                    // Convert nested entity to map using its generated ToDynamoDb method");
-            sb.AppendLine($"                    var {propertyName.ToLowerInvariant()}Map = {simpleTypeName}.ToDynamoDb(typedEntity.{propertyName});");
+            sb.AppendLine($"                    var {propertyName.ToLowerInvariant()}Map = {simpleTypeName}.ToDynamoDb(typedEntity.{escapedPropertyName});");
             sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Map != null && {propertyName.ToLowerInvariant()}Map.Count > 0)");
             sb.AppendLine("                    {");
             // Generate logging for Map conversion (custom object)
@@ -1164,9 +1173,10 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var collectionElementType = GetCollectionElementType(property.PropertyType);
 
-        sb.AppendLine($"            if (typedEntity.{propertyName} != null && typedEntity.{propertyName}.Count > 0)");
+        sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null && typedEntity.{escapedPropertyName}.Count > 0)");
         sb.AppendLine("            {");
         sb.AppendLine("                try");
         sb.AppendLine("                {");
@@ -1210,32 +1220,33 @@ internal static class MapperGenerator
     private static void GenerateSetPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity, string attributeName, string propertyName, string collectionElementType)
     {
         var baseElementType = GetBaseType(collectionElementType);
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         if (baseElementType == "string" || baseElementType == "System.String")
         {
             // String Set (SS)
             // Generate logging for Set conversion
-            sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "String Set", $"typedEntity.{propertyName}.Count", "ToDynamoDb"));
-            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ SS = typedEntity.{propertyName}.ToList() }};");
+            sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "String Set", $"typedEntity.{escapedPropertyName}.Count", "ToDynamoDb"));
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ SS = typedEntity.{escapedPropertyName}.ToList() }};");
         }
         else if (IsNumericType(baseElementType))
         {
             // Number Set (NS)
             // Generate logging for Set conversion
-            sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "Number Set", $"typedEntity.{propertyName}.Count", "ToDynamoDb"));
+            sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "Number Set", $"typedEntity.{escapedPropertyName}.Count", "ToDynamoDb"));
             sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue");
             sb.AppendLine("                {");
-            sb.AppendLine($"                    NS = typedEntity.{propertyName}.Select(x => x.ToString()).ToList()");
+            sb.AppendLine($"                    NS = typedEntity.{escapedPropertyName}.Select(x => x.ToString()).ToList()");
             sb.AppendLine("                };");
         }
         else if (baseElementType == "byte[]" || baseElementType == "System.Byte[]")
         {
             // Binary Set (BS)
             // Generate logging for Set conversion
-            sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "Binary Set", $"typedEntity.{propertyName}.Count", "ToDynamoDb"));
+            sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "Binary Set", $"typedEntity.{escapedPropertyName}.Count", "ToDynamoDb"));
             sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue");
             sb.AppendLine("                {");
-            sb.AppendLine($"                    BS = typedEntity.{propertyName}.Select(x => new MemoryStream(x)).ToList()");
+            sb.AppendLine($"                    BS = typedEntity.{escapedPropertyName}.Select(x => new MemoryStream(x)).ToList()");
             sb.AppendLine("                };");
         }
         else
@@ -1248,13 +1259,14 @@ internal static class MapperGenerator
     private static void GenerateListPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity, string attributeName, string propertyName, string collectionElementType)
     {
         var baseElementType = GetBaseType(collectionElementType);
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         // Add comment for collection conversion
         sb.AppendLine($"                // Convert collection {propertyName} to native DynamoDB type");
         sb.AppendLine($"                // Convert {property.PropertyType} to DynamoDB List (L)");
         
         // Generate logging for List conversion
-        sb.Append(LoggingCodeGenerator.GenerateListConversionLogging(propertyName, $"typedEntity.{propertyName}.Count", "ToDynamoDb"));
+        sb.Append(LoggingCodeGenerator.GenerateListConversionLogging(propertyName, $"typedEntity.{escapedPropertyName}.Count", "ToDynamoDb"));
         
         // Use List (L) for all List types
         sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue");
@@ -1262,7 +1274,7 @@ internal static class MapperGenerator
         
         // Generate the appropriate conversion based on element type
         var conversionExpression = GetToAttributeValueExpressionForCollectionElement(baseElementType);
-        sb.AppendLine($"                    L = typedEntity.{propertyName}.Select(x => {conversionExpression}).ToList()");
+        sb.AppendLine($"                    L = typedEntity.{escapedPropertyName}.Select(x => {conversionExpression}).ToList()");
         sb.AppendLine("                };");
     }
     
@@ -1532,6 +1544,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         // Handle TTL properties (Time-To-Live)
         if (property.AdvancedType?.IsTtl == true)
@@ -1564,7 +1577,7 @@ internal static class MapperGenerator
         sb.AppendLine("            {");
         sb.AppendLine("                try");
         sb.AppendLine("                {");
-        sb.AppendLine($"                    entity.{propertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
+        sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
         sb.AppendLine("                }");
         sb.AppendLine("                catch (Exception ex)");
         sb.AppendLine("                {");
@@ -1582,6 +1595,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         // Handle encrypted properties (must be before other handlers)
         if (property.Security?.IsEncrypted == true)
@@ -1635,7 +1649,7 @@ internal static class MapperGenerator
         sb.AppendLine("            {");
         sb.AppendLine("                try");
         sb.AppendLine("                {");
-        sb.AppendLine($"                    entity.{propertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
+        sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
         sb.AppendLine("                }");
         sb.AppendLine("                catch (Exception ex)");
         sb.AppendLine("                {");
@@ -1653,6 +1667,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
 
@@ -1673,18 +1688,18 @@ internal static class MapperGenerator
             // byte[] - read stream to byte array
             sb.AppendLine("                        using var memoryStream = new MemoryStream();");
             sb.AppendLine("                        await stream.CopyToAsync(memoryStream, cancellationToken);");
-            sb.AppendLine($"                        entity.{propertyName} = memoryStream.ToArray();");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = memoryStream.ToArray();");
         }
         else if (baseType == "Stream" || baseType == "System.IO.Stream" || baseType == "MemoryStream")
         {
             // Stream - use directly (caller must manage disposal)
-            sb.AppendLine($"                        entity.{propertyName} = stream;");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = stream;");
         }
         else if (baseType == "string" || baseType == "System.String")
         {
             // string - read stream as UTF8 string
             sb.AppendLine("                        using var reader = new StreamReader(stream);");
-            sb.AppendLine($"                        entity.{propertyName} = await reader.ReadToEndAsync();");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = await reader.ReadToEndAsync();");
         }
         else
         {
@@ -1692,7 +1707,7 @@ internal static class MapperGenerator
             sb.AppendLine("                        // Deserialize complex type from JSON");
             sb.AppendLine("                        using var reader = new StreamReader(stream);");
             sb.AppendLine("                        var json = await reader.ReadToEndAsync();");
-            sb.AppendLine($"                        entity.{propertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
         }
 
         sb.AppendLine("                    }");
@@ -1718,6 +1733,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
         var serializerType = property.AdvancedType?.JsonSerializerType;
@@ -1748,17 +1764,17 @@ internal static class MapperGenerator
         if (serializerType == "SystemTextJson")
         {
             // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-            sb.AppendLine($"                        entity.{propertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
         }
         else if (serializerType == "NewtonsoftJson")
         {
             // Use Newtonsoft.Json
-            sb.AppendLine($"                        entity.{propertyName} = Newtonsoft.Json.JsonConvert.DeserializeObject<{baseType}>(json);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = Newtonsoft.Json.JsonConvert.DeserializeObject<{baseType}>(json);");
         }
         else
         {
             // Fallback to System.Text.Json without context
-            sb.AppendLine($"                        entity.{propertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
         }
 
         sb.AppendLine("                    }");
@@ -1784,6 +1800,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
 
         sb.AppendLine($"            // Convert Map property {propertyName} from DynamoDB Map (M)");
@@ -1800,7 +1817,7 @@ internal static class MapperGenerator
             propertyType.Contains("Dictionary<System.String, System.String>"))
         {
             // Dictionary<string, string> - reconstruct from string map
-            sb.AppendLine($"                    entity.{propertyName} = {propertyName.ToLowerInvariant()}Value.M.ToDictionary(");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = {propertyName.ToLowerInvariant()}Value.M.ToDictionary(");
             sb.AppendLine("                        kvp => kvp.Key,");
             sb.AppendLine("                        kvp => kvp.Value.S);");
         }
@@ -1809,7 +1826,7 @@ internal static class MapperGenerator
                  propertyType.Contains("Dictionary<System.String, System.Object>"))
         {
             // Dictionary<string, object> - convert AttributeValue to object
-            sb.AppendLine($"                    entity.{propertyName} = {propertyName.ToLowerInvariant()}Value.M.ToDictionary(");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = {propertyName.ToLowerInvariant()}Value.M.ToDictionary(");
             sb.AppendLine("                        kvp => kvp.Key,");
             sb.AppendLine("                        kvp => (object)kvp.Value);");
         }
@@ -1818,7 +1835,7 @@ internal static class MapperGenerator
                  propertyType.Contains("Dictionary<System.String, Amazon.DynamoDBv2.Model.AttributeValue>"))
         {
             // Dictionary<string, AttributeValue> - direct assignment
-            sb.AppendLine($"                    entity.{propertyName} = {propertyName.ToLowerInvariant()}Value.M;");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = {propertyName.ToLowerInvariant()}Value.M;");
         }
         else
         {
@@ -1826,7 +1843,7 @@ internal static class MapperGenerator
             // The nested type must also be marked with [DynamoDbEntity] to have its own mapping generated
             var simpleTypeName = GetSimpleTypeName(propertyType);
             sb.AppendLine($"                    // Convert map back to nested entity using its generated FromDynamoDb method");
-            sb.AppendLine($"                    entity.{propertyName} = {simpleTypeName}.FromDynamoDb<{simpleTypeName}>({propertyName.ToLowerInvariant()}Value.M, logger);");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = {simpleTypeName}.FromDynamoDb<{simpleTypeName}>({propertyName.ToLowerInvariant()}Value.M, logger);");
         }
 
         sb.AppendLine("                }");
@@ -1850,6 +1867,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var collectionElementType = GetCollectionElementType(property.PropertyType);
         var baseElementType = GetBaseType(collectionElementType);
 
@@ -1892,15 +1910,7 @@ internal static class MapperGenerator
         sb.AppendLine("                        ex);");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
-        sb.AppendLine("            else");
-        sb.AppendLine("            {");
-        sb.AppendLine($"                // Initialize empty collection if no data found");
-        // Strip nullable markers from both the property type and element type for instantiation
-        var nonNullableElementType = collectionElementType.TrimEnd('?');
-        var collectionTypeName = GetCollectionTypeName(property.PropertyType);
-        var nonNullablePropertyType = $"{collectionTypeName}<{nonNullableElementType}>";
-        sb.AppendLine($"                entity.{propertyName} = new {nonNullablePropertyType}();");
-        sb.AppendLine("            }");
+        sb.AppendLine("            // If attribute not found in DynamoDB item, leave property as null (DynamoDB null semantics)");
     }
 
     private static void GenerateSetPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, string propertyName, string baseElementType)
@@ -1910,6 +1920,7 @@ internal static class MapperGenerator
         var collectionElementType = GetCollectionElementType(property.PropertyType);
         var nonNullableElementType = collectionElementType.TrimEnd('?');
         var nonNullablePropertyType = $"HashSet<{nonNullableElementType}>";
+        var escapedPropertyName = EscapePropertyName(propertyName);
         
         if (baseElementType == "string" || baseElementType == "System.String")
         {
@@ -1919,12 +1930,9 @@ internal static class MapperGenerator
             sb.AppendLine("                    {");
             // Generate logging for Set conversion
             sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "String Set", $"{propertyName.ToLowerInvariant()}Value.SS.Count", "FromDynamoDb"));
-            sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.SS);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.SS);");
             sb.AppendLine("                    }");
-            sb.AppendLine("                    else");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}();");
-            sb.AppendLine("                    }");
+            sb.AppendLine("                    // else: leave as null (DynamoDB null semantics - missing or empty set means null)");
         }
         else if (IsNumericType(baseElementType))
         {
@@ -1934,12 +1942,9 @@ internal static class MapperGenerator
             sb.AppendLine("                    {");
             // Generate logging for Set conversion
             sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "Number Set", $"{propertyName.ToLowerInvariant()}Value.NS.Count", "FromDynamoDb"));
-            sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.NS.Select({GetNumericConversionExpression(baseElementType)}));");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.NS.Select({GetNumericConversionExpression(baseElementType)}));");
             sb.AppendLine("                    }");
-            sb.AppendLine("                    else");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}();");
-            sb.AppendLine("                    }");
+            sb.AppendLine("                    // else: leave as null (DynamoDB null semantics - missing or empty set means null)");
         }
         else if (baseElementType == "byte[]" || baseElementType == "System.Byte[]")
         {
@@ -1949,12 +1954,9 @@ internal static class MapperGenerator
             sb.AppendLine("                    {");
             // Generate logging for Set conversion
             sb.Append(LoggingCodeGenerator.GenerateSetConversionLogging(propertyName, "Binary Set", $"{propertyName.ToLowerInvariant()}Value.BS.Count", "FromDynamoDb"));
-            sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.BS.Select(x => x.ToArray()));");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.BS.Select(x => x.ToArray()));");
             sb.AppendLine("                    }");
-            sb.AppendLine("                    else");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}();");
-            sb.AppendLine("                    }");
+            sb.AppendLine("                    // else: leave as null (DynamoDB null semantics - missing or empty set means null)");
         }
         else
         {
@@ -1967,6 +1969,7 @@ internal static class MapperGenerator
     private static void GenerateListPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, string propertyName, string collectionElementType)
     {
         var baseElementType = GetBaseType(collectionElementType);
+        var escapedPropertyName = EscapePropertyName(propertyName);
         
         // Handle List (L) for all List types
         sb.AppendLine($"                    // Convert DynamoDB List (L) to List<{collectionElementType}>");
@@ -1983,12 +1986,9 @@ internal static class MapperGenerator
         var nonNullablePropertyType = $"{collectionTypeName}<{nonNullableElementType}>";
         
         var conversionExpression = GetFromAttributeValueExpressionForCollectionElement(baseElementType);
-        sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.L.Select({conversionExpression}));");
+        sb.AppendLine($"                        entity.{escapedPropertyName} = new {nonNullablePropertyType}({propertyName.ToLowerInvariant()}Value.L.Select({conversionExpression}));");
         sb.AppendLine("                    }");
-        sb.AppendLine("                    else");
-        sb.AppendLine("                    {");
-        sb.AppendLine($"                        entity.{propertyName} = new {nonNullablePropertyType}();");
-        sb.AppendLine("                    }");
+        sb.AppendLine("                    // else: leave as null (DynamoDB null semantics - missing or empty list means null)");
     }
     
     private static string GetFromAttributeValueExpressionForCollectionElement(string elementType)
@@ -2340,9 +2340,20 @@ internal static class MapperGenerator
             var operations = string.Join(", ", property.Queryable.SupportedOperations.Select(op => $"DynamoDbOperation.{op}"));
             sb.AppendLine($"                        SupportedOperations = new[] {{ {operations} }},");
         }
+        else if (property.IsPartitionKey)
+        {
+            // Partition keys only support equality in key conditions
+            sb.AppendLine($"                        SupportedOperations = new[] {{ DynamoDbOperation.Equals }},");
+        }
+        else if (property.IsSortKey)
+        {
+            // Sort keys support range operations in key conditions
+            sb.AppendLine($"                        SupportedOperations = new[] {{ DynamoDbOperation.Equals, DynamoDbOperation.BeginsWith, DynamoDbOperation.Between, DynamoDbOperation.GreaterThan, DynamoDbOperation.LessThan }},");
+        }
         else
         {
-            sb.AppendLine("                        SupportedOperations = Array.Empty<DynamoDbOperation>(),");
+            // Non-key properties support all operations in filter expressions
+            sb.AppendLine($"                        SupportedOperations = new[] {{ DynamoDbOperation.Equals, DynamoDbOperation.GreaterThan, DynamoDbOperation.LessThan, DynamoDbOperation.Contains, DynamoDbOperation.In }},");
         }
 
         // Add available indexes if specified
@@ -2777,18 +2788,19 @@ internal static class MapperGenerator
     {
         var computedKey = computedProperty.ComputedKey!;
         var propertyName = computedProperty.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         if (computedKey.HasCustomFormat)
         {
             // Use custom format string
-            var formatArgs = string.Join(", ", computedKey.SourceProperties.Select(sp => $"typedEntity.{sp}"));
-            sb.AppendLine($"            typedEntity.{propertyName} = string.Format(\"{computedKey.Format}\", {formatArgs});");
+            var formatArgs = string.Join(", ", computedKey.SourceProperties.Select(sp => $"typedEntity.{EscapePropertyName(sp)}"));
+            sb.AppendLine($"            typedEntity.{escapedPropertyName} = string.Format(\"{computedKey.Format}\", {formatArgs});");
         }
         else
         {
             // Use separator-based concatenation
-            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", computedKey.SourceProperties.Select(sp => $"typedEntity.{sp}"));
-            sb.AppendLine($"            typedEntity.{propertyName} = {sourceValues};");
+            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", computedKey.SourceProperties.Select(sp => $"typedEntity.{EscapePropertyName(sp)}"));
+            sb.AppendLine($"            typedEntity.{escapedPropertyName} = {sourceValues};");
         }
     }
 
@@ -2796,16 +2808,18 @@ internal static class MapperGenerator
     {
         var extractedKey = extractedProperty.ExtractedKey!;
         var propertyName = extractedProperty.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var sourceProperty = extractedKey.SourceProperty;
+        var escapedSourceProperty = EscapePropertyName(sourceProperty);
         var index = extractedKey.Index;
         var separator = extractedKey.Separator;
 
-        sb.AppendLine($"            if (!string.IsNullOrEmpty(entity.{sourceProperty}))");
+        sb.AppendLine($"            if (!string.IsNullOrEmpty(entity.{escapedSourceProperty}))");
         sb.AppendLine("            {");
-        sb.AppendLine($"                var {sourceProperty.ToLowerInvariant()}Parts = entity.{sourceProperty}.Split('{separator}');");
+        sb.AppendLine($"                var {sourceProperty.ToLowerInvariant()}Parts = entity.{escapedSourceProperty}.Split('{separator}');");
         sb.AppendLine($"                if ({sourceProperty.ToLowerInvariant()}Parts.Length > {index})");
         sb.AppendLine("                {");
-        sb.AppendLine($"                    entity.{propertyName} = {sourceProperty.ToLowerInvariant()}Parts[{index}];");
+        sb.AppendLine($"                    entity.{escapedPropertyName} = {sourceProperty.ToLowerInvariant()}Parts[{index}];");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
     }
@@ -2814,6 +2828,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
 
         sb.AppendLine($"            // Encrypt {propertyName}");
@@ -2823,7 +2838,7 @@ internal static class MapperGenerator
         // Handle nullable properties
         if (property.IsNullable)
         {
-            sb.AppendLine($"                if (typedEntity.{propertyName} != null)");
+            sb.AppendLine($"                if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("                {");
         }
 
@@ -2878,6 +2893,7 @@ internal static class MapperGenerator
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
 
         sb.AppendLine($"            // Decrypt {propertyName}");
@@ -2916,7 +2932,7 @@ internal static class MapperGenerator
 
         // Convert bytes back to property type
         sb.AppendLine($"                            var {propertyName}String = System.Text.Encoding.UTF8.GetString({propertyName}Plaintext);");
-        sb.AppendLine($"                            entity.{propertyName} = {ConvertStringToPropertyType(property, $"{propertyName}String")};");
+        sb.AppendLine($"                            entity.{escapedPropertyName} = {ConvertStringToPropertyType(property, $"{propertyName}String")};");
         
         sb.AppendLine("                        }");
         sb.AppendLine("                    }");
@@ -2940,15 +2956,16 @@ internal static class MapperGenerator
     private static string GetPropertyValueAsString(PropertyModel property, string propertyName)
     {
         var baseType = GetBaseType(property.PropertyType);
+        var escapedPropertyName = EscapePropertyName(propertyName);
 
         // For string properties, use directly
         if (baseType == "string" || baseType == "System.String")
         {
-            return $"typedEntity.{propertyName}";
+            return $"typedEntity.{escapedPropertyName}";
         }
 
         // For other types, convert to string first
-        return $"typedEntity.{propertyName}.ToString()";
+        return $"typedEntity.{escapedPropertyName}.ToString()";
     }
 
     private static string ConvertStringToPropertyType(PropertyModel property, string stringVariable)
@@ -3005,6 +3022,115 @@ internal static class MapperGenerator
 
         // Default: assume the type has a Parse method or constructor that takes a string
         return $"{baseType}.Parse({stringVariable})";
+    }
+
+    /// <summary>
+    /// Escapes a property name if it's a C# reserved keyword by adding @ prefix.
+    /// </summary>
+    /// <param name="propertyName">The property name to escape.</param>
+    /// <returns>The escaped property name.</returns>
+    private static string EscapePropertyName(string propertyName)
+    {
+        // C# reserved keywords that need escaping
+        var csharpKeywords = new HashSet<string>
+        {
+            "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
+            "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
+            "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
+            "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
+            "long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
+            "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed",
+            "short", "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw",
+            "true", "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using",
+            "virtual", "void", "volatile", "while"
+        };
+
+        // DynamoDB reserved words that might also be used as property names
+        var dynamoDbKeywords = new HashSet<string>
+        {
+            "ABORT", "ABSOLUTE", "ACTION", "ADD", "AFTER", "AGENT", "AGGREGATE", "ALL", "ALLOCATE",
+            "ALTER", "ANALYZE", "AND", "ANY", "ARCHIVE", "ARE", "ARRAY", "AS", "ASC", "ASCII",
+            "ASENSITIVE", "ASSERTION", "ASYMMETRIC", "AT", "ATOMIC", "ATTACH", "ATTRIBUTE", "AUTH",
+            "AUTHORIZATION", "AUTHORIZE", "AUTO", "AVG", "BACK", "BACKUP", "BASE", "BATCH", "BEFORE",
+            "BEGIN", "BETWEEN", "BIGINT", "BINARY", "BIT", "BLOB", "BLOCK", "BOOLEAN", "BOTH",
+            "BREADTH", "BUCKET", "BULK", "BY", "BYTE", "CALL", "CALLED", "CALLING", "CAPACITY",
+            "CASCADE", "CASCADED", "CASE", "CAST", "CATALOG", "CHAR", "CHARACTER", "CHECK", "CLASS",
+            "CLOB", "CLOSE", "CLUSTER", "CLUSTERED", "CLUSTERING", "CLUSTERS", "COALESCE", "COLLATE",
+            "COLLATION", "COLLECTION", "COLUMN", "COLUMNS", "COMBINE", "COMMENT", "COMMIT", "COMPACT",
+            "COMPILE", "COMPRESS", "CONDITION", "CONFLICT", "CONNECT", "CONNECTION", "CONSISTENCY",
+            "CONSISTENT", "CONSTRAINT", "CONSTRAINTS", "CONSTRUCTOR", "CONSUMED", "CONTINUE",
+            "CONVERT", "COPY", "CORRESPONDING", "COUNT", "COUNTER", "CREATE", "CROSS", "CUBE",
+            "CURRENT", "CURSOR", "CYCLE", "DATA", "DATABASE", "DATE", "DATETIME", "DAY", "DEALLOCATE",
+            "DEC", "DECIMAL", "DECLARE", "DEFAULT", "DEFERRABLE", "DEFERRED", "DEFINE", "DEFINED",
+            "DEFINITION", "DELETE", "DELIMITED", "DEPTH", "DEREF", "DESC", "DESCRIBE", "DESCRIPTOR",
+            "DETACH", "DETERMINISTIC", "DIAGNOSTICS", "DIRECTORIES", "DISABLE", "DISCONNECT",
+            "DISTINCT", "DISTRIBUTE", "DO", "DOMAIN", "DOUBLE", "DROP", "DUMP", "DURATION", "DYNAMIC",
+            "EACH", "ELEMENT", "ELSE", "ELSEIF", "EMPTY", "ENABLE", "END", "EQUAL", "EQUALS", "ERROR",
+            "ESCAPE", "ESCAPED", "EVAL", "EVALUATE", "EXCEEDED", "EXCEPT", "EXCEPTION", "EXCEPTIONS",
+            "EXCLUSIVE", "EXEC", "EXECUTE", "EXISTS", "EXIT", "EXPLAIN", "EXPLODE", "EXPORT",
+            "EXPRESSION", "EXTENDED", "EXTERNAL", "EXTRACT", "FAIL", "FALSE", "FAMILY", "FETCH",
+            "FIELDS", "FILE", "FILTER", "FILTERING", "FINAL", "FINISH", "FIRST", "FIXED", "FLATTERN",
+            "FLOAT", "FOR", "FORCE", "FOREIGN", "FORMAT", "FORWARD", "FOUND", "FREE", "FROM", "FULL",
+            "FUNCTION", "FUNCTIONS", "GENERAL", "GENERATE", "GET", "GLOB", "GLOBAL", "GO", "GOTO",
+            "GRANT", "GREATER", "GROUP", "GROUPING", "HANDLER", "HASH", "HAVE", "HAVING", "HEAP",
+            "HIDDEN", "HOLD", "HOUR", "IDENTIFIED", "IDENTITY", "IF", "IGNORE", "IMMEDIATE", "IMPORT",
+            "IN", "INCLUDING", "INCLUSIVE", "INCREMENT", "INCREMENTAL", "INDEX", "INDEXED", "INDEXES",
+            "INDICATOR", "INFINITE", "INITIALLY", "INLINE", "INNER", "INNTER", "INOUT", "INPUT",
+            "INSENSITIVE", "INSERT", "INSTEAD", "INT", "INTEGER", "INTERSECT", "INTERVAL", "INTO",
+            "INVALIDATE", "IS", "ISOLATION", "ITEM", "ITEMS", "ITERATE", "JOIN", "KEY", "KEYS",
+            "LAG", "LANGUAGE", "LARGE", "LAST", "LATERAL", "LEAD", "LEADING", "LEAVE", "LEFT",
+            "LENGTH", "LESS", "LEVEL", "LIKE", "LIMIT", "LIMITED", "LINES", "LIST", "LOAD", "LOCAL",
+            "LOCALTIME", "LOCALTIMESTAMP", "LOCATION", "LOCATOR", "LOCK", "LOCKS", "LOG", "LOGED",
+            "LONG", "LOOP", "LOWER", "MAP", "MATCH", "MATERIALIZED", "MAX", "MAXLEN", "MEMBER",
+            "MERGE", "METHOD", "METRICS", "MIN", "MINUS", "MINUTE", "MISSING", "MOD", "MODE",
+            "MODIFIES", "MODIFY", "MODULE", "MONTH", "MULTI", "MULTISET", "NAME", "NAMES", "NATIONAL",
+            "NATURAL", "NCHAR", "NCLOB", "NEW", "NEXT", "NO", "NONE", "NOT", "NULL", "NULLIF",
+            "NUMBER", "NUMERIC", "OBJECT", "OF", "OFFLINE", "OFFSET", "OLD", "ON", "ONLINE", "ONLY",
+            "OPAQUE", "OPEN", "OPERATOR", "OPTION", "OR", "ORDER", "ORDINALITY", "OTHER", "OTHERS",
+            "OUT", "OUTER", "OUTPUT", "OVER", "OVERLAPS", "OVERRIDE", "OWNER", "PAD", "PARALLEL",
+            "PARAMETER", "PARAMETERS", "PARTIAL", "PARTITION", "PARTITIONED", "PARTITIONS", "PATH",
+            "PERCENT", "PERCENTILE", "PERMISSION", "PERMISSIONS", "PIPE", "PIPELINED", "PLAN", "POOL",
+            "POSITION", "PRECISION", "PREPARE", "PRESERVE", "PRIMARY", "PRIOR", "PRIVATE", "PRIVILEGES",
+            "PROCEDURE", "PROCESSED", "PROJECT", "PROJECTION", "PROPERTY", "PROVISIONING", "PUBLIC",
+            "PUT", "QUERY", "QUIT", "QUORUM", "RAISE", "RANDOM", "RANGE", "RANK", "RAW", "READ",
+            "READS", "REAL", "REBUILD", "RECORD", "RECURSIVE", "REDUCE", "REF", "REFERENCE",
+            "REFERENCES", "REFERENCING", "REGEXP", "REGION", "REINDEX", "RELATIVE", "RELEASE",
+            "REMAINDER", "RENAME", "REPEAT", "REPLACE", "REQUEST", "RESET", "RESIGNAL", "RESOURCE",
+            "RESPONSE", "RESTORE", "RESTRICT", "RESULT", "RETURN", "RETURNING", "RETURNS", "REVERSE",
+            "REVOKE", "RIGHT", "ROLE", "ROLES", "ROLLBACK", "ROLLUP", "ROUTINE", "ROW", "ROWS",
+            "RULE", "RULES", "SAMPLE", "SATISFIES", "SAVE", "SAVEPOINT", "SCAN", "SCHEMA", "SCOPE",
+            "SCROLL", "SEARCH", "SECOND", "SECTION", "SEGMENT", "SEGMENTS", "SELECT", "SELF",
+            "SEMI", "SENSITIVE", "SEPARATE", "SEQUENCE", "SERIALIZABLE", "SESSION", "SET", "SETS",
+            "SHARD", "SHARE", "SHARED", "SHORT", "SHOW", "SIGNAL", "SIMILAR", "SIZE", "SKEWED",
+            "SMALLINT", "SNAPSHOT", "SOME", "SOURCE", "SPACE", "SPACES", "SPARSE", "SPECIFIC",
+            "SPECIFICTYPE", "SPLIT", "SQL", "SQLCODE", "SQLERROR", "SQLEXCEPTION", "SQLSTATE",
+            "SQLWARNING", "START", "STATE", "STATIC", "STATUS", "STORAGE", "STORE", "STORED",
+            "STREAM", "STRING", "STRUCT", "STYLE", "SUB", "SUBMULTISET", "SUBPARTITION", "SUBSTRING",
+            "SUBTYPE", "SUM", "SUPER", "SYMMETRIC", "SYNONYM", "SYSTEM", "TABLE", "TABLESAMPLE",
+            "TEMP", "TEMPORARY", "TERMINATED", "TEXT", "THAN", "THEN", "THROUGHPUT", "TIME",
+            "TIMESTAMP", "TIMEZONE", "TINYINT", "TO", "TOKEN", "TOTAL", "TOUCH", "TRAILING",
+            "TRANSACTION", "TRANSFORM", "TRANSLATE", "TRANSLATION", "TREAT", "TRIGGER", "TRIM",
+            "TRUE", "TRUNCATE", "TTL", "TUPLE", "TYPE", "UNDER", "UNDO", "UNION", "UNIQUE", "UNIT",
+            "UNKNOWN", "UNLOGGED", "UNNEST", "UNPROCESSED", "UNSIGNED", "UNTIL", "UPDATE", "UPPER",
+            "URL", "USAGE", "USE", "USER", "USERS", "USING", "UUID", "VACUUM", "VALUE", "VALUED",
+            "VALUES", "VARCHAR", "VARIABLE", "VARIANCE", "VARINT", "VARYING", "VIEW", "VIEWS",
+            "VIRTUAL", "VOID", "WAIT", "WHEN", "WHENEVER", "WHERE", "WHILE", "WINDOW", "WITH",
+            "WITHIN", "WITHOUT", "WORK", "WRAPPED", "WRITE", "YEAR", "ZONE"
+        };
+
+        // Check if it's a C# keyword (case-sensitive)
+        if (csharpKeywords.Contains(propertyName))
+        {
+            return "@" + propertyName;
+        }
+
+        // Check if it's a DynamoDB reserved word (case-insensitive)
+        if (dynamoDbKeywords.Contains(propertyName.ToUpperInvariant()))
+        {
+            return "@" + propertyName;
+        }
+
+        return propertyName;
     }
 
 }

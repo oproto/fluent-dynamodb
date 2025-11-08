@@ -244,6 +244,41 @@ public class ExpressionTranslator
             return sb.ToString();
         }
 
+        // Special handling for string.CompareOrdinal(x.Property, value) >= 0 pattern
+        // This allows string comparison operators in expressions
+        // Example: string.CompareOrdinal(x.Type, "value") >= 0 translates to: #attr0 >= :p0
+        if (node.Left is MethodCallExpression methodCall &&
+            methodCall.Method.Name == "CompareOrdinal" &&
+            methodCall.Method.DeclaringType == typeof(string) &&
+            methodCall.Arguments.Count == 2 &&
+            IsEntityPropertyAccess(methodCall.Arguments[0], entityParameter))
+        {
+            // Extract the property and value from CompareOrdinal
+            var comparePropertyMetadata = GetPropertyMetadata(methodCall.Arguments[0], entityParameter, context);
+            var attributeName = Visit(methodCall.Arguments[0], entityParameter, context);
+            var compareValue = VisitWithPropertyMetadata(methodCall.Arguments[1], entityParameter, context, comparePropertyMetadata);
+            
+            // The right side should be 0 (the comparison result)
+            // Map the comparison operator: CompareOrdinal(...) >= 0 means attr >= value
+            var compareOperator = node.NodeType switch
+            {
+                ExpressionType.Equal => "=",           // CompareOrdinal(...) == 0 -> attr = value
+                ExpressionType.NotEqual => "<>",       // CompareOrdinal(...) != 0 -> attr <> value
+                ExpressionType.LessThan => "<",        // CompareOrdinal(...) < 0 -> attr < value
+                ExpressionType.LessThanOrEqual => "<=", // CompareOrdinal(...) <= 0 -> attr <= value
+                ExpressionType.GreaterThan => ">",     // CompareOrdinal(...) > 0 -> attr > value
+                ExpressionType.GreaterThanOrEqual => ">=", // CompareOrdinal(...) >= 0 -> attr >= value
+                _ => throw new UnsupportedExpressionException(
+                    $"Binary operator '{node.NodeType}' is not supported with string.CompareOrdinal.",
+                    node)
+            };
+            
+            // Use StringBuilder to minimize allocations
+            var compareBuilder = new StringBuilder(attributeName.Length + compareValue.Length + compareOperator.Length + 2);
+            compareBuilder.Append(attributeName).Append(' ').Append(compareOperator).Append(' ').Append(compareValue);
+            return compareBuilder.ToString();
+        }
+
         // Handle comparison operators (==, !=, <, >, <=, >=)
         // For comparisons, we need to determine which side is the property and which is the value
         // to apply formatting correctly
@@ -296,6 +331,12 @@ public class ExpressionTranslator
         if (IsEntityPropertyAccess(node, entityParameter))
         {
             return Visit(node, entityParameter, context);
+        }
+        
+        // Handle type conversions (like nullable to non-nullable) by unwrapping and continuing
+        if (node is UnaryExpression unary && (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            return VisitWithPropertyMetadata(unary.Operand, entityParameter, context, propertyMetadata);
         }
         
         // For value expressions, evaluate and capture with format
@@ -459,33 +500,6 @@ public class ExpressionTranslator
     {
         dynamoDbFunction = null;
 
-        // table.Encrypt(value, fieldName) -> encrypted parameter value
-        // This is a special case where we need to call the Encrypt method and capture the result
-        if (node.Method.Name == "Encrypt" && 
-            node.Method.DeclaringType != null &&
-            typeof(DynamoDbTableBase).IsAssignableFrom(node.Method.DeclaringType) &&
-            node.Arguments.Count == 2)
-        {
-            try
-            {
-                // Evaluate the method call to get the encrypted value
-                // The Encrypt method will handle the encryption using the configured IFieldEncryptor
-                var encryptedValue = EvaluateExpression(node);
-                
-                // Capture the encrypted value as a parameter
-                dynamoDbFunction = CaptureValue(encryptedValue, context, propertyMetadata: null);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                throw new ExpressionTranslationException(
-                    $"Failed to encrypt value in expression: {ex.Message}. " +
-                    $"Ensure IFieldEncryptor is configured and DynamoDbOperationContext.EncryptionContextId is set.",
-                    ex,
-                    node);
-            }
-        }
-
         // string.StartsWith(value) -> begins_with(attr, value)
         if (node.Method.Name == "StartsWith" && 
             node.Method.DeclaringType == typeof(string) &&
@@ -527,6 +541,10 @@ public class ExpressionTranslator
                 return true;
             }
         }
+
+        // string.CompareOrdinal(str1, str2) - used for string comparisons in expressions
+        // This is NOT a DynamoDB function - it's handled specially in VisitBinary
+        // We don't handle it here
 
         // Between(low, high) -> attr BETWEEN low AND high
         if (node.Method.Name == "Between" && 

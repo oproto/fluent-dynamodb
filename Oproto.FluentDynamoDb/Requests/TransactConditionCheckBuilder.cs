@@ -81,8 +81,14 @@ public class TransactConditionCheckBuilder :
 
     public TransactWriteItem ToWriteItem()
     {
-        _req.ConditionCheck.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ConditionCheck.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ConditionCheck.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ConditionCheck.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
         return _req;
     }
 }

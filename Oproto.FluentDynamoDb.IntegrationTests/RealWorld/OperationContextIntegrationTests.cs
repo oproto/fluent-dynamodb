@@ -27,6 +27,38 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         _table = new TestTable(DynamoDb, TableName);
     }
     
+    /// <summary>
+    /// Helper method to capture context from async operations.
+    /// This is necessary because xUnit's synchronization context prevents AsyncLocal values
+    /// from flowing back to the test method after await.
+    /// </summary>
+    private static async Task<OperationContextData?> CaptureContextAsync(Func<Task> operation)
+    {
+        var tcs = new TaskCompletionSource<OperationContextData?>();
+        void Handler(OperationContextData? ctx) => tcs.TrySetResult(ctx);
+        DynamoDbOperationContextDiagnostics.ContextAssigned += Handler;
+
+        try
+        {
+            await operation();
+            
+            // Wait for the context to be assigned with a timeout
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
+            var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+            
+            if (completedTask == timeoutTask)
+            {
+                throw new TimeoutException("Context was not assigned within the timeout period");
+            }
+            
+            return await tcs.Task;
+        }
+        finally
+        {
+            DynamoDbOperationContextDiagnostics.ContextAssigned -= Handler;
+        }
+    }
+    
     [Fact]
     public async Task GetItemAsync_PopulatesContextWithMetadata()
     {
@@ -41,18 +73,21 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act
-        var result = await _table.Get<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .GetItemAsync();
+        // Act & Capture context
+        ComplexEntity? result = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            result = await _table.Get<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .GetItemAsync();
+        });
         
         // Assert - Verify entity was retrieved
         result.Should().NotBeNull();
         result!.Id.Should().Be(entity.Id);
         
         // Assert - Verify context was populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.OperationType.Should().Be("GetItem");
         context.TableName.Should().Be(TableName);
@@ -77,17 +112,20 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             await DynamoDb.PutItemAsync(TableName, item);
         }
         
-        // Act
-        var results = await _table.Query<ComplexEntity>()
-            .Where("pk = :pk")
-            .WithValue(":pk", "query-test-1")
-            .ToListAsync();
+        // Act & Capture context
+        List<ComplexEntity>? results = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            results = await _table.Query<ComplexEntity>()
+                .Where("pk = :pk")
+                .WithValue(":pk", "query-test-1")
+                .ToListAsync();
+        });
         
         // Assert - Verify entities were retrieved
         results.Should().HaveCount(2);
         
         // Assert - Verify context was populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.OperationType.Should().Be("Query");
         context.TableName.Should().Be(TableName);
@@ -109,11 +147,13 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             Name = "New Product"
         };
         
-        // Act
-        await _table.Put<ComplexEntity>().WithItem(entity).PutAsync();
+        // Act & Capture context
+        var context = await CaptureContextAsync(async () =>
+        {
+            await _table.Put<ComplexEntity>().WithItem(entity).PutAsync();
+        });
         
         // Assert - Verify context was populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.OperationType.Should().Be("PutItem");
         context.TableName.Should().Be(TableName);
@@ -134,17 +174,19 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act
-        await _table.Update<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .Set("SET #name = :name")
-            .WithAttribute("#name", "name")
-            .WithValue(":name", "Updated Name")
-            .UpdateAsync();
+        // Act & Capture context
+        var context = await CaptureContextAsync(async () =>
+        {
+            await _table.Update<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .Set("SET #name = :name")
+                .WithAttribute("#name", "name")
+                .WithValue(":name", "Updated Name")
+                .UpdateAsync();
+        });
         
         // Assert - Verify context was populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.OperationType.Should().Be("UpdateItem");
         context.TableName.Should().Be(TableName);
@@ -165,14 +207,16 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act
-        await _table.Delete<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .DeleteAsync();
+        // Act & Capture context
+        var context = await CaptureContextAsync(async () =>
+        {
+            await _table.Delete<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .DeleteAsync();
+        });
         
         // Assert - Verify context was populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.OperationType.Should().Be("DeleteItem");
         context.TableName.Should().Be(TableName);
@@ -193,18 +237,20 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act
-        await _table.Update<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .Set("SET #name = :name")
-            .WithAttribute("#name", "name")
-            .WithValue(":name", "Updated Name")
-            .ReturnValues(ReturnValue.ALL_NEW)
-            .UpdateAsync();
+        // Act & Capture context
+        var context = await CaptureContextAsync(async () =>
+        {
+            await _table.Update<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .Set("SET #name = :name")
+                .WithAttribute("#name", "name")
+                .WithValue(":name", "Updated Name")
+                .ReturnValues(ReturnValue.ALL_NEW)
+                .UpdateAsync();
+        });
         
         // Assert - Verify context has post-operation values
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.PostOperationValues.Should().NotBeNull();
         context.PostOperationValues.Should().ContainKey("name");
@@ -230,15 +276,17 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act
-        await _table.Delete<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .ReturnAllOldValues()
-            .DeleteAsync();
+        // Act & Capture context
+        var context = await CaptureContextAsync(async () =>
+        {
+            await _table.Delete<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .ReturnAllOldValues()
+                .DeleteAsync();
+        });
         
         // Assert - Verify context has pre-operation values
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.PreOperationValues.Should().NotBeNull();
         context.PreOperationValues.Should().ContainKey("name");
@@ -267,17 +315,20 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             await DynamoDb.PutItemAsync(TableName, item);
         }
         
-        // Act - Query with limit
-        var results = await _table.Query<ComplexEntity>()
-            .Where("pk = :pk")
-            .WithValue(":pk", "pagination-test")
-            .Take(2)
-            .ToListAsync();
+        // Act & Capture context - Query with limit
+        List<ComplexEntity>? results = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            results = await _table.Query<ComplexEntity>()
+                .Where("pk = :pk")
+                .WithValue(":pk", "pagination-test")
+                .Take(2)
+                .ToListAsync();
+        });
         
         // Assert - Verify pagination metadata
         results.Should().HaveCount(2);
         
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.LastEvaluatedKey.Should().NotBeNull();
         context.LastEvaluatedKey.Should().ContainKey("pk");
@@ -298,15 +349,18 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act - Request consumed capacity
-        var result = await _table.Get<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-            .GetItemAsync();
+        // Act & Capture context - Request consumed capacity
+        ComplexEntity? result = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            result = await _table.Get<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .GetItemAsync();
+        });
         
         // Assert - Verify consumed capacity is populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.ConsumedCapacity.Should().NotBeNull();
         context.ConsumedCapacity!.TableName.Should().Be(TableName);
@@ -329,14 +383,17 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             await DynamoDb.PutItemAsync(TableName, item);
         }
         
-        // Act
-        var results = await _table.Query<ComplexEntity>()
-            .Where("pk = :pk")
-            .WithValue(":pk", "raw-test-1")
-            .ToListAsync();
+        // Act & Capture context
+        List<ComplexEntity>? results = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            results = await _table.Query<ComplexEntity>()
+                .Where("pk = :pk")
+                .WithValue(":pk", "raw-test-1")
+                .ToListAsync();
+        });
         
         // Assert - Verify we can deserialize raw items
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.RawItems.Should().NotBeNull();
         
@@ -369,25 +426,29 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         await DynamoDb.PutItemAsync(TableName, item1);
         await DynamoDb.PutItemAsync(TableName, item2);
         
-        // Act - Perform first operation
-        await _table.Get<ComplexEntity>()
-            .WithKey("pk", entity1.Id)
-            .WithKey("sk", entity1.Type)
-            .GetItemAsync();
+        // Act & Capture context - Perform first operation
+        var firstContext = await CaptureContextAsync(async () =>
+        {
+            await _table.Get<ComplexEntity>()
+                .WithKey("pk", entity1.Id)
+                .WithKey("sk", entity1.Type)
+                .GetItemAsync();
+        });
         
-        var firstContext = DynamoDbOperationContext.Current;
         firstContext.Should().NotBeNull();
         firstContext!.RawItem.Should().NotBeNull();
         firstContext.RawItem!["name"].S.Should().Be("First Product");
         
-        // Act - Perform second operation
-        await _table.Get<ComplexEntity>()
-            .WithKey("pk", entity2.Id)
-            .WithKey("sk", entity2.Type)
-            .GetItemAsync();
+        // Act & Capture context - Perform second operation
+        var secondContext = await CaptureContextAsync(async () =>
+        {
+            await _table.Get<ComplexEntity>()
+                .WithKey("pk", entity2.Id)
+                .WithKey("sk", entity2.Type)
+                .GetItemAsync();
+        });
         
         // Assert - Context should be replaced with second operation
-        var secondContext = DynamoDbOperationContext.Current;
         secondContext.Should().NotBeNull();
         secondContext!.RawItem.Should().NotBeNull();
         secondContext.RawItem!["name"].S.Should().Be("Second Product");
@@ -413,18 +474,21 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             await DynamoDb.PutItemAsync(TableName, item);
         }
         
-        // Act
-        var results = await _table.Scan<ComplexEntity>()
-            .WithFilter("#type = :type")
-            .WithAttribute("#type", "sk")
-            .WithValue(":type", "product")
-            .ToListAsync();
+        // Act & Capture context
+        List<ComplexEntity>? results = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            results = await _table.Scan<ComplexEntity>()
+                .WithFilter("#type = :type")
+                .WithAttribute("#type", "sk")
+                .WithValue(":type", "product")
+                .ToListAsync();
+        });
         
         // Assert - Verify entities were retrieved
         results.Should().HaveCountGreaterThanOrEqualTo(3);
         
         // Assert - Verify context was populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.OperationType.Should().Be("Scan");
         context.TableName.Should().Be(TableName);
@@ -452,18 +516,21 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             await DynamoDb.PutItemAsync(TableName, item);
         }
         
-        // Act - Scan with limit
-        var results = await _table.Scan<ComplexEntity>()
-            .WithFilter("#type = :type")
-            .WithAttribute("#type", "sk")
-            .WithValue(":type", "scannable")
-            .Take(2)
-            .ToListAsync();
+        // Act & Capture context - Scan with limit
+        List<ComplexEntity>? results = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            results = await _table.Scan<ComplexEntity>()
+                .WithFilter("#type = :type")
+                .WithAttribute("#type", "sk")
+                .WithValue(":type", "scannable")
+                .Take(2)
+                .ToListAsync();
+        });
         
         // Assert - Verify pagination metadata
         results.Should().HaveCount(2);
         
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.LastEvaluatedKey.Should().NotBeNull();
         context.LastEvaluatedKey.Should().ContainKey("pk");
@@ -611,7 +678,7 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(originalEntity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act - Overwrite with new item and return old values
+        // Act & Capture context - Overwrite with new item and return old values
         var newEntity = new ComplexEntity
         {
             Id = "put-return-test-1",
@@ -619,13 +686,15 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             Name = "New Name"
         };
         
-        await _table.Put<ComplexEntity>()
-            .WithItem(newEntity)
-            .ReturnValues(ReturnValue.ALL_OLD)
-            .PutAsync();
+        var context = await CaptureContextAsync(async () =>
+        {
+            await _table.Put<ComplexEntity>()
+                .WithItem(newEntity)
+                .ReturnValues(ReturnValue.ALL_OLD)
+                .PutAsync();
+        });
         
         // Assert - Verify context has pre-operation values
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.PreOperationValues.Should().NotBeNull();
         context.PreOperationValues.Should().ContainKey("name");
@@ -651,18 +720,20 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act
-        await _table.Update<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .Set("SET #name = :name")
-            .WithAttribute("#name", "name")
-            .WithValue(":name", "Updated Name")
-            .ReturnValues(ReturnValue.ALL_OLD)
-            .UpdateAsync();
+        // Act & Capture context
+        var context = await CaptureContextAsync(async () =>
+        {
+            await _table.Update<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .Set("SET #name = :name")
+                .WithAttribute("#name", "name")
+                .WithValue(":name", "Updated Name")
+                .ReturnValues(ReturnValue.ALL_OLD)
+                .UpdateAsync();
+        });
         
         // Assert - Verify context has pre-operation values
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.PreOperationValues.Should().NotBeNull();
         context.PreOperationValues.Should().ContainKey("name");
@@ -691,15 +762,18 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             await DynamoDb.PutItemAsync(TableName, item);
         }
         
-        // Act - Request consumed capacity
-        var results = await _table.Query<ComplexEntity>()
-            .Where("pk = :pk")
-            .WithValue(":pk", "capacity-query-1")
-            .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-            .ToListAsync();
+        // Act & Capture context - Request consumed capacity
+        List<ComplexEntity>? results = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            results = await _table.Query<ComplexEntity>()
+                .Where("pk = :pk")
+                .WithValue(":pk", "capacity-query-1")
+                .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .ToListAsync();
+        });
         
         // Assert - Verify consumed capacity is populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.ConsumedCapacity.Should().NotBeNull();
         context.ConsumedCapacity!.TableName.Should().Be(TableName);
@@ -720,16 +794,19 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act - Request consumed capacity
-        var results = await _table.Scan<ComplexEntity>()
-            .WithFilter("#type = :type")
-            .WithAttribute("#type", "sk")
-            .WithValue(":type", "product")
-            .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-            .ToListAsync();
+        // Act & Capture context - Request consumed capacity
+        List<ComplexEntity>? results = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            results = await _table.Scan<ComplexEntity>()
+                .WithFilter("#type = :type")
+                .WithAttribute("#type", "sk")
+                .WithValue(":type", "product")
+                .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .ToListAsync();
+        });
         
         // Assert - Verify consumed capacity is populated
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.ConsumedCapacity.Should().NotBeNull();
         context.ConsumedCapacity!.TableName.Should().Be(TableName);
@@ -751,14 +828,17 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var item = ComplexEntity.ToDynamoDb(entity);
         await DynamoDb.PutItemAsync(TableName, item);
         
-        // Act
-        var result = await _table.Get<ComplexEntity>()
-            .WithKey("pk", entity.Id)
-            .WithKey("sk", entity.Type)
-            .GetItemAsync();
+        // Act & Capture context
+        ComplexEntity? result = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            result = await _table.Get<ComplexEntity>()
+                .WithKey("pk", entity.Id)
+                .WithKey("sk", entity.Type)
+                .GetItemAsync();
+        });
         
         // Assert - Verify we can deserialize raw item
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.RawItem.Should().NotBeNull();
         
@@ -785,17 +865,20 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         // Arrange - Clear context and try to get non-existent item
         DynamoDbOperationContext.Clear();
         
-        // Act
-        var result = await _table.Get<ComplexEntity>()
-            .WithKey("pk", "non-existent-id")
-            .WithKey("sk", "non-existent-type")
-            .GetItemAsync();
+        // Act & Capture context
+        ComplexEntity? result = null;
+        var context = await CaptureContextAsync(async () =>
+        {
+            result = await _table.Get<ComplexEntity>()
+                .WithKey("pk", "non-existent-id")
+                .WithKey("sk", "non-existent-type")
+                .GetItemAsync();
+        });
         
         // Assert - Result should be null but context should still be populated
         // (even for empty results, the operation succeeded)
         result.Should().BeNull();
         
-        var context = DynamoDbOperationContext.Current;
         context.Should().NotBeNull();
         context!.OperationType.Should().Be("GetItem");
         context.RawItem.Should().BeNullOrEmpty();

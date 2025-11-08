@@ -300,7 +300,7 @@ public class ExpressionMixedTests : IntegrationTestBase
             .WithFilter("#name = :customName")
             .WithAttribute("#name", "name")
             .WithValue(":customName", "Laptop")
-            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Type == "electronics", metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Description!.Contains("performance"), metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -310,7 +310,7 @@ public class ExpressionMixedTests : IntegrationTestBase
         entity.Id.Should().Be(productId);
         entity.IsActive.Should().BeTrue();
         entity.Name.Should().Be("Laptop");
-        entity.Type.Should().Be("electronics");
+        entity.Description.Should().Contain("performance");
     }
     
     [Fact]

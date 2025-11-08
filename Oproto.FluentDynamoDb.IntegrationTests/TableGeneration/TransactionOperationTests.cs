@@ -100,7 +100,7 @@ public class TransactionOperationTests : IntegrationTestBase
             .Put(table, put => put.WithItem(TransactionOrderLineEntity.ToDynamoDb(newOrderLine)))
             .Update(table, update => update
                 .WithKey("pk", existingOrder.Id)
-                .Set("#name = :name")
+                .Set("SET #name = :name")
                 .WithValue(":name", "Updated Customer")
                 .WithAttribute("#name", "customer_name"))
             .ExecuteAsync();
@@ -297,7 +297,7 @@ public class TransactionOperationTests : IntegrationTestBase
             .Delete(table, delete => delete.WithKey("pk", orderToDelete.Id))
             .Update(table, update => update
                 .WithKey("pk", orderToKeep.Id)
-                .Set("#name = :name")
+                .Set("SET #name = :name")
                 .WithValue(":name", "Updated Keep")
                 .WithAttribute("#name", "customer_name"))
             .ExecuteAsync();

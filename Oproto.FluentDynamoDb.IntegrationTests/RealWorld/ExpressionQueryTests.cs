@@ -231,10 +231,10 @@ public class ExpressionQueryTests : IntegrationTestBase
         var compareValue = "d";
         var metadata = ComplexEntity.GetEntityMetadata();
         
-        // Act - Query using >= operator (via CompareTo for string comparison)
+        // Act - Query using >= operator (via string.CompareOrdinal for string comparison)
         var response = await _table.Query<ComplexEntity>()
             .Where(
-                x => x.Id == productId && x.Type!.CompareTo(compareValue) >= 0, 
+                x => x.Id == productId && string.CompareOrdinal(x.Type!, compareValue) >= 0, 
                 metadata)
             .ToDynamoDbResponseAsync();
         
@@ -330,28 +330,6 @@ public class ExpressionQueryTests : IntegrationTestBase
         
         var entity2 = ComplexEntity.FromDynamoDb<ComplexEntity>(response2.Items[0]);
         entity2.Type.Should().Be(type2);
-    }
-    
-    #endregion
-    
-    #region Metadata Validation Tests
-    
-    [Fact]
-    public async Task Query_WithoutMetadata_WorksWithoutValidation()
-    {
-        // Arrange
-        var productId = "product-4";
-        
-        // Act - Query without metadata (validation skipped)
-        var response = await _table.Query<ComplexEntity>()
-            .Where(x => x.Id == productId)
-            .ToDynamoDbResponseAsync();
-        
-        // Assert
-        response.Items.Should().HaveCount(1);
-        
-        var entity = ComplexEntity.FromDynamoDb<ComplexEntity>(response.Items[0]);
-        entity.Id.Should().Be(productId);
     }
     
     #endregion

@@ -10,6 +10,7 @@ using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 
+[Collection("OperationContext")]
 public class DynamoDbOperationContextIsolationTests
 {
     private class TestEntity : IDynamoDbEntity

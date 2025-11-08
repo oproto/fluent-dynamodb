@@ -43,7 +43,7 @@ namespace TestNamespace
         // Should generate code with DYNDB021 warning for reserved word "name"
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "name"
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
 
         // Check entity implementation
         var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntity.g.cs")).SourceText.ToString();
@@ -51,18 +51,14 @@ namespace TestNamespace
         entityCode.ShouldContainClass("TestEntity");
         entityCode.Should().Contain("namespace TestNamespace", "should generate code in the correct namespace");
 
-        // Check fields class
-        var fieldsCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityFields.g.cs")).SourceText.ToString();
-        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
-        fieldsCode.ShouldContainClass("TestEntityFields");
-        fieldsCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
-        fieldsCode.Should().Contain("public const string Name = \"name\";", "should map Name property to name attribute");
+        // Check nested fields class
+        entityCode.ShouldContainClass("Fields");
+        entityCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute in nested Fields class");
+        entityCode.Should().Contain("public const string Name = \"name\";", "should map Name property to name attribute in nested Fields class");
 
-        // Check keys class
-        var keysCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityKeys.g.cs")).SourceText.ToString();
-        CompilationVerifier.AssertGeneratedCodeCompiles(keysCode, source);
-        keysCode.ShouldContainClass("TestEntityKeys");
-        keysCode.ShouldContainMethod("Pk");
+        // Check nested keys class
+        entityCode.ShouldContainClass("Keys");
+        entityCode.ShouldContainMethod("Pk");
     }
 
     [Fact]
@@ -119,17 +115,18 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for GSI entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(5); // Fields, Keys, Entity, Table, Table.Indexes (has GSI)
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
 
-        var fieldsCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityFields.g.cs")).SourceText.ToString();
-        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
-        fieldsCode.ShouldContainClass("TestEntityFields");
-        fieldsCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
-        fieldsCode.Should().Contain("public const string GsiKey = \"gsi_pk\";", "should map GsiKey property to gsi_pk attribute");
-        fieldsCode.Should().Contain("public const string GsiSort = \"gsi_sk\";", "should map GsiSort property to gsi_sk attribute");
-        fieldsCode.ShouldContainClass("TestGSIFields");
-        fieldsCode.Should().Contain("public const string PartitionKey = \"gsi_pk\";", "should define GSI partition key constant");
-        fieldsCode.Should().Contain("public const string SortKey = \"gsi_sk\";", "should define GSI sort key constant");
+        var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntity.g.cs")).SourceText.ToString();
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        entityCode.ShouldContainClass("TestEntity");
+        entityCode.ShouldContainClass("Fields");
+        entityCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
+        entityCode.Should().Contain("public const string GsiKey = \"gsi_pk\";", "should map GsiKey property to gsi_pk attribute");
+        entityCode.Should().Contain("public const string GsiSort = \"gsi_sk\";", "should map GsiSort property to gsi_sk attribute");
+        entityCode.ShouldContainClass("TestGSI");
+        entityCode.Should().Contain("public const string PartitionKey = \"gsi_pk\";", "should define GSI partition key constant in nested GSI class");
+        entityCode.Should().Contain("public const string SortKey = \"gsi_sk\";", "should define GSI sort key constant in nested GSI class");
     }
 
     [Fact]
@@ -157,7 +154,7 @@ namespace TestNamespace
         // Assert - Single entity should work without IsDefault
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "single entity tables don't require explicit IsDefault");
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "single entity tables can't have multiple defaults");
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(2); // Entity (with nested Keys and Fields), Table
     }
 
     [Fact]
@@ -231,7 +228,7 @@ namespace TestNamespace
         // Assert - Should not emit FDDB001 or FDDB002
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "one entity is marked as default");
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "only one entity is marked as default");
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × (Fields + Keys + Entity) + 1 Table
+        result.GeneratedSources.Should().HaveCount(3); // 2 entities (each with nested Keys and Fields) + 1 Table
     }
 
     [Fact]

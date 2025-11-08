@@ -77,8 +77,14 @@ public class TransactPutBuilder : IWithConditionExpression<TransactPutBuilder>, 
 
     public TransactWriteItem ToWriteItem()
     {
-        _req.Put.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.Put.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.Put.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.Put.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
         return _req;
     }
 }

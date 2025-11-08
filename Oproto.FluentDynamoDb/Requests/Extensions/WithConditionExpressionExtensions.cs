@@ -176,6 +176,12 @@ public static class WithConditionExpressionExtensions
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
     {
+        // If metadata is not provided, try to get it from the entity type's generated GetEntityMetadata() method
+        if (metadata == null)
+        {
+            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
+        }
+        
         var context = new ExpressionContext(
             builder.GetAttributeValueHelper(),
             builder.GetAttributeNameHelper(),
