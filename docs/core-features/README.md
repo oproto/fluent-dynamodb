@@ -17,6 +17,7 @@ This section covers the essential features of Oproto.FluentDynamoDb.
 3. [Querying Data](QueryingData.md) - Query and scan operations
 4. [Expression Formatting](ExpressionFormatting.md) - Complete guide to format strings
 5. [Expression-Based Updates](ExpressionBasedUpdates.md) - Type-safe update operations with IntelliSense
+   - [Mixing Update Expression Approaches](MixingUpdateExpressionApproaches.md) - Understanding string-based vs expression-based
 6. [LINQ Expressions](LinqExpressions.md) - Type-safe queries with lambda expressions
 7. [Batch Operations](BatchOperations.md) - Batch get and write operations
 8. [Transactions](Transactions.md) - DynamoDB transactions

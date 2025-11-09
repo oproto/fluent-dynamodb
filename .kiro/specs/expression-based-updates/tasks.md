@@ -239,7 +239,7 @@
 
 ## Phase 2: Address Limitations Discovered During Integration Testing
 
-- [ ] 19. Add nullable type support to extension methods
+- [x] 19. Add nullable type support to extension methods
   - Add nullable overloads for Add() methods (int?, long?, decimal?, double?)
   - Add nullable overload for Add<T>() on HashSet<T>?
   - Add nullable overload for Delete<T>() on HashSet<T>?
@@ -253,7 +253,7 @@
   - **Priority**: Critical - Blocks most advanced operations
   - **Effort**: Medium - Requires adding ~10 method overloads
 
-- [ ] 20. Implement format string application in UpdateExpressionTranslator
+- [x] 20. Implement format string application in UpdateExpressionTranslator
   - Modify TranslateSimpleSet() to check for Format property in metadata
   - Implement ApplyFormatString() method for DateTime formatting
   - Implement ApplyFormatString() method for numeric formatting (decimal, double, int)
@@ -266,7 +266,7 @@
   - **Priority**: High - Affects data consistency
   - **Effort**: Low - Straightforward implementation
 
-- [ ] 21. Implement arithmetic operations in SET clauses
+- [x] 21. Implement arithmetic operations in SET clauses
   - Implement TranslateBinaryOperation() method in UpdateExpressionTranslator
   - Support ExpressionType.Add (addition)
   - Support ExpressionType.Subtract (subtraction)
@@ -296,7 +296,7 @@
   - **Priority**: High - Security vulnerability
   - **Effort**: Medium - Requires architectural decision
 
-- [ ] 23. Improve mixing of string-based and expression-based methods
+- [x] 23. Improve mixing of string-based and expression-based methods
   - **Option A**: Implement expression merging logic
     - Store expressions separately for each Set() call
     - Merge expressions when building final request
@@ -317,11 +317,11 @@
   - **Priority**: Low - Workaround available (use one approach)
   - **Effort**: High (Option A), Low (Options B/C)
 
-- [ ] 24. Write comprehensive integration tests for all features
+- [x] 24. Write comprehensive integration tests for all features
   - Create integration test suite for nullable type operations
   - Create integration test suite for format string application
   - Create integration test suite for arithmetic operations
-  - Create integration test suite for field-level encryption
+  - [Skip - deferred implementation] Create integration test suite for field-level encryption
   - Create integration test suite for combined complex scenarios
   - Test error conditions and edge cases
   - Verify performance with large update expressions
@@ -330,11 +330,11 @@
   - **Priority**: High - Ensures quality
   - **Effort**: Medium - Comprehensive test coverage
 
-- [ ] 25. Update documentation for Phase 2 features
+- [x] 25. Update documentation for Phase 2 features
   - Document nullable type support in extension methods
   - Document format string application in update expressions
   - Document arithmetic operations in SET clauses
-  - Document field-level encryption in update expressions
+  - [Skip - deferred implementation]  Document field-level encryption in update expressions
   - Document limitations and workarounds for mixing approaches
   - Add migration examples from Phase 1 to Phase 2
   - Update API reference documentation

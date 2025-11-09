@@ -15,18 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Type constraints ensure operations are only available for compatible property types
   - Automatic translation of C# lambda expressions to DynamoDB update expression syntax
   - Support for SET, ADD, REMOVE, and DELETE operations in a single expression
-  - Arithmetic operations in SET clauses (e.g., `x.Score + 10`)
+  - Nullable type support - Extension methods work with nullable properties (`int?`, `HashSet<T>?`, `List<T>?`, etc.)
+  - Arithmetic operations - Support for arithmetic in SET clauses (e.g., `x.Score + 10`, `x.Total = x.A + x.B`)
+  - Format string application - Automatic application of format strings from entity metadata (DateTime, numeric formatting)
   - DynamoDB function support: `if_not_exists()`, `list_append()`, `list_prepend()`
-  - Automatic format string application from entity metadata
-  - Transparent field-level encryption for encrypted properties
   - Comprehensive error handling with descriptive exception messages
   - Full IntelliSense support with operation discovery based on property types
   - AOT-compatible with no runtime code generation
   - Backward compatible with existing string-based update expressions
-  - Can mix expression-based and string-based approaches in the same request
+  - **Breaking Change**: Cannot mix expression-based and string-based Set() methods in the same builder (throws `InvalidOperationException` with clear guidance)
   - Comprehensive XML documentation with examples for all APIs
   
-  **Usage Example:**
+  **Usage Examples:**
   ```csharp
   // Type-safe update with multiple operations
   await table.Update()
@@ -42,6 +42,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
   // Generates: SET #name = :p0 ADD #login_count :p1 DELETE #tags :p2 REMOVE #temp_data
   ```
+  
+  **Advanced Features:**
+  ```csharp
+  // Nullable type support
+  public HashSet<int>? CategoryIds { get; set; }  // Nullable property
+  CategoryIds = x.CategoryIds.Add(5)  // Works seamlessly
+  
+  // Arithmetic operations
+  Score = x.Score + 10  // Intuitive arithmetic syntax
+  TotalScore = x.BaseScore + x.BonusScore  // Property-to-property operations
+  
+  // Format string application
+  [DynamoDbAttribute("created_date", Format = "yyyy-MM-dd")]
+  public DateTime CreatedDate { get; set; }
+  CreatedDate = DateTime.Now  // Automatically formatted as "2024-03-15"
+  ```
+  
+  **Known Limitations:**
+  - Field-level encryption not yet implemented for expression-based updates (use string-based Set() as workaround)
 - **DynamoDB Streams Support** - New `Oproto.FluentDynamoDb.Streams` package for processing DynamoDB stream events
   - Fluent API for type-safe stream record processing with `Process<TEntity>()` extension method
   - Separate package to avoid bundling Lambda dependencies in non-stream applications

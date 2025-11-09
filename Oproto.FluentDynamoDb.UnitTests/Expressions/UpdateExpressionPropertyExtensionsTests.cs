@@ -680,6 +680,141 @@ public class UpdateExpressionPropertyExtensionsTests
 
     #endregion
 
+    #region Nullable Add() Method Tests
+
+    [Fact]
+    public void Add_NullableInt_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<int?>();
+
+        // Act
+        Action act = () => property.Add(1);
+        
+        // Assert
+        var exception = act.Should().Throw<InvalidOperationException>().Which;
+        exception.Message.Should().Contain("only for use in update expressions");
+        exception.Message.Should().Contain("should not be called directly");
+    }
+
+    [Fact]
+    public void Add_NullableLong_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<long?>();
+
+        // Act
+        Action act = () => property.Add(1L);
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    [Fact]
+    public void Add_NullableDecimal_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<decimal?>();
+
+        // Act
+        Action act = () => property.Add(1.5m);
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    [Fact]
+    public void Add_NullableDouble_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<double?>();
+
+        // Act
+        Action act = () => property.Add(1.5);
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    #endregion
+
+    #region Nullable IfNotExists() Method Tests
+
+    [Fact]
+    public void IfNotExists_NullableInt_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<int?>();
+
+        // Act
+        Action act = () => property.IfNotExists(0);
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    #endregion
+
+
+
+    #region Nullable Type Safety Compilation Tests
+
+    /// <summary>
+    /// This test verifies that Add() is available on nullable numeric types at compile time.
+    /// The fact that this code compiles proves the extension method is available.
+    /// </summary>
+    [Fact]
+    public void Add_IsAvailableOnNullableNumericTypes_CompilationTest()
+    {
+        // These should all compile successfully
+        var intProperty = new UpdateExpressionProperty<int?>();
+        var longProperty = new UpdateExpressionProperty<long?>();
+        var decimalProperty = new UpdateExpressionProperty<decimal?>();
+        var doubleProperty = new UpdateExpressionProperty<double?>();
+
+        // Verify the methods exist and throw when called
+        Action actInt = () => intProperty.Add(1);
+        Action actLong = () => longProperty.Add(1L);
+        Action actDecimal = () => decimalProperty.Add(1.0m);
+        Action actDouble = () => doubleProperty.Add(1.0);
+        
+        actInt.Should().Throw<InvalidOperationException>();
+        actLong.Should().Throw<InvalidOperationException>();
+        actDecimal.Should().Throw<InvalidOperationException>();
+        actDouble.Should().Throw<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// This test verifies that IfNotExists() is available on nullable value types at compile time.
+    /// The fact that this code compiles proves the extension method is available.
+    /// </summary>
+    [Fact]
+    public void IfNotExists_IsAvailableOnNullableValueTypes_CompilationTest()
+    {
+        // These should compile successfully
+        var intProperty = new UpdateExpressionProperty<int?>();
+        var longProperty = new UpdateExpressionProperty<long?>();
+        var decimalProperty = new UpdateExpressionProperty<decimal?>();
+        var doubleProperty = new UpdateExpressionProperty<double?>();
+
+        // Verify the methods exist and throw when called
+        Action actInt = () => intProperty.IfNotExists(0);
+        Action actLong = () => longProperty.IfNotExists(0L);
+        Action actDecimal = () => decimalProperty.IfNotExists(0.0m);
+        Action actDouble = () => doubleProperty.IfNotExists(0.0);
+        
+        actInt.Should().Throw<InvalidOperationException>();
+        actLong.Should().Throw<InvalidOperationException>();
+        actDecimal.Should().Throw<InvalidOperationException>();
+        actDouble.Should().Throw<InvalidOperationException>();
+    }
+
+    #endregion
+
     #region Helper Classes
 
     private class TestCustomType

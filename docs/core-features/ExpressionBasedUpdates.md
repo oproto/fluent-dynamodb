@@ -279,6 +279,38 @@ ADD #tags :p0
 
 Where `:p0` is a string set containing `["premium", "verified"]`.
 
+### Nullable Property Support
+
+ADD operations work seamlessly with nullable properties:
+
+```csharp
+[DynamoDbTable("users")]
+public partial class User
+{
+    [DynamoDbAttribute("login_count")]
+    public int? LoginCount { get; set; }  // Nullable
+    
+    [DynamoDbAttribute("tags")]
+    public HashSet<string>? Tags { get; set; }  // Nullable
+}
+
+// Usage - works with nullable properties
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        LoginCount = x.LoginCount.Add(1),  // Works with int?
+        Tags = x.Tags.Add("new-tag")  // Works with HashSet<string>?
+    })
+    .ExecuteAsync();
+```
+
+**How It Works:**
+- Extension methods have overloads for both `T` and `T?` types
+- DynamoDB's ADD operation creates the attribute if it doesn't exist
+- For numbers: initializes to 0, then adds the value
+- For sets: creates an empty set, then adds the elements
+
 ---
 
 ## REMOVE Operations
@@ -363,11 +395,34 @@ await table.Update()
     .ExecuteAsync();
 ```
 
+### Nullable Property Support
+
+DELETE operations work with nullable set properties:
+
+```csharp
+[DynamoDbTable("products")]
+public partial class Product
+{
+    [DynamoDbAttribute("category_ids")]
+    public HashSet<int>? CategoryIds { get; set; }  // Nullable
+}
+
+// Usage - works with nullable properties
+await table.Update()
+    .WithKey(ProductFields.ProductId, ProductKeys.Pk("prod123"))
+    .Set(x => new ProductUpdateModel 
+    {
+        CategoryIds = x.CategoryIds.Delete(5, 10)  // Works with HashSet<int>?
+    })
+    .ExecuteAsync();
+```
+
 ### Important Notes
 
-⚠️ **Only for Sets** - DELETE only works with `HashSet<T>` properties
+⚠️ **Only for Sets** - DELETE only works with `HashSet<T>` and `HashSet<T>?` properties
 ⚠️ **Set Remains** - Unlike REMOVE, the attribute remains (as an empty set if all elements deleted)
 ⚠️ **Idempotent** - Safe to call even if elements don't exist in the set
+⚠️ **Requires Existing Set** - If the attribute doesn't exist, DynamoDB returns an error
 
 ---
 
@@ -395,6 +450,15 @@ await table.Update()
 - Set default values for optional fields
 - Prevent overwriting existing data
 
+**Nullable Property Support:**
+```csharp
+[DynamoDbAttribute("view_count")]
+public int? ViewCount { get; set; }  // Nullable
+
+// Works with nullable properties
+ViewCount = x.ViewCount.IfNotExists(0)
+```
+
 ### list_append
 
 Appends elements to the end of a list:
@@ -414,6 +478,15 @@ await table.Update()
 SET #history = list_append(#history, :p0)
 ```
 
+**Nullable Property Support:**
+```csharp
+[DynamoDbAttribute("history")]
+public List<string>? History { get; set; }  // Nullable
+
+// Works with nullable properties
+History = x.History.ListAppend("new-event")
+```
+
 ### list_prepend
 
 Prepends elements to the beginning of a list:
@@ -431,6 +504,15 @@ await table.Update()
 **Generated Expression:**
 ```
 SET #recent_activity = list_append(:p0, #recent_activity)
+```
+
+**Nullable Property Support:**
+```csharp
+[DynamoDbAttribute("recent_activity")]
+public List<string>? RecentActivity { get; set; }  // Nullable
+
+// Works with nullable properties
+RecentActivity = x.RecentActivity.ListPrepend("new-event")
 ```
 
 ---
@@ -469,6 +551,25 @@ await table.Update()
     .ExecuteAsync();
 ```
 
+### Property-to-Property Arithmetic
+
+You can also perform arithmetic between two properties:
+
+```csharp
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        TotalScore = x.BaseScore + x.BonusScore
+    })
+    .ExecuteAsync();
+```
+
+**Generated Expression:**
+```
+SET #total_score = #base_score + #bonus_score
+```
+
 ### ADD vs Arithmetic
 
 Both approaches work, but have subtle differences:
@@ -477,17 +578,21 @@ Both approaches work, but have subtle differences:
 ```csharp
 LoginCount = x.LoginCount.Add(1)
 ```
-- Creates attribute if it doesn't exist (initializes to 0)
-- Atomic operation
-- Traditional DynamoDB pattern
+- ✅ Creates attribute if it doesn't exist (initializes to 0)
+- ✅ Atomic operation
+- ✅ Traditional DynamoDB pattern
+- ✅ Works with nullable properties
 
 **Using Arithmetic (More intuitive)**
 ```csharp
 LoginCount = x.LoginCount + 1
 ```
-- Requires attribute to exist
-- More readable for developers
-- Familiar C# syntax
+- ⚠️ Requires attribute to exist (throws if missing)
+- ✅ More readable for developers
+- ✅ Familiar C# syntax
+- ✅ Supports property-to-property operations
+
+**Recommendation**: Use ADD for counters that may not exist yet. Use arithmetic for calculations on existing values.
 
 ---
 
@@ -576,7 +681,7 @@ await table.Update()
 
 ## Format Strings
 
-Format strings defined in entity metadata are automatically applied to update values.
+Format strings defined in entity metadata are automatically applied to update values, ensuring consistent formatting across all operations.
 
 ### DateTime Formatting
 
@@ -589,6 +694,9 @@ public partial class User
     
     [DynamoDbAttribute("birth_date", Format = "yyyy-MM-dd")]
     public DateTime BirthDate { get; set; }
+    
+    [DynamoDbAttribute("last_login", Format = "yyyy-MM-dd HH:mm:ss")]
+    public DateTime? LastLogin { get; set; }
 }
 
 // Usage
@@ -597,7 +705,8 @@ await table.Update()
     .Set(x => new UserUpdateModel 
     {
         CreatedAt = DateTime.UtcNow,  // Automatically formatted as ISO 8601
-        BirthDate = new DateTime(1990, 5, 15)  // Formatted as "1990-05-15"
+        BirthDate = new DateTime(1990, 5, 15),  // Formatted as "1990-05-15"
+        LastLogin = DateTime.Now  // Formatted as "2024-03-15 14:30:00"
     })
     .ExecuteAsync();
 ```
@@ -613,6 +722,9 @@ public partial class Product
     
     [DynamoDbAttribute("quantity", Format = "D5")]  // 5-digit zero-padded
     public int Quantity { get; set; }
+    
+    [DynamoDbAttribute("discount", Format = "P1")]  // Percentage with 1 decimal
+    public decimal? Discount { get; set; }
 }
 
 // Usage
@@ -621,29 +733,100 @@ await table.Update()
     .Set(x => new ProductUpdateModel 
     {
         Price = 19.99m,  // Stored as "19.99"
-        Quantity = 42  // Stored as "00042"
+        Quantity = 42,  // Stored as "00042"
+        Discount = 0.15m  // Stored as "15.0%"
     })
     .ExecuteAsync();
 ```
+
+### Common Format Specifiers
+
+| Type | Format | Example Input | Stored Value | Description |
+|------|--------|---------------|--------------|-------------|
+| DateTime | `"o"` | `DateTime.UtcNow` | `"2024-03-15T14:30:00.0000000Z"` | ISO 8601 round-trip |
+| DateTime | `"yyyy-MM-dd"` | `new DateTime(2024, 3, 15)` | `"2024-03-15"` | Date only |
+| DateTime | `"yyyy-MM-dd HH:mm:ss"` | `DateTime.Now` | `"2024-03-15 14:30:00"` | Date and time |
+| Decimal | `"F2"` | `19.99m` | `"19.99"` | Fixed-point, 2 decimals |
+| Decimal | `"C"` | `19.99m` | `"$19.99"` | Currency |
+| Int | `"D5"` | `42` | `"00042"` | Zero-padded, 5 digits |
+| Double | `"E2"` | `1234.5` | `"1.23E+003"` | Scientific notation |
 
 ### Automatic Application
 
 Format strings are applied automatically during translation:
 
 1. **Value Extraction** - The translator extracts the value from the expression
-2. **Format Application** - If a format string exists in metadata, it's applied
+2. **Format Application** - If a format string exists in metadata, it's applied using `IFormattable.ToString(format, CultureInfo.InvariantCulture)`
 3. **AttributeValue Creation** - The formatted value is converted to AttributeValue
 4. **Parameter Generation** - A parameter placeholder is created
 
 **No manual formatting required!**
 
+### Consistency Across Operations
+
+Format strings work consistently across all operations:
+
+```csharp
+// PutItem - formats on write
+await table.PutItem(new User 
+{ 
+    UserId = "user123",
+    CreatedAt = DateTime.UtcNow  // Formatted with "o"
+})
+.ExecuteAsync();
+
+// UpdateItem - formats on write
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        CreatedAt = DateTime.UtcNow  // Formatted with "o"
+    })
+    .ExecuteAsync();
+
+// GetItem - parses on read
+var response = await table.Get()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .ExecuteAsync();
+// response.Item.CreatedAt is parsed back to DateTime
+```
+
+### Nullable Property Support
+
+Format strings work with nullable properties:
+
+```csharp
+[DynamoDbAttribute("optional_date", Format = "yyyy-MM-dd")]
+public DateTime? OptionalDate { get; set; }
+
+// Usage
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        OptionalDate = DateTime.Now  // Formatted even though property is nullable
+    })
+    .ExecuteAsync();
+```
+
 ---
 
 ## Field Encryption
 
-Values assigned to encrypted properties are automatically encrypted before being sent to DynamoDB.
+⚠️ **Implementation Deferred** - Field-level encryption in expression-based updates is not yet implemented.
 
-### Define Encrypted Property
+### Current Status
+
+Field-level encryption works for:
+- ✅ PutItem operations
+- ✅ GetItem operations
+- ✅ Query and Scan operations
+- ❌ UpdateItem with expression-based Set() (not yet implemented)
+- ✅ UpdateItem with string-based Set() (works)
+
+### Workaround
+
+Until encryption is implemented for expression-based updates, use string-based Set() for encrypted properties:
 
 ```csharp
 [DynamoDbTable("users")]
@@ -652,47 +835,29 @@ public partial class User
     [DynamoDbAttribute("ssn")]
     [Encrypted]
     public string SocialSecurityNumber { get; set; } = string.Empty;
-    
-    [DynamoDbAttribute("credit_card")]
-    [Encrypted]
-    public string CreditCard { get; set; } = string.Empty;
 }
-```
 
-### Configure Encryption
-
-```csharp
-using Oproto.FluentDynamoDb.Encryption.Kms;
-
-var encryptor = new AwsEncryptionSdkFieldEncryptor(
-    new AwsEncryptionSdkOptions
-    {
-        KmsKeyId = "arn:aws:kms:us-east-1:123456789012:key/..."
-    }
-);
-
-// Encryption is applied automatically during updates
+// Workaround: Use string-based Set() for encrypted properties
 await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set(x => new UserUpdateModel 
-    {
-        SocialSecurityNumber = "123-45-6789"  // Encrypted automatically
-    })
+    .Set($"SET {UserFields.SocialSecurityNumber} = {{0}}", "123-45-6789")
     .ExecuteAsync();
 ```
 
-### How It Works
+### Planned Implementation
 
-1. **Detection** - Translator checks if property has `[Encrypted]` attribute
-2. **Encryption** - Value is encrypted using configured `IFieldEncryptor`
-3. **Storage** - Encrypted value is stored in DynamoDB
-4. **Decryption** - Automatic decryption on read operations
+Field-level encryption for expression-based updates is planned for a future release. The implementation requires an architectural decision on how to handle async encryption in a synchronous expression translation context.
+
+**Options Under Consideration:**
+1. Make translator async (breaking change)
+2. Use synchronous encryption wrapper (performance impact)
+3. Defer encryption to request builder (architectural change)
 
 ### Important Notes
 
-⚠️ **Encryptor Required** - Throws `EncryptionRequiredException` if encryptor not configured
-⚠️ **Performance** - Encryption adds latency to update operations
-⚠️ **Key Management** - Ensure proper KMS key permissions
+⚠️ **Security** - Do not use expression-based Set() for encrypted properties until this feature is implemented
+⚠️ **Use String-Based** - Use string-based Set() as a workaround for encrypted properties
+⚠️ **Track Progress** - Follow the project roadmap for updates on this feature
 
 **See Also:** [Field-Level Security](../advanced-topics/FieldLevelSecurity.md)
 
@@ -961,6 +1126,204 @@ catch (EncryptionRequiredException ex)
 **See Also:** [Error Handling](../reference/ErrorHandling.md)
 
 ---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Issue: Extension Method Not Available
+
+**Problem**: IntelliSense doesn't show `Add()`, `Delete()`, or other extension methods.
+
+**Possible Causes:**
+
+1. **Property type mismatch**
+   ```csharp
+   // ❌ Wrong: Add() not available on string
+   Name = x.Name.Add(1)
+   
+   // ✅ Correct: Add() only available on numeric types
+   LoginCount = x.LoginCount.Add(1)
+   ```
+
+2. **Missing using directive**
+   ```csharp
+   // Add this at the top of your file
+   using Oproto.FluentDynamoDb.Expressions;
+   ```
+
+#### Issue: "Cannot mix string-based and expression-based Set() methods"
+
+**Problem**: Error when using both approaches in the same builder.
+
+```csharp
+// ❌ Wrong: Mixing approaches
+builder
+    .Set(x => new UserUpdateModel { Name = "John" })
+    .Set("SET description = :desc")  // Error!
+```
+
+**Solution**: Use one approach consistently.
+
+```csharp
+// ✅ Option 1: Expression-based only
+builder.Set(x => new UserUpdateModel 
+{
+    Name = "John",
+    Description = "New description"
+})
+
+// ✅ Option 2: String-based only
+builder.Set("SET #name = :name, #desc = :desc")
+    .WithAttribute("#name", "name")
+    .WithAttribute("#desc", "description")
+    .WithValue(":name", "John")
+    .WithValue(":desc", "New description")
+```
+
+**See Also:** [Mixing Update Expression Approaches](MixingUpdateExpressionApproaches.md)
+
+#### Issue: "Cannot update key property"
+
+**Problem**: Attempting to update partition key or sort key.
+
+```csharp
+// ❌ Wrong: Cannot update key properties
+.Set(x => new UserUpdateModel 
+{
+    UserId = "new-id"  // UserId is partition key
+})
+```
+
+**Solution**: Key properties cannot be modified. Create a new item instead.
+
+```csharp
+// ✅ Correct: Create new item with new key
+await table.PutItem(new User 
+{
+    UserId = "new-id",
+    // ... other properties
+})
+.ExecuteAsync();
+```
+
+#### Issue: Format String Not Applied
+
+**Problem**: Values not formatted as expected.
+
+```csharp
+[DynamoDbAttribute("created_date", Format = "yyyy-MM-dd")]
+public DateTime CreatedDate { get; set; }
+
+// Ensure you're using the latest version
+```
+
+**Solution**: Format strings are automatically applied in expression-based updates. If not working, verify:
+
+1. Format string is correctly specified in `[DynamoDbAttribute]`
+2. You're using expression-based Set() (not string-based)
+3. You have the latest version of the library
+
+```csharp
+// Format applied automatically
+.Set(x => new UserUpdateModel { CreatedDate = DateTime.Now })
+```
+
+#### Issue: Arithmetic Operation Not Working
+
+**Problem**: Arithmetic expressions not translating correctly.
+
+```csharp
+// Should work
+Score = x.Score + 10
+```
+
+**Solution**: Arithmetic operations are supported. If not working, verify:
+
+1. You're using expression-based Set() (not string-based)
+2. The property exists (arithmetic requires existing attribute)
+3. You have the latest version of the library
+
+```csharp
+// ✅ Arithmetic (requires attribute to exist)
+Score = x.Score + 10
+
+// ✅ ADD (creates attribute if missing)
+Score = x.Score.Add(10)
+```
+
+#### Issue: Encrypted Property Not Encrypted
+
+**Problem**: Encrypted properties stored in plaintext.
+
+```csharp
+[Encrypted]
+public string SocialSecurityNumber { get; set; }
+
+// Value stored in plaintext!
+```
+
+**Solution**: Use string-based Set() until encryption is implemented for expression-based updates.
+
+```csharp
+// ✅ Workaround: Use string-based Set()
+.Set($"SET {UserFields.SocialSecurityNumber} = {{0}}", "123-45-6789")
+```
+
+#### Issue: "Unsupported expression pattern"
+
+**Problem**: Using unsupported C# syntax in expression.
+
+```csharp
+// ❌ Wrong: Method calls on entity properties not supported
+Name = x.Name.ToUpper()
+
+// ❌ Wrong: LINQ operations not supported
+Tags = x.Tags.Where(t => t.StartsWith("A")).ToList()
+```
+
+**Solution**: Evaluate expressions outside the lambda.
+
+```csharp
+// ✅ Correct: Evaluate before the expression
+var upperName = existingName.ToUpper();
+.Set(x => new UserUpdateModel { Name = upperName })
+
+// ✅ Correct: Filter in application code
+var filteredTags = existingTags.Where(t => t.StartsWith("A")).ToHashSet();
+.Set(x => new UserUpdateModel { Tags = filteredTags })
+```
+
+#### Issue: Performance Degradation
+
+**Problem**: Update operations slower than expected.
+
+**Possible Causes:**
+
+1. **Too many operations in one expression**
+   - Solution: Split into multiple updates if needed
+
+2. **Encryption overhead** (when implemented)
+   - Solution: Only encrypt sensitive fields
+
+3. **Complex expression translation**
+   - Solution: Use string-based Set() for complex scenarios
+
+**Debugging:**
+```csharp
+// Enable logging to see generated expressions
+var logger = new ConsoleLogger();
+var translator = new UpdateExpressionTranslator(logger, ...);
+```
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+1. **Check the documentation** - Review [Core Features](README.md) and [API Reference](../reference/README.md)
+2. **Search existing issues** - Check the GitHub repository for similar problems
+3. **Create a minimal reproduction** - Isolate the problem in a small code sample
+4. **Report the issue** - Open a GitHub issue with your reproduction case
 
 ## Best Practices
 

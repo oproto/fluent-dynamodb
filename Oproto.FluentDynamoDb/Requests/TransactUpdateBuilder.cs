@@ -9,6 +9,7 @@ public class TransactUpdateBuilder :
     private readonly TransactWriteItem _req = new TransactWriteItem();
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+    private UpdateExpressionSource? _updateExpressionSource;
 
     public TransactUpdateBuilder(string tableName)
     {
@@ -73,10 +74,31 @@ public class TransactUpdateBuilder :
     /// Sets the update expression on the builder.
     /// </summary>
     /// <param name="expression">The processed update expression to set.</param>
+    /// <param name="source">The source of the update expression (string-based or expression-based).</param>
     /// <returns>The builder instance for method chaining.</returns>
-    public TransactUpdateBuilder SetUpdateExpression(string expression)
+    /// <exception cref="InvalidOperationException">Thrown when attempting to mix string-based and expression-based Set() methods.</exception>
+    public TransactUpdateBuilder SetUpdateExpression(string expression, UpdateExpressionSource source = UpdateExpressionSource.StringBased)
     {
+        // Check if we're mixing different approaches
+        if (_updateExpressionSource.HasValue && _updateExpressionSource.Value != source)
+        {
+            var currentApproach = _updateExpressionSource.Value == UpdateExpressionSource.StringBased 
+                ? "string-based Set()" 
+                : "expression-based Set()";
+            var attemptedApproach = source == UpdateExpressionSource.StringBased 
+                ? "string-based Set()" 
+                : "expression-based Set()";
+
+            throw new InvalidOperationException(
+                $"Cannot mix {currentApproach} and {attemptedApproach} methods in the same TransactUpdateBuilder. " +
+                $"The builder already has an update expression set using {currentApproach}. " +
+                $"Please use only one approach consistently throughout the builder chain. " +
+                $"If you need to combine multiple update operations, use multiple property assignments " +
+                $"within a single expression-based Set() call, or combine all operations in a single string-based Set() call.");
+        }
+
         _req.Update.UpdateExpression = expression;
+        _updateExpressionSource = source;
         return this;
     }
 

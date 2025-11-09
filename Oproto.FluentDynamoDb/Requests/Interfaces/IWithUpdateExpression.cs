@@ -23,8 +23,9 @@ public interface IWithUpdateExpression<out TBuilder>
     /// Sets the update expression on the builder.
     /// </summary>
     /// <param name="expression">The processed update expression to set.</param>
+    /// <param name="source">The source of the update expression (string-based or expression-based).</param>
     /// <returns>The builder instance for method chaining.</returns>
-    TBuilder SetUpdateExpression(string expression);
+    TBuilder SetUpdateExpression(string expression, UpdateExpressionSource source = UpdateExpressionSource.StringBased);
 
     /// <summary>
     /// Gets the builder instance for method chaining.

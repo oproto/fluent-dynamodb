@@ -224,6 +224,115 @@ public static class UpdateExpressionPropertyExtensions
 
     #endregion
 
+    #region Nullable Add Operations
+
+    /// <summary>
+    /// Performs an atomic ADD operation for nullable int properties.
+    /// </summary>
+    /// <param name="property">The property to increment or decrement.</param>
+    /// <param name="value">The value to add. Use negative values for decrement.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB ADD action: <c>ADD #attr :val</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This overload supports nullable int properties, allowing ADD operations on optional numeric attributes.
+    /// The ADD action atomically increments or decrements a numeric attribute.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Increment nullable counter
+    /// .Set(x => new UserUpdateModel { OptionalCount = x.OptionalCount.Add(1) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static int? Add(this UpdateExpressionProperty<int?> property, int value)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Performs an atomic ADD operation for nullable long properties.
+    /// </summary>
+    /// <param name="property">The property to increment or decrement.</param>
+    /// <param name="value">The value to add. Use negative values for decrement.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB ADD action: <c>ADD #attr :val</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This overload supports nullable long properties, allowing ADD operations on optional numeric attributes.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Increment nullable view count
+    /// .Set(x => new ArticleUpdateModel { OptionalViewCount = x.OptionalViewCount.Add(1L) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static long? Add(this UpdateExpressionProperty<long?> property, long value)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Performs an atomic ADD operation for nullable decimal properties.
+    /// </summary>
+    /// <param name="property">The property to increment or decrement.</param>
+    /// <param name="value">The value to add. Use negative values for decrement.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB ADD action: <c>ADD #attr :val</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This overload supports nullable decimal properties, allowing ADD operations on optional numeric attributes.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Add to nullable balance
+    /// .Set(x => new AccountUpdateModel { OptionalBalance = x.OptionalBalance.Add(100.50m) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static decimal? Add(this UpdateExpressionProperty<decimal?> property, decimal value)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Performs an atomic ADD operation for nullable double properties.
+    /// </summary>
+    /// <param name="property">The property to increment or decrement.</param>
+    /// <param name="value">The value to add. Use negative values for decrement.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB ADD action: <c>ADD #attr :val</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This overload supports nullable double properties, allowing ADD operations on optional numeric attributes.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Add to nullable temperature
+    /// .Set(x => new SensorUpdateModel { OptionalTemperature = x.OptionalTemperature.Add(2.5) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static double? Add(this UpdateExpressionProperty<double?> property, double value)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    #endregion
+
     #region Remove Operations
 
     /// <summary>
@@ -359,6 +468,33 @@ public static class UpdateExpressionPropertyExtensions
     /// </example>
     [ExpressionOnly]
     public static T IfNotExists<T>(this UpdateExpressionProperty<T> property, T defaultValue)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Uses DynamoDB's if_not_exists function to set a value only if the attribute doesn't exist (nullable overload).
+    /// </summary>
+    /// <typeparam name="T">The property type.</typeparam>
+    /// <param name="property">The nullable property to check.</param>
+    /// <param name="defaultValue">The value to set if the attribute doesn't exist.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with if_not_exists function: <c>SET #attr = if_not_exists(#attr, :val)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This overload supports nullable properties, allowing if_not_exists operations on optional attributes.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Initialize nullable counter to 0 if it doesn't exist
+    /// .Set(x => new ArticleUpdateModel { OptionalViewCount = x.OptionalViewCount.IfNotExists(0) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static T? IfNotExists<T>(this UpdateExpressionProperty<T?> property, T defaultValue) where T : struct
         => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
 
     /// <summary>

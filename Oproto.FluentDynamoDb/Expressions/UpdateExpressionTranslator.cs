@@ -756,6 +756,13 @@ public class UpdateExpressionTranslator
             value = list;
         }
         
+        // Apply format if specified (for list element types)
+        // Note: Format strings are typically not used for list elements, but we support it for consistency
+        if (propertyMetadata?.Format != null && value != null)
+        {
+            value = ApplyFormatToListElements(value, propertyMetadata.Format, propertyName);
+        }
+        
         // Capture the value
         var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
         
@@ -826,6 +833,13 @@ public class UpdateExpressionTranslator
                 list.Add(item);
             }
             value = list;
+        }
+        
+        // Apply format if specified (for list element types)
+        // Note: Format strings are typically not used for list elements, but we support it for consistency
+        if (propertyMetadata?.Format != null && value != null)
+        {
+            value = ApplyFormatToListElements(value, propertyMetadata.Format, propertyName);
         }
         
         // Capture the value
@@ -1180,6 +1194,31 @@ public class UpdateExpressionTranslator
                 $"Error: {ex.Message}",
                 ex);
         }
+    }
+
+    private object ApplyFormatToListElements(object value, string format, string propertyName)
+    {
+        // Apply format to each element in a list
+        if (value is List<object> list)
+        {
+            var formattedList = new List<object>();
+            foreach (var item in list)
+            {
+                if (item != null)
+                {
+                    formattedList.Add(ApplyFormat(item, format, propertyName));
+                }
+                else
+                {
+                    formattedList.Add(item);
+                }
+            }
+            return formattedList;
+        }
+        
+        // If it's not a List<object>, return as-is
+        // The format will be applied during AttributeValue conversion if needed
+        return value;
     }
 
     private string CaptureValue(object? value, ExpressionContext context, PropertyMetadata? propertyMetadata)

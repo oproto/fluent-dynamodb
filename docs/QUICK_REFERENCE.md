@@ -337,6 +337,31 @@ await table.Update()
     })
     .ExecuteAsync();
 
+// Advanced features: nullable types, arithmetic, format strings
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        // Nullable property support
+        Tags = x.Tags.Add("premium"),  // Works with HashSet<string>?
+        
+        // Arithmetic operations
+        Score = x.Score + 10,  // Intuitive syntax
+        TotalScore = x.BaseScore + x.BonusScore,  // Property-to-property
+        
+        // Format strings applied automatically
+        CreatedDate = DateTime.Now,  // Formatted per metadata
+        
+        // DynamoDB functions
+        ViewCount = x.ViewCount.IfNotExists(0),
+        History = x.History.ListAppend("event"),
+        
+        // REMOVE and DELETE
+        TempData = x.TempData.Remove(),
+        OldTags = x.OldTags.Delete("old-tag")
+    })
+    .ExecuteAsync();
+
 // String-based SET expression
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))

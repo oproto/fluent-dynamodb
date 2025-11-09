@@ -94,7 +94,7 @@ public static class WithUpdateExpressionExtensions
     /// </example>
     public static T Set<T>(this IWithUpdateExpression<T> builder, string updateExpression)
     {
-        return builder.SetUpdateExpression(updateExpression);
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.StringBased);
     }
 
     /// <summary>
@@ -150,7 +150,7 @@ public static class WithUpdateExpressionExtensions
     public static T Set<T>(this IWithUpdateExpression<T> builder, string format, params object[] args)
     {
         var (processedExpression, _) = FormatStringProcessor.ProcessFormatString(format, args, builder.GetAttributeValueHelper());
-        return builder.SetUpdateExpression(processedExpression);
+        return builder.SetUpdateExpression(processedExpression, UpdateExpressionSource.StringBased);
     }
 
     /// <summary>
@@ -282,8 +282,10 @@ public static class WithUpdateExpressionExtensions
     /// 
     /// <para><strong>AOT Compatibility:</strong> This method is fully AOT-compatible and doesn't use runtime code generation.</para>
     /// 
-    /// <para><strong>Mixing with String-Based Methods:</strong> This method can be combined with string-based Set() methods
-    /// in the same builder. The update expressions will be merged appropriately.</para>
+    /// <para><strong>Mixing with String-Based Methods:</strong> This method cannot be mixed with string-based Set() methods
+    /// in the same builder. Attempting to do so will throw an InvalidOperationException. Use only one approach consistently
+    /// throughout the builder chain. If you need to combine multiple update operations, use multiple property assignments
+    /// within a single expression-based Set() call.</para>
     /// </remarks>
     public static T Set<T, TEntity, TUpdateExpressions, TUpdateModel>(
         this IWithUpdateExpression<T> builder,
@@ -320,7 +322,7 @@ public static class WithUpdateExpressionExtensions
         var updateExpression = translator.TranslateUpdateExpression(expression, context);
 
         // Apply to builder
-        return builder.SetUpdateExpression(updateExpression);
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
     }
 
     /// <summary>

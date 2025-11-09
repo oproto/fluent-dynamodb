@@ -68,4 +68,74 @@ public sealed class UpdateExpressionProperty<T>
     public UpdateExpressionProperty()
     {
     }
+
+    /// <summary>
+    /// Addition operator for arithmetic operations in update expressions.
+    /// Translates to DynamoDB SET syntax: SET #attr = #attr + :val
+    /// </summary>
+    /// <param name="left">The property to update.</param>
+    /// <param name="right">The value to add.</param>
+    /// <returns>Never returns - throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this operator is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// This operator enables arithmetic addition in update expressions. It is only meant to be used
+    /// in expression trees passed to the Set() method and will throw an exception if called at runtime.
+    /// </para>
+    /// <para>
+    /// The operator is only available when T is a numeric type (int, long, decimal, double, etc.).
+    /// For atomic increment operations, consider using the Add() extension method instead, which
+    /// generates an ADD action rather than a SET action.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Increment score by 10
+    /// .Set(x => new UserUpdateModel { Score = x.Score + 10 })
+    /// 
+    /// // Add bonus to balance
+    /// var bonus = 50.0m;
+    /// .Set(x => new UserUpdateModel { Balance = x.Balance + bonus })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static T operator +(UpdateExpressionProperty<T> left, T right)
+        => throw new InvalidOperationException(
+            "This operator is only for use in update expressions and should not be called directly. " +
+            "Use it within a lambda expression passed to the Set() method.");
+
+    /// <summary>
+    /// Subtraction operator for arithmetic operations in update expressions.
+    /// Translates to DynamoDB SET syntax: SET #attr = #attr - :val
+    /// </summary>
+    /// <param name="left">The property to update.</param>
+    /// <param name="right">The value to subtract.</param>
+    /// <returns>Never returns - throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this operator is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// This operator enables arithmetic subtraction in update expressions. It is only meant to be used
+    /// in expression trees passed to the Set() method and will throw an exception if called at runtime.
+    /// </para>
+    /// <para>
+    /// The operator is only available when T is a numeric type (int, long, decimal, double, etc.).
+    /// For atomic decrement operations, consider using the Add() extension method with a negative value,
+    /// which generates an ADD action rather than a SET action.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Decrease score by 5
+    /// .Set(x => new UserUpdateModel { Score = x.Score - 5 })
+    /// 
+    /// // Subtract fee from balance
+    /// var fee = 2.50m;
+    /// .Set(x => new UserUpdateModel { Balance = x.Balance - fee })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static T operator -(UpdateExpressionProperty<T> left, T right)
+        => throw new InvalidOperationException(
+            "This operator is only for use in update expressions and should not be called directly. " +
+            "Use it within a lambda expression passed to the Set() method.");
 }
