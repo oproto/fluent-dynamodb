@@ -321,7 +321,7 @@ public static class WithUpdateExpressionExtensions
         // Translate the expression
         var updateExpression = translator.TranslateUpdateExpression(expression, context);
 
-        // Apply to builder
+        // Apply to builder and store context for encryption
         return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
     }
 
@@ -344,8 +344,89 @@ public static class WithUpdateExpressionExtensions
         where TUpdateExpressions : new()
         where TUpdateModel : new()
     {
-        return Set<UpdateItemRequestBuilder<TEntity>, TEntity, TUpdateExpressions, TUpdateModel>(
-            builder, expression, metadata);
+        if (expression == null)
+            throw new ArgumentNullException(nameof(expression));
+
+        // Resolve metadata if not provided
+        if (metadata == null)
+        {
+            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
+        }
+
+        // Create expression context
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None);
+
+        // Create translator (no encryption support for now as it requires async)
+        var translator = new UpdateExpressionTranslator(
+            logger: null,
+            isSensitiveField: null,
+            fieldEncryptor: null,
+            encryptionContextId: null);
+
+        // Translate the expression
+        var updateExpression = translator.TranslateUpdateExpression(expression, context);
+
+        // Store context in builder for encryption support
+        builder.SetExpressionContext(context);
+
+        // Apply to builder
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Specifies update operations using a type-safe C# lambda expression for TransactUpdateBuilder.
+    /// This overload provides better type inference for update operations in transactions.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TUpdateExpressions">The source-generated UpdateExpressions type.</typeparam>
+    /// <typeparam name="TUpdateModel">The source-generated UpdateModel type.</typeparam>
+    /// <param name="builder">The TransactUpdateBuilder instance.</param>
+    /// <param name="expression">Lambda expression returning an UpdateModel with property assignments.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public static TransactUpdateBuilder Set<TEntity, TUpdateExpressions, TUpdateModel>(
+        this TransactUpdateBuilder builder,
+        Expression<Func<TUpdateExpressions, TUpdateModel>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class
+        where TUpdateExpressions : new()
+        where TUpdateModel : new()
+    {
+        if (expression == null)
+            throw new ArgumentNullException(nameof(expression));
+
+        // Resolve metadata if not provided
+        if (metadata == null)
+        {
+            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
+        }
+
+        // Create expression context
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None);
+
+        // Create translator (no encryption support for now as it requires async)
+        var translator = new UpdateExpressionTranslator(
+            logger: null,
+            isSensitiveField: null,
+            fieldEncryptor: null,
+            encryptionContextId: null);
+
+        // Translate the expression
+        var updateExpression = translator.TranslateUpdateExpression(expression, context);
+
+        // Store context in builder for encryption support
+        builder.SetExpressionContext(context);
+
+        // Apply to builder
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
     }
 
 }

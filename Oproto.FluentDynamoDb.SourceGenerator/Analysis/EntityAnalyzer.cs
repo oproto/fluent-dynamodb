@@ -406,7 +406,7 @@ internal class EntityAnalyzer
             }
         }
 
-        // Extract Format property from DynamoDbAttribute if present
+        // Extract Format and DateTimeKind properties from DynamoDbAttribute if present
         if (dynamoDbAttribute?.ArgumentList != null)
         {
             foreach (var arg in dynamoDbAttribute.ArgumentList.Arguments)
@@ -415,7 +415,16 @@ internal class EntityAnalyzer
                     arg.Expression is LiteralExpressionSyntax formatLiteral)
                 {
                     propertyModel.Format = formatLiteral.Token.ValueText;
-                    break;
+                }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "DateTimeKind" &&
+                         arg.Expression is MemberAccessExpressionSyntax dateTimeKindExpr)
+                {
+                    // Extract the enum value (e.g., DateTimeKind.Utc -> "Utc")
+                    var kindName = dateTimeKindExpr.Name.Identifier.ValueText;
+                    if (Enum.TryParse<DateTimeKind>(kindName, out var kind))
+                    {
+                        propertyModel.DateTimeKind = kind;
+                    }
                 }
             }
         }

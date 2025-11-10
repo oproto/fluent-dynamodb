@@ -1024,9 +1024,11 @@ public static class EnhancedExecuteAsyncExtensions
     {
         try
         {
-            // Call AWS SDK directly instead of builder's ExecuteAsync
+            // Use ToDynamoDbResponseAsync which handles encryption and execution
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
+            
+            // Get the request after encryption to check ReturnValues setting
             var request = builder.ToUpdateItemRequest();
-            var response = await builder.GetDynamoDbClient().UpdateItemAsync(request, cancellationToken);
 
             // Populate context with UpdateItemResponse metadata
             // Note: Attributes contains either pre-operation values (ALL_OLD/UPDATED_OLD) or post-operation values (ALL_NEW/UPDATED_NEW)
@@ -1046,7 +1048,7 @@ public static class EnhancedExecuteAsyncExtensions
             };
             DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
         }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
+        catch (Exception ex) when (!(ex is OperationCanceledException) && !(ex is InvalidOperationException))
         {
             throw new DynamoDbMappingException(
                 $"Failed to execute UpdateItem operation. Error: {ex.Message}", ex);

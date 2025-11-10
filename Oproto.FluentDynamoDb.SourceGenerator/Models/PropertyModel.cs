@@ -111,4 +111,13 @@ internal class PropertyModel
     /// Gets or sets the format string from DynamoDbAttribute for value serialization.
     /// </summary>
     public string? Format { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DateTimeKind for DateTime properties to control timezone handling during serialization and deserialization.
+    /// </summary>
+    /// <remarks>
+    /// When specified, the generated code will convert DateTime values to the specified kind before serialization
+    /// and set the Kind property after deserialization. This ensures consistent timezone handling across operations.
+    /// </remarks>
+    public DateTimeKind? DateTimeKind { get; set; }
 }

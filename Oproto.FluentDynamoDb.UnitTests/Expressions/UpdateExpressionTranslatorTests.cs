@@ -798,6 +798,254 @@ public class UpdateExpressionTranslatorTests
         context.AttributeValues.AttributeValues[":p0"].S.Should().Be("123.46");
     }
 
+    [Fact]
+    public void TranslateUpdateExpression_FormatInArithmeticOperation_ShouldApplyFormat()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var balanceProperty = metadata.Properties.First(p => p.PropertyName == "Balance");
+        balanceProperty.Format = "F2";
+        var context = CreateContext(metadata);
+        
+        // Build arithmetic expression manually
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var balancePropertyExpr = Expression.Property(parameter, nameof(TestUpdateExpressions.Balance));
+        var addExpression = Expression.Add(balancePropertyExpr, Expression.Constant(50.123m));
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Balance))!, addExpression);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = #attr0 + :p0");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("50.12");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_FormatInIfNotExists_ShouldApplyFormat()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var balanceProperty = metadata.Properties.First(p => p.PropertyName == "Balance");
+        balanceProperty.Format = "F4";
+        var context = CreateContext(metadata);
+        
+        // Build IfNotExists expression
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var balancePropertyExpr = Expression.Property(parameter, nameof(TestUpdateExpressions.Balance));
+        var ifNotExistsMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.IfNotExists))
+            .Where(m => m.IsGenericMethod)
+            .Where(m => m.GetParameters().Length == 2)
+            .Where(m => !m.GetParameters()[0].ParameterType.GetGenericArguments()[0].IsGenericType || 
+                       m.GetParameters()[0].ParameterType.GetGenericArguments()[0].GetGenericTypeDefinition() != typeof(Nullable<>))
+            .Single()
+            .MakeGenericMethod(typeof(decimal));
+        var methodCall = Expression.Call(ifNotExistsMethod, balancePropertyExpr, Expression.Constant(100.5m));
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Balance))!, methodCall);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = if_not_exists(#attr0, :p0)");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("100.5000");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_FormatInListAppend_ShouldApplyFormatToElements()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var historyProperty = metadata.Properties.First(p => p.PropertyName == "History");
+        historyProperty.Format = "D5"; // Zero-pad to 5 digits (for testing with numeric strings)
+        var context = CreateContext(metadata);
+        
+        // Build ListAppend expression
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var historyPropertyExpr = Expression.Property(parameter, nameof(TestUpdateExpressions.History));
+        var listAppendMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.ListAppend))
+            .Where(m => m.IsGenericMethod)
+            .Single()
+            .MakeGenericMethod(typeof(string));
+        var methodCall = Expression.Call(listAppendMethod, historyPropertyExpr, Expression.Constant(new[] { "event1", "event2" }));
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.History))!, methodCall);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = list_append(#attr0, :p0)");
+        // Note: Format is applied to list elements, but string elements won't be affected by numeric format
+        // This test verifies the format application code path is executed
+        context.AttributeValues.AttributeValues[":p0"].L.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_FormatInListPrepend_ShouldApplyFormatToElements()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var historyProperty = metadata.Properties.First(p => p.PropertyName == "History");
+        historyProperty.Format = "D5"; // Zero-pad to 5 digits (for testing with numeric strings)
+        var context = CreateContext(metadata);
+        
+        // Build ListPrepend expression
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var historyPropertyExpr = Expression.Property(parameter, nameof(TestUpdateExpressions.History));
+        var listPrependMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.ListPrepend))
+            .Where(m => m.IsGenericMethod)
+            .Single()
+            .MakeGenericMethod(typeof(string));
+        var methodCall = Expression.Call(listPrependMethod, historyPropertyExpr, Expression.Constant(new[] { "event0" }));
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.History))!, methodCall);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = list_append(:p0, #attr0)");
+        context.AttributeValues.AttributeValues[":p0"].L.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_FormatInDeleteOperation_ShouldApplyFormatToSetElements()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var tagsProperty = metadata.Properties.First(p => p.PropertyName == "Tags");
+        tagsProperty.Format = "D5"; // Zero-pad to 5 digits (for testing with numeric strings)
+        var context = CreateContext(metadata);
+        
+        // Build Delete expression
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var tagsPropertyExpr = Expression.Property(parameter, nameof(TestUpdateExpressions.Tags));
+        var deleteMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.Delete))
+            .Where(m => m.IsGenericMethod)
+            .Single()
+            .MakeGenericMethod(typeof(string));
+        var methodCall = Expression.Call(deleteMethod, tagsPropertyExpr, Expression.Constant(new[] { "tag1", "tag2" }));
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Tags))!, methodCall);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("DELETE #attr0 :p0");
+        // Note: Format is applied to set elements, but string elements won't be affected by numeric format
+        // This test verifies the format application code path is executed
+        context.AttributeValues.AttributeValues[":p0"].SS.Should().Contain("tag1");
+        context.AttributeValues.AttributeValues[":p0"].SS.Should().Contain("tag2");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_InvalidFormatString_ShouldThrowFormatException()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var createdAtProperty = metadata.Properties.First(p => p.PropertyName == "CreatedAt");
+        // Use a format string that will actually throw a FormatException
+        // Single quotes in DateTime format strings must be escaped or paired
+        createdAtProperty.Format = "yyyy-MM-dd'T";  // Unclosed quote will throw
+        var context = CreateContext(metadata);
+        
+        var date = new DateTime(2024, 1, 15);
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { CreatedAt = date };
+
+        // Act & Assert
+        var act = () => translator.TranslateUpdateExpression(expression, context);
+        act.Should().Throw<FormatException>()
+            .WithMessage("*Invalid format string*");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_FormatWithIntegerType_ShouldApplyFormat()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var countProperty = metadata.Properties.First(p => p.PropertyName == "Count");
+        countProperty.Format = "D8"; // Zero-pad to 8 digits
+        var context = CreateContext(metadata);
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Count = 42 };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("00000042");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_FormatWithDoubleType_ShouldApplyFormat()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var temperatureProperty = metadata.Properties.First(p => p.PropertyName == "Temperature");
+        temperatureProperty.Format = "F3"; // 3 decimal places
+        var context = CreateContext(metadata);
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Temperature = 98.6 };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("98.600");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_FormatWithISODateTime_ShouldApplyFormat()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        var createdAtProperty = metadata.Properties.First(p => p.PropertyName == "CreatedAt");
+        createdAtProperty.Format = "o"; // ISO 8601 format
+        var context = CreateContext(metadata);
+        
+        var date = new DateTime(2024, 1, 15, 10, 30, 45, DateTimeKind.Utc);
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { CreatedAt = date };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("2024-01-15T10:30:45.0000000Z");
+    }
+
     #endregion
 
     #region Combined Operations
@@ -1033,26 +1281,6 @@ public class UpdateExpressionTranslatorTests
             .WithMessage("*cannot be called*");
     }
 
-    [Fact(Skip = "Format string validation is not yet implemented - deferred for future enhancement")]
-    public void TranslateUpdateExpression_InvalidFormatString_ShouldThrowFormatException()
-    {
-        // Arrange
-        var translator = CreateTranslator();
-        var metadata = CreateTestMetadata();
-        var createdAtProperty = metadata.Properties.First(p => p.PropertyName == "CreatedAt");
-        createdAtProperty.Format = "invalid-format";
-        var context = CreateContext(metadata);
-        
-        var date = new DateTime(2024, 1, 15);
-        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
-            x => new TestUpdateModel { CreatedAt = date };
-
-        // Act & Assert
-        var act = () => translator.TranslateUpdateExpression(expression, context);
-        act.Should().Throw<FormatException>()
-            .WithMessage("*Invalid format string*");
-    }
-
     #endregion
 
     #region Type Conversion Tests
@@ -1196,6 +1424,240 @@ public class UpdateExpressionTranslatorTests
         result.Should().Be("SET #attr0 = :p0, #attr1 = :p1, #attr2 = :p2");
         context.AttributeNames.AttributeNames.Should().HaveCount(3);
         context.AttributeValues.AttributeValues.Should().HaveCount(3);
+    }
+
+    #endregion
+
+    #region Parameter Metadata Tracking for Encryption
+
+    [Fact]
+    public void TranslateUpdateExpression_EncryptedProperty_ShouldMarkParameterForEncryption()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        
+        // Mark Name property as encrypted
+        var nameProperty = metadata.Properties.First(p => p.PropertyName == "Name");
+        nameProperty.IsEncrypted = true;
+        
+        var context = CreateContext(metadata);
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = "SensitiveData" };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        
+        // Verify parameter metadata was created
+        context.ParameterMetadata.Should().HaveCount(1);
+        var paramMetadata = context.ParameterMetadata[0];
+        paramMetadata.ParameterName.Should().Be(":p0");
+        paramMetadata.RequiresEncryption.Should().BeTrue();
+        paramMetadata.PropertyName.Should().Be("Name");
+        paramMetadata.AttributeName.Should().Be("name");
+        paramMetadata.Value.S.Should().Be("SensitiveData");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_NonEncryptedProperty_ShouldNotMarkParameterForEncryption()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        
+        // Ensure Name property is NOT encrypted
+        var nameProperty = metadata.Properties.First(p => p.PropertyName == "Name");
+        nameProperty.IsEncrypted = false;
+        
+        var context = CreateContext(metadata);
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = "PublicData" };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        
+        // Verify no parameter metadata was created
+        context.ParameterMetadata.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_MultipleEncryptedProperties_ShouldMarkAllParametersForEncryption()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        
+        // Mark Name and TempData as encrypted
+        var nameProperty = metadata.Properties.First(p => p.PropertyName == "Name");
+        nameProperty.IsEncrypted = true;
+        var tempDataProperty = metadata.Properties.First(p => p.PropertyName == "TempData");
+        tempDataProperty.IsEncrypted = true;
+        
+        var context = CreateContext(metadata);
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel 
+            { 
+                Name = "SensitiveData1",
+                TempData = "SensitiveData2"
+            };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0, #attr1 = :p1");
+        
+        // Verify both parameters are marked for encryption
+        context.ParameterMetadata.Should().HaveCount(2);
+        
+        var param1 = context.ParameterMetadata[0];
+        param1.ParameterName.Should().Be(":p0");
+        param1.RequiresEncryption.Should().BeTrue();
+        param1.PropertyName.Should().Be("Name");
+        param1.AttributeName.Should().Be("name");
+        
+        var param2 = context.ParameterMetadata[1];
+        param2.ParameterName.Should().Be(":p1");
+        param2.RequiresEncryption.Should().BeTrue();
+        param2.PropertyName.Should().Be("TempData");
+        param2.AttributeName.Should().Be("temp_data");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_MixedEncryptedAndNonEncrypted_ShouldOnlyMarkEncryptedParameters()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        
+        // Mark only Name as encrypted, Count is not encrypted
+        var nameProperty = metadata.Properties.First(p => p.PropertyName == "Name");
+        nameProperty.IsEncrypted = true;
+        
+        var context = CreateContext(metadata);
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel 
+            { 
+                Name = "SensitiveData",
+                Count = 42
+            };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0, #attr1 = :p1");
+        
+        // Verify only the encrypted parameter is marked
+        context.ParameterMetadata.Should().HaveCount(1);
+        var paramMetadata = context.ParameterMetadata[0];
+        paramMetadata.ParameterName.Should().Be(":p0");
+        paramMetadata.RequiresEncryption.Should().BeTrue();
+        paramMetadata.PropertyName.Should().Be("Name");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_EncryptedPropertyInArithmeticOperation_ShouldMarkParameterForEncryption()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        
+        // Mark Count as encrypted (unusual but valid for testing)
+        var countProperty = metadata.Properties.First(p => p.PropertyName == "Count");
+        countProperty.IsEncrypted = true;
+        
+        var context = CreateContext(metadata);
+        
+        // Build arithmetic expression
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var countProp = Expression.Property(parameter, nameof(TestUpdateExpressions.Count));
+        var addExpression = Expression.Add(countProp, Expression.Constant(5));
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Count))!, addExpression);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = #attr0 + :p0");
+        
+        // Verify parameter is marked for encryption
+        context.ParameterMetadata.Should().HaveCount(1);
+        var paramMetadata = context.ParameterMetadata[0];
+        paramMetadata.ParameterName.Should().Be(":p0");
+        paramMetadata.RequiresEncryption.Should().BeTrue();
+        paramMetadata.PropertyName.Should().Be("Count");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_EncryptedPropertyWithNullValue_ShouldMarkParameterForEncryption()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        
+        // Mark Name as encrypted
+        var nameProperty = metadata.Properties.First(p => p.PropertyName == "Name");
+        nameProperty.IsEncrypted = true;
+        
+        var context = CreateContext(metadata);
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = null };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        
+        // Verify parameter is marked for encryption even with null value
+        context.ParameterMetadata.Should().HaveCount(1);
+        var paramMetadata = context.ParameterMetadata[0];
+        paramMetadata.ParameterName.Should().Be(":p0");
+        paramMetadata.RequiresEncryption.Should().BeTrue();
+        paramMetadata.PropertyName.Should().Be("Name");
+        paramMetadata.Value.NULL.Should().BeTrue();
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_ParameterMetadataContainsCorrectInformation()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateTestMetadata();
+        
+        // Mark Name as encrypted
+        var nameProperty = metadata.Properties.First(p => p.PropertyName == "Name");
+        nameProperty.IsEncrypted = true;
+        
+        var context = CreateContext(metadata);
+        var testValue = "TestSensitiveValue";
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = testValue };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        context.ParameterMetadata.Should().HaveCount(1);
+        var paramMetadata = context.ParameterMetadata[0];
+        
+        // Verify all fields are populated correctly
+        paramMetadata.ParameterName.Should().NotBeNullOrEmpty();
+        paramMetadata.ParameterName.Should().StartWith(":");
+        paramMetadata.Value.Should().NotBeNull();
+        paramMetadata.Value.S.Should().Be(testValue);
+        paramMetadata.RequiresEncryption.Should().BeTrue();
+        paramMetadata.PropertyName.Should().Be("Name");
+        paramMetadata.AttributeName.Should().Be("name");
     }
 
     #endregion

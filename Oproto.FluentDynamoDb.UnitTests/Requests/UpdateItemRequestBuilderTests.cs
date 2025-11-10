@@ -677,4 +677,293 @@ public class UpdateItemRequestBuilderTests
     }
 
     #endregion Helper Methods
+
+
+    #region Encryption Tests
+
+    [Fact]
+    public async Task EncryptParametersAsync_WithEncryptedParameter_EncryptsValue()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var mockEncryptor = Substitute.For<IFieldEncryptor>();
+        
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient)
+            .ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .SetFieldEncryptor(mockEncryptor);
+
+        // Create expression context with encrypted parameter
+        var context = new Oproto.FluentDynamoDb.Expressions.ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            null,
+            Oproto.FluentDynamoDb.Expressions.ExpressionValidationMode.None);
+
+        context.ParameterMetadata.Add(new Oproto.FluentDynamoDb.Expressions.ParameterMetadata
+        {
+            ParameterName = ":p0",
+            Value = new AttributeValue { S = "sensitive-data" },
+            RequiresEncryption = true,
+            PropertyName = "SensitiveField",
+            AttributeName = "sensitive_field"
+        });
+
+        builder.SetExpressionContext(context);
+        builder.Set("SET #field = :p0")
+            .WithAttribute("#field", "sensitive_field")
+            .WithValue(":p0", "sensitive-data");
+
+        // Setup mock encryptor to return encrypted bytes
+        var encryptedBytes = System.Text.Encoding.UTF8.GetBytes("encrypted-value");
+        mockEncryptor.EncryptAsync(
+            Arg.Any<byte[]>(),
+            Arg.Any<string>(),
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(encryptedBytes));
+
+        var mockResponse = new UpdateItemResponse();
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        await builder.ToDynamoDbResponseAsync();
+
+        // Assert
+        await mockEncryptor.Received(1).EncryptAsync(
+            Arg.Any<byte[]>(),
+            "SensitiveField",
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>());
+
+        // Verify the request was sent with encrypted value (as binary)
+        await mockClient.Received(1).UpdateItemAsync(
+            Arg.Is<UpdateItemRequest>(req =>
+                req.ExpressionAttributeValues[":p0"].B != null &&
+                req.ExpressionAttributeValues[":p0"].B.ToArray().SequenceEqual(encryptedBytes)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EncryptParametersAsync_WithoutEncryptor_ThrowsException()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient)
+            .ForTable("TestTable")
+            .WithKey("pk", "test-id");
+
+        // Create expression context with encrypted parameter but no encryptor
+        var context = new Oproto.FluentDynamoDb.Expressions.ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            null,
+            Oproto.FluentDynamoDb.Expressions.ExpressionValidationMode.None);
+
+        context.ParameterMetadata.Add(new Oproto.FluentDynamoDb.Expressions.ParameterMetadata
+        {
+            ParameterName = ":p0",
+            Value = new AttributeValue { S = "sensitive-data" },
+            RequiresEncryption = true,
+            PropertyName = "SensitiveField",
+            AttributeName = "sensitive_field"
+        });
+
+        builder.SetExpressionContext(context);
+        builder.Set("SET #field = :p0")
+            .WithAttribute("#field", "sensitive_field")
+            .WithValue(":p0", "sensitive-data");
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => builder.ToDynamoDbResponseAsync());
+
+        exception.Message.Should().Contain("IFieldEncryptor");
+        exception.Message.Should().Contain("SensitiveField");
+    }
+
+    [Fact]
+    public async Task EncryptParametersAsync_WithMultipleEncryptedParameters_EncryptsAll()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var mockEncryptor = Substitute.For<IFieldEncryptor>();
+        
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient)
+            .ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .SetFieldEncryptor(mockEncryptor);
+
+        // Create expression context with multiple encrypted parameters
+        var context = new Oproto.FluentDynamoDb.Expressions.ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            null,
+            Oproto.FluentDynamoDb.Expressions.ExpressionValidationMode.None);
+
+        context.ParameterMetadata.Add(new Oproto.FluentDynamoDb.Expressions.ParameterMetadata
+        {
+            ParameterName = ":p0",
+            Value = new AttributeValue { S = "sensitive-data-1" },
+            RequiresEncryption = true,
+            PropertyName = "Field1",
+            AttributeName = "field1"
+        });
+
+        context.ParameterMetadata.Add(new Oproto.FluentDynamoDb.Expressions.ParameterMetadata
+        {
+            ParameterName = ":p1",
+            Value = new AttributeValue { S = "sensitive-data-2" },
+            RequiresEncryption = true,
+            PropertyName = "Field2",
+            AttributeName = "field2"
+        });
+
+        builder.SetExpressionContext(context);
+        builder.Set("SET #field1 = :p0, #field2 = :p1")
+            .WithAttribute("#field1", "field1")
+            .WithAttribute("#field2", "field2")
+            .WithValue(":p0", "sensitive-data-1")
+            .WithValue(":p1", "sensitive-data-2");
+
+        // Setup mock encryptor
+        var encryptedBytes1 = System.Text.Encoding.UTF8.GetBytes("encrypted-1");
+        var encryptedBytes2 = System.Text.Encoding.UTF8.GetBytes("encrypted-2");
+        
+        mockEncryptor.EncryptAsync(
+            Arg.Is<byte[]>(b => System.Text.Encoding.UTF8.GetString(b) == "sensitive-data-1"),
+            "Field1",
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(encryptedBytes1));
+
+        mockEncryptor.EncryptAsync(
+            Arg.Is<byte[]>(b => System.Text.Encoding.UTF8.GetString(b) == "sensitive-data-2"),
+            "Field2",
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(encryptedBytes2));
+
+        var mockResponse = new UpdateItemResponse();
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        await builder.ToDynamoDbResponseAsync();
+
+        // Assert
+        await mockEncryptor.Received(1).EncryptAsync(
+            Arg.Any<byte[]>(),
+            "Field1",
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>());
+
+        await mockEncryptor.Received(1).EncryptAsync(
+            Arg.Any<byte[]>(),
+            "Field2",
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EncryptParametersAsync_WithEncryptionFailure_ThrowsFieldEncryptionException()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var mockEncryptor = Substitute.For<IFieldEncryptor>();
+        
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient)
+            .ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .SetFieldEncryptor(mockEncryptor);
+
+        // Create expression context with encrypted parameter
+        var context = new Oproto.FluentDynamoDb.Expressions.ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            null,
+            Oproto.FluentDynamoDb.Expressions.ExpressionValidationMode.None);
+
+        context.ParameterMetadata.Add(new Oproto.FluentDynamoDb.Expressions.ParameterMetadata
+        {
+            ParameterName = ":p0",
+            Value = new AttributeValue { S = "sensitive-data" },
+            RequiresEncryption = true,
+            PropertyName = "SensitiveField",
+            AttributeName = "sensitive_field"
+        });
+
+        builder.SetExpressionContext(context);
+        builder.Set("SET #field = :p0")
+            .WithAttribute("#field", "sensitive_field")
+            .WithValue(":p0", "sensitive-data");
+
+        // Setup mock encryptor to throw exception
+        mockEncryptor.EncryptAsync(
+            Arg.Any<byte[]>(),
+            Arg.Any<string>(),
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<byte[]>(new Exception("KMS error")));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<FieldEncryptionException>(
+            () => builder.ToDynamoDbResponseAsync());
+
+        exception.Message.Should().Contain("SensitiveField");
+        exception.InnerException?.Message.Should().Contain("KMS error");
+    }
+
+    [Fact]
+    public async Task EncryptParametersAsync_WithNoEncryptedParameters_DoesNotCallEncryptor()
+    {
+        // Arrange
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        var mockEncryptor = Substitute.For<IFieldEncryptor>();
+        
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient)
+            .ForTable("TestTable")
+            .WithKey("pk", "test-id")
+            .SetFieldEncryptor(mockEncryptor);
+
+        // Create expression context with non-encrypted parameter
+        var context = new Oproto.FluentDynamoDb.Expressions.ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            null,
+            Oproto.FluentDynamoDb.Expressions.ExpressionValidationMode.None);
+
+        context.ParameterMetadata.Add(new Oproto.FluentDynamoDb.Expressions.ParameterMetadata
+        {
+            ParameterName = ":p0",
+            Value = new AttributeValue { S = "normal-data" },
+            RequiresEncryption = false,
+            PropertyName = "NormalField",
+            AttributeName = "normal_field"
+        });
+
+        builder.SetExpressionContext(context);
+        builder.Set("SET #field = :p0")
+            .WithAttribute("#field", "normal_field")
+            .WithValue(":p0", "normal-data");
+
+        var mockResponse = new UpdateItemResponse();
+        mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        await builder.ToDynamoDbResponseAsync();
+
+        // Assert
+        await mockEncryptor.DidNotReceive().EncryptAsync(
+            Arg.Any<byte[]>(),
+            Arg.Any<string>(),
+            Arg.Any<FieldEncryptionContext>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    #endregion Encryption Tests
+
 }

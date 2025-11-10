@@ -60,6 +60,13 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     protected IFieldEncryptor? FieldEncryptor { get; private init; }
 
     /// <summary>
+    /// Gets the field encryptor for this table.
+    /// This method is used internally by transaction builders to access the encryptor.
+    /// </summary>
+    /// <returns>The field encryptor, or null if encryption is not configured.</returns>
+    internal IFieldEncryptor? GetFieldEncryptor() => FieldEncryptor;
+
+    /// <summary>
     /// Gets the current encryption context identifier, checking both operation-specific and ambient contexts.
     /// This context is used by the field encryptor to determine the appropriate encryption key.
     /// </summary>
@@ -154,7 +161,9 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </summary>
     /// <returns>An UpdateItemRequestBuilder configured for this table.</returns>
     public virtual UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class => 
-        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Logger)
+            .ForTable(Name)
+            .SetFieldEncryptor(FieldEncryptor);
     
     /// <summary>
     /// Creates a new DeleteItem operation builder for this table.

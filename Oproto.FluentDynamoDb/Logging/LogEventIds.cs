@@ -88,6 +88,26 @@ public static class LogEventIds
     /// </summary>
     public const int ExpressionTranslation = 2500;
     
+    /// <summary>
+    /// Event ID for when applying format strings during serialization.
+    /// </summary>
+    public const int ApplyingFormatString = 2510;
+    
+    /// <summary>
+    /// Event ID for when parsing formatted values during deserialization.
+    /// </summary>
+    public const int ParsingFormattedValue = 2511;
+    
+    /// <summary>
+    /// Event ID for when encrypting field values.
+    /// </summary>
+    public const int EncryptingField = 2520;
+    
+    /// <summary>
+    /// Event ID for when decrypting field values.
+    /// </summary>
+    public const int DecryptingField = 2521;
+    
     // ========================================
     // DynamoDB Operations (3000-3999)
     // ========================================

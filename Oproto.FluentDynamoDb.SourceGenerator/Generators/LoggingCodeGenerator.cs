@@ -291,6 +291,54 @@ internal static class LoggingCodeGenerator
     }
 
     /// <summary>
+    /// Generates logging code for format string application during serialization.
+    /// Logs at Debug level with property name, format string, and property type.
+    /// </summary>
+    /// <param name="propertyName">The name of the property having format applied.</param>
+    /// <param name="formatString">The format string being applied.</param>
+    /// <param name="propertyType">The type of the property.</param>
+    /// <returns>Generated logging code wrapped in conditional compilation directives.</returns>
+    public static string GenerateFormatStringApplicationLogging(string propertyName, string formatString, string propertyType)
+    {
+        var sb = new StringBuilder();
+        
+        sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
+        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                logger.LogDebug(LogEventIds.ApplyingFormatString,");
+        sb.AppendLine($"                    \"Applying format string '{{FormatString}}' to property {{PropertyName}} of type {{PropertyType}}\",");
+        sb.AppendLine($"                    \"{formatString}\", \"{propertyName}\", \"{propertyType}\");");
+        sb.AppendLine("            }");
+        sb.AppendLine("            #endif");
+        
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Generates logging code for parsing formatted values during deserialization.
+    /// Logs at Debug level with property name, format string, and property type.
+    /// </summary>
+    /// <param name="propertyName">The name of the property being parsed.</param>
+    /// <param name="formatString">The format string being used for parsing.</param>
+    /// <param name="propertyType">The type of the property.</param>
+    /// <returns>Generated logging code wrapped in conditional compilation directives.</returns>
+    public static string GenerateFormatStringParsingLogging(string propertyName, string formatString, string propertyType)
+    {
+        var sb = new StringBuilder();
+        
+        sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
+        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                logger.LogDebug(LogEventIds.ParsingFormattedValue,");
+        sb.AppendLine($"                    \"Parsing formatted value for property {{PropertyName}} of type {{PropertyType}} using format '{{FormatString}}'\",");
+        sb.AppendLine($"                    \"{propertyName}\", \"{propertyType}\", \"{formatString}\");");
+        sb.AppendLine("            }");
+        sb.AppendLine("            #endif");
+        
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// Generates error logging code for mapping failures.
     /// Logs at Error level with entity type, property name, and exception.
     /// </summary>

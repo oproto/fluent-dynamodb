@@ -422,6 +422,14 @@ internal static class MapperGenerator
             return;
         }
 
+        // Check if property has format string
+        // For DateTime: format string is always handled by GetToAttributeValueExpression (which calls GenerateDateTimeToAttributeValue)
+        // For other types: format string requires GenerateFormattedPropertySerialization
+        var hasFormatString = !string.IsNullOrEmpty(property.Format);
+        var baseType = GetBaseType(property.PropertyType);
+        var isDateTime = baseType is "DateTime" or "System.DateTime";
+        var needsFormattedSerialization = hasFormatString && !isDateTime;
+
         // Handle nullable properties
         if (property.IsNullable)
         {
@@ -429,7 +437,17 @@ internal static class MapperGenerator
             sb.AppendLine("            {");
             // Generate logging for basic property mapping
             sb.Append(LoggingCodeGenerator.GeneratePropertyMappingLogging(propertyName, GetBaseType(property.PropertyType), "ToDynamoDb"));
-            sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            
+            // Use formatted serialization if format string is present (non-DateTime types)
+            if (needsFormattedSerialization)
+            {
+                GenerateFormattedPropertySerialization(sb, property, $"typedEntity.{escapedPropertyName}.Value", attributeName);
+            }
+            else
+            {
+                sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            }
+            
             sb.AppendLine("            }");
             sb.AppendLine("            else");
             sb.AppendLine("            {");
@@ -441,7 +459,16 @@ internal static class MapperGenerator
         {
             // Generate logging for basic property mapping
             sb.Append(LoggingCodeGenerator.GeneratePropertyMappingLogging(propertyName, GetBaseType(property.PropertyType), "ToDynamoDb"));
-            sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            
+            // Use formatted serialization if format string is present (non-DateTime types)
+            if (needsFormattedSerialization)
+            {
+                GenerateFormattedPropertySerialization(sb, property, $"typedEntity.{escapedPropertyName}", attributeName);
+            }
+            else
+            {
+                sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            }
         }
     }
 
@@ -500,17 +527,43 @@ internal static class MapperGenerator
             return;
         }
 
+        // Check if property has format string
+        // For DateTime: format string is always handled by GetToAttributeValueExpression
+        // For other types: format string requires GenerateFormattedPropertySerialization
+        var hasFormatString = !string.IsNullOrEmpty(property.Format);
+        var baseType = GetBaseType(property.PropertyType);
+        var isDateTime = baseType is "DateTime" or "System.DateTime";
+        var needsFormattedSerialization = hasFormatString && !isDateTime;
+
         // Handle nullable properties
         if (property.IsNullable)
         {
             sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("            {");
-            sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            
+            // Use formatted serialization if format string is present (non-DateTime types)
+            if (needsFormattedSerialization)
+            {
+                GenerateFormattedPropertySerialization(sb, property, $"typedEntity.{escapedPropertyName}.Value", attributeName);
+            }
+            else
+            {
+                sb.AppendLine($"                item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            }
+            
             sb.AppendLine("            }");
         }
         else
         {
-            sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            // Use formatted serialization if format string is present (non-DateTime types)
+            if (needsFormattedSerialization)
+            {
+                GenerateFormattedPropertySerialization(sb, property, $"typedEntity.{escapedPropertyName}", attributeName);
+            }
+            else
+            {
+                sb.AppendLine($"            item[\"{attributeName}\"] = {GetToAttributeValueExpression(property, $"typedEntity.{escapedPropertyName}")};");
+            }
         }
     }
 
@@ -1310,6 +1363,18 @@ internal static class MapperGenerator
         var isNullableValueType = property.PropertyType.Contains("?") && baseType != "string";
         var actualValue = isNullableValueType ? $"{valueExpression}.Value" : valueExpression;
 
+        // Handle DateTime with Kind conversion and/or format string
+        if ((baseType == "DateTime" || baseType == "System.DateTime") && (property.DateTimeKind.HasValue || !string.IsNullOrEmpty(property.Format)))
+        {
+            return GenerateDateTimeToAttributeValue(property, actualValue);
+        }
+
+        // Handle format strings for other types
+        if (!string.IsNullOrEmpty(property.Format))
+        {
+            return GenerateFormattedToAttributeValue(property, actualValue);
+        }
+
         return baseType switch
         {
             "string" => $"new AttributeValue {{ S = {valueExpression} }}",
@@ -1327,6 +1392,273 @@ internal static class MapperGenerator
             _ when IsEnumType(property.PropertyType) => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             _ => $"new AttributeValue {{ S = {valueExpression} != null ? {valueExpression}.ToString() : \"\" }}"
         };
+    }
+
+    private static string GenerateDateTimeToAttributeValue(PropertyModel property, string valueExpression)
+    {
+        var convertedValue = valueExpression;
+        
+        // Apply DateTime Kind conversion if specified
+        if (property.DateTimeKind.HasValue)
+        {
+            convertedValue = property.DateTimeKind.Value switch
+            {
+                DateTimeKind.Utc => $"{valueExpression}.ToUniversalTime()",
+                DateTimeKind.Local => $"{valueExpression}.ToLocalTime()",
+                _ => valueExpression
+            };
+        }
+
+        // Apply format string if specified, otherwise use ISO 8601 (O format)
+        var format = !string.IsNullOrEmpty(property.Format) ? property.Format : "O";
+        
+        return $"new AttributeValue {{ S = {convertedValue}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+    }
+
+    private static string GenerateFormattedToAttributeValue(PropertyModel property, string valueExpression)
+    {
+        var baseType = GetBaseType(property.PropertyType);
+        var format = property.Format!;
+
+        // For numeric types and other IFormattable types, apply format string
+        if (baseType is "int" or "System.Int32" or "long" or "System.Int64" or 
+            "double" or "System.Double" or "float" or "System.Single" or 
+            "decimal" or "System.Decimal")
+        {
+            return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+        }
+
+        // For DateTimeOffset with format
+        if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+        }
+
+        // Default: no format application
+        return $"new AttributeValue {{ S = {valueExpression}.ToString() }}";
+    }
+
+    /// <summary>
+    /// Generates code for serializing a property with format string application.
+    /// Supports DateTime, decimal, double, float, int, and IFormattable types.
+    /// Uses CultureInfo.InvariantCulture for all formatting.
+    /// </summary>
+    private static void GenerateFormattedPropertySerialization(StringBuilder sb, PropertyModel property, string valueExpression, string attributeName)
+    {
+        var baseType = GetBaseType(property.PropertyType);
+        var format = property.Format!;
+        var propertyName = property.PropertyName;
+
+        // Generate logging for format string application
+        sb.Append(LoggingCodeGenerator.GenerateFormatStringApplicationLogging(propertyName, format, baseType));
+        sb.AppendLine();
+
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+
+        // Handle DateTime with Kind conversion
+        if (baseType is "DateTime" or "System.DateTime")
+        {
+            if (property.DateTimeKind.HasValue)
+            {
+                var convertedValue = property.DateTimeKind.Value switch
+                {
+                    DateTimeKind.Utc => $"{valueExpression}.ToUniversalTime()",
+                    DateTimeKind.Local => $"{valueExpression}.ToLocalTime()",
+                    _ => valueExpression
+                };
+                sb.AppendLine($"                    var convertedValue = {convertedValue};");
+                sb.AppendLine($"                    var formatted = convertedValue.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+            }
+            else
+            {
+                sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+            }
+        }
+        // Handle numeric types
+        else if (baseType is "int" or "System.Int32" or "long" or "System.Int64" or 
+                 "double" or "System.Double" or "float" or "System.Single" or 
+                 "decimal" or "System.Decimal")
+        {
+            sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+        }
+        // Handle DateTimeOffset
+        else if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+        }
+        // Handle IFormattable types
+        else
+        {
+            sb.AppendLine($"                    var formatted = ((IFormattable){valueExpression}).ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+        }
+
+        sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = formatted }};");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (FormatException ex)");
+        sb.AppendLine("                {");
+        
+        // Generate enhanced error message with examples
+        var exampleFormats = GetExampleFormatsForType(baseType);
+        sb.AppendLine($"                    throw new FormatException(");
+        sb.AppendLine($"                        $\"Invalid format string '{format}' for property '{propertyName}' (DynamoDB attribute: '{attributeName}') of type '{baseType}'. \" +");
+        sb.AppendLine($"                        $\"Error: {{ex.Message}}. \" +");
+        sb.AppendLine($"                        $\"Common format strings for {baseType}: {exampleFormats}. \" +");
+        sb.AppendLine($"                        \"Ensure the format string is valid for the property type.\",");
+        sb.AppendLine($"                        ex);");
+        sb.AppendLine("                }");
+    }
+
+    /// <summary>
+    /// Generates code for deserializing a property with format string parsing.
+    /// Supports parsing DateTime with TryParseExact and numeric types with TryParse.
+    /// Adds error handling with DynamoDbMappingException for parsing failures.
+    /// </summary>
+    private static void GenerateFormattedPropertyDeserialization(StringBuilder sb, PropertyModel property, EntityModel entity, string valueExpression, string propertyName)
+    {
+        var baseType = GetBaseType(property.PropertyType);
+        var format = property.Format!;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+
+        // Generate logging for format string parsing
+        sb.Append(LoggingCodeGenerator.GenerateFormatStringParsingLogging(propertyName, format, baseType));
+        sb.AppendLine();
+
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+
+        // Handle DateTime with format
+        if (baseType is "DateTime" or "System.DateTime")
+        {
+            sb.AppendLine($"                    if (DateTime.TryParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine("                    {");
+            
+            // Apply DateTime Kind if specified
+            if (property.DateTimeKind.HasValue)
+            {
+                var kindSetting = property.DateTimeKind.Value switch
+                {
+                    DateTimeKind.Utc => "DateTime.SpecifyKind(parsed, DateTimeKind.Utc)",
+                    DateTimeKind.Local => "DateTime.SpecifyKind(parsed, DateTimeKind.Local)",
+                    _ => "parsed"
+                };
+                sb.AppendLine($"                        entity.{escapedPropertyName} = {kindSetting};");
+            }
+            else
+            {
+                sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            }
+            
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse DateTime value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"                            $\"Common DateTime formats: 'o' (ISO 8601), 'yyyy-MM-dd' (date only), 'yyyy-MM-dd HH:mm:ss' (date and time).\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle decimal
+        else if (baseType is "decimal" or "System.Decimal")
+        {
+            sb.AppendLine($"                    if (decimal.TryParse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse decimal value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value is a valid decimal number. \" +");
+            sb.AppendLine($"                            $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle int
+        else if (baseType is "int" or "System.Int32")
+        {
+            sb.AppendLine($"                    if (int.TryParse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse int value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value is a valid integer. \" +");
+            sb.AppendLine($"                            $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle long
+        else if (baseType is "long" or "System.Int64")
+        {
+            sb.AppendLine($"                    if (long.TryParse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse long value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value is a valid long integer. \" +");
+            sb.AppendLine($"                            $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle double
+        else if (baseType is "double" or "System.Double")
+        {
+            sb.AppendLine($"                    if (double.TryParse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse double value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value is a valid double-precision number. \" +");
+            sb.AppendLine($"                            $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle float
+        else if (baseType is "float" or "System.Single")
+        {
+            sb.AppendLine($"                    if (float.TryParse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse float value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value is a valid single-precision number. \" +");
+            sb.AppendLine($"                            $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle DateTimeOffset
+        else if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            sb.AppendLine($"                    if (DateTimeOffset.TryParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse DateTimeOffset value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"                            $\"Common DateTimeOffset formats: 'o' (ISO 8601), 'yyyy-MM-dd HH:mm:ss zzz' (with timezone).\");");
+            sb.AppendLine("                    }");
+        }
+
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex) when (ex is not DynamoDbMappingException)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw new DynamoDbMappingException(");
+        sb.AppendLine($"                        $\"Failed to deserialize property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') of type '{baseType}'. \" +");
+        sb.AppendLine($"                        $\"Stored value: '{{{valueExpression}.S}}'. \" +");
+        sb.AppendLine($"                        $\"Error: {{{{ex.Message}}}}. \" +");
+        sb.AppendLine($"                        $\"Verify the format string matches the stored data format.\",");
+        sb.AppendLine($"                        ex);");
+        sb.AppendLine("                }");
     }
 
     private static void GenerateFromDynamoDbSingleMethod(StringBuilder sb, EntityModel entity)
@@ -1573,21 +1905,36 @@ internal static class MapperGenerator
             return;
         }
 
+        // Check if property has format string
+        // All types with format strings use GenerateFormattedPropertyDeserialization for consistent error handling
+        var hasFormatString = !string.IsNullOrEmpty(property.Format);
+        var needsFormattedDeserialization = hasFormatString;
+
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
-        sb.AppendLine("                try");
-        sb.AppendLine("                {");
-        sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
-        sb.AppendLine("                }");
-        sb.AppendLine("                catch (Exception ex)");
-        sb.AppendLine("                {");
-        sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
-        sb.AppendLine($"                        typeof({entity.ClassName}),");
-        sb.AppendLine($"                        \"{propertyName}\",");
-        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
-        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-        sb.AppendLine("                        ex);");
-        sb.AppendLine("                }");
+        
+        // Use formatted deserialization if format string is present (non-DateTime types)
+        if (needsFormattedDeserialization)
+        {
+            GenerateFormattedPropertyDeserialization(sb, property, entity, $"{propertyName.ToLowerInvariant()}Value", propertyName);
+        }
+        else
+        {
+            sb.AppendLine("                try");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
+            sb.AppendLine("                }");
+            sb.AppendLine("                catch (Exception ex)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
+            sb.AppendLine($"                        typeof({entity.ClassName}),");
+            sb.AppendLine($"                        \"{propertyName}\",");
+            sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
+            sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+            sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+        }
+        
         sb.AppendLine("            }");
     }
 
@@ -1645,21 +1992,36 @@ internal static class MapperGenerator
             return;
         }
 
+        // Check if property has format string
+        // All types with format strings use GenerateFormattedPropertyDeserialization for consistent error handling
+        var hasFormatString = !string.IsNullOrEmpty(property.Format);
+        var needsFormattedDeserialization = hasFormatString;
+
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
-        sb.AppendLine("                try");
-        sb.AppendLine("                {");
-        sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
-        sb.AppendLine("                }");
-        sb.AppendLine("                catch (Exception ex)");
-        sb.AppendLine("                {");
-        sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
-        sb.AppendLine($"                        typeof({entity.ClassName}),");
-        sb.AppendLine($"                        \"{propertyName}\",");
-        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
-        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-        sb.AppendLine("                        ex);");
-        sb.AppendLine("                }");
+        
+        // Use formatted deserialization if format string is present (non-DateTime types)
+        if (needsFormattedDeserialization)
+        {
+            GenerateFormattedPropertyDeserialization(sb, property, entity, $"{propertyName.ToLowerInvariant()}Value", propertyName);
+        }
+        else
+        {
+            sb.AppendLine("                try");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
+            sb.AppendLine("                }");
+            sb.AppendLine("                catch (Exception ex)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
+            sb.AppendLine($"                        typeof({entity.ClassName}),");
+            sb.AppendLine($"                        \"{propertyName}\",");
+            sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
+            sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+            sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+        }
+        
         sb.AppendLine("            }");
     }
 
@@ -2018,6 +2380,18 @@ internal static class MapperGenerator
         var baseType = GetBaseType(property.PropertyType);
         var isNullable = property.IsNullable;
 
+        // Handle DateTime with Kind and/or format string
+        if ((baseType == "DateTime" || baseType == "System.DateTime") && (property.DateTimeKind.HasValue || !string.IsNullOrEmpty(property.Format)))
+        {
+            return GenerateDateTimeFromAttributeValue(property, valueExpression);
+        }
+
+        // Handle format strings for other types
+        if (!string.IsNullOrEmpty(property.Format))
+        {
+            return GenerateFormattedFromAttributeValue(property, valueExpression);
+        }
+
         var conversion = baseType switch
         {
             "string" => $"{valueExpression}.S",
@@ -2027,7 +2401,7 @@ internal static class MapperGenerator
             "float" or "System.Single" => $"float.Parse({valueExpression}.N)",
             "decimal" or "System.Decimal" => $"decimal.Parse({valueExpression}.N)",
             "bool" or "System.Boolean" => property.IsNullable ? $"{valueExpression}.BOOL" : $"{valueExpression}.BOOL ?? false",
-            "DateTime" or "System.DateTime" => $"DateTime.Parse({valueExpression}.S)",
+            "DateTime" or "System.DateTime" => $"DateTime.SpecifyKind(DateTime.Parse({valueExpression}.S, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeKind.Unspecified)",
             "DateTimeOffset" or "System.DateTimeOffset" => $"DateTimeOffset.Parse({valueExpression}.S)",
             "Guid" or "System.Guid" => $"Guid.Parse({valueExpression}.S)",
             "Ulid" or "System.Ulid" => $"Ulid.Parse({valueExpression}.S)",
@@ -2037,6 +2411,83 @@ internal static class MapperGenerator
         };
 
         return conversion;
+    }
+
+    private static string GenerateDateTimeFromAttributeValue(PropertyModel property, string valueExpression)
+    {
+        var hasFormat = !string.IsNullOrEmpty(property.Format);
+        var hasKind = property.DateTimeKind.HasValue;
+
+        if (hasFormat && hasKind)
+        {
+            // Parse with format and set Kind
+            var parseExpression = $"DateTime.ParseExact({valueExpression}.S, \"{property.Format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None)";
+            
+            return property.DateTimeKind.Value switch
+            {
+                DateTimeKind.Utc => $"DateTime.SpecifyKind({parseExpression}, DateTimeKind.Utc)",
+                DateTimeKind.Local => $"DateTime.SpecifyKind({parseExpression}, DateTimeKind.Local)",
+                _ => parseExpression
+            };
+        }
+        else if (hasFormat)
+        {
+            // Parse with format only
+            return $"DateTime.ParseExact({valueExpression}.S, \"{property.Format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None)";
+        }
+        else if (hasKind)
+        {
+            // Parse with default format and set Kind
+            var parseExpression = $"DateTime.Parse({valueExpression}.S, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind)";
+            
+            return property.DateTimeKind.Value switch
+            {
+                DateTimeKind.Utc => $"DateTime.SpecifyKind({parseExpression}, DateTimeKind.Utc)",
+                DateTimeKind.Local => $"DateTime.SpecifyKind({parseExpression}, DateTimeKind.Local)",
+                _ => parseExpression
+            };
+        }
+
+        // No format and no Kind specified - default to Unspecified
+        // Parse and explicitly set Kind to Unspecified to ensure consistent behavior
+        return $"DateTime.SpecifyKind(DateTime.Parse({valueExpression}.S, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeKind.Unspecified)";
+    }
+
+    private static string GenerateFormattedFromAttributeValue(PropertyModel property, string valueExpression)
+    {
+        var baseType = GetBaseType(property.PropertyType);
+        var format = property.Format!;
+
+        // For numeric types, parse from formatted string
+        if (baseType is "int" or "System.Int32")
+        {
+            return $"int.Parse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture)";
+        }
+        if (baseType is "long" or "System.Int64")
+        {
+            return $"long.Parse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture)";
+        }
+        if (baseType is "double" or "System.Double")
+        {
+            return $"double.Parse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture)";
+        }
+        if (baseType is "float" or "System.Single")
+        {
+            return $"float.Parse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture)";
+        }
+        if (baseType is "decimal" or "System.Decimal")
+        {
+            return $"decimal.Parse({valueExpression}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // For DateTimeOffset with format
+        if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            return $"DateTimeOffset.ParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None)";
+        }
+
+        // Default: parse as string
+        return $"{valueExpression}.S";
     }
 
     private static void GenerateFromDynamoDbMultiMethod(StringBuilder sb, EntityModel entity)
@@ -2382,7 +2833,19 @@ internal static class MapperGenerator
         // Add format string if available
         if (!string.IsNullOrEmpty(property.Format))
         {
-            sb.AppendLine($"                        Format = \"{property.Format}\"");
+            sb.AppendLine($"                        Format = \"{property.Format}\",");
+        }
+
+        // Add IsEncrypted flag if property is encrypted
+        if (property.Security?.IsEncrypted == true)
+        {
+            sb.AppendLine($"                        IsEncrypted = true,");
+        }
+
+        // Add DateTimeKind if specified
+        if (property.DateTimeKind.HasValue)
+        {
+            sb.AppendLine($"                        DateTimeKind = DateTimeKind.{property.DateTimeKind.Value}");
         }
 
         sb.AppendLine("                    },");
@@ -3131,6 +3594,22 @@ internal static class MapperGenerator
         }
 
         return propertyName;
+    }
+
+    /// <summary>
+    /// Gets example format strings for a given type to include in error messages.
+    /// </summary>
+    private static string GetExampleFormatsForType(string baseType)
+    {
+        return baseType switch
+        {
+            "DateTime" or "System.DateTime" => "'o' (ISO 8601), 'yyyy-MM-dd' (date only), 'yyyy-MM-dd HH:mm:ss' (date and time)",
+            "DateTimeOffset" or "System.DateTimeOffset" => "'o' (ISO 8601), 'yyyy-MM-dd HH:mm:ss zzz' (with timezone)",
+            "decimal" or "System.Decimal" => "'F2' (2 decimal places), 'F4' (4 decimal places), 'N2' (with thousand separators)",
+            "double" or "System.Double" or "float" or "System.Single" => "'F2' (2 decimal places), 'E' (scientific notation), 'G' (general)",
+            "int" or "System.Int32" or "long" or "System.Int64" => "'D5' (zero-padded to 5 digits), 'N0' (with thousand separators), 'X' (hexadecimal)",
+            _ => "'G' (general format)"
+        };
     }
 
 }

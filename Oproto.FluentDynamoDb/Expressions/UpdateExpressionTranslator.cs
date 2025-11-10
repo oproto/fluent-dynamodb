@@ -113,7 +113,7 @@ public class UpdateExpressionTranslator
     /// </summary>
     /// <param name="logger">Optional logger for expression translation diagnostics. Used to log parameter captures and translation steps.</param>
     /// <param name="isSensitiveField">Optional function to check if a field is sensitive. Used for redacting sensitive data in logs.</param>
-    /// <param name="fieldEncryptor">Optional field encryptor for encrypted properties. Currently not used as encryption requires async support.</param>
+    /// <param name="fieldEncryptor">Optional field encryptor for encrypted properties. Used to mark parameters that require encryption.</param>
     /// <param name="encryptionContextId">Optional encryption context identifier. Used when encrypting field values.</param>
     /// <remarks>
     /// <para>
@@ -122,11 +122,55 @@ public class UpdateExpressionTranslator
     /// are automatically redacted in log output.
     /// </para>
     /// 
+    /// <para><strong>Encryption Behavior:</strong></para>
     /// <para>
-    /// Field encryption is currently not supported in update expressions due to the synchronous nature
-    /// of expression translation and the asynchronous IFieldEncryptor interface. This limitation is
-    /// documented in the design and will be addressed in a future update.
+    /// When a property marked with <c>[Encrypted]</c> is updated via an update expression, the translator
+    /// uses a deferred encryption approach to handle the asynchronous nature of the IFieldEncryptor interface:
     /// </para>
+    /// <list type="number">
+    /// <item><description><strong>Parameter Metadata Tracking:</strong> The translator marks parameters that require encryption
+    /// by adding entries to the ExpressionContext.ParameterMetadata collection. These entries include the parameter name,
+    /// property name, attribute name, and a flag indicating encryption is required.</description></item>
+    /// <item><description><strong>Deferred Encryption:</strong> The actual encryption is deferred to the request builder layer
+    /// (e.g., UpdateItemRequestBuilder, TransactUpdateBuilder) where async operations are natural. The request builder
+    /// checks for marked parameters before sending the request to DynamoDB.</description></item>
+    /// <item><description><strong>Async Encryption:</strong> The request builder calls IFieldEncryptor.EncryptAsync for each
+    /// marked parameter, properly awaiting the encryption operation without blocking.</description></item>
+    /// <item><description><strong>Value Replacement:</strong> After encryption, the request builder replaces the plaintext
+    /// AttributeValue in ExpressionAttributeValues with the encrypted (base64-encoded) value.</description></item>
+    /// </list>
+    /// <para>
+    /// This architectural approach ensures proper async handling, maintains separation of concerns (translator builds
+    /// expressions, request builder handles I/O), and avoids performance compromises from blocking async calls.
+    /// </para>
+    /// 
+    /// <para><strong>Encryption Requirements:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>If an encrypted property is updated but no IFieldEncryptor is configured, the request builder
+    /// will throw an InvalidOperationException with guidance on configuring the encryptor.</description></item>
+    /// <item><description>The IFieldEncryptor must be configured in the DynamoDbOperationContext passed to the table instance.</description></item>
+    /// <item><description>Encryption is applied automatically - no manual encryption calls are needed in update expressions.</description></item>
+    /// </list>
+    /// 
+    /// <para><strong>Example with Encrypted Property:</strong></para>
+    /// <code>
+    /// // Entity with encrypted property
+    /// public class User
+    /// {
+    ///     [DynamoDbAttribute("ssn")]
+    ///     [Encrypted]
+    ///     public string SocialSecurityNumber { get; set; }
+    /// }
+    /// 
+    /// // Update expression - encryption happens automatically
+    /// await table.Update
+    ///     .WithKey("pk", userId)
+    ///     .Set(x => new UserUpdateModel 
+    ///     { 
+    ///         SocialSecurityNumber = newSsn  // Marked for encryption, encrypted by request builder
+    ///     })
+    ///     .ExecuteAsync();
+    /// </code>
     /// </remarks>
     public UpdateExpressionTranslator(
         IDynamoDbLogger? logger,
@@ -360,13 +404,7 @@ public class UpdateExpressionTranslator
             value = ApplyFormat(value, propertyMetadata.Format, propertyName);
         }
         
-        // Apply encryption if needed
-        if (propertyMetadata != null && IsEncryptedProperty(propertyMetadata))
-        {
-            value = ApplyEncryption(value, propertyMetadata.PropertyName, propertyMetadata.AttributeName, valueExpression);
-        }
-        
-        // Capture the value
+        // Capture the value (encryption will be marked in CaptureValue if needed)
         var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
         
         // Build SET expression
@@ -629,6 +667,13 @@ public class UpdateExpressionTranslator
             }
         }
         
+        // Apply format if specified (for set element types)
+        // Note: Format strings are typically not used for set elements, but we support it for consistency
+        if (propertyMetadata?.Format != null && value != null)
+        {
+            value = ApplyFormatToSetElements(value, propertyMetadata.Format, propertyName);
+        }
+        
         // Capture the value as a set
         var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
         
@@ -678,13 +723,7 @@ public class UpdateExpressionTranslator
             value = ApplyFormat(value, propertyMetadata.Format, propertyName);
         }
         
-        // Apply encryption if needed
-        if (propertyMetadata != null && IsEncryptedProperty(propertyMetadata))
-        {
-            value = ApplyEncryption(value, propertyMetadata.PropertyName, propertyMetadata.AttributeName, methodCall);
-        }
-        
-        // Capture the value
+        // Capture the value (encryption will be marked in CaptureValue if needed)
         var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
         
         // Build SET expression with if_not_exists function
@@ -969,13 +1008,19 @@ public class UpdateExpressionTranslator
                underlyingType == typeof(decimal);
     }
 
+    /// <summary>
+    /// Determines whether a property requires encryption based on its metadata.
+    /// </summary>
+    /// <param name="propertyMetadata">The property metadata to check.</param>
+    /// <returns>True if the property is marked as encrypted; otherwise, false.</returns>
+    /// <remarks>
+    /// This method checks the PropertyMetadata.IsEncrypted flag to determine if a property
+    /// requires encryption. When true, the CaptureValue method will mark the parameter
+    /// for deferred encryption by the request builder.
+    /// </remarks>
     private bool IsEncryptedProperty(PropertyMetadata propertyMetadata)
     {
-        // Check if property has encryption metadata
-        // This would typically be set by the source generator based on [Encrypted] attribute
-        // For now, we'll return false as encryption metadata isn't part of PropertyMetadata yet
-        // This will be enhanced when encryption support is fully integrated
-        return false;
+        return propertyMetadata.IsEncrypted;
     }
 
     private object? ApplyEncryption(object? value, string propertyName, string attributeName, Expression expression)
@@ -987,7 +1032,11 @@ public class UpdateExpressionTranslator
         {
             throw new EncryptionRequiredException(
                 $"Property '{propertyName}' (DynamoDB attribute: '{attributeName}') is marked as encrypted but no IFieldEncryptor is configured. " +
-                $"Configure a field encryptor in the DynamoDB operation context to encrypt sensitive data. " +
+                $"To fix this issue: " +
+                $"1. Implement the IFieldEncryptor interface (e.g., using AWS KMS or another encryption provider). " +
+                $"2. Pass the encryptor to the DynamoDbTableBase constructor, or " +
+                $"3. Set it in the DynamoDbOperationContext before executing update operations. " +
+                $"Example: new MyTable(dynamoDbClient, logger, blobProvider, fieldEncryptor). " +
                 $"Alternatively, use string-based update expressions with pre-encrypted values.",
                 propertyName,
                 attributeName,
@@ -1221,6 +1270,56 @@ public class UpdateExpressionTranslator
         return value;
     }
 
+    private object ApplyFormatToSetElements(object value, string format, string propertyName)
+    {
+        // Apply format to each element in a set or array
+        if (value is Array array)
+        {
+            var elementType = array.GetType().GetElementType()!;
+            var formattedArray = Array.CreateInstance(elementType, array.Length);
+            for (int i = 0; i < array.Length; i++)
+            {
+                var item = array.GetValue(i);
+                if (item != null)
+                {
+                    var formatted = ApplyFormat(item, format, propertyName);
+                    formattedArray.SetValue(formatted, i);
+                }
+                else
+                {
+                    formattedArray.SetValue(item, i);
+                }
+            }
+            return formattedArray;
+        }
+        
+        // Handle HashSet<T> using dynamic to work with generic types
+        var valueType = value.GetType();
+        if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof(HashSet<>))
+        {
+            var elementType = valueType.GetGenericArguments()[0];
+            var formattedSetType = typeof(HashSet<>).MakeGenericType(elementType);
+            var formattedSet = Activator.CreateInstance(formattedSetType);
+            
+            foreach (var item in (dynamic)value)
+            {
+                if (item != null)
+                {
+                    var formatted = ApplyFormat(item, format, propertyName);
+                    ((dynamic)formattedSet).Add(formatted);
+                }
+                else
+                {
+                    ((dynamic)formattedSet).Add(item);
+                }
+            }
+            return formattedSet!;
+        }
+        
+        // If it's not a set or array, return as-is
+        return value;
+    }
+
     private string CaptureValue(object? value, ExpressionContext context, PropertyMetadata? propertyMetadata)
     {
         // Convert the value to an AttributeValue
@@ -1232,6 +1331,23 @@ public class UpdateExpressionTranslator
         // Add to the context
         context.AttributeValues.AttributeValues.Add(parameterName, attributeValue);
 
+        // Check if this parameter requires encryption
+        if (propertyMetadata != null && IsEncryptedProperty(propertyMetadata))
+        {
+            // Mark this parameter for encryption by the request builder
+            // Do NOT encrypt inline - encryption is deferred to the request builder layer
+            // Note: Even null/empty values are marked for encryption, but the request builder
+            // will skip actual encryption for them since there's nothing to encrypt
+            context.ParameterMetadata.Add(new ParameterMetadata
+            {
+                ParameterName = parameterName,
+                Value = attributeValue,
+                RequiresEncryption = true,
+                PropertyName = propertyMetadata.PropertyName,
+                AttributeName = propertyMetadata.AttributeName
+            });
+        }
+
         // Log parameter capture with sensitive data redaction
         if (_logger != null && _logger.IsEnabled(LogLevel.Debug))
         {
@@ -1242,10 +1358,11 @@ public class UpdateExpressionTranslator
             
             _logger.LogDebug(
                 LogEventIds.ExpressionTranslation,
-                "Update expression parameter {ParameterName} = {Value} (Property: {PropertyName})",
+                "Update expression parameter {ParameterName} = {Value} (Property: {PropertyName}, RequiresEncryption: {RequiresEncryption})",
                 parameterName,
                 valueToLog,
-                propertyMetadata?.PropertyName ?? "unknown");
+                propertyMetadata?.PropertyName ?? "unknown",
+                propertyMetadata?.IsEncrypted ?? false);
         }
 
         return parameterName;

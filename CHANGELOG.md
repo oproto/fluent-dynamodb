@@ -8,6 +8,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **DateTime Kind Preservation** - Explicit timezone handling for DateTime properties
+  - New `DateTimeKind` parameter in `[DynamoDbAttribute]` to specify timezone behavior
+  - Support for `DateTimeKind.Utc`, `DateTimeKind.Local`, and `DateTimeKind.Unspecified`
+  - Automatic conversion to specified kind during serialization (ToDynamoDb)
+  - Automatic kind assignment during deserialization (FromDynamoDb)
+  - Preserves timezone information across round-trip operations
+  - Defaults to `DateTimeKind.Unspecified` for backward compatibility
+  - Works seamlessly with format strings for combined timezone and formatting control
+  
+  **Usage Example:**
+  ```csharp
+  [DynamoDbEntity("users")]
+  public partial class User
+  {
+      // Store as UTC, automatically convert on save
+      [DynamoDbAttribute("created_at", DateTimeKind = DateTimeKind.Utc)]
+      public DateTime CreatedAt { get; set; }
+      
+      // Store as local time with custom format
+      [DynamoDbAttribute("last_login", Format = "yyyy-MM-dd HH:mm:ss", DateTimeKind = DateTimeKind.Local)]
+      public DateTime LastLogin { get; set; }
+  }
+  ```
+  
+  **Migration Notes:**
+  - Existing code without `DateTimeKind` specified continues to work unchanged
+  - Add `DateTimeKind` parameter to attributes where timezone preservation is important
+  - Consider using `DateTimeKind.Utc` for most scenarios to avoid timezone ambiguity
+  - See [DateTime Kind Guide](docs/core-features/datetime-kind-guide.md) for best practices
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- **Format String Application in Serialization** - Consistent format string handling across all operations
+  - Format strings from `[DynamoDbAttribute]` now applied during ToDynamoDb serialization
+  - Format-aware parsing during FromDynamoDb deserialization
+  - Support for DateTime formats (e.g., "yyyy-MM-dd", "o", custom patterns)
+  - Support for numeric formats (e.g., "F2" for decimals, "D5" for integers)
+  - Support for all IFormattable types with CultureInfo.InvariantCulture
+  - Comprehensive error handling with clear messages for invalid formats
+  - Backward compatible - properties without format strings use default serialization
+  
+  **Usage Example:**
+  ```csharp
+  [DynamoDbEntity("products")]
+  public partial class Product
+  {
+      // Store date without time component
+      [DynamoDbAttribute("release_date", Format = "yyyy-MM-dd")]
+      public DateTime ReleaseDate { get; set; }
+      
+      // Store price with exactly 2 decimal places
+      [DynamoDbAttribute("price", Format = "F2")]
+      public decimal Price { get; set; }
+      
+      // Store SKU with zero-padding
+      [DynamoDbAttribute("sku", Format = "D8")]
+      public int Sku { get; set; }
+  }
+  ```
+  
+  **Migration Notes:**
+  - Existing format strings now take effect in PutItem and UpdateItem operations
+  - Verify format strings match your data requirements before deploying
+  - Use consistent formats across your application for data integrity
+  - See [Format Strings Guide](docs/core-features/format-strings-guide.md) for examples
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5_
+
+- **Encryption Support in Update Expressions** - Field-level encryption now works in expression-based updates
+  - Encrypted properties automatically encrypted in update expressions
+  - Deferred encryption architecture - encryption happens at request builder layer
+  - Async encryption support without blocking calls
+  - Parameter metadata tracking for encryption requirements
+  - Clear error messages when encryption is required but not configured
+  - Support for multiple encrypted properties in single update
+  - Works with format strings for encrypted formatted values
+  - Consistent encryption behavior across PutItem, UpdateItem, and TransactWrite operations
+  
+  **Usage Example:**
+  ```csharp
+  [DynamoDbEntity("users")]
+  public partial class User
+  {
+      [DynamoDbAttribute("ssn")]
+      [Encrypted]
+      public string SocialSecurityNumber { get; set; }
+      
+      [DynamoDbAttribute("credit_card")]
+      [Encrypted]
+      public string CreditCard { get; set; }
+  }
+  
+  // Encrypted properties are automatically encrypted in updates
+  await table.Update()
+      .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+      .Set(x => new UserUpdateModel 
+      {
+          SocialSecurityNumber = "123-45-6789",  // Automatically encrypted
+          CreditCard = "4111-1111-1111-1111"     // Automatically encrypted
+      })
+      .ExecuteAsync();
+  ```
+  
+  **Architecture:**
+  - UpdateExpressionTranslator marks parameters requiring encryption
+  - UpdateItemRequestBuilder encrypts marked parameters before sending to DynamoDB
+  - No breaking changes - translator remains synchronous
+  - Proper async handling at the request builder layer
+  - Consistent with blob reference pattern
+  
+  **Migration Notes:**
+  - Encryption now works in expression-based updates (previously threw NotSupportedException)
+  - Ensure IFieldEncryptor is configured in DynamoDbOperationContext
+  - No code changes required - existing encrypted properties work automatically
+  - See [Encryption Guide](docs/core-features/encryption-guide.md) for setup instructions
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+
 - **Expression-Based Update Operations** - Type-safe update operations with compile-time validation and IntelliSense support
   - Source-generated `{Entity}UpdateExpressions` and `{Entity}UpdateModel` classes for type-safe updates
   - `UpdateExpressionProperty<T>` wrapper type enabling type-scoped extension methods
@@ -89,6 +204,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed duplicate index generation on tables
 - Fixed fluent chaining in `TypeHandlerRegistration` to allow multiple `.For<T>()` calls in discriminator-based routing
+- **Format String Application in Update Expressions** - Format strings now consistently applied in all update expression operations
+  - Format strings from entity metadata now applied in SET operations
+  - Format strings applied in arithmetic operations (e.g., `x.Score + 10`)
+  - Format strings applied in DynamoDB functions (IfNotExists, ListAppend, ListPrepend)
+  - Ensures data consistency across PutItem, UpdateItem, and TransactWrite operations
+  - Previously, format strings were only applied in some contexts, leading to inconsistent data formats
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
 ### Security
 

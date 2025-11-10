@@ -83,6 +83,27 @@ public class ExpressionContext
     public ParameterGenerator ParameterGenerator => AttributeValues.ParameterGenerator;
     
     /// <summary>
+    /// Gets the list of parameter metadata for tracking encryption requirements.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This list tracks parameters that require encryption during update expression translation.
+    /// The UpdateExpressionTranslator adds entries when it encounters encrypted properties,
+    /// and the request builder (e.g., UpdateItemRequestBuilder) uses this list to encrypt
+    /// parameters before sending the request to DynamoDB.
+    /// </para>
+    /// 
+    /// <para><strong>Usage Pattern:</strong></para>
+    /// <list type="number">
+    /// <item><description>Translator detects encrypted property from PropertyMetadata.IsEncrypted</description></item>
+    /// <item><description>Translator creates ParameterMetadata with RequiresEncryption = true</description></item>
+    /// <item><description>Translator adds to this list</description></item>
+    /// <item><description>Request builder iterates this list and encrypts marked parameters</description></item>
+    /// </list>
+    /// </remarks>
+    public List<ParameterMetadata> ParameterMetadata { get; } = new List<ParameterMetadata>();
+    
+    /// <summary>
     /// Initializes a new instance of the <see cref="ExpressionContext"/> class.
     /// </summary>
     /// <param name="attributeValues">The attribute value helper for parameter generation.</param>

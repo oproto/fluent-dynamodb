@@ -54,6 +54,8 @@ public class UpdateItemRequestBuilder<TEntity> :
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     private UpdateExpressionSource? _updateExpressionSource;
+    private Expressions.ExpressionContext? _expressionContext;
+    private Storage.IFieldEncryptor? _fieldEncryptor;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -109,6 +111,30 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// Gets the builder instance for method chaining.
     /// </summary>
     public UpdateItemRequestBuilder<TEntity> Self => this;
+
+    /// <summary>
+    /// Sets the expression context for this builder.
+    /// Used internally by expression-based Set() methods to track parameter metadata for encryption.
+    /// </summary>
+    /// <param name="context">The expression context containing parameter metadata.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal UpdateItemRequestBuilder<TEntity> SetExpressionContext(Expressions.ExpressionContext context)
+    {
+        _expressionContext = context;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the field encryptor for this builder.
+    /// Used internally to enable encryption of parameters marked as requiring encryption.
+    /// </summary>
+    /// <param name="fieldEncryptor">The field encryptor to use for encrypting sensitive parameters.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal UpdateItemRequestBuilder<TEntity> SetFieldEncryptor(Storage.IFieldEncryptor? fieldEncryptor)
+    {
+        _fieldEncryptor = fieldEncryptor;
+        return this;
+    }
 
     public UpdateItemRequestBuilder<TEntity> ForTable(string tableName)
     {
@@ -236,6 +262,112 @@ public class UpdateItemRequestBuilder<TEntity> :
     }
 
     /// <summary>
+    /// Encrypts parameters that are marked as requiring encryption in the expression context.
+    /// This method is called internally before sending the request to DynamoDB.
+    /// </summary>
+    /// <param name="request">The UpdateItemRequest containing expression attribute values to encrypt.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous encryption operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when encryption is required but no IFieldEncryptor is configured.</exception>
+    /// <exception cref="Storage.FieldEncryptionException">Thrown when encryption fails.</exception>
+    private async Task EncryptParametersAsync(UpdateItemRequest request, CancellationToken cancellationToken)
+    {
+        if (_expressionContext == null || _expressionContext.ParameterMetadata.Count == 0)
+            return;
+
+        var parametersRequiringEncryption = _expressionContext.ParameterMetadata
+            .Where(p => p.RequiresEncryption)
+            .ToList();
+
+        if (parametersRequiringEncryption.Count == 0)
+            return;
+
+        if (_fieldEncryptor == null)
+        {
+            var propertyNames = string.Join(", ", parametersRequiringEncryption
+                .Select(p => p.PropertyName ?? p.AttributeName ?? "unknown")
+                .Distinct());
+            
+            var attributeNames = string.Join(", ", parametersRequiringEncryption
+                .Select(p => p.AttributeName ?? "unknown")
+                .Distinct());
+
+            throw new InvalidOperationException(
+                $"Field encryption is required for properties [{propertyNames}] (DynamoDB attributes: [{attributeNames}]) but no IFieldEncryptor is configured. " +
+                $"To fix this issue: " +
+                $"1. Implement the IFieldEncryptor interface (e.g., using AWS KMS or another encryption provider). " +
+                $"2. Pass the encryptor to the DynamoDbTableBase constructor, or " +
+                $"3. Set it in the DynamoDbOperationContext before executing update operations. " +
+                $"Example: new MyTable(dynamoDbClient, logger, blobProvider, fieldEncryptor)");
+        }
+
+        foreach (var param in parametersRequiringEncryption)
+        {
+            // Get the current value from the request
+            if (!request.ExpressionAttributeValues.TryGetValue(param.ParameterName, out var attributeValue))
+                continue;
+
+            // Skip null or empty values - they don't need encryption
+            if (attributeValue.NULL == true || string.IsNullOrEmpty(attributeValue.S))
+                continue;
+
+            try
+            {
+                // Extract plaintext (assuming string value for now)
+                var plaintext = System.Text.Encoding.UTF8.GetBytes(attributeValue.S);
+
+                // Create encryption context
+                var encryptionContext = new Storage.FieldEncryptionContext
+                {
+                    ContextId = Storage.DynamoDbOperationContext.EncryptionContextId
+                };
+
+                // Encrypt using property name for consistency with source generator
+                var ciphertext = await _fieldEncryptor.EncryptAsync(
+                    plaintext,
+                    param.PropertyName ?? param.AttributeName ?? "unknown",
+                    encryptionContext,
+                    cancellationToken);
+
+                // Replace with encrypted value (as binary)
+                request.ExpressionAttributeValues[param.ParameterName] = new AttributeValue
+                {
+                    B = new System.IO.MemoryStream(ciphertext)
+                };
+
+                #if !DISABLE_DYNAMODB_LOGGING
+                if (_logger?.IsEnabled(Logging.LogLevel.Debug) == true)
+                {
+                    _logger.LogDebug(LogEventIds.EncryptingField,
+                        "Encrypted parameter {ParameterName} for property {PropertyName} (DynamoDB attribute: {AttributeName}). " +
+                        "Original value: [REDACTED], Encrypted length: {EncryptedLength} bytes",
+                        param.ParameterName,
+                        param.PropertyName ?? "unknown",
+                        param.AttributeName ?? "unknown",
+                        ciphertext.Length);
+                }
+                #endif
+            }
+            catch (Exception ex) when (ex is not InvalidOperationException)
+            {
+                var propertyInfo = param.PropertyName != null && param.AttributeName != null
+                    ? $"property '{param.PropertyName}' (DynamoDB attribute: '{param.AttributeName}')"
+                    : $"property '{param.PropertyName ?? param.AttributeName ?? "unknown"}'";
+                
+                throw new Storage.FieldEncryptionException(
+                    $"Failed to encrypt {propertyInfo} (parameter: {param.ParameterName}). " +
+                    $"Error: {ex.Message}. " +
+                    $"Troubleshooting steps: " +
+                    $"1. Verify the IFieldEncryptor is properly configured with valid encryption keys. " +
+                    $"2. Check that the encryption provider (e.g., AWS KMS) is accessible and has the necessary permissions. " +
+                    $"3. Ensure the value being encrypted is in the correct format for your encryption provider. " +
+                    $"4. Review the inner exception for more details about the encryption failure.",
+                    ex);
+            }
+        }
+    }
+
+    /// <summary>
     /// Executes the UpdateItem operation asynchronously and returns the raw AWS SDK UpdateItemResponse.
     /// This is the Advanced API method that does NOT populate DynamoDbOperationContext.
     /// For most use cases, prefer the Primary API extension method UpdateAsync() which populates context.
@@ -245,6 +377,12 @@ public class UpdateItemRequestBuilder<TEntity> :
     public async Task<UpdateItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
         var request = ToUpdateItemRequest();
+        
+        // Encrypt parameters if needed (for expression-based Set() with encrypted properties)
+        if (_expressionContext != null && _expressionContext.ParameterMetadata.Any(p => p.RequiresEncryption))
+        {
+            await EncryptParametersAsync(request, cancellationToken);
+        }
         
         #if !DISABLE_DYNAMODB_LOGGING
         _logger?.LogInformation(LogEventIds.ExecutingUpdate,

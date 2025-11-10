@@ -28,6 +28,7 @@ public class TransactWriteItemsRequestBuilder
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
     private readonly TransactWriteItemsRequest _req = new() { TransactItems = new List<TransactWriteItem>() };
+    private readonly List<(int index, TransactUpdateBuilder builder)> _updateBuilders = new();
 
     /// <summary>
     /// Initializes a new instance of the TransactWriteItemsRequestBuilder.
@@ -160,8 +161,54 @@ public class TransactWriteItemsRequestBuilder
         Action<TransactUpdateBuilder> builderExpression)
     {
         TransactUpdateBuilder builder = new TransactUpdateBuilder(table.Name);
+        
+        // Set field encryptor from table if available
+        var fieldEncryptor = table.GetFieldEncryptor();
+        if (fieldEncryptor != null)
+        {
+            builder.SetFieldEncryptor(fieldEncryptor);
+        }
+        
         builderExpression(builder);
-        _req.TransactItems.Add(builder.ToWriteItem());
+        
+        // Store builder with its position for later encryption
+        // Add a placeholder to maintain order
+        var index = _req.TransactItems.Count;
+        _req.TransactItems.Add(null!); // Placeholder
+        _updateBuilders.Add((index, builder));
+        
+        // Note: ToWriteItem() will be called after encryption in ExecuteAsync
+        return this;
+    }
+
+    /// <summary>
+    /// Adds an Update operation to the transaction with field encryptor support.
+    /// This internal method is used by DynamoDbTableBase to provide encryption support.
+    /// </summary>
+    /// <param name="tableName">The name of the table.</param>
+    /// <param name="fieldEncryptor">Optional field encryptor for encrypting sensitive properties.</param>
+    /// <param name="builderExpression">An action that configures the update operation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal TransactWriteItemsRequestBuilder UpdateInternal(string tableName, IFieldEncryptor? fieldEncryptor,
+        Action<TransactUpdateBuilder> builderExpression)
+    {
+        TransactUpdateBuilder builder = new TransactUpdateBuilder(tableName);
+        
+        // Set field encryptor if available
+        if (fieldEncryptor != null)
+        {
+            builder.SetFieldEncryptor(fieldEncryptor);
+        }
+        
+        builderExpression(builder);
+        
+        // Store builder with its position for later encryption
+        // Add a placeholder to maintain order
+        var index = _req.TransactItems.Count;
+        _req.TransactItems.Add(null!); // Placeholder
+        _updateBuilders.Add((index, builder));
+        
+        // Note: ToWriteItem() will be called after encryption in ExecuteAsync
         return this;
     }
 
@@ -177,6 +224,20 @@ public class TransactWriteItemsRequestBuilder
     }
 
     /// <summary>
+    /// Encrypts parameters in all update builders that require encryption.
+    /// This method is called internally before building the final transaction request.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous encryption operation.</returns>
+    private async Task EncryptUpdateParametersAsync(CancellationToken cancellationToken)
+    {
+        foreach (var (_, builder) in _updateBuilders)
+        {
+            await builder.EncryptParametersAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Executes the transaction asynchronously using the configured operations.
     /// All operations in the transaction succeed or all fail atomically.
     /// </summary>
@@ -187,6 +248,15 @@ public class TransactWriteItemsRequestBuilder
     /// <exception cref="ProvisionedThroughputExceededException">Thrown when the request rate is too high.</exception>
     public async Task<TransactWriteItemsResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
+        // Encrypt parameters in update builders before building the request
+        await EncryptUpdateParametersAsync(cancellationToken);
+        
+        // Replace placeholders with actual update items after encryption
+        foreach (var (index, builder) in _updateBuilders)
+        {
+            _req.TransactItems[index] = builder.ToWriteItem();
+        }
+        
         var request = ToTransactWriteItemsRequest();
         
         #if !DISABLE_DYNAMODB_LOGGING
