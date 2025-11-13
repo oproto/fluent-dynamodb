@@ -108,6 +108,9 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
         // First, process all entities and collect valid entity models
         var validEntityModels = new List<EntityModel>();
+        
+        // Discover extension methods marked with [GenerateWrapper] once for all entities
+        Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
 
         foreach (var (entity, diagnostics) in entities)
         {
@@ -148,6 +151,24 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
             var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity);
             context.AddSource($"{entity.ClassName}UpdateModel.g.cs", updateModelCode);
+
+            // Discover extension methods for wrapper generation (do this once to avoid redundant work)
+            if (extensionMethods == null && entity.SemanticModel != null)
+            {
+                var compilation = entity.SemanticModel.Compilation;
+                var discovery = new ExtensionMethodDiscovery(compilation);
+                extensionMethods = discovery.DiscoverExtensionMethods();
+                
+                // Report any diagnostics from extension method discovery
+                foreach (var discoveryDiagnostic in discovery.Diagnostics)
+                {
+                    context.ReportDiagnostic(discoveryDiagnostic);
+                }
+            }
+
+            // Generate entity-specific update builder with extension method wrappers
+            var updateBuilderCode = EntitySpecificUpdateBuilderGenerator.GenerateUpdateBuilder(entity, extensionMethods);
+            context.AddSource($"{entity.ClassName}UpdateBuilder.g.cs", updateBuilderCode);
         }
 
         // Group entities by table name for table class generation

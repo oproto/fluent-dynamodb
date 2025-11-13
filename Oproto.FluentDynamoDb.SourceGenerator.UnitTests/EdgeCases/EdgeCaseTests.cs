@@ -38,7 +38,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "EmptyEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -83,7 +83,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var fieldsCode = GetGeneratedSource(result, "SpecialCharsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
@@ -139,7 +139,7 @@ namespace TestNamespace
         // Should generate warnings for reserved words only
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warnings
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var fieldsCode = GetGeneratedSource(result, "ReservedKeywordsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
@@ -187,7 +187,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var fieldsCode = GetGeneratedSource(result, "LongNamesEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
@@ -225,7 +225,7 @@ namespace Very.Deeply.Nested.Namespace.Structure
         // Should generate warnings for reserved word "name" only
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "name"
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "NestedNamespaceEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -271,7 +271,7 @@ namespace TestNamespace
         // Should generate warnings for complex collection types
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for complex collections
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "GenericConstraintsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -315,7 +315,7 @@ namespace TestNamespace
 
         // Assert
         // Should generate code gracefully even with circular references
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "CircularRefEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -359,7 +359,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var fieldsCode = GetGeneratedSource(result, "UnicodeEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
@@ -409,7 +409,7 @@ namespace TestNamespace
         // Should generate warning for reserved word "region"
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "region"
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var keysCode = GetGeneratedSource(result, "ComplexKeyFormatsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(keysCode, source);
@@ -453,7 +453,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var fieldsCode = GetGeneratedSource(result, "EmptyAttributesEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
@@ -497,7 +497,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var fieldsCode = GetGeneratedSource(result, "DuplicateAttributesEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
@@ -566,7 +566,7 @@ namespace TestNamespace
         // May generate warnings about overly broad patterns and performance issues
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warnings for collections
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "ComplexPatternsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);

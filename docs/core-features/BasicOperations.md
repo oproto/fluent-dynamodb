@@ -30,24 +30,39 @@ using Oproto.FluentDynamoDb.Storage;
 
 var client = new AmazonDynamoDBClient();
 
-// Option 1: Manual approach - create a class that inherits from DynamoDbTableBase
-public class UsersTableManual : DynamoDbTableBase
-{
-    public UsersTableManual(IAmazonDynamoDB client, string tableName) 
-        : base(client, tableName) { }
-}
-var table = new UsersTableManual(client, "users");
-
-// Option 2: Use source-generated table class (recommended)
+// Use source-generated table class (recommended)
 // Table name is configurable at runtime for different environments
-var usersTable = new UsersTable(client, "users");
+var table = new UsersTable(client, "users");
 
 // For multi-entity tables with entity accessors
 var ordersTable = new OrdersTable(client, "orders");
 // Access via: ordersTable.Orders.Get(), ordersTable.OrderLines.Query(), etc.
 ```
 
-> **Note**: Examples in this guide use a manual table class for clarity. For production code with source-generated entities, use the generated table classes. The table name is passed to the constructor, allowing environment-specific table names. See [Single-Entity Tables](../getting-started/SingleEntityTables.md) and [Multi-Entity Tables](../advanced-topics/MultiEntityTables.md) for details.
+> **Note**: This guide demonstrates both **convenience methods** (simplified single-call operations) and the **builder API** (full control with fluent chaining). Use convenience methods for simple operations and the builder pattern when you need conditions, return values, or other advanced options.
+
+## API Pattern Overview
+
+Oproto.FluentDynamoDb provides two complementary patterns:
+
+### Convenience Methods (Recommended for Simple Operations)
+```csharp
+// Single method call for simple operations
+var user = await table.Users.GetAsync("user123");
+await table.Users.PutAsync(user);
+await table.Users.DeleteAsync("user123");
+await table.Users.UpdateAsync("user123", update => 
+    update.Set(x => new UserUpdateModel { Status = "active" }));
+```
+
+### Builder API (For Complex Operations)
+```csharp
+// Full control with fluent chaining
+await table.Users.Put(user)
+    .Where("attribute_not_exists({0})", User.Fields.UserId)
+    .ReturnAllOldValues()
+    .PutAsync();
+```
 
 ## Put Operations
 
@@ -78,9 +93,11 @@ var user = new User
     Name = "John Doe"
 };
 
-await table.Put
-    .WithItem(user)
-    .ExecuteAsync();
+// Convenience method API (recommended for simple puts)
+await table.Users.PutAsync(user);
+
+// Builder API (equivalent)
+await table.Users.Put(user).PutAsync();
 ```
 
 **What Happens:**
@@ -93,12 +110,13 @@ await table.Put
 Use a condition expression to prevent overwriting existing items:
 
 ```csharp
-// Only put if the item doesn't already exist
-await table.Put
-    .WithItem(user)
-    .Where($"attribute_not_exists({UserFields.UserId})")
-    .ExecuteAsync();
+// Builder API required for conditions
+await table.Users.Put(user)
+    .Where($"attribute_not_exists({User.Fields.UserId})")
+    .PutAsync();
 ```
+
+> **Note**: Convenience method methods don't support conditions. Use the builder pattern when you need conditional expressions.
 
 **Common Condition Patterns:**
 
@@ -121,11 +139,10 @@ await table.Put
 Get the old item values after a put operation:
 
 ```csharp
-// Return all old attribute values
-var response = await table.Put
-    .WithItem(user)
+// Builder API required for return values
+var response = await table.Users.Put(user)
     .ReturnAllOldValues()
-    .ExecuteAsync();
+    .PutAsync();
 
 // Check if an item was replaced
 if (response.Attributes != null && response.Attributes.Count > 0)
@@ -134,6 +151,8 @@ if (response.Attributes != null && response.Attributes.Count > 0)
     Console.WriteLine($"Replaced user: {oldUser.Name}");
 }
 ```
+
+> **Note**: Convenience method methods don't return response objects. Use the builder pattern when you need return values.
 
 **Return Value Options:**
 - `ReturnAllOldValues()` - Returns all attributes of the old item
@@ -146,10 +165,9 @@ using Amazon.DynamoDBv2.Model;
 
 try
 {
-    await table.Put
-        .WithItem(user)
-        .Where($"attribute_not_exists({UserFields.UserId})")
-        .ExecuteAsync();
+    await table.Users.Put(user)
+        .Where($"attribute_not_exists({User.Fields.UserId})")
+        .PutAsync();
     
     Console.WriteLine("User created successfully");
 }
@@ -158,6 +176,35 @@ catch (ConditionalCheckFailedException)
     Console.WriteLine("User already exists");
 }
 ```
+
+### Put with Raw Dictionary
+
+For advanced scenarios, you can put raw attribute dictionaries:
+
+```csharp
+// Convenience method with raw dictionary
+await table.Users.PutAsync(new Dictionary<string, AttributeValue>
+{
+    ["pk"] = new AttributeValue { S = "user123" },
+    ["email"] = new AttributeValue { S = "john@example.com" },
+    ["name"] = new AttributeValue { S = "John Doe" }
+});
+
+// Builder pattern with raw dictionary and conditions
+await table.Users.Put(new Dictionary<string, AttributeValue>
+{
+    ["pk"] = new AttributeValue { S = "user123" },
+    ["email"] = new AttributeValue { S = "john@example.com" }
+})
+.Where("attribute_not_exists(pk)")
+.PutAsync();
+```
+
+**When to use raw dictionaries:**
+- Testing and debugging
+- Migration from other libraries
+- Dynamic schema scenarios
+- Working without entity classes
 
 ## Get Operations
 
@@ -174,18 +221,23 @@ public partial class User
     public string UserId { get; set; } = string.Empty;
 }
 
-// Get a user by partition key
-var response = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+// Convenience method API (recommended for simple gets)
+var user = await table.Users.GetAsync("user123");
 
-if (response.Item != null)
+if (user != null)
 {
-    Console.WriteLine($"Found user: {response.Item.Name}");
+    Console.WriteLine($"Found user: {user.Name}");
 }
 else
 {
     Console.WriteLine("User not found");
+}
+
+// Builder API (equivalent)
+var response = await table.Users.Get("user123").GetItemAsync();
+if (response.Item != null)
+{
+    Console.WriteLine($"Found user: {response.Item.Name}");
 }
 ```
 
@@ -204,11 +256,11 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
 }
 
-// Get an order by partition key and sort key
-var response = await table.Get
-    .WithKey(OrderFields.CustomerId, OrderKeys.Pk("customer123"))
-    .WithKey(OrderFields.OrderId, OrderKeys.Sk("order456"))
-    .ExecuteAsync<Order>();
+// Convenience method API with composite key
+var order = await table.Orders.GetAsync("customer123", "order456");
+
+// Builder API (equivalent)
+var response = await table.Orders.Get("customer123", "order456").GetItemAsync();
 ```
 
 ### Get with Projection Expression
@@ -216,11 +268,10 @@ var response = await table.Get
 Retrieve only specific attributes to reduce data transfer and improve performance:
 
 ```csharp
-// Get only name and email
-var response = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .WithProjection($"{UserFields.Name}, {UserFields.Email}")
-    .ExecuteAsync<User>();
+// Builder API required for projections
+var response = await table.Users.Get("user123")
+    .WithProjection($"{User.Fields.Name}, {User.Fields.Email}")
+    .GetItemAsync();
 
 // Note: Other properties will have default values
 if (response.Item != null)
@@ -230,6 +281,8 @@ if (response.Item != null)
     // response.Item.Status will be default value
 }
 ```
+
+> **Note**: Convenience method methods don't support projection expressions. Use the builder pattern when you need to limit returned attributes.
 
 **Projection Benefits:**
 - Reduces network bandwidth
@@ -242,16 +295,15 @@ Use consistent reads when you need the most up-to-date data:
 
 ```csharp
 // Eventually consistent read (default, faster, cheaper)
-var response1 = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+var user1 = await table.Users.GetAsync("user123");
 
-// Strongly consistent read (slower, more expensive, always current)
-var response2 = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+// Strongly consistent read - builder API required
+var response = await table.Users.Get("user123")
     .UsingConsistentRead()
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 ```
+
+> **Note**: Convenience method methods use eventually consistent reads. Use the builder pattern when you need strongly consistent reads.
 
 **When to Use Consistent Reads:**
 - Immediately after a write operation
@@ -267,32 +319,59 @@ var response2 = await table.Get
 
 Update operations modify specific attributes of existing items without replacing the entire item.
 
-### SET Operations
+### Entity-Specific Update Builders
 
-Set attribute values using expression formatting:
+The library provides entity-specific update builders that eliminate verbose generic parameters:
+
+```csharp
+// Entity-specific builder with simplified Set method
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel 
+    { 
+        Name = "Jane Doe",
+        Email = "jane@example.com",
+        UpdatedAt = DateTime.UtcNow
+    })
+    .UpdateAsync();
+
+// Convenience method API with configuration action
+await table.Users.UpdateAsync("user123", update => 
+    update.Set(x => new UserUpdateModel 
+    { 
+        Name = "Jane Doe",
+        UpdatedAt = DateTime.UtcNow
+    }));
+```
+
+**Key Benefits:**
+- Only one generic parameter (`TUpdateModel`) instead of three
+- Entity type inferred from accessor
+- Better IntelliSense support
+- Cleaner, more readable code
+
+### SET Operations with Expression Formatting
+
+You can also use traditional expression formatting:
 
 ```csharp
 // Update single attribute
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"SET {User.Fields.Name} = {{0}}", "Jane Doe")
+    .UpdateAsync();
 
 // Update multiple attributes
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.Email} = {{1}}", 
+await table.Users.Update("user123")
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.Email} = {{1}}", 
          "Jane Doe", 
          "jane@example.com")
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Update with timestamp formatting
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
+await table.Users.Update("user123")
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Format Specifiers:**
@@ -327,22 +406,19 @@ Increment numeric values or add elements to sets:
 
 ```csharp
 // Increment a counter
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"ADD {UserFields.LoginCount} {{0}}", 1)
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"ADD {User.Fields.LoginCount} {{0}}", 1)
+    .UpdateAsync();
 
 // Decrement (use negative number)
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"ADD {UserFields.Credits} {{0}}", -10)
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"ADD {User.Fields.Credits} {{0}}", -10)
+    .UpdateAsync();
 
 // Add to a number set
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"ADD {UserFields.Tags} {{0}}", new HashSet<string> { "premium", "verified" })
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"ADD {User.Fields.Tags} {{0}}", new HashSet<string> { "premium", "verified" })
+    .UpdateAsync();
 ```
 
 **ADD Behavior:**
@@ -356,22 +432,19 @@ Remove attributes from an item:
 
 ```csharp
 // Remove single attribute
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"REMOVE {UserFields.TempData}")
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"REMOVE {User.Fields.TempData}")
+    .UpdateAsync();
 
 // Remove multiple attributes
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"REMOVE {UserFields.TempData}, {UserFields.OldField}")
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"REMOVE {User.Fields.TempData}, {User.Fields.OldField}")
+    .UpdateAsync();
 
 // Remove element from a list by index
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"REMOVE {UserFields.Addresses}[0]")
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"REMOVE {User.Fields.Addresses}[0]")
+    .UpdateAsync();
 ```
 
 ### DELETE Operations
@@ -380,10 +453,9 @@ Remove elements from sets:
 
 ```csharp
 // Remove specific tags from a set
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"DELETE {UserFields.Tags} {{0}}", new HashSet<string> { "old-tag" })
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set($"DELETE {User.Fields.Tags} {{0}}", new HashSet<string> { "old-tag" })
+    .UpdateAsync();
 ```
 
 **DELETE vs REMOVE:**
@@ -395,15 +467,14 @@ await table.Update
 Combine multiple operation types in a single update:
 
 ```csharp
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}} " +
-         $"ADD {UserFields.LoginCount} {{2}} " +
-         $"REMOVE {UserFields.TempData}",
+await table.Users.Update("user123")
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}} " +
+         $"ADD {User.Fields.LoginCount} {{2}} " +
+         $"REMOVE {User.Fields.TempData}",
          "Jane Doe",
          DateTime.UtcNow,
          1)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Conditional Updates
@@ -411,22 +482,30 @@ await table.Update
 Only update if a condition is met:
 
 ```csharp
-// Only update if user is active
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
-    .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync();
+// Only update if user is active (string-based condition)
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .Where($"{User.Fields.Status} = {{0}}", "active")
+    .UpdateAsync();
+
+// LINQ expression condition (TEntity inferred from entity-specific builder)
+await table.Users.Update("user123")
+    .Where(x => x.Status == "active")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .UpdateAsync();
 
 // Optimistic locking with version number
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.Version} = {{1}}", 
-         "Jane Doe", 
-         currentVersion + 1)
-    .Where($"{UserFields.Version} = {{0}}", currentVersion)
-    .ExecuteAsync();
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel 
+    { 
+        Name = "Jane Doe",
+        Version = currentVersion + 1
+    })
+    .Where($"{User.Fields.Version} = {{0}}", currentVersion)
+    .UpdateAsync();
 ```
+
+> **Note**: Entity-specific builders maintain proper return types throughout the fluent chain, so you can call `Where()` and `Set()` in any order without losing type information.
 
 ### Update with Return Values
 
@@ -434,15 +513,16 @@ Get attribute values before or after the update:
 
 ```csharp
 // Return all new values after update
-var response = await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
+var response = await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
     .ReturnAllNewValues()
-    .ExecuteAsync();
+    .UpdateAsync();
 
 var updatedUser = UserMapper.FromAttributeMap(response.Attributes);
 Console.WriteLine($"Updated user: {updatedUser.Name}");
 ```
+
+> **Note**: Convenience method `UpdateAsync()` methods don't return response objects. Use the builder pattern when you need return values.
 
 **Return Value Options:**
 - `ReturnAllNewValues()` - All attributes after update
@@ -458,16 +538,17 @@ Delete operations remove items from the table.
 ### Simple Delete
 
 ```csharp
-// Delete by partition key
-await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync();
+// Convenience method API (recommended for simple deletes)
+await table.Users.DeleteAsync("user123");
 
-// Delete by composite key
-await table.Delete
-    .WithKey(OrderFields.CustomerId, OrderKeys.Pk("customer123"))
-    .WithKey(OrderFields.OrderId, OrderKeys.Sk("order456"))
-    .ExecuteAsync();
+// Builder API (equivalent)
+await table.Users.Delete("user123").DeleteAsync();
+
+// Delete by composite key - convenience method
+await table.Orders.DeleteAsync("customer123", "order456");
+
+// Delete by composite key - builder API
+await table.Orders.Delete("customer123", "order456").DeleteAsync();
 ```
 
 ### Conditional Delete
@@ -475,35 +556,33 @@ await table.Delete
 Only delete if a condition is met:
 
 ```csharp
-// Only delete if user is inactive
-await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Status} = {{0}}", "inactive")
-    .ExecuteAsync();
+// Builder API required for conditions
+await table.Users.Delete("user123")
+    .Where($"{User.Fields.Status} = {{0}}", "inactive")
+    .DeleteAsync();
 
 // Only delete if item exists
-await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"attribute_exists({UserFields.UserId})")
-    .ExecuteAsync();
+await table.Users.Delete("user123")
+    .Where($"attribute_exists({User.Fields.UserId})")
+    .DeleteAsync();
 
 // Only delete if version matches (optimistic locking)
-await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Version} = {{0}}", currentVersion)
-    .ExecuteAsync();
+await table.Users.Delete("user123")
+    .Where($"{User.Fields.Version} = {{0}}", currentVersion)
+    .DeleteAsync();
 ```
+
+> **Note**: Convenience method methods don't support conditions. Use the builder pattern when you need conditional expressions.
 
 ### Delete with Return Values
 
 Get the deleted item's attributes:
 
 ```csharp
-// Return all old values before deletion
-var response = await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+// Builder API required for return values
+var response = await table.Users.Delete("user123")
     .ReturnAllOldValues()
-    .ExecuteAsync();
+    .DeleteAsync();
 
 if (response.Attributes != null && response.Attributes.Count > 0)
 {
@@ -514,6 +593,8 @@ if (response.Attributes != null && response.Attributes.Count > 0)
 }
 ```
 
+> **Note**: Convenience method methods don't return response objects. Use the builder pattern when you need return values.
+
 ### Delete with Error Handling
 
 ```csharp
@@ -521,10 +602,9 @@ using Amazon.DynamoDBv2.Model;
 
 try
 {
-    await table.Delete
-        .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-        .Where($"{UserFields.Status} = {{0}}", "inactive")
-        .ExecuteAsync();
+    await table.Users.Delete("user123")
+        .Where($"{User.Fields.Status} = {{0}}", "inactive")
+        .DeleteAsync();
     
     Console.WriteLine("User deleted successfully");
 }
@@ -741,18 +821,110 @@ var response = await ExecuteWithRetry(() =>
 );
 ```
 
+## Choosing Between API Patterns
+
+### Decision Guide
+
+**Use Convenience Methods when:**
+- ✅ Simple CRUD operations without conditions
+- ✅ No need for return values or response metadata
+- ✅ Eventually consistent reads are acceptable
+- ✅ Quick prototyping or testing
+- ✅ Code readability is priority
+
+**Use Builder API when:**
+- ✅ Conditional expressions required
+- ✅ Need return values (old/new attributes)
+- ✅ Projection expressions to limit data transfer
+- ✅ Strongly consistent reads required
+- ✅ Custom capacity or retry settings
+- ✅ Complex operations with multiple options
+
+### Quick Reference
+
+| Operation | Convenience Methods | Builder Pattern |
+|-----------|---------------------|-----------------|
+| Simple Get | `await table.Users.GetAsync("id")` | `await table.Users.Get("id").GetItemAsync()` |
+| Get with Projection | ❌ Not supported | `await table.Users.Get("id").WithProjection(...).GetItemAsync()` |
+| Consistent Read | ❌ Not supported | `await table.Users.Get("id").UsingConsistentRead().GetItemAsync()` |
+| Simple Put | `await table.Users.PutAsync(user)` | `await table.Users.Put(user).PutAsync()` |
+| Conditional Put | ❌ Not supported | `await table.Users.Put(user).Where(...).PutAsync()` |
+| Put with Return Values | ❌ Not supported | `await table.Users.Put(user).ReturnAllOldValues().PutAsync()` |
+| Simple Update | `await table.Users.UpdateAsync("id", u => u.Set(...))` | `await table.Users.Update("id").Set(...).UpdateAsync()` |
+| Conditional Update | ❌ Not supported | `await table.Users.Update("id").Set(...).Where(...).UpdateAsync()` |
+| Update with Return Values | ❌ Not supported | `await table.Users.Update("id").Set(...).ReturnAllNewValues().UpdateAsync()` |
+| Simple Delete | `await table.Users.DeleteAsync("id")` | `await table.Users.Delete("id").DeleteAsync()` |
+| Conditional Delete | ❌ Not supported | `await table.Users.Delete("id").Where(...).DeleteAsync()` |
+| Delete with Return Values | ❌ Not supported | `await table.Users.Delete("id").ReturnAllOldValues().DeleteAsync()` |
+
+### Mixing Patterns
+
+You can freely mix both patterns in the same codebase:
+
+```csharp
+public class UserService
+{
+    private readonly UsersTable _table;
+
+    // Convenience method for simple operations
+    public Task<User?> GetUserAsync(string userId) =>
+        _table.Users.GetAsync(userId);
+
+    // Builder pattern for complex operations
+    public async Task<User?> CreateUserAsync(User user)
+    {
+        var response = await _table.Users.Put(user)
+            .Where("attribute_not_exists({0})", User.Fields.UserId)
+            .ReturnAllOldValues()
+            .PutAsync();
+        
+        return response.Attributes != null 
+            ? UserMapper.FromAttributeMap(response.Attributes) 
+            : null;
+    }
+
+    // Convenience method for simple updates
+    public Task UpdateUserStatusAsync(string userId, string status) =>
+        _table.Users.UpdateAsync(userId, update => 
+            update.Set(x => new UserUpdateModel { Status = status }));
+
+    // Builder pattern for optimistic locking
+    public Task<bool> UpdateUserWithVersionAsync(
+        string userId, 
+        string newEmail, 
+        int currentVersion)
+    {
+        try
+        {
+            await _table.Users.Update(userId)
+                .Set(x => new UserUpdateModel 
+                { 
+                    Email = newEmail,
+                    Version = currentVersion + 1
+                })
+                .Where($"{User.Fields.Version} = {{0}}", currentVersion)
+                .UpdateAsync();
+            return true;
+        }
+        catch (ConditionalCheckFailedException)
+        {
+            return false;
+        }
+    }
+}
+```
+
 ## Manual Patterns
 
 While expression formatting is recommended, you can also use manual parameter binding for complex scenarios:
 
 ```csharp
 // Manual parameter approach
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = :name, {UserFields.Email} = :email")
+await table.Users.Update("user123")
+    .Set($"SET {User.Fields.Name} = :name, {User.Fields.Email} = :email")
     .WithValue(":name", "Jane Doe")
     .WithValue(":email", "jane@example.com")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on lower-level approaches.
@@ -761,6 +933,7 @@ See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on 
 
 - **[Querying Data](QueryingData.md)** - Query and scan operations
 - **[Expression Formatting](ExpressionFormatting.md)** - Complete format specifier reference
+- **[Expression-Based Updates](ExpressionBasedUpdates.md)** - Entity-specific builder details
 - **[Batch Operations](BatchOperations.md)** - Advanced batch patterns
 - **[Transactions](Transactions.md)** - ACID transactions across items
 

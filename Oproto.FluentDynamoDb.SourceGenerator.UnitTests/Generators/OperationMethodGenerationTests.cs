@@ -262,8 +262,8 @@ namespace TestNamespace
         var tableCode = tableFiles[0].SourceText.ToString();
         
         // Update operation should be private
-        tableCode.Should().Contain("private UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate private Update operation when Modifier = Private");
+        tableCode.Should().Contain("private OrderUpdateBuilder Update(string pk)",
+            "should generate private Update operation with entity-specific builder when Modifier = Private");
     }
 
     [Fact]
@@ -316,8 +316,8 @@ namespace TestNamespace
             "should not generate Delete operation when Generate = false");
         
         // Operations not configured should use default (public, except Scan which is not currently implemented)
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate public Update operation (default)");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "should generate public Update operation with entity-specific builder (default)");
     }
 
     [Fact]
@@ -363,8 +363,8 @@ namespace TestNamespace
             "should generate internal Put operation when All flag is used");
         tableCode.Should().Contain("internal DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate internal Delete operation when All flag is used");
-        tableCode.Should().Contain("internal UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate internal Update operation when All flag is used");
+        tableCode.Should().Contain("internal OrderUpdateBuilder Update(string pk)",
+            "should generate internal Update operation with entity-specific builder when All flag is used");
     }
 
     [Fact]
@@ -412,8 +412,8 @@ namespace TestNamespace
             "should generate public Put operation (default)");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate public Delete operation (default)");
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate public Update operation (default)");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "should generate public Update operation with entity-specific builder (default)");
     }
 
     [Fact]
@@ -460,8 +460,8 @@ namespace TestNamespace
         // Write operations should be protected
         tableCode.Should().Contain("protected PutItemRequestBuilder<Order> Put()",
             "should generate protected Put operation");
-        tableCode.Should().Contain("protected UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate protected Update operation");
+        tableCode.Should().Contain("protected OrderUpdateBuilder Update(string pk)",
+            "should generate protected Update operation with entity-specific builder");
         
         // Delete should be public (default)
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
@@ -663,8 +663,8 @@ namespace TestNamespace
             "should generate public Put operation by default");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate public Delete operation by default");
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate public Update operation by default");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "should generate public Update operation with entity-specific builder by default");
     }
 
     private static GeneratorTestResult GenerateCode(string source)

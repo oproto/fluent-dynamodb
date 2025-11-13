@@ -748,4 +748,54 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "When multiple entities in the same table have stream conversion enabled, they should all use the same discriminator property to ensure consistent stream processing behavior. The OnStream method will use the discriminator property from the first entity.");
+
+    // Extension Method Wrapper Generation Diagnostics (DYNDB1001-DYNDB1004)
+
+    /// <summary>
+    /// Error when [GenerateWrapper] is used on a non-extension method.
+    /// </summary>
+    public static readonly DiagnosticDescriptor NonExtensionMethodWithGenerateWrapper = new(
+        "DYNDB1001",
+        "Invalid GenerateWrapper usage",
+        "Method '{0}' is marked with [GenerateWrapper] but is not an extension method",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The [GenerateWrapper] attribute can only be applied to extension methods. Extension methods must be static and have 'this' as the first parameter modifier.");
+
+    /// <summary>
+    /// Error when an extension method marked with [GenerateWrapper] does not extend a valid interface.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidExtensionMethodInterface = new(
+        "DYNDB1002",
+        "Invalid extension method",
+        "Extension method '{0}' marked with [GenerateWrapper] does not extend a valid interface",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Extension methods marked with [GenerateWrapper] must extend an interface that is implemented by the builder class. The first parameter must be an interface type.");
+
+    /// <summary>
+    /// Warning when a required interface for extension methods cannot be found.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InterfaceNotFound = new(
+        "DYNDB1003",
+        "Interface not found",
+        "Interface '{0}' required by extension methods could not be found for builder '{1}'",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The interface extended by marked extension methods could not be found in the compilation. This may indicate a missing reference or incorrect interface name.");
+
+    /// <summary>
+    /// Warning when a builder does not implement a required interface for extension methods.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InterfaceNotImplemented = new(
+        "DYNDB1004",
+        "Interface not implemented",
+        "Builder '{0}' does not implement interface '{1}' required by extension methods marked with [GenerateWrapper]",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The builder class must implement all interfaces that are extended by methods marked with [GenerateWrapper]. Add the interface implementation to the builder class or remove the [GenerateWrapper] attribute from methods extending this interface.");
 }

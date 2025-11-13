@@ -19,6 +19,10 @@
         <!-- Ensure deterministic builds -->
         <Deterministic>true</Deterministic>
         <PathMap>$(MSBuildProjectDirectory)=.</PathMap>
+        
+        <!-- Optimize for IDE builds -->
+        <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
     </PropertyGroup>
 
     <ItemGroup>

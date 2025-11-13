@@ -48,6 +48,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Newto
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Logging.Extensions", "Oproto.FluentDynamoDb.Logging.Extensions\Oproto.FluentDynamoDb.Logging.Extensions.csproj", "{ADD05CE9-2ACD-47A8-8EC4-A6CE92616900}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.ApiConsistencyTests", "Oproto.FluentDynamoDb.ApiConsistencyTests\Oproto.FluentDynamoDb.ApiConsistencyTests.csproj", "{A468C090-2016-43DE-9648-E8B156290DC8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -128,5 +130,11 @@ Global
 		{ADD05CE9-2ACD-47A8-8EC4-A6CE92616900}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ADD05CE9-2ACD-47A8-8EC4-A6CE92616900}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ADD05CE9-2ACD-47A8-8EC4-A6CE92616900}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A468C090-2016-43DE-9648-E8B156290DC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A468C090-2016-43DE-9648-E8B156290DC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A468C090-2016-43DE-9648-E8B156290DC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A468C090-2016-43DE-9648-E8B156290DC8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
 EndGlobal

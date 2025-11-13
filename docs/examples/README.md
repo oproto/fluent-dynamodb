@@ -4,6 +4,18 @@ This directory contains practical code examples for Oproto.FluentDynamoDb featur
 
 ## Available Examples
 
+### [Entity-Specific Builders Examples](EntitySpecificBuildersExamples.md)
+
+Comprehensive examples for using entity-specific update builders and convenience methods:
+
+- **Basic CRUD Operations**: Simple get, put, update, delete operations
+- **Update Operations**: Property updates, counters, sets, and complex updates
+- **Conditional Operations**: Condition expressions and LINQ expressions
+- **Optimistic Locking**: Version-based concurrency control with retry logic
+- **Complex Updates**: Advanced patterns and nested attribute updates
+- **Raw Dictionary Operations**: Working with raw AttributeValue dictionaries
+- **Real-World Patterns**: E-commerce orders and session management
+
 ### [Projection Models Examples](ProjectionModelsExamples.md)
 
 Comprehensive examples for using projection models to optimize queries:
@@ -31,6 +43,13 @@ Comprehensive examples for using advanced DynamoDB types:
 
 ### By Feature
 
+**API Patterns**
+- [Convenience Methods](EntitySpecificBuildersExamples.md#basic-crud-operations)
+- [Entity-Specific Builders](EntitySpecificBuildersExamples.md#update-operations)
+- [Conditional Operations](EntitySpecificBuildersExamples.md#conditional-operations)
+- [Optimistic Locking](EntitySpecificBuildersExamples.md#optimistic-locking)
+- [Raw Dictionaries](EntitySpecificBuildersExamples.md#raw-dictionary-operations)
+
 **Collections**
 - [Maps](AdvancedTypesExamples.md#map-examples)
 - [Sets](AdvancedTypesExamples.md#set-examples)
@@ -48,7 +67,13 @@ Comprehensive examples for using advanced DynamoDB types:
 
 ### By Use Case
 
+**User Management**
+- [User CRUD operations](EntitySpecificBuildersExamples.md#user-management-service)
+- [Profile updates](EntitySpecificBuildersExamples.md#profile-update-service)
+- [Session management](EntitySpecificBuildersExamples.md#user-session-management)
+
 **E-commerce**
+- [Order management](EntitySpecificBuildersExamples.md#e-commerce-order-service)
 - Product with tags and metadata
 - Orders with item lists
 - Customer addresses
@@ -67,6 +92,8 @@ Comprehensive examples for using advanced DynamoDB types:
 
 ## See Also
 
+- [Basic Operations](../core-features/BasicOperations.md) - Core CRUD operations
+- [Expression-Based Updates](../core-features/ExpressionBasedUpdates.md) - Update details
 - [Advanced Types Guide](../advanced-topics/AdvancedTypes.md) - Complete documentation
 - [Migration Guide](../reference/AdvancedTypesMigration.md) - Migrate existing entities
 - [Quick Reference](../reference/AdvancedTypesQuickReference.md) - Quick lookup

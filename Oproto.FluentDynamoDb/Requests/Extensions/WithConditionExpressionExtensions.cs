@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 using Oproto.FluentDynamoDb.Storage;
@@ -72,6 +73,7 @@ public static class WithConditionExpressionExtensions
     /// .WithValue(":prefix", "ORDER#")
     /// </code>
     /// </example>
+    [GenerateWrapper]
     public static T Where<T>(this IWithConditionExpression<T> builder, string conditionExpression)
     {
         return builder.SetConditionExpression(conditionExpression);
@@ -124,6 +126,7 @@ public static class WithConditionExpressionExtensions
     /// <para><strong>Format Safety:</strong> All format operations are AOT-safe and don't use reflection.</para>
     /// <para><strong>Error Handling:</strong> Clear error messages are provided for invalid format strings or type mismatches.</para>
     /// </remarks>
+    [GenerateWrapper]
     public static T Where<T>(this IWithConditionExpression<T> builder, string format, params object[] args)
     {
         var (processedExpression, _) = FormatStringProcessor.ProcessFormatString(format, args, builder.GetAttributeValueHelper());
@@ -171,6 +174,7 @@ public static class WithConditionExpressionExtensions
     /// <para><strong>Parameter Generation:</strong> Values are automatically captured and converted to DynamoDB AttributeValue types.</para>
     /// <para><strong>AOT Safety:</strong> This method is AOT-safe and doesn't use runtime code generation.</para>
     /// </remarks>
+    [GenerateWrapper(RequiresSpecialization = true, SpecializationNotes = "Fixes TEntity generic parameter to the builder's entity type")]
     public static T Where<T, TEntity>(
         this IWithConditionExpression<T> builder,
         Expression<Func<TEntity, bool>> expression,

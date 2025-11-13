@@ -61,9 +61,9 @@ using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "users");
+var table = new UsersTable(client, "users");
 
-// Create a user (Primary API - returns void, populates context)
+// Create a user
 var user = new User 
 { 
     UserId = "user123", 
@@ -71,42 +71,157 @@ var user = new User
     Email = "john@example.com"
 };
 
-await table.Put
-    .WithItem(UserMapper.ToItem(user))
+// Convenience method (recommended for simple operations)
+await table.Users.PutAsync(user);
+
+// Builder API (for complex operations with conditions)
+await table.Users.Put(user)
     .Where("attribute_not_exists({0})", User.Fields.UserId)
     .PutAsync();
 
-// Get a user (Primary API - returns entity, populates context)
-var retrievedUser = await table.Get
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .GetItemAsync<User>();
+// Get a user - convenience method
+var retrievedUser = await table.Users.GetAsync("user123");
+
+// Get a user - builder API with projection
+var userWithProjection = await table.Users.Get("user123")
+    .WithProjection($"{User.Fields.Username}, {User.Fields.Email}")
+    .GetItemAsync();
 
 // Access operation metadata via context
 var context = DynamoDbOperationContext.Current;
 Console.WriteLine($"Consumed capacity: {context?.ConsumedCapacity?.CapacityUnits}");
 
-// Query users with expression formatting (Primary API - returns list, populates context)
+// Query users with expression formatting
 var activeUsers = await table.Query
     .Where("{0} = {1} AND {2} = {3}", 
            User.Fields.UserId, User.Keys.Pk("user123"),
            User.Fields.Status, "active")
     .ToListAsync<User>();
 
-// Update with type-safe fields and format strings (Primary API - returns void, populates context)
-await table.Update
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .Set($"SET {User.Fields.Status} = {{0}}, {User.Fields.CreatedAt} = {{1:o}}", 
-         "inactive", DateTime.UtcNow)
+// Update with entity-specific builder (simplified Set method)
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel 
+    { 
+        Status = "inactive",
+        UpdatedAt = DateTime.UtcNow
+    })
     .UpdateAsync();
 
-// Delete with condition (Primary API - returns void, populates context)
-await table.Delete
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+// Update - convenience method with configuration
+await table.Users.UpdateAsync("user123", update => 
+    update.Set(x => new UserUpdateModel { Status = "inactive" }));
+
+// Delete - convenience method
+await table.Users.DeleteAsync("user123");
+
+// Delete - builder API with condition
+await table.Users.Delete("user123")
     .Where("{0} = {1}", User.Fields.Status, "inactive")
     .DeleteAsync();
 ```
 
 **Next Steps:** See the [Getting Started Guide](docs/getting-started/QuickStart.md) for detailed setup instructions and more examples.
+
+## API Patterns
+
+Oproto.FluentDynamoDb provides two complementary API patterns to suit different scenarios:
+
+### Convenience Methods (Recommended for Simple Operations)
+
+Convenience methods combine builder creation and execution in a single call, reducing boilerplate for straightforward operations:
+
+```csharp
+// Simple operations without additional configuration
+var user = await table.Users.GetAsync("user123");
+await table.Users.PutAsync(user);
+await table.Users.DeleteAsync("user123");
+
+// Update with configuration action
+await table.Users.UpdateAsync("user123", update => 
+    update.Set(x => new UserUpdateModel { Status = "active" }));
+```
+
+**When to use:**
+- Simple CRUD operations without conditions
+- Quick prototyping and testing
+- Operations that don't need return values or capacity metrics
+
+### Builder API (For Complex Operations)
+
+The builder pattern provides full control over all DynamoDB options:
+
+```csharp
+// Complex operations with conditions, return values, etc.
+await table.Users.Put(user)
+    .Where("attribute_not_exists({0})", User.Fields.UserId)
+    .ReturnAllOldValues()
+    .PutAsync();
+
+var response = await table.Users.Get("user123")
+    .WithProjection($"{User.Fields.Username}, {User.Fields.Email}")
+    .UsingConsistentRead()
+    .GetItemAsync();
+```
+
+**When to use:**
+- Conditional expressions
+- Return value requirements
+- Projection expressions
+- Consistent reads
+- Custom capacity settings
+
+### Entity-Specific Update Builders
+
+Update operations benefit from entity-specific builders that eliminate verbose generic parameters:
+
+```csharp
+// Before: Required 3 generic type parameters
+await table.Update<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .Set<User, UserUpdateExpressions, UserUpdateModel>(x => new UserUpdateModel 
+    { 
+        Status = "active" 
+    })
+    .UpdateAsync();
+
+// After: Entity-specific builder infers types automatically
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Status = "active" })
+    .UpdateAsync();
+```
+
+**Benefits:**
+- Simplified method signatures
+- Better IntelliSense support
+- Maintains full type safety
+- Fluent chaining preserved
+
+### Raw Dictionary Support
+
+For advanced scenarios or when working without entity classes:
+
+```csharp
+// Put raw attribute dictionary
+await table.Users.PutAsync(new Dictionary<string, AttributeValue>
+{
+    ["pk"] = new AttributeValue { S = "user123" },
+    ["username"] = new AttributeValue { S = "john_doe" },
+    ["email"] = new AttributeValue { S = "john@example.com" }
+});
+
+// Builder pattern with raw dictionary
+await table.Users.Put(rawAttributes)
+    .Where("attribute_not_exists(pk)")
+    .PutAsync();
+```
+
+**When to use:**
+- Testing and debugging
+- Migration from other libraries
+- Dynamic schema scenarios
+- Advanced DynamoDB features
+
+**Learn more:** See [Basic Operations](docs/core-features/BasicOperations.md) for detailed examples and usage patterns.
 
 ## Key Features
 

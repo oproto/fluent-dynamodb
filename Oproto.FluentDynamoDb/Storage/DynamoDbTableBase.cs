@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 
@@ -289,5 +290,64 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </example>
     public TransactWriteItemsRequestBuilder TransactWrite() => 
         new TransactWriteItemsRequestBuilder(DynamoDbClient, Logger);
+
+
+
+    /// <summary>
+    /// Express-route method that executes a PutItem operation and stores an entity in DynamoDB.
+    /// This method combines Put() and PutAsync() into a single call for simple scenarios.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <param name="entity">The entity instance to put.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    /// <example>
+    /// <code>
+    /// // Simple put operation
+    /// await table.PutAsync(myEntity);
+    /// </code>
+    /// </example>
+    public async Task PutAsync<TEntity>(
+        TEntity entity,
+        CancellationToken cancellationToken = default)
+        where TEntity : class, IDynamoDbEntity
+    {
+        var builder = Put<TEntity>();
+        builder = Requests.Extensions.EnhancedExecuteAsyncExtensions.WithItem(builder, entity);
+        await Requests.Extensions.EnhancedExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
+    }
+
+    /// <summary>
+    /// Express-route method that executes a PutItem operation with a raw attribute dictionary.
+    /// This method combines Put() and PutAsync() into a single call for simple scenarios.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="item">The raw attribute dictionary to put.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    /// <example>
+    /// <code>
+    /// // Put with raw dictionary
+    /// await table.PutAsync&lt;MyEntity&gt;(new Dictionary&lt;string, AttributeValue&gt;
+    /// {
+    ///     ["id"] = new AttributeValue { S = "123" },
+    ///     ["name"] = new AttributeValue { S = "John" }
+    /// });
+    /// </code>
+    /// </example>
+    public async Task PutAsync<TEntity>(
+        Dictionary<string, AttributeValue> item,
+        CancellationToken cancellationToken = default)
+        where TEntity : class
+    {
+        var builder = Put<TEntity>().WithItem(item);
+        await Requests.Extensions.EnhancedExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
+    }
+
+
+
+
 
 }

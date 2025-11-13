@@ -8,6 +8,164 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Entity-Specific Update Builders** - Simplified update operations with entity-specific builders that eliminate verbose generic parameters
+  - Generated entity-specific update builder classes (e.g., `UserUpdateBuilder`) for each entity
+  - Automatic type inference - entity type and update expressions type inferred from accessor
+  - Simplified `Set()` method requiring only `TUpdateModel` generic parameter instead of three
+  - Fluent chaining maintains proper return types throughout the builder chain
+  - All extension methods automatically wrapped with entity-specific return types
+  - Covariant return types for base class methods (e.g., `ReturnAllNewValues()`)
+  - Full backward compatibility - existing base builders continue to work unchanged
+  - Better IntelliSense support with cleaner method signatures
+  - Reduced cognitive load when writing update operations
+  
+  **Usage Example:**
+  ```csharp
+  // Before: Required 3 generic type parameters
+  await table.Update<User>()
+      .WithKey(User.Fields.UserId, "user123")
+      .Set<User, UserUpdateExpressions, UserUpdateModel>(x => new UserUpdateModel 
+      { 
+          Status = "active" 
+      })
+      .UpdateAsync();
+  
+  // After: Entity-specific builder infers types automatically
+  await table.Users.Update("user123")
+      .Set(x => new UserUpdateModel { Status = "active" })
+      .UpdateAsync();
+  ```
+  
+  **Key Benefits:**
+  - Only one generic parameter (`TUpdateModel`) instead of three
+  - Entity type (`User`) inferred from accessor (`table.Users`)
+  - Update expressions type (`UserUpdateExpressions`) inferred automatically
+  - Cleaner, more readable code with less boilerplate
+  - Maintains full type safety and compile-time checking
+  - All condition expression methods work with inferred types
+  
+  **Migration Notes:**
+  - No breaking changes - existing code continues to work
+  - Adopt incrementally by using entity accessors (e.g., `table.Users.Update()`)
+  - See [API Patterns Migration Guide](docs/migration/ApiPatternsMigration.md) for detailed examples
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4_
+
+- **Convenience Methods** - Simplified methods that combine builder creation and execution in a single call
+  - `GetAsync()` - Simple get operations returning entity directly
+  - `PutAsync()` - Simple put operations without return values
+  - `DeleteAsync()` - Simple delete operations without return values
+  - `UpdateAsync()` - Update operations with configuration action
+  - Support for both partition key only and composite key operations
+  - Overloads for entity objects and raw `Dictionary<string, AttributeValue>`
+  - Base class methods on `DynamoDbTableBase` for generic operations
+  - Zero performance overhead - thin wrappers around existing extension methods
+  - Reduced boilerplate for common CRUD operations
+  - Improved code readability for simple operations
+  
+  **Usage Examples:**
+  ```csharp
+  // Simple get - returns entity directly
+  var user = await table.Users.GetAsync("user123");
+  
+  // Simple put - no return value
+  await table.Users.PutAsync(user);
+  
+  // Simple delete
+  await table.Users.DeleteAsync("user123");
+  
+  // Update with configuration action
+  await table.Users.UpdateAsync("user123", update => 
+      update.Set(x => new UserUpdateModel { Status = "active" }));
+  
+  // Composite key operations
+  var order = await table.Orders.GetAsync("customer123", "order456");
+  await table.Orders.DeleteAsync("customer123", "order456");
+  ```
+  
+  **When to Use:**
+  - Simple CRUD operations without conditions
+  - No need for return values or response metadata
+  - Eventually consistent reads are acceptable
+  - Quick prototyping or testing
+  - Code readability is priority
+  
+  **When to Use Builder Pattern:**
+  - Conditional expressions required
+  - Need return values (old/new attributes)
+  - Projection expressions to limit data transfer
+  - Strongly consistent reads required
+  - Custom capacity or retry settings
+  
+  **Migration Notes:**
+  - No breaking changes - additive enhancement
+  - Use for new simple operations to reduce boilerplate
+  - Keep builder pattern for complex operations
+  - Both patterns can be mixed in the same codebase
+  - See [API Patterns Migration Guide](docs/migration/ApiPatternsMigration.md) for guidance
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 4.3_
+
+- **Raw Dictionary Support** - Direct support for `Dictionary<string, AttributeValue>` in all operations
+  - Convenience methods accept raw attribute dictionaries
+  - Builder pattern methods accept raw attribute dictionaries
+  - Useful for testing, debugging, and migration scenarios
+  - Enables dynamic schema scenarios without entity classes
+  - Works with all operations: Get, Put, Update, Delete
+  - Full support for conditions and return values with raw dictionaries
+  
+  **Usage Examples:**
+  ```csharp
+  // Put raw dictionary - convenience method
+  await table.Users.PutAsync(new Dictionary<string, AttributeValue>
+  {
+      ["pk"] = new AttributeValue { S = "user123" },
+      ["username"] = new AttributeValue { S = "john_doe" },
+      ["email"] = new AttributeValue { S = "john@example.com" }
+  });
+  
+  // Put raw dictionary with condition - builder pattern
+  await table.Users.Put(rawAttributes)
+      .Where("attribute_not_exists(pk)")
+      .PutAsync();
+  
+  // Dynamic attributes based on runtime conditions
+  var attributes = new Dictionary<string, AttributeValue>
+  {
+      ["pk"] = new AttributeValue { S = userId },
+      ["username"] = new AttributeValue { S = username }
+  };
+  
+  if (includeMetadata)
+  {
+      attributes["metadata"] = new AttributeValue { M = metadataMap };
+  }
+  
+  await table.Users.PutAsync(attributes);
+  ```
+  
+  **Use Cases:**
+  - Testing and debugging DynamoDB operations
+  - Migration from other libraries with existing AttributeValue code
+  - Dynamic schema scenarios where entity classes aren't practical
+  - Advanced DynamoDB features not yet supported by entity mapping
+  - Quick prototyping without defining entity classes
+  
+  **Migration Notes:**
+  - Complements entity-based operations, doesn't replace them
+  - Use entity classes for production code when possible
+  - Raw dictionaries useful for edge cases and testing
+  - See [API Patterns Migration Guide](docs/migration/ApiPatternsMigration.md) for examples
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4_
+
+- **Comprehensive Documentation Updates**
+  - Updated [Basic Operations](docs/core-features/BasicOperations.md) with convenience methods and entity-specific builder examples
+  - New [Entity-Specific Builders Examples](docs/examples/EntitySpecificBuildersExamples.md) with real-world patterns
+  - Decision guides for choosing between API patterns
+  - Quick reference tables comparing convenience methods vs builder patterns
+  - Troubleshooting section for common issues
+  - Complete code examples for user management, e-commerce, and session management
+  - Updated README with API patterns overview and examples
+
+
 - **DateTime Kind Preservation** - Explicit timezone handling for DateTime properties
   - New `DateTimeKind` parameter in `[DynamoDbAttribute]` to specify timezone behavior
   - Support for `DateTimeKind.Utc`, `DateTimeKind.Local`, and `DateTimeKind.Unspecified`

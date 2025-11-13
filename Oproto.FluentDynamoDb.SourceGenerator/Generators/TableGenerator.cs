@@ -37,12 +37,15 @@ internal static class TableGenerator
         
         // Usings
         sb.AppendLine("using System;");
+        sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
+        sb.AppendLine("using Amazon.DynamoDBv2.Model;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
         sb.AppendLine();
         
         // Namespace (use the first entity's namespace)
@@ -121,12 +124,15 @@ internal static class TableGenerator
         
         // Usings
         sb.AppendLine("using System;");
+        sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
+        sb.AppendLine("using Amazon.DynamoDBv2.Model;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
         sb.AppendLine();
         
         // Namespace
@@ -527,6 +533,47 @@ internal static class TableGenerator
         sb.AppendLine($"            return _table.Put<{entity.ClassName}>().WithItem(item);");
         sb.AppendLine($"        }}");
         sb.AppendLine();
+        
+        // Put(Dictionary<string, AttributeValue>) overload for raw attribute dictionaries
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Creates a new PutItem operation builder with a raw attribute dictionary.");
+        sb.AppendLine($"        /// This overload allows working with DynamoDB attribute dictionaries directly without requiring an entity class.");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"item\">The raw DynamoDB attribute dictionary to put.</param>");
+        sb.AppendLine($"        /// <returns>A PutItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the item.</returns>");
+        sb.AppendLine($"        {modifier} PutItemRequestBuilder<{entity.ClassName}> Put(Dictionary<string, AttributeValue> item)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            return _table.Put<{entity.ClassName}>().WithItem(item);");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+        
+        // PutAsync express-route method for entity
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Puts a {entity.ClassName} entity into DynamoDB and executes the request.");
+        sb.AppendLine($"        /// This is an express-route method that combines Put() and PutAsync().");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"entity\">The entity to put into DynamoDB.</param>");
+        sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+        sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task PutAsync({entity.ClassName} entity, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            await Put(entity).PutAsync(cancellationToken);");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+        
+        // PutAsync express-route method for raw attribute dictionary
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Puts a raw attribute dictionary into DynamoDB and executes the request.");
+        sb.AppendLine($"        /// This is an express-route method that combines Put() and PutAsync() for raw dictionaries.");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"item\">The raw DynamoDB attribute dictionary to put.</param>");
+        sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+        sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task PutAsync(Dictionary<string, AttributeValue> item, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            await Put(item).PutAsync(cancellationToken);");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
     }
     
     /// <summary>
@@ -558,6 +605,20 @@ internal static class TableGenerator
             sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}) =>");
             sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
             sb.AppendLine();
+            
+            // GetAsync express-route method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
+            sb.AppendLine($"        /// This is an express-route method that combines Get() and GetItemAsync().");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            return await Get({paramName}).GetItemAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
         }
         else
         {
@@ -575,6 +636,21 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
             sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
             sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            sb.AppendLine();
+            
+            // GetAsync express-route method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
+            sb.AppendLine($"        /// This is an express-route method that combines Get() and GetItemAsync().");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            return await Get({pkParamName}, {skParamName}).GetItemAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
             sb.AppendLine();
         }
     }
@@ -594,6 +670,7 @@ internal static class TableGenerator
         
         var pkAttributeName = partitionKey.AttributeName;
         var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var updateBuilderClassName = $"{entity.ClassName}UpdateBuilder";
         
         if (sortKey == null)
         {
@@ -602,11 +679,34 @@ internal static class TableGenerator
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key).");
+            sb.AppendLine($"        /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"        /// </summary>");
             sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
-            sb.AppendLine($"        /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
-            sb.AppendLine($"        {modifier} UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {paramName}) =>");
-            sb.AppendLine($"            _table.Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
+            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {paramName})");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Logger);");
+            sb.AppendLine($"            builder.ForTable(_table.Name);");
+            sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {paramName});");
+            sb.AppendLine($"            return builder;");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+            
+            // UpdateAsync express-route method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
+            sb.AppendLine($"        /// This is an express-route method that combines Update() and UpdateAsync().");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"configureUpdate\">Action to configure the update builder.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task UpdateAsync({pkPropertyType} {paramName}, System.Action<{updateBuilderClassName}> configureUpdate, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = Update({paramName});");
+            sb.AppendLine($"            configureUpdate(builder);");
+            sb.AppendLine($"            await builder.UpdateAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
             sb.AppendLine();
         }
         else
@@ -619,12 +719,36 @@ internal static class TableGenerator
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
+            sb.AppendLine($"        /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"        /// </summary>");
             sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
-            sb.AppendLine($"        /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
-            sb.AppendLine($"        {modifier} UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-            sb.AppendLine($"            _table.Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the composite key.</returns>");
+            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName})");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Logger);");
+            sb.AppendLine($"            builder.ForTable(_table.Name);");
+            sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            sb.AppendLine($"            return builder;");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+            
+            // UpdateAsync express-route method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
+            sb.AppendLine($"        /// This is an express-route method that combines Update() and UpdateAsync().");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"configureUpdate\">Action to configure the update builder.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task UpdateAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Action<{updateBuilderClassName}> configureUpdate, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = Update({pkParamName}, {skParamName});");
+            sb.AppendLine($"            configureUpdate(builder);");
+            sb.AppendLine($"            await builder.UpdateAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
             sb.AppendLine();
         }
     }
@@ -658,6 +782,20 @@ internal static class TableGenerator
             sb.AppendLine($"        {modifier} DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {paramName}) =>");
             sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
             sb.AppendLine();
+            
+            // DeleteAsync express-route method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
+            sb.AppendLine($"        /// This is an express-route method that combines Delete() and DeleteAsync().");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            await Delete({paramName}).DeleteAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
         }
         else
         {
@@ -675,6 +813,21 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
             sb.AppendLine($"        {modifier} DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
             sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            sb.AppendLine();
+            
+            // DeleteAsync express-route method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
+            sb.AppendLine($"        /// This is an express-route method that combines Delete() and DeleteAsync().");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            await Delete({pkParamName}, {skParamName}).DeleteAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
             sb.AppendLine();
         }
     }
@@ -850,6 +1003,17 @@ internal static class TableGenerator
         sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put({entity.ClassName} entity) =>");
         sb.AppendLine($"        {entityPropertyName}.Put(entity);");
         sb.AppendLine();
+        
+        // Put(Dictionary<string, AttributeValue>) overload for raw attribute dictionaries
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new PutItem operation builder with a raw attribute dictionary for the default entity ({entity.ClassName}).");
+        sb.AppendLine($"    /// This overload allows working with DynamoDB attribute dictionaries directly without requiring an entity class.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"item\">The raw DynamoDB attribute dictionary to put.</param>");
+        sb.AppendLine($"    /// <returns>A PutItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the item.</returns>");
+        sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put(Dictionary<string, AttributeValue> item) =>");
+        sb.AppendLine($"        {entityPropertyName}.Put(item);");
+        sb.AppendLine();
     }
     
     /// <summary>
@@ -881,6 +1045,18 @@ internal static class TableGenerator
             sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}) =>");
             sb.AppendLine($"        {entityPropertyName}.Get({paramName});");
             sb.AppendLine();
+            
+            // GetAsync express-route method
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
+            sb.AppendLine($"    /// This is an express-route method that combines Get() and GetItemAsync().");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"    /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+            sb.AppendLine($"    public System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
+            sb.AppendLine($"        {entityPropertyName}.GetAsync({paramName}, cancellationToken);");
+            sb.AppendLine();
         }
         else
         {
@@ -898,6 +1074,19 @@ internal static class TableGenerator
             sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
             sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
             sb.AppendLine($"        {entityPropertyName}.Get({pkParamName}, {skParamName});");
+            sb.AppendLine();
+            
+            // GetAsync express-route method
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
+            sb.AppendLine($"    /// This is an express-route method that combines Get() and GetItemAsync().");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"    /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+            sb.AppendLine($"    public System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken = default) =>");
+            sb.AppendLine($"        {entityPropertyName}.GetAsync({pkParamName}, {skParamName}, cancellationToken);");
             sb.AppendLine();
         }
     }
@@ -917,6 +1106,7 @@ internal static class TableGenerator
         
         var pkAttributeName = partitionKey.AttributeName;
         var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var updateBuilderClassName = $"{entity.ClassName}UpdateBuilder";
         
         if (sortKey == null)
         {
@@ -925,10 +1115,11 @@ internal static class TableGenerator
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key).");
+            sb.AppendLine($"    /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"    /// </summary>");
             sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
-            sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
-            sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {paramName}) =>");
+            sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
+            sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {paramName}) =>");
             sb.AppendLine($"        {entityPropertyName}.Update({paramName});");
             sb.AppendLine();
         }
@@ -942,11 +1133,12 @@ internal static class TableGenerator
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
+            sb.AppendLine($"    /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"    /// </summary>");
             sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
-            sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
-            sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+            sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the composite key.</returns>");
+            sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
             sb.AppendLine($"        {entityPropertyName}.Update({pkParamName}, {skParamName});");
             sb.AppendLine();
         }
@@ -1305,6 +1497,29 @@ internal static class TableGenerator
         sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put({entity.ClassName} entity)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"        var item = {entity.ClassName}.ToDynamoDb(entity);");
+        sb.AppendLine($"        return base.Put<{entity.ClassName}>().WithItem(item);");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+        
+        // Put(Dictionary<string, AttributeValue>) overload for raw attribute dictionaries
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new PutItem operation builder with a raw attribute dictionary.");
+        sb.AppendLine($"    /// This overload allows working with DynamoDB attribute dictionaries directly without requiring an entity class.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"item\">The raw DynamoDB attribute dictionary to put.</param>");
+        sb.AppendLine($"    /// <returns>A PutItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the item.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Put a raw attribute dictionary");
+        sb.AppendLine($"    /// await table.Put(new Dictionary&lt;string, AttributeValue&gt;");
+        sb.AppendLine($"    /// {{");
+        sb.AppendLine($"    ///     [\"pk\"] = new AttributeValue {{ S = \"ORDER#123\" }},");
+        sb.AppendLine($"    ///     [\"status\"] = new AttributeValue {{ S = \"ACTIVE\" }}");
+        sb.AppendLine($"    /// }}).PutAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put(Dictionary<string, AttributeValue> item)");
+        sb.AppendLine($"    {{");
         sb.AppendLine($"        return base.Put<{entity.ClassName}>().WithItem(item);");
         sb.AppendLine($"    }}");
         sb.AppendLine();

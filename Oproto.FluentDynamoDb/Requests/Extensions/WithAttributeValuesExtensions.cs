@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
@@ -59,6 +60,7 @@ public static class WithAttributeValuesExtensions
     ///        .Where("pk = :pk AND sk = :sk AND active = :active AND score > :score");
     /// </code>
     /// </example>
+    [GenerateWrapper]
     public static T WithValues<T>(this IWithAttributeValues<T> builder, Dictionary<string, AttributeValue> attributeValues)
     {
         builder.GetAttributeValueHelper().WithValues(attributeValues);
@@ -88,6 +90,7 @@ public static class WithAttributeValuesExtensions
     /// });
     /// </code>
     /// </example>
+    [GenerateWrapper]
     public static T WithValues<T>(this IWithAttributeValues<T> builder, Action<Dictionary<string, AttributeValue>> attributeValueFunc)
     {
         builder.GetAttributeValueHelper().WithValues(attributeValueFunc);
@@ -119,6 +122,7 @@ public static class WithAttributeValuesExtensions
     ///        .WithValue(":name", "John Doe");
     /// </code>
     /// </example>
+    [GenerateWrapper]
     public static T WithValue<T>(this IWithAttributeValues<T> builder, string attributeName, string? attributeValue, bool conditionalUse = true)
     {
         builder.GetAttributeValueHelper().WithValue(attributeName, attributeValue, conditionalUse);
@@ -135,6 +139,7 @@ public static class WithAttributeValuesExtensions
     /// <param name="attributeValue">The boolean value to associate with the parameter.</param>
     /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
     /// <returns>The builder instance for method chaining.</returns>
+    [GenerateWrapper]
     public static T WithValue<T>(this IWithAttributeValues<T> builder, string attributeName, bool? attributeValue, bool conditionalUse = true)
     {
         builder.GetAttributeValueHelper().WithValue(attributeName, attributeValue, conditionalUse);
@@ -151,6 +156,7 @@ public static class WithAttributeValuesExtensions
     /// <param name="attributeValue">The decimal value to associate with the parameter.</param>
     /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
     /// <returns>The builder instance for method chaining.</returns>
+    [GenerateWrapper]
     public static T WithValue<T>(this IWithAttributeValues<T> builder, string attributeName, decimal? attributeValue, bool conditionalUse = true)
     {
         builder.GetAttributeValueHelper().WithValue(attributeName, attributeValue, conditionalUse);
@@ -167,6 +173,7 @@ public static class WithAttributeValuesExtensions
     /// <param name="attributeValue">The string dictionary to associate with the parameter.</param>
     /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
     /// <returns>The builder instance for method chaining.</returns>
+    [GenerateWrapper]
     public static T WithValue<T>(this IWithAttributeValues<T> builder, string attributeName, Dictionary<string, string> attributeValue, bool conditionalUse = true)
     {
         builder.GetAttributeValueHelper().WithValue(attributeName, attributeValue, conditionalUse);
@@ -183,6 +190,7 @@ public static class WithAttributeValuesExtensions
     /// <param name="attributeValue">The AttributeValue dictionary to associate with the parameter.</param>
     /// <param name="conditionalUse">If false, the value is not added when null. Defaults to true.</param>
     /// <returns>The builder instance for method chaining.</returns>
+    [GenerateWrapper]
     public static T WithValue<T>(this IWithAttributeValues<T> builder, string attributeName, Dictionary<string, AttributeValue> attributeValue, bool conditionalUse = true)
     {
         builder.GetAttributeValueHelper().WithValue(attributeName, attributeValue, conditionalUse);

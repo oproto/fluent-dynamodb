@@ -43,7 +43,7 @@ namespace TestNamespace
         // Should generate code with DYNDB021 warning for reserved word "name"
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "name"
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         // Check entity implementation
         var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntity.g.cs")).SourceText.ToString();
@@ -115,7 +115,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for GSI entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntity.g.cs")).SourceText.ToString();
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -154,7 +154,7 @@ namespace TestNamespace
         // Assert - Single entity should work without IsDefault
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "single entity tables don't require explicit IsDefault");
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "single entity tables can't have multiple defaults");
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
     }
 
     [Fact]
@@ -228,7 +228,7 @@ namespace TestNamespace
         // Assert - Should not emit FDDB001 or FDDB002
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "one entity is marked as default");
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "only one entity is marked as default");
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × 3 files each (Entity, UpdateExpressions, UpdateExpressionsExtensions) + 1 shared Table
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
     }
 
     [Fact]
@@ -293,7 +293,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Entity (with nested Keys and Fields), Table, UpdateExpressions, UpdateExpressionsExtensions
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
         
         // Check that table class is named after the table name, not entity name
         // Table name "my-app-table" should become "MyAppTableTable" (split by hyphen, capitalize each part, append "Table")
@@ -340,7 +340,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001" || d.Id == "FDDB002");
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × 3 files each (Entity, UpdateExpressions, UpdateExpressionsExtensions) + 1 shared Table
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         // Should generate only one table class named after the table
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("Table.g.cs") && !s.FileName.Contains("Fields") && !s.FileName.Contains("Keys")).ToArray();
@@ -385,7 +385,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × 3 files each (Entity, UpdateExpressions, UpdateExpressionsExtensions) + 1 shared Table
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         // Debug: Check what files were generated
         var allFiles = string.Join(", ", result.GeneratedSources.Select(s => System.IO.Path.GetFileName(s.FileName)));
@@ -437,7 +437,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × 3 files each (Entity, UpdateExpressions, UpdateExpressionsExtensions) + 1 shared Table
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
         tableFiles.Should().HaveCount(1);
@@ -482,7 +482,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × 3 files each (Entity, UpdateExpressions, UpdateExpressionsExtensions) + 1 shared Table
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
         tableFiles.Should().HaveCount(1);
@@ -527,7 +527,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × 3 files each (Entity, UpdateExpressions, UpdateExpressionsExtensions) + 1 shared Table
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
         tableFiles.Should().HaveCount(1);

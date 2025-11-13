@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 using Oproto.FluentDynamoDb.Storage;
@@ -92,6 +93,7 @@ public static class WithUpdateExpressionExtensions
     /// .Set("SET #name = :name ADD #count :inc REMOVE #oldField")
     /// </code>
     /// </example>
+    [GenerateWrapper]
     public static T Set<T>(this IWithUpdateExpression<T> builder, string updateExpression)
     {
         return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.StringBased);
@@ -147,6 +149,7 @@ public static class WithUpdateExpressionExtensions
     /// <para><strong>Error Handling:</strong> Clear error messages are provided for invalid format strings or type mismatches.</para>
     /// <para><strong>Update Expression Types:</strong> Supports SET, ADD, REMOVE, and DELETE operations with format strings.</para>
     /// </remarks>
+    [GenerateWrapper]
     public static T Set<T>(this IWithUpdateExpression<T> builder, string format, params object[] args)
     {
         var (processedExpression, _) = FormatStringProcessor.ProcessFormatString(format, args, builder.GetAttributeValueHelper());
@@ -287,6 +290,7 @@ public static class WithUpdateExpressionExtensions
     /// throughout the builder chain. If you need to combine multiple update operations, use multiple property assignments
     /// within a single expression-based Set() call.</para>
     /// </remarks>
+    [GenerateWrapper(RequiresSpecialization = true, SpecializationNotes = "Fixes TEntity and TUpdateExpressions generic parameters to the builder's entity type")]
     public static T Set<T, TEntity, TUpdateExpressions, TUpdateModel>(
         this IWithUpdateExpression<T> builder,
         Expression<Func<TUpdateExpressions, TUpdateModel>> expression,
