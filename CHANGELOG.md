@@ -8,6 +8,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Transaction and Batch API Redesign** - Reusable request builders for composing transaction and batch operations
+  - New `DynamoDbTransactions.Write` and `DynamoDbTransactions.Get` entry points for transaction operations
+  - New `DynamoDbBatch.Write` and `DynamoDbBatch.Get` entry points for batch operations
+  - Reuse existing request builders (Put, Update, Delete, Get, ConditionCheck) within transaction/batch contexts
+  - Access to all string formatting, lambda expressions, and source-generated key methods
+  - Marker interfaces (`ITransactablePutBuilder`, `ITransactableUpdateBuilder`, etc.) for type-safe builder composition
+  - New `ConditionCheckBuilder<TEntity>` for transaction condition checks without data modification
+  - Automatic client inference from request builders with validation for consistent client usage
+  - `WithClient()` pattern for explicit client specification supporting scoped IAM credentials
+  - Transaction-level and batch-level configuration (ReturnConsumedCapacity, ClientRequestToken, ReturnItemCollectionMetrics)
+  - Field encryption support in transaction and batch operations with automatic parameter encryption
+  - Type-safe response deserialization with `GetItem<TEntity>(index)`, `GetItems<TEntity>(indices)`, and `ExecuteAndMapAsync<T1, T2, ...>()`
+  - Comprehensive validation with clear error messages for operation limits and configuration issues
+  - Logging and diagnostics for transaction/batch operations with operation counts and consumed capacity
+  - Full support for string formatting with placeholders (e.g., `Where("pk = {0}", value)`)
+  - Full support for lambda expressions (e.g., `Set(x => new UpdateModel { Value = "123" })`)
+  - Source-generated key methods work seamlessly (e.g., `table.Update(pk, sk).Set(...)`)
+  - Automatic extraction and preservation of expression attribute names and values
+  - Ignores transaction/batch-incompatible settings (item-level ReturnValues, ReturnConsumedCapacity, etc.)
+  
+  **Usage Examples:**
+  ```csharp
+  // Transaction Write - Compose operations using existing builders
+  await DynamoDbTransactions.Write
+      .Add(userTable.Put(newUser))
+      .Add(orderTable.Update(orderId).Set(x => new OrderUpdateModel { Status = "confirmed" }))
+      .Add(inventoryTable.ConditionCheck(productId).Where("quantity > {0}", 0))
+      .WithClientRequestToken(idempotencyToken)
+      .ReturnConsumedCapacity()
+      .ExecuteAsync();
+  
+  // Transaction Get - Retrieve multiple items atomically
+  var (user, order, product) = await DynamoDbTransactions.Get
+      .Add(userTable.Get(userId))
+      .Add(orderTable.Get(orderId))
+      .Add(productTable.Get(productId))
+      .ExecuteAndMapAsync<User, Order, Product>();
+  
+  // Batch Write - Efficient multi-item writes
+  await DynamoDbBatch.Write
+      .Add(userTable.Put(user1))
+      .Add(userTable.Put(user2))
+      .Add(orderTable.Delete(oldOrderId))
+      .ReturnConsumedCapacity()
+      .ExecuteAsync();
+  
+  // Batch Get - Efficient multi-item reads
+  var response = await DynamoDbBatch.Get
+      .Add(userTable.Get(userId1))
+      .Add(userTable.Get(userId2))
+      .Add(orderTable.Get(orderId))
+      .ExecuteAsync();
+  
+  var users = response.GetItems<User>(0, 1);
+  var order = response.GetItem<Order>(2);
+  ```
+  
+  **Key Benefits:**
+  - Eliminates code duplication - reuse existing request builders and their fluent methods
+  - Access to all string formatting features (e.g., `Where("pk = {0}", value)`)
+  - Access to all lambda expression features (e.g., `Set(x => new UpdateModel { Value = "123" })`)
+  - Source-generated key methods work seamlessly (e.g., `table.Update(pk, sk)`)
+  - Field encryption works automatically in transactions and batches
+  - Type-safe response deserialization with compile-time checking
+  - Consistent API across individual operations, transactions, and batches
+  - Automatic client management with validation
+  - Clear error messages for validation failures
+  - Full logging and diagnostics support
+  
+  **Migration Notes:**
+  - Replaces previous action-based transaction/batch APIs
+  - Old APIs remain for backward compatibility but are deprecated
+  - New APIs provide better type safety and code reuse
+  - See [Transaction and Batch Operations Guide](docs/core-features/TransactionAndBatchOperations.md) for migration examples
+  - _Requirements: 1.1-1.8, 2.1-2.5, 3.1-3.7, 4.1-4.7, 5.1-5.5, 6.1-6.6, 7.1-7.5, 8.1-8.5, 9.1-9.5, 10.1-10.5, 11.1-11.5, 12.1-12.5, 13.1-13.7, 14.1-14.7, 15.1-15.7, 16.1-16.8, 17.1-17.8, 18.1-18.5_
+
+
 - **Entity-Specific Update Builders** - Simplified update operations with entity-specific builders that eliminate verbose generic parameters
   - Generated entity-specific update builder classes (e.g., `UserUpdateBuilder`) for each entity
   - Automatic type inference - entity type and update expressions type inferred from accessor
