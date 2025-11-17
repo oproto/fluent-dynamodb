@@ -103,6 +103,12 @@ internal class EntityModel
     public Oproto.FluentDynamoDb.SourceGenerator.Analysis.JsonSerializerInfo? JsonSerializerInfo { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the Oproto.FluentDynamoDb.Geospatial package is referenced.
+    /// When true, the source generator will generate GeoLocation serialization/deserialization code.
+    /// </summary>
+    public bool HasGeospatialPackage { get; set; }
+
+    /// <summary>
     /// Gets the partition key property, if any.
     /// </summary>
     public PropertyModel? PartitionKeyProperty => Properties.FirstOrDefault(p => p.IsPartitionKey);

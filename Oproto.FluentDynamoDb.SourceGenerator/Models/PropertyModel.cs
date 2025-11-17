@@ -120,4 +120,10 @@ internal class PropertyModel
     /// and set the Kind property after deserialization. This ensures consistent timezone handling across operations.
     /// </remarks>
     public DateTimeKind? DateTimeKind { get; set; }
+
+    /// <summary>
+    /// Gets or sets the GeoHash precision for GeoLocation properties.
+    /// Valid range is 1-12. If not specified, defaults to 6.
+    /// </summary>
+    public int? GeoHashPrecision { get; set; }
 }

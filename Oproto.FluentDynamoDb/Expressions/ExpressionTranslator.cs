@@ -489,6 +489,17 @@ public class ExpressionTranslator
     }
 
     /// <summary>
+    /// Checks if a method call is a geospatial query method from GeoHashQueryExtensions.
+    /// </summary>
+    /// <param name="node">The method call expression.</param>
+    /// <returns>True if this is a geospatial method, false otherwise.</returns>
+    private bool IsGeospatialMethod(MethodCallExpression node)
+    {
+        var declaringType = node.Method.DeclaringType;
+        return declaringType?.FullName == "Oproto.FluentDynamoDb.Geospatial.GeoHash.GeoHashQueryExtensions";
+    }
+
+    /// <summary>
     /// Checks if a method call is a DynamoDB function and translates it.
     /// </summary>
     /// <param name="node">The method call expression.</param>
@@ -499,6 +510,13 @@ public class ExpressionTranslator
     private bool IsDynamoDbFunction(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context, out string? dynamoDbFunction)
     {
         dynamoDbFunction = null;
+
+        // Check if this is a geospatial method
+        if (IsGeospatialMethod(node))
+        {
+            dynamoDbFunction = TranslateGeospatialMethod(node, entityParameter, context);
+            return true;
+        }
 
         // string.StartsWith(value) -> begins_with(attr, value)
         if (node.Method.Name == "StartsWith" && 
@@ -807,5 +825,355 @@ public class ExpressionTranslator
             Enum e => new AttributeValue { S = e.ToString() },
             _ => new AttributeValue { S = value.ToString() ?? string.Empty }
         };
+    }
+
+    /// <summary>
+    /// Evaluates a constant expression in an AOT-safe manner.
+    /// This method handles constant expressions, member access on constants, and simple expressions
+    /// that can be compiled without dynamic code generation.
+    /// </summary>
+    /// <typeparam name="T">The expected type of the result.</typeparam>
+    /// <param name="expression">The expression to evaluate.</param>
+    /// <returns>The evaluated value.</returns>
+    /// <exception cref="ExpressionTranslationException">Thrown when the expression cannot be evaluated.</exception>
+    private T EvaluateConstantExpression<T>(Expression expression)
+    {
+        try
+        {
+            // Handle constant expressions directly
+            if (expression is ConstantExpression constant)
+            {
+                return (T)constant.Value!;
+            }
+
+            // Handle member access on constants (e.g., variable references)
+            if (expression is MemberExpression member && member.Expression is ConstantExpression memberConstant)
+            {
+                var field = memberConstant.Value?.GetType().GetField(member.Member.Name);
+                if (field != null)
+                {
+                    return (T)field.GetValue(memberConstant.Value)!;
+                }
+
+                var property = memberConstant.Value?.GetType().GetProperty(member.Member.Name);
+                if (property != null)
+                {
+                    return (T)property.GetValue(memberConstant.Value)!;
+                }
+            }
+
+            // For other cases, compile and invoke (AOT-safe for simple expressions)
+            var lambda = Expression.Lambda<Func<T>>(expression);
+            var compiled = lambda.Compile();
+            return compiled();
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate constant expression of type {typeof(T).Name}: {ex.Message}",
+                expression);
+        }
+    }
+
+    /// <summary>
+    /// Gets the GeoHash precision for a property from its metadata.
+    /// </summary>
+    /// <param name="propertyExpression">The property expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The precision value, or 6 if not specified.</returns>
+    private int GetPrecisionForProperty(Expression propertyExpression, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var propertyMetadata = GetPropertyMetadata(propertyExpression, entityParameter, context);
+        return propertyMetadata?.GeoHashPrecision ?? 6;
+    }
+
+    /// <summary>
+    /// Translates a geospatial method call to a DynamoDB BETWEEN expression.
+    /// </summary>
+    /// <param name="node">The method call expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The translated DynamoDB expression string.</returns>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the geospatial method is not supported.</exception>
+    private string TranslateGeospatialMethod(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var methodName = node.Method.Name;
+
+        return methodName switch
+        {
+            "WithinDistanceMeters" => TranslateWithinDistance(node, entityParameter, context, distanceUnit: "meters"),
+            "WithinDistanceKilometers" => TranslateWithinDistance(node, entityParameter, context, distanceUnit: "kilometers"),
+            "WithinDistanceMiles" => TranslateWithinDistance(node, entityParameter, context, distanceUnit: "miles"),
+            "WithinBoundingBox" => TranslateWithinBoundingBox(node, entityParameter, context),
+            _ => throw new UnsupportedExpressionException(
+                $"Geospatial method '{methodName}' is not supported. " +
+                $"Supported methods: WithinDistanceMeters, WithinDistanceKilometers, WithinDistanceMiles, WithinBoundingBox.",
+                methodName,
+                node)
+        };
+    }
+
+    /// <summary>
+    /// Translates a WithinDistance method call to a DynamoDB BETWEEN expression.
+    /// </summary>
+    private string TranslateWithinDistance(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context, string distanceUnit)
+    {
+        // WithinDistance methods have 3 arguments:
+        // 0: this GeoLocation (the property being queried)
+        // 1: GeoLocation center
+        // 2: double distance
+        if (node.Arguments.Count != 3)
+        {
+            throw new UnsupportedExpressionException(
+                $"WithinDistance method expects 3 arguments but got {node.Arguments.Count}.",
+                node.Method.Name,
+                node);
+        }
+
+        var locationExpr = node.Arguments[0];
+        var centerExpr = node.Arguments[1];
+        var distanceExpr = node.Arguments[2];
+
+        // Ensure the first argument is an entity property access
+        if (!IsEntityPropertyAccess(locationExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "WithinDistance method must be called on an entity property (e.g., x.Location.WithinDistance(...)).",
+                node.Method.Name,
+                node);
+        }
+
+        // Evaluate center and distance - these must be constants or simple expressions
+        var center = EvaluateConstantExpression<object>(centerExpr);
+        var distance = EvaluateConstantExpression<double>(distanceExpr);
+
+        // Convert distance to meters based on unit
+        var distanceMeters = distanceUnit switch
+        {
+            "meters" => distance,
+            "kilometers" => distance * 1000.0,
+            "miles" => distance * 1609.344,
+            _ => throw new ArgumentException($"Unknown distance unit: {distanceUnit}")
+        };
+
+        // Get the precision for this property
+        var precision = GetPrecisionForProperty(locationExpr, entityParameter, context);
+
+        // Create bounding box and get GeoHash range
+        // We need to use reflection to call the GeoBoundingBox methods since we can't reference the geospatial package directly
+        var geoBoundingBoxType = center.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoBoundingBox");
+        if (geoBoundingBoxType == null)
+        {
+            throw new ExpressionTranslationException(
+                "GeoBoundingBox type not found. Ensure Oproto.FluentDynamoDb.Geospatial package is referenced.",
+                node);
+        }
+
+        var fromCenterMethod = geoBoundingBoxType.GetMethod("FromCenterAndDistanceMeters");
+        if (fromCenterMethod == null)
+        {
+            throw new ExpressionTranslationException(
+                "GeoBoundingBox.FromCenterAndDistanceMeters method not found.",
+                node);
+        }
+
+        var bbox = fromCenterMethod.Invoke(null, new[] { center, distanceMeters });
+        if (bbox == null)
+        {
+            throw new ExpressionTranslationException(
+                "Failed to create bounding box from center and distance.",
+                node);
+        }
+
+        // Get GeoHash range from bounding box
+        var geoHashBoundingBoxExtensionsType = center.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoHash.GeoHashBoundingBoxExtensions");
+        if (geoHashBoundingBoxExtensionsType == null)
+        {
+            throw new ExpressionTranslationException(
+                "GeoHashBoundingBoxExtensions type not found.",
+                node);
+        }
+
+        var getGeoHashRangeMethod = geoHashBoundingBoxExtensionsType.GetMethod("GetGeoHashRange");
+        if (getGeoHashRangeMethod == null)
+        {
+            throw new ExpressionTranslationException(
+                "GetGeoHashRange method not found.",
+                node);
+        }
+
+        var rangeResult = getGeoHashRangeMethod.Invoke(null, new[] { bbox, precision });
+        if (rangeResult == null)
+        {
+            throw new ExpressionTranslationException(
+                "Failed to get GeoHash range from bounding box.",
+                node);
+        }
+
+        // Extract minHash and maxHash from the tuple
+        var rangeType = rangeResult.GetType();
+        var minHashProperty = rangeType.GetProperty("Item1");
+        var minHashField = rangeType.GetField("Item1");
+        var maxHashProperty = rangeType.GetProperty("Item2");
+        var maxHashField = rangeType.GetField("Item2");
+
+        var minHash = (minHashProperty?.GetValue(rangeResult) ?? minHashField?.GetValue(rangeResult)) as string;
+        var maxHash = (maxHashProperty?.GetValue(rangeResult) ?? maxHashField?.GetValue(rangeResult)) as string;
+
+        if (minHash == null || maxHash == null)
+        {
+            throw new ExpressionTranslationException(
+                "Failed to extract GeoHash range values.",
+                node);
+        }
+
+        // Translate location property to attribute name
+        var locationField = Visit(locationExpr, entityParameter, context);
+
+        // Generate parameter names
+        var minParam = context.ParameterGenerator.GenerateParameterName();
+        var maxParam = context.ParameterGenerator.GenerateParameterName();
+
+        // Add to parameter dictionary
+        context.AttributeValues.AttributeValues[minParam] = new AttributeValue { S = minHash };
+        context.AttributeValues.AttributeValues[maxParam] = new AttributeValue { S = maxHash };
+
+        // Return BETWEEN expression
+        var sb = new StringBuilder(locationField.Length + minParam.Length + maxParam.Length + 17);
+        sb.Append(locationField).Append(" BETWEEN ").Append(minParam).Append(" AND ").Append(maxParam);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Translates a WithinBoundingBox method call to a DynamoDB BETWEEN expression.
+    /// </summary>
+    private string TranslateWithinBoundingBox(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // WithinBoundingBox has two overloads:
+        // 1. WithinBoundingBox(GeoBoundingBox boundingBox) - 2 arguments
+        // 2. WithinBoundingBox(GeoLocation southwest, GeoLocation northeast) - 3 arguments
+        if (node.Arguments.Count != 2 && node.Arguments.Count != 3)
+        {
+            throw new UnsupportedExpressionException(
+                $"WithinBoundingBox method expects 2 or 3 arguments but got {node.Arguments.Count}.",
+                node.Method.Name,
+                node);
+        }
+
+        var locationExpr = node.Arguments[0];
+
+        // Ensure the first argument is an entity property access
+        if (!IsEntityPropertyAccess(locationExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "WithinBoundingBox method must be called on an entity property (e.g., x.Location.WithinBoundingBox(...)).",
+                node.Method.Name,
+                node);
+        }
+
+        object bbox;
+
+        if (node.Arguments.Count == 2)
+        {
+            // Single GeoBoundingBox parameter
+            var bboxExpr = node.Arguments[1];
+            bbox = EvaluateConstantExpression<object>(bboxExpr);
+        }
+        else
+        {
+            // Two GeoLocation parameters (southwest, northeast)
+            var southwestExpr = node.Arguments[1];
+            var northeastExpr = node.Arguments[2];
+
+            var southwest = EvaluateConstantExpression<object>(southwestExpr);
+            var northeast = EvaluateConstantExpression<object>(northeastExpr);
+
+            // Create GeoBoundingBox from the two corners
+            var geoBoundingBoxType = southwest.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoBoundingBox");
+            if (geoBoundingBoxType == null)
+            {
+                throw new ExpressionTranslationException(
+                    "GeoBoundingBox type not found. Ensure Oproto.FluentDynamoDb.Geospatial package is referenced.",
+                    node);
+            }
+
+            var constructor = geoBoundingBoxType.GetConstructor(new[] { southwest.GetType(), northeast.GetType() });
+            if (constructor == null)
+            {
+                throw new ExpressionTranslationException(
+                    "GeoBoundingBox constructor not found.",
+                    node);
+            }
+
+            bbox = constructor.Invoke(new[] { southwest, northeast });
+            if (bbox == null)
+            {
+                throw new ExpressionTranslationException(
+                    "Failed to create bounding box from southwest and northeast corners.",
+                    node);
+            }
+        }
+
+        // Get the precision for this property
+        var precision = GetPrecisionForProperty(locationExpr, entityParameter, context);
+
+        // Get GeoHash range from bounding box
+        var geoHashBoundingBoxExtensionsType = bbox.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoHash.GeoHashBoundingBoxExtensions");
+        if (geoHashBoundingBoxExtensionsType == null)
+        {
+            throw new ExpressionTranslationException(
+                "GeoHashBoundingBoxExtensions type not found.",
+                node);
+        }
+
+        var getGeoHashRangeMethod = geoHashBoundingBoxExtensionsType.GetMethod("GetGeoHashRange");
+        if (getGeoHashRangeMethod == null)
+        {
+            throw new ExpressionTranslationException(
+                "GetGeoHashRange method not found.",
+                node);
+        }
+
+        var rangeResult = getGeoHashRangeMethod.Invoke(null, new[] { bbox, precision });
+        if (rangeResult == null)
+        {
+            throw new ExpressionTranslationException(
+                "Failed to get GeoHash range from bounding box.",
+                node);
+        }
+
+        // Extract minHash and maxHash from the tuple
+        var rangeType = rangeResult.GetType();
+        var minHashProperty = rangeType.GetProperty("Item1");
+        var minHashField = rangeType.GetField("Item1");
+        var maxHashProperty = rangeType.GetProperty("Item2");
+        var maxHashField = rangeType.GetField("Item2");
+
+        var minHash = (minHashProperty?.GetValue(rangeResult) ?? minHashField?.GetValue(rangeResult)) as string;
+        var maxHash = (maxHashProperty?.GetValue(rangeResult) ?? maxHashField?.GetValue(rangeResult)) as string;
+
+        if (minHash == null || maxHash == null)
+        {
+            throw new ExpressionTranslationException(
+                "Failed to extract GeoHash range values.",
+                node);
+        }
+
+        // Translate location property to attribute name
+        var locationField = Visit(locationExpr, entityParameter, context);
+
+        // Generate parameter names
+        var minParam = context.ParameterGenerator.GenerateParameterName();
+        var maxParam = context.ParameterGenerator.GenerateParameterName();
+
+        // Add to parameter dictionary
+        context.AttributeValues.AttributeValues[minParam] = new AttributeValue { S = minHash };
+        context.AttributeValues.AttributeValues[maxParam] = new AttributeValue { S = maxHash };
+
+        // Return BETWEEN expression
+        var sb = new StringBuilder(locationField.Length + minParam.Length + maxParam.Length + 17);
+        sb.Append(locationField).Append(" BETWEEN ").Append(minParam).Append(" AND ").Append(maxParam);
+        return sb.ToString();
     }
 }

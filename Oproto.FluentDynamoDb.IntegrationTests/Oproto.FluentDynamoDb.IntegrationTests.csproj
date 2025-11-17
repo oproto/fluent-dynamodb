@@ -40,6 +40,9 @@
     <ItemGroup>
         <!-- Reference to main library -->
         <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+        
+        <!-- Reference to Geospatial package for integration tests -->
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
     </ItemGroup>
 
     <ItemGroup>

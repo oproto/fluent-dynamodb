@@ -74,6 +74,12 @@ internal static class MapperGenerator
             }
         }
         
+        // Add geospatial using statement if needed
+        if (entity.HasGeospatialPackage)
+        {
+            sb.AppendLine("using Oproto.FluentDynamoDb.Geospatial.GeoHash;");
+        }
+        
         sb.AppendLine();
 
         // Namespace declaration
@@ -394,6 +400,13 @@ internal static class MapperGenerator
             return;
         }
 
+        // Handle GeoLocation properties (requires geospatial package)
+        if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)
+        {
+            GenerateGeoLocationPropertyToAttributeValue(sb, property, entity);
+            return;
+        }
+
         // Handle TTL properties (Time-To-Live)
         if (property.AdvancedType?.IsTtl == true)
         {
@@ -482,6 +495,13 @@ internal static class MapperGenerator
         if (property.Security?.IsEncrypted == true)
         {
             GenerateEncryptedPropertyToAttributeValue(sb, property, entity);
+            return;
+        }
+
+        // Handle GeoLocation properties (requires geospatial package)
+        if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)
+        {
+            GenerateGeoLocationPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
@@ -1878,6 +1898,13 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
 
+        // Handle GeoLocation properties (requires geospatial package)
+        if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)
+        {
+            GenerateGeoLocationPropertyFromAttributeValue(sb, property, entity);
+            return;
+        }
+
         // Handle TTL properties (Time-To-Live)
         if (property.AdvancedType?.IsTtl == true)
         {
@@ -1948,6 +1975,13 @@ internal static class MapperGenerator
         if (property.Security?.IsEncrypted == true)
         {
             GenerateEncryptedPropertyFromAttributeValue(sb, property, entity);
+            return;
+        }
+
+        // Handle GeoLocation properties (requires geospatial package)
+        if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)
+        {
+            GenerateGeoLocationPropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
@@ -3594,6 +3628,78 @@ internal static class MapperGenerator
         }
 
         return propertyName;
+    }
+
+    /// <summary>
+    /// Checks if a property type is GeoLocation.
+    /// </summary>
+    private static bool IsGeoLocationType(string propertyType)
+    {
+        var baseType = GetBaseType(propertyType);
+        return baseType == "GeoLocation" || 
+               baseType == "Oproto.FluentDynamoDb.Geospatial.GeoLocation";
+    }
+
+    /// <summary>
+    /// Generates code to serialize a GeoLocation property to a GeoHash string AttributeValue.
+    /// </summary>
+    private static void GenerateGeoLocationPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var precision = property.GeoHashPrecision ?? 6; // Default precision is 6
+
+        sb.AppendLine($"            // Serialize GeoLocation property {propertyName} to GeoHash");
+        
+        // Handle nullable GeoLocation
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                var {propertyName.ToLowerInvariant()}Hash = typedEntity.{escapedPropertyName}.Value.ToGeoHash({precision});");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = {propertyName.ToLowerInvariant()}Hash }};");
+            sb.AppendLine("            }");
+        }
+        else
+        {
+            // Check for default value (latitude and longitude both 0)
+            sb.AppendLine($"            if (typedEntity.{escapedPropertyName}.Latitude != 0 || typedEntity.{escapedPropertyName}.Longitude != 0)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                var {propertyName.ToLowerInvariant()}Hash = typedEntity.{escapedPropertyName}.ToGeoHash({precision});");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = {propertyName.ToLowerInvariant()}Hash }};");
+            sb.AppendLine("            }");
+        }
+    }
+
+    /// <summary>
+    /// Generates code to deserialize a GeoLocation property from a GeoHash string AttributeValue.
+    /// </summary>
+    private static void GenerateGeoLocationPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+
+        sb.AppendLine($"            // Deserialize GeoLocation property {propertyName} from GeoHash");
+        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                if ({propertyName.ToLowerInvariant()}Value.S != null)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    try");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        entity.{escapedPropertyName} = GeoHashExtensions.FromGeoHash({propertyName.ToLowerInvariant()}Value.S);");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    catch (Exception ex)");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        throw new DynamoDbMappingException(");
+        sb.AppendLine($"                            $\"Failed to deserialize GeoLocation property '{propertyName}' (DynamoDB attribute: '{attributeName}') from GeoHash string '{{{propertyName.ToLowerInvariant()}Value.S}}'. \" +");
+        sb.AppendLine($"                            $\"Error: {{ex.Message}}. \" +");
+        sb.AppendLine($"                            $\"Ensure the stored value is a valid GeoHash string.\",");
+        sb.AppendLine("                            ex);");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
     }
 
     /// <summary>

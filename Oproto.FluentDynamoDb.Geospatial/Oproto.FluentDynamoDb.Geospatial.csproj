@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsPackable>true</IsPackable>
+        <LangVersion>12.0</LangVersion>
+    </PropertyGroup>
+    
+    <!-- Only generate package on Release builds to avoid file locking issues in IDE -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <!-- Make internal types visible to test projects -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.Geospatial.UnitTests" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <!-- Package metadata -->
+        <PackageId>Oproto.FluentDynamoDb.Geospatial</PackageId>
+        <Title>Oproto.FluentDynamoDb.Geospatial</Title>
+        <Description>Geospatial query support for Oproto.FluentDynamoDb using GeoHash encoding. Enables efficient location-based queries in DynamoDB with type-safe geospatial operations. Supports proximity queries, bounding box queries, and distance calculations with AOT compatibility.</Description>
+        <Authors>Oproto</Authors>
+        <PackageTags>dynamodb;aws;geospatial;geohash;location;proximity;fluent;aot</PackageTags>
+        <PackageProjectUrl>https://github.com/oproto/Oproto.FluentDynamoDb</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/oproto/Oproto.FluentDynamoDb</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <!-- Include README in package -->
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <!-- Dependencies -->
+    <ItemGroup>
+        <!-- ProjectReference is automatically converted to PackageReference in the NuGet package -->
+        <!-- The version constraint will match the version of this package -->
+        <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" 
+                          PrivateAssets="None" />
+    </ItemGroup>
+
+</Project>
