@@ -87,6 +87,16 @@ public class PropertyMetadata
     /// If null, no timezone conversion is performed.
     /// </remarks>
     public DateTimeKind? DateTimeKind { get; set; }
+
+    /// <summary>
+    /// Gets or sets the GeoHash precision for GeoLocation properties.
+    /// </summary>
+    /// <remarks>
+    /// When specified, GeoLocation values are encoded to GeoHash strings with the specified precision (1-12).
+    /// This property is only applicable to GeoLocation properties when the Oproto.FluentDynamoDb.Geospatial package is referenced.
+    /// If null, the default precision of 6 is used.
+    /// </remarks>
+    public int? GeoHashPrecision { get; set; }
 }
 
 /// <summary>

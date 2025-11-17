@@ -50,6 +50,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Loggi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.ApiConsistencyTests", "Oproto.FluentDynamoDb.ApiConsistencyTests\Oproto.FluentDynamoDb.ApiConsistencyTests.csproj", "{A468C090-2016-43DE-9648-E8B156290DC8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Geospatial", "Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj", "{B1C2D3E4-F5A6-7B8C-9D0E-1F2A3B4C5D6E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.Geospatial.UnitTests", "Oproto.FluentDynamoDb.Geospatial.UnitTests\Oproto.FluentDynamoDb.Geospatial.UnitTests.csproj", "{C2D3E4F5-A6B7-8C9D-0E1F-2A3B4C5D6E7F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -134,6 +138,14 @@ Global
 		{A468C090-2016-43DE-9648-E8B156290DC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A468C090-2016-43DE-9648-E8B156290DC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A468C090-2016-43DE-9648-E8B156290DC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1C2D3E4-F5A6-7B8C-9D0E-1F2A3B4C5D6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1C2D3E4-F5A6-7B8C-9D0E-1F2A3B4C5D6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1C2D3E4-F5A6-7B8C-9D0E-1F2A3B4C5D6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1C2D3E4-F5A6-7B8C-9D0E-1F2A3B4C5D6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C2D3E4F5-A6B7-8C9D-0E1F-2A3B4C5D6E7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C2D3E4F5-A6B7-8C9D-0E1F-2A3B4C5D6E7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C2D3E4F5-A6B7-8C9D-0E1F-2A3B4C5D6E7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C2D3E4F5-A6B7-8C9D-0E1F-2A3B4C5D6E7F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection

@@ -51,6 +51,9 @@ internal class EntityAnalyzer
         var jsonSerializerInfo = JsonSerializerDetector.DetectJsonSerializer(semanticModel.Compilation);
         entityModel.JsonSerializerInfo = jsonSerializerInfo;
 
+        // Detect geospatial package
+        entityModel.HasGeospatialPackage = DetectGeospatialPackage(semanticModel.Compilation);
+
         // Extract table information
         if (!ExtractTableInfo(classDecl, semanticModel, entityModel))
             return null;
@@ -406,7 +409,7 @@ internal class EntityAnalyzer
             }
         }
 
-        // Extract Format and DateTimeKind properties from DynamoDbAttribute if present
+        // Extract Format, DateTimeKind, and GeoHashPrecision properties from DynamoDbAttribute if present
         if (dynamoDbAttribute?.ArgumentList != null)
         {
             foreach (var arg in dynamoDbAttribute.ArgumentList.Arguments)
@@ -424,6 +427,14 @@ internal class EntityAnalyzer
                     if (Enum.TryParse<DateTimeKind>(kindName, out var kind))
                     {
                         propertyModel.DateTimeKind = kind;
+                    }
+                }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "GeoHashPrecision" &&
+                         arg.Expression is LiteralExpressionSyntax geoHashPrecisionLiteral)
+                {
+                    if (int.TryParse(geoHashPrecisionLiteral.Token.ValueText, out var precision))
+                    {
+                        propertyModel.GeoHashPrecision = precision;
                     }
                 }
             }
@@ -1201,6 +1212,13 @@ internal class EntityAnalyzer
             return true; // Assume nullable types are supported if base type is
         }
 
+        // Check for GeoLocation type (requires geospatial package)
+        if (baseType == "GeoLocation" || 
+            baseType == "Oproto.FluentDynamoDb.Geospatial.GeoLocation")
+        {
+            return true; // GeoLocation is supported when geospatial package is referenced
+        }
+
         // Check for Dictionary types (Map support)
         if (baseType.StartsWith("System.Collections.Generic.Dictionary<") ||
             baseType.StartsWith("Dictionary<"))
@@ -1835,5 +1853,16 @@ internal class EntityAnalyzer
             "DYNDB007" => false, // Missing DynamoDbAttribute - not critical, can still generate
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Detects whether the Oproto.FluentDynamoDb.Geospatial package is referenced in the compilation.
+    /// </summary>
+    /// <param name="compilation">The compilation to check.</param>
+    /// <returns>True if the geospatial package is referenced, false otherwise.</returns>
+    private static bool DetectGeospatialPackage(Compilation compilation)
+    {
+        return compilation.ReferencedAssemblyNames
+            .Any(a => a.Name == "Oproto.FluentDynamoDb.Geospatial");
     }
 }
