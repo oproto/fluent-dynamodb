@@ -121,6 +121,7 @@ jobs:
           dotnet build \
             --configuration Release \
             --no-restore \
+            /maxcpucount:1 \
             -p:Version=$VERSION \
             -p:PackageVersion=$VERSION \
             -p:AssemblyVersion=$VERSION \

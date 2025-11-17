@@ -269,7 +269,7 @@ public class WithClientExtensionsTests
 
         var newRequest = newBuilder.ToGetItemRequest();
         newRequest.Should().NotBeNull();
-        newRequest.ExpressionAttributeNames.Should().BeEmpty();
+        newRequest.ExpressionAttributeNames.Should().BeNullOrEmpty();
     }
 
     [Fact]

@@ -158,10 +158,6 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
         {
             _req.ExpressionAttributeNames = _attrN.AttributeNames;
         }
-        else if (_req.ExpressionAttributeNames == null)
-        {
-            _req.ExpressionAttributeNames = new Dictionary<string, string>();
-        }
         return _req;
     }
 

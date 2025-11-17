@@ -255,10 +255,6 @@ public class ScanRequestBuilder<TEntity> :
         {
             _req.ExpressionAttributeNames = _attrN.AttributeNames;
         }
-        else if (_req.ExpressionAttributeNames == null)
-        {
-            _req.ExpressionAttributeNames = new Dictionary<string, string>();
-        }
         
         if (_attrV.AttributeValues.Count > 0)
         {

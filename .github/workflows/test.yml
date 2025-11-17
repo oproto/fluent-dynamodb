@@ -54,7 +54,7 @@ jobs:
         run: dotnet restore
       
       - name: Build solution (if artifacts not available)
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore /maxcpucount:1
       
       - name: Run Unit Tests with Coverage
         run: dotnet test --configuration Release --filter "Category=Unit" --logger "trx;LogFileName=unit-test-results.trx" --results-directory ./TestResults/Unit --collect:"XPlat Code Coverage" --settings coverlet.runsettings
@@ -157,10 +157,10 @@ jobs:
         run: dotnet restore
       
       - name: Build solution (if artifacts not available)
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore /maxcpucount:1
       
       - name: Build integration test project explicitly
-        run: dotnet build Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-restore
+        run: dotnet build Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-restore /maxcpucount:1
       
       - name: Run Integration Tests with Coverage
         run: dotnet test Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-build --logger "trx;LogFileName=integration-test-results.trx" --results-directory ./TestResults/Integration --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings
