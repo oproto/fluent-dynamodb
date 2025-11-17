@@ -32,6 +32,26 @@ DynamoDB provides two batch operations:
 - Operations processed in parallel
 - No conditional expressions supported
 
+## Quick Start
+
+The new batch API uses static entry points and reuses existing request builders:
+
+```csharp
+// Batch write
+await DynamoDbBatch.Write
+    .Add(userTable.Put(user1))
+    .Add(userTable.Put(user2))
+    .Add(orderTable.Delete(orderId))
+    .ExecuteAsync();
+
+// Batch get with deserialization
+var (user, order) = await DynamoDbBatch.Get
+    .Add(userTable.Get(userId))
+    .Add(orderTable.Get(orderId))
+    .ExecuteAndMapAsync<User, Order>();
+```
+
+
 ## Batch Get Operations
 
 Batch get operations retrieve multiple items efficiently in a single request.
@@ -51,26 +71,77 @@ public partial class User
 }
 
 // Get multiple users
-var userIds = new[] { "user1", "user2", "user3" };
-
-var response = await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("users", builder =>
-    {
-        foreach (var userId in userIds)
-        {
-            builder.WithKey(UserFields.UserId, UserKeys.Pk(userId));
-        }
-    })
+var response = await DynamoDbBatch.Get
+    .Add(userTable.Get("user1"))
+    .Add(userTable.Get("user2"))
+    .Add(userTable.Get("user3"))
     .ExecuteAsync();
 
-// Process results
-if (response.Responses.TryGetValue("users", out var items))
+// Deserialize items
+var users = response.GetItemsRange<User>(0, 2);
+foreach (var user in users)
 {
-    foreach (var item in items)
+    if (user != null)
     {
-        var user = UserMapper.FromAttributeMap(item);
         Console.WriteLine($"User: {user.Name}");
     }
+}
+```
+
+### ExecuteAndMapAsync - Tuple Destructuring
+
+For convenience with small numbers of items, use `ExecuteAndMapAsync`:
+
+```csharp
+// 2 items
+var (user, order) = await DynamoDbBatch.Get
+    .Add(userTable.Get(userId))
+    .Add(orderTable.Get(orderId))
+    .ExecuteAndMapAsync<User, Order>();
+
+// 3 items
+var (user, account, order) = await DynamoDbBatch.Get
+    .Add(userTable.Get(userId))
+    .Add(accountTable.Get(accountId))
+    .Add(orderTable.Get(orderId))
+    .ExecuteAndMapAsync<User, Account, Order>();
+
+// Up to 8 items supported
+```
+
+
+### Response Deserialization Methods
+
+The `BatchGetResponse` provides multiple ways to deserialize items:
+
+```csharp
+var response = await DynamoDbBatch.Get
+    .Add(userTable.Get("user1"))
+    .Add(userTable.Get("user2"))
+    .Add(userTable.Get("user3"))
+    .Add(orderTable.Get("order1"))
+    .ExecuteAsync();
+
+// Get single item by index
+var user1 = response.GetItem<User>(0);
+
+// Get multiple items of same type by indices
+var users = response.GetItems<User>(0, 1, 2);
+
+// Get contiguous range of items
+var allUsers = response.GetItemsRange<User>(0, 2); // indices 0, 1, 2
+
+// Get item from different table
+var order = response.GetItem<Order>(3);
+
+// Check total count
+Console.WriteLine($"Retrieved {response.Count} items");
+
+// Check for unprocessed keys
+if (response.HasUnprocessedKeys)
+{
+    Console.WriteLine($"Warning: {response.UnprocessedKeys.Count} tables have unprocessed keys");
+    // Implement retry logic
 }
 ```
 
@@ -89,64 +160,40 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
 }
 
-// Get multiple orders
-var orderKeys = new[]
-{
-    ("customer123", "order1"),
-    ("customer123", "order2"),
-    ("customer456", "order3")
-};
-
-var response = await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("orders", builder =>
-    {
-        foreach (var (customerId, orderId) in orderKeys)
-        {
-            builder
-                .WithKey(OrderFields.CustomerId, OrderKeys.Pk(customerId))
-                .WithKey(OrderFields.OrderId, OrderKeys.Sk(orderId));
-        }
-    })
+// Using source-generated methods (no generic parameters)
+var response = await DynamoDbBatch.Get
+    .Add(orderTable.Get("customer123", "order1"))
+    .Add(orderTable.Get("customer123", "order2"))
+    .Add(orderTable.Get("customer456", "order3"))
     .ExecuteAsync();
+
+var orders = response.GetItemsRange<Order>(0, 2);
 ```
+
 
 ### Batch Get with Projection
 
 Retrieve only specific attributes to reduce data transfer:
 
 ```csharp
-var response = await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("users", builder =>
-    {
-        foreach (var userId in userIds)
-        {
-            builder.WithKey(UserFields.UserId, UserKeys.Pk(userId));
-        }
-        
-        // Only retrieve name and email
-        builder
-            .WithProjection($"{UserFields.Name}, {UserFields.Email}")
-            .WithAttributeName("#name", UserFields.Name)
-            .WithAttributeName("#email", UserFields.Email);
-    })
+var response = await DynamoDbBatch.Get
+    .Add(userTable.Get("user1").WithProjection("name, email"))
+    .Add(userTable.Get("user2").WithProjection("name, email"))
+    .Add(userTable.Get("user3").WithProjection("name, email"))
     .ExecuteAsync();
+
+var users = response.GetItemsRange<User>(0, 2);
 ```
 
 ### Batch Get with Consistent Reads
 
 ```csharp
-var response = await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("users", builder =>
-    {
-        foreach (var userId in userIds)
-        {
-            builder.WithKey(UserFields.UserId, UserKeys.Pk(userId));
-        }
-        
-        // Use strongly consistent reads (2x capacity cost)
-        builder.UsingConsistentRead();
-    })
+var response = await DynamoDbBatch.Get
+    .Add(userTable.Get("user1").UsingConsistentRead())
+    .Add(userTable.Get("user2").UsingConsistentRead())
     .ExecuteAsync();
+
+var users = response.GetItemsRange<User>(0, 1);
 ```
 
 **Note:** Consistent reads consume twice the read capacity. Use them only when you need the most up-to-date data.
@@ -154,43 +201,20 @@ var response = await new BatchGetItemRequestBuilder(client)
 ### Batch Get from Multiple Tables
 
 ```csharp
-var response = await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("users", builder =>
-    {
-        builder.WithKey(UserFields.UserId, UserKeys.Pk("user123"));
-        builder.WithKey(UserFields.UserId, UserKeys.Pk("user456"));
-    })
-    .GetFromTable("orders", builder =>
-    {
-        builder
-            .WithKey(OrderFields.CustomerId, OrderKeys.Pk("customer123"))
-            .WithKey(OrderFields.OrderId, OrderKeys.Sk("order1"));
-    })
-    .GetFromTable("products", builder =>
-    {
-        builder.WithKey(ProductFields.ProductId, ProductKeys.Pk("prod789"));
-    })
+var response = await DynamoDbBatch.Get
+    .Add(userTable.Get("user123"))
+    .Add(userTable.Get("user456"))
+    .Add(orderTable.Get("customer123", "order1"))
+    .Add(productTable.Get("prod789"))
     .ExecuteAsync();
 
-// Process results from each table
-if (response.Responses.TryGetValue("users", out var users))
-{
-    foreach (var item in users)
-    {
-        var user = UserMapper.FromAttributeMap(item);
-        Console.WriteLine($"User: {user.Name}");
-    }
-}
-
-if (response.Responses.TryGetValue("orders", out var orders))
-{
-    foreach (var item in orders)
-    {
-        var order = OrderMapper.FromAttributeMap(item);
-        Console.WriteLine($"Order: {order.OrderId}");
-    }
-}
+// Items are returned in the order they were added
+var user1 = response.GetItem<User>(0);
+var user2 = response.GetItem<User>(1);
+var order = response.GetItem<Order>(2);
+var product = response.GetItem<Product>(3);
 ```
+
 
 ## Batch Write Operations
 
@@ -206,98 +230,58 @@ var users = new List<User>
     new User { UserId = "user3", Name = "Charlie", Email = "charlie@example.com" }
 };
 
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        foreach (var user in users)
-        {
-            builder.PutItem(user, UserMapper.ToAttributeMap);
-        }
-    })
+await DynamoDbBatch.Write
+    .Add(userTable.Put(users[0]))
+    .Add(userTable.Put(users[1]))
+    .Add(userTable.Put(users[2]))
     .ExecuteAsync();
-
-// Check for unprocessed items
-if (response.UnprocessedItems.Count > 0)
-{
-    Console.WriteLine($"Warning: {response.UnprocessedItems.Count} items not processed");
-}
 ```
 
 ### Basic Batch Delete
 
 ```csharp
-var userIdsToDelete = new[] { "user1", "user2", "user3" };
-
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        foreach (var userId in userIdsToDelete)
-        {
-            builder.DeleteItem(UserFields.UserId, UserKeys.Pk(userId));
-        }
-    })
+await DynamoDbBatch.Write
+    .Add(userTable.Delete("user1"))
+    .Add(userTable.Delete("user2"))
+    .Add(userTable.Delete("user3"))
     .ExecuteAsync();
 ```
 
 ### Mixed Put and Delete Operations
 
 ```csharp
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        // Add new users
-        builder.PutItem(newUser1, UserMapper.ToAttributeMap);
-        builder.PutItem(newUser2, UserMapper.ToAttributeMap);
-        
-        // Delete old users
-        builder.DeleteItem(UserFields.UserId, UserKeys.Pk("oldUser1"));
-        builder.DeleteItem(UserFields.UserId, UserKeys.Pk("oldUser2"));
-    })
+await DynamoDbBatch.Write
+    // Add new users
+    .Add(userTable.Put(newUser1))
+    .Add(userTable.Put(newUser2))
+    
+    // Delete old users
+    .Add(userTable.Delete("oldUser1"))
+    .Add(userTable.Delete("oldUser2"))
     .ExecuteAsync();
 ```
 
 ### Batch Write to Multiple Tables
 
 ```csharp
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        builder.PutItem(user, UserMapper.ToAttributeMap);
-    })
-    .WriteToTable("orders", builder =>
-    {
-        builder.PutItem(order, OrderMapper.ToAttributeMap);
-    })
-    .WriteToTable("audit_log", builder =>
-    {
-        builder.PutItem(auditEntry, AuditMapper.ToAttributeMap);
-    })
+await DynamoDbBatch.Write
+    .Add(userTable.Put(user))
+    .Add(orderTable.Put(order))
+    .Add(auditTable.Put(auditEntry))
     .ExecuteAsync();
 ```
 
 ### Batch Delete with Composite Keys
 
 ```csharp
-var orderKeysToDelete = new[]
-{
-    ("customer123", "order1"),
-    ("customer123", "order2"),
-    ("customer456", "order3")
-};
-
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("orders", builder =>
-    {
-        foreach (var (customerId, orderId) in orderKeysToDelete)
-        {
-            builder.DeleteItem(
-                OrderFields.CustomerId, OrderKeys.Pk(customerId),
-                OrderFields.OrderId, OrderKeys.Sk(orderId)
-            );
-        }
-    })
+// Using source-generated methods
+await DynamoDbBatch.Write
+    .Add(orderTable.Delete("customer123", "order1"))
+    .Add(orderTable.Delete("customer123", "order2"))
+    .Add(orderTable.Delete("customer456", "order3"))
     .ExecuteAsync();
 ```
+
 
 ## Handling Unprocessed Items
 
@@ -307,36 +291,26 @@ DynamoDB may not process all items in a batch request due to capacity limits or 
 
 ```csharp
 // Batch get
-var getResponse = await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("users", builder =>
-    {
-        foreach (var userId in userIds)
-        {
-            builder.WithKey(UserFields.UserId, UserKeys.Pk(userId));
-        }
-    })
+var getResponse = await DynamoDbBatch.Get
+    .Add(userTable.Get("user1"))
+    .Add(userTable.Get("user2"))
     .ExecuteAsync();
 
-if (getResponse.UnprocessedKeys.Count > 0)
+if (getResponse.HasUnprocessedKeys)
 {
-    Console.WriteLine($"Unprocessed keys: {getResponse.UnprocessedKeys.Count}");
+    Console.WriteLine($"Unprocessed keys in {getResponse.UnprocessedKeys.Count} tables");
     // Implement retry logic
 }
 
 // Batch write
-var writeResponse = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        foreach (var user in users)
-        {
-            builder.PutItem(user, UserMapper.ToAttributeMap);
-        }
-    })
+var writeResponse = await DynamoDbBatch.Write
+    .Add(userTable.Put(user1))
+    .Add(userTable.Put(user2))
     .ExecuteAsync();
 
 if (writeResponse.UnprocessedItems.Count > 0)
 {
-    Console.WriteLine($"Unprocessed items: {writeResponse.UnprocessedItems.Count}");
+    Console.WriteLine($"Unprocessed items in {writeResponse.UnprocessedItems.Count} tables");
     // Implement retry logic
 }
 ```
@@ -344,108 +318,92 @@ if (writeResponse.UnprocessedItems.Count > 0)
 ### Retry Logic with Exponential Backoff
 
 ```csharp
-public async Task<BatchWriteItemResponse> BatchWriteWithRetry(
-    BatchWriteItemRequestBuilder builder,
+public async Task<BatchGetResponse> BatchGetWithRetry(
+    BatchGetBuilder builder,
     int maxRetries = 3)
 {
     var response = await builder.ExecuteAsync();
     var retryCount = 0;
     
-    while (response.UnprocessedItems.Count > 0 && retryCount < maxRetries)
+    while (response.HasUnprocessedKeys && retryCount < maxRetries)
     {
         // Exponential backoff: 100ms, 200ms, 400ms
         var delayMs = 100 * (int)Math.Pow(2, retryCount);
         await Task.Delay(delayMs);
         
-        Console.WriteLine($"Retry {retryCount + 1}: {response.UnprocessedItems.Count} unprocessed items");
+        Console.WriteLine($"Retry {retryCount + 1}: unprocessed keys remaining");
         
-        // Retry with unprocessed items
-        var retryRequest = new BatchWriteItemRequest
+        // Retry with unprocessed keys
+        var retryRequest = new BatchGetItemRequest
         {
-            RequestItems = response.UnprocessedItems
+            RequestItems = response.UnprocessedKeys
         };
         
-        response = await client.BatchWriteItemAsync(retryRequest);
+        var retryResponse = await client.BatchGetItemAsync(retryRequest);
+        response = new BatchGetResponse(retryResponse, tableOrder);
         retryCount++;
     }
     
-    if (response.UnprocessedItems.Count > 0)
+    if (response.HasUnprocessedKeys)
     {
-        Console.WriteLine($"Failed to process {response.UnprocessedItems.Count} items after {maxRetries} retries");
+        Console.WriteLine($"Failed to process all items after {maxRetries} retries");
     }
     
     return response;
 }
 ```
 
-### Complete Retry Pattern
+
+## Client Configuration
+
+The batch builders automatically infer the DynamoDB client from the first request builder, or you can explicitly specify it.
+
+### Automatic Client Inference
 
 ```csharp
-public async Task<List<T>> BatchGetAllItems<T>(
-    string tableName,
-    List<Dictionary<string, AttributeValue>> keys,
-    Func<Dictionary<string, AttributeValue>, T> mapper,
-    int maxRetries = 3)
-{
-    var results = new List<T>();
-    var remainingKeys = new List<Dictionary<string, AttributeValue>>(keys);
-    var retryCount = 0;
-    
-    while (remainingKeys.Count > 0 && retryCount <= maxRetries)
-    {
-        var response = await new BatchGetItemRequestBuilder(client)
-            .GetFromTable(tableName, builder =>
-            {
-                foreach (var key in remainingKeys)
-                {
-                    builder.SetKey(k => 
-                    {
-                        foreach (var kvp in key)
-                        {
-                            k[kvp.Key] = kvp.Value;
-                        }
-                    });
-                }
-            })
-            .ExecuteAsync();
-        
-        // Process retrieved items
-        if (response.Responses.TryGetValue(tableName, out var items))
-        {
-            results.AddRange(items.Select(mapper));
-        }
-        
-        // Check for unprocessed keys
-        if (response.UnprocessedKeys.TryGetValue(tableName, out var unprocessed))
-        {
-            remainingKeys = unprocessed.Keys;
-            
-            if (remainingKeys.Count > 0 && retryCount < maxRetries)
-            {
-                // Exponential backoff
-                var delayMs = 100 * (int)Math.Pow(2, retryCount);
-                await Task.Delay(delayMs);
-                retryCount++;
-            }
-        }
-        else
-        {
-            break;
-        }
-    }
-    
-    if (remainingKeys.Count > 0)
-    {
-        throw new Exception($"Failed to retrieve {remainingKeys.Count} items after {maxRetries} retries");
-    }
-    
-    return results;
-}
+// Client is automatically extracted from userTable
+await DynamoDbBatch.Write
+    .Add(userTable.Put(user))
+    .Add(orderTable.Put(order))
+    .ExecuteAsync();
 ```
 
-## Performance Considerations
+### Explicit Client with WithClient()
 
-### Batch Size Limits
+```csharp
+var scopedClient = GetScopedDynamoDbClient(); // e.g., with STS credentials
+
+await DynamoDbBatch.Write
+    .WithClient(scopedClient)
+    .Add(userTable.Put(user))
+    .Add(orderTable.Put(order))
+    .ExecuteAsync();
+```
+
+### Client as ExecuteAsync Parameter
+
+```csharp
+var client = GetDynamoDbClient();
+
+await DynamoDbBatch.Write
+    .Add(userTable.Put(user))
+    .ExecuteAsync(client); // Highest precedence
+```
+
+### Client Precedence
+
+The client is determined in this order (highest to lowest precedence):
+
+1. **ExecuteAsync parameter** - `ExecuteAsync(client)`
+2. **Explicit WithClient()** - `.WithClient(client)`
+3. **Inferred from first builder** - Extracted automatically
+
+See [Transactions](Transactions.md#client-configuration) for more details on client configuration.
+
+
+## Batch Limits and Validation
+
+### Size Limits
 
 **BatchGetItem:**
 - Maximum 100 items per request
@@ -457,19 +415,54 @@ public async Task<List<T>> BatchGetAllItems<T>(
 - Each item can be up to 400KB
 - Operations processed in parallel
 
-### Capacity Consumption
+### Validation Errors
+
+The batch builder validates operations before execution:
 
 ```csharp
-// Monitor consumed capacity
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
+// Too many write operations
+try
+{
+    var batch = DynamoDbBatch.Write;
+    for (int i = 0; i < 26; i++)
     {
-        foreach (var user in users)
-        {
-            builder.PutItem(user, UserMapper.ToAttributeMap);
-        }
-    })
-    .ReturnTotalConsumedCapacity()
+        batch.Add(userTable.Put(new User { UserId = $"user{i}" }));
+    }
+    await batch.ExecuteAsync();
+}
+catch (ValidationException ex)
+{
+    // "Batch contains 26 operations, but DynamoDB supports a maximum of 25 operations per batch write. Consider chunking your operations."
+}
+
+// Too many get operations
+try
+{
+    var batch = DynamoDbBatch.Get;
+    for (int i = 0; i < 101; i++)
+    {
+        batch.Add(userTable.Get($"user{i}"));
+    }
+    await batch.ExecuteAsync();
+}
+catch (ValidationException ex)
+{
+    // "Batch contains 101 operations, but DynamoDB supports a maximum of 100 operations per batch get. Consider chunking your operations."
+}
+```
+
+
+## Batch-Level Configuration
+
+Configure batch-level settings that apply to the entire batch:
+
+### Return Consumed Capacity
+
+```csharp
+var response = await DynamoDbBatch.Write
+    .Add(userTable.Put(user1))
+    .Add(userTable.Put(user2))
+    .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
     .ExecuteAsync();
 
 // Check capacity consumption
@@ -483,13 +476,81 @@ if (response.ConsumedCapacity != null)
 }
 ```
 
+### Return Item Collection Metrics
+
+```csharp
+var response = await DynamoDbBatch.Write
+    .Add(userTable.Put(user))
+    .ReturnItemCollectionMetrics()
+    .ExecuteAsync();
+
+// Check item collection metrics
+if (response.ItemCollectionMetrics != null)
+{
+    foreach (var metric in response.ItemCollectionMetrics)
+    {
+        Console.WriteLine($"Table: {metric.Key}");
+    }
+}
+```
+
+
+## Encryption Support
+
+Field encryption works automatically in batch write operations when putting entities with encrypted fields:
+
+```csharp
+[DynamoDbTable("users")]
+public partial class User
+{
+    [PartitionKey]
+    public string UserId { get; set; } = string.Empty;
+    
+    [Encrypted]
+    public string SocialSecurityNumber { get; set; } = string.Empty;
+}
+
+// Encryption happens during Put(entity) call
+var user = new User
+{
+    UserId = "user123",
+    SocialSecurityNumber = "123-45-6789"
+};
+
+await DynamoDbBatch.Write
+    .Add(userTable.Put(user)) // Encrypted during ToDynamoDb conversion
+    .ExecuteAsync();
+```
+
+**How it works:**
+1. When `Put(entity)` is called, the entity is converted to DynamoDB format using `ToDynamoDb()`
+2. During conversion, encrypted fields are automatically encrypted using the configured `IFieldEncryptor`
+3. The batch builder extracts the already-encrypted item
+4. No additional encryption is needed during batch execution
+
+**Error handling:**
+```csharp
+try
+{
+    await DynamoDbBatch.Write
+        .Add(userTable.Put(user))
+        .ExecuteAsync();
+}
+catch (InvalidOperationException ex)
+{
+    // "Field encryption is required for property 'SocialSecurityNumber' but no IFieldEncryptor is configured."
+}
+```
+
+
+## Performance Considerations
+
 ### Chunking Large Batches
 
 ```csharp
 public async Task BatchWriteInChunks<T>(
-    string tableName,
     List<T> items,
-    Func<T, Dictionary<string, AttributeValue>> mapper,
+    Func<T, PutItemRequestBuilder<T>> putBuilder,
     int chunkSize = 25)
 {
     // Split into chunks of 25 (BatchWriteItem limit)
@@ -497,36 +558,36 @@ public async Task BatchWriteInChunks<T>(
     {
         var chunk = items.Skip(i).Take(chunkSize).ToList();
         
-        var response = await new BatchWriteItemRequestBuilder(client)
-            .WriteToTable(tableName, builder =>
-            {
-                foreach (var item in chunk)
-                {
-                    builder.PutItem(item, mapper);
-                }
-            })
-            .ExecuteAsync();
+        var batch = DynamoDbBatch.Write;
+        foreach (var item in chunk)
+        {
+            batch.Add(putBuilder(item));
+        }
+        
+        var response = await batch.ExecuteAsync();
         
         // Handle unprocessed items
         if (response.UnprocessedItems.Count > 0)
         {
-            Console.WriteLine($"Chunk {i / chunkSize + 1}: {response.UnprocessedItems.Count} unprocessed items");
+            Console.WriteLine($"Chunk {i / chunkSize + 1}: unprocessed items");
             // Implement retry logic
         }
     }
 }
 
 // Usage
-await BatchWriteInChunks("users", allUsers, UserMapper.ToAttributeMap);
+await BatchWriteInChunks(
+    allUsers,
+    user => userTable.Put(user)
+);
 ```
 
 ### Parallel Batch Operations
 
 ```csharp
 public async Task ParallelBatchWrite<T>(
-    string tableName,
     List<T> items,
-    Func<T, Dictionary<string, AttributeValue>> mapper,
+    Func<T, PutItemRequestBuilder<T>> putBuilder,
     int maxParallel = 4)
 {
     // Split into chunks
@@ -543,15 +604,12 @@ public async Task ParallelBatchWrite<T>(
         await semaphore.WaitAsync();
         try
         {
-            await new BatchWriteItemRequestBuilder(client)
-                .WriteToTable(tableName, builder =>
-                {
-                    foreach (var item in chunk)
-                    {
-                        builder.PutItem(item, mapper);
-                    }
-                })
-                .ExecuteAsync();
+            var batch = DynamoDbBatch.Write;
+            foreach (var item in chunk)
+            {
+                batch.Add(putBuilder(item));
+            }
+            await batch.ExecuteAsync();
         }
         finally
         {
@@ -563,6 +621,7 @@ public async Task ParallelBatchWrite<T>(
 }
 ```
 
+
 ## Error Handling
 
 ### Common Exceptions
@@ -572,14 +631,9 @@ using Amazon.DynamoDBv2.Model;
 
 try
 {
-    var response = await new BatchWriteItemRequestBuilder(client)
-        .WriteToTable("users", builder =>
-        {
-            foreach (var user in users)
-            {
-                builder.PutItem(user, UserMapper.ToAttributeMap);
-            }
-        })
+    await DynamoDbBatch.Write
+        .Add(userTable.Put(user1))
+        .Add(userTable.Put(user2))
         .ExecuteAsync();
 }
 catch (ProvisionedThroughputExceededException ex)
@@ -599,59 +653,11 @@ catch (ItemCollectionSizeLimitExceededException ex)
 }
 catch (ValidationException ex)
 {
-    // Invalid request parameters
+    // Invalid request parameters (e.g., too many items)
     Console.WriteLine($"Validation error: {ex.Message}");
 }
 ```
 
-### Validation Before Batch Operations
-
-```csharp
-public async Task<BatchWriteItemResponse> SafeBatchWrite<T>(
-    string tableName,
-    List<T> items,
-    Func<T, Dictionary<string, AttributeValue>> mapper)
-{
-    // Validate batch size
-    if (items.Count > 25)
-    {
-        throw new ArgumentException("Batch write supports maximum 25 items. Use chunking for larger batches.");
-    }
-    
-    // Validate item sizes
-    foreach (var item in items)
-    {
-        var mapped = mapper(item);
-        var size = CalculateItemSize(mapped);
-        
-        if (size > 400 * 1024) // 400KB limit
-        {
-            throw new ArgumentException($"Item exceeds 400KB size limit: {size} bytes");
-        }
-    }
-    
-    // Execute batch write
-    return await new BatchWriteItemRequestBuilder(client)
-        .WriteToTable(tableName, builder =>
-        {
-            foreach (var item in items)
-            {
-                builder.PutItem(item, mapper);
-            }
-        })
-        .ExecuteAsync();
-}
-
-private int CalculateItemSize(Dictionary<string, AttributeValue> item)
-{
-    // Simplified size calculation
-    return item.Sum(kvp => 
-        kvp.Key.Length + 
-        (kvp.Value.S?.Length ?? 0) +
-        (kvp.Value.N?.Length ?? 0)
-    );
-}
-```
 
 ## Best Practices
 
@@ -659,56 +665,56 @@ private int CalculateItemSize(Dictionary<string, AttributeValue> item)
 
 ```csharp
 // ✅ Good - handles unprocessed items
-var response = await batchBuilder.ExecuteAsync();
+var response = await DynamoDbBatch.Write
+    .Add(userTable.Put(user))
+    .ExecuteAsync();
+    
 if (response.UnprocessedItems.Count > 0)
 {
     // Retry with exponential backoff
 }
 
 // ❌ Avoid - ignores unprocessed items
-var response = await batchBuilder.ExecuteAsync();
+await DynamoDbBatch.Write.Add(userTable.Put(user)).ExecuteAsync();
 ```
 
 ### 2. Use Projection Expressions
 
 ```csharp
 // ✅ Good - only retrieve needed attributes
-.GetFromTable("users", builder =>
-{
-    builder.WithKey(UserFields.UserId, UserKeys.Pk("user123"));
-    builder.WithProjection($"{UserFields.Name}, {UserFields.Email}");
-})
+await DynamoDbBatch.Get
+    .Add(userTable.Get("user123").WithProjection("name, email"))
+    .ExecuteAsync();
 
 // ❌ Avoid - retrieves all attributes
-.GetFromTable("users", builder =>
-{
-    builder.WithKey(UserFields.UserId, UserKeys.Pk("user123"));
-})
+await DynamoDbBatch.Get
+    .Add(userTable.Get("user123"))
+    .ExecuteAsync();
 ```
 
 ### 3. Chunk Large Batches
 
 ```csharp
 // ✅ Good - chunks into batches of 25
-await BatchWriteInChunks("users", allUsers, UserMapper.ToAttributeMap, 25);
+await BatchWriteInChunks(allUsers, user => userTable.Put(user), 25);
 
 // ❌ Avoid - trying to write more than 25 items
-await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        foreach (var user in allUsers) // Could be > 25 items
-        {
-            builder.PutItem(user, UserMapper.ToAttributeMap);
-        }
-    })
-    .ExecuteAsync();
+var batch = DynamoDbBatch.Write;
+foreach (var user in allUsers) // Could be > 25 items
+{
+    batch.Add(userTable.Put(user));
+}
+await batch.ExecuteAsync(); // Will throw ValidationException
 ```
 
 ### 4. Monitor Capacity Consumption
 
 ```csharp
 // ✅ Good - monitors capacity
-.ReturnTotalConsumedCapacity()
+var response = await DynamoDbBatch.Write
+    .Add(userTable.Put(user))
+    .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+    .ExecuteAsync();
 
 // Check response
 if (response.ConsumedCapacity != null)
@@ -717,26 +723,21 @@ if (response.ConsumedCapacity != null)
 }
 ```
 
+
 ### 5. Use Batch Operations for Bulk Reads/Writes
 
 ```csharp
 // ✅ Good - single batch request
-await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("users", builder =>
-    {
-        foreach (var userId in userIds)
-        {
-            builder.WithKey(UserFields.UserId, UserKeys.Pk(userId));
-        }
-    })
+await DynamoDbBatch.Get
+    .Add(userTable.Get("user1"))
+    .Add(userTable.Get("user2"))
+    .Add(userTable.Get("user3"))
     .ExecuteAsync();
 
 // ❌ Avoid - multiple individual requests
 foreach (var userId in userIds)
 {
-    await table.Get
-        .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-        .ExecuteAsync<User>();
+    await userTable.Get(userId).ExecuteAsync();
 }
 ```
 
@@ -751,17 +752,36 @@ await Task.Delay(delayMs);
 await Task.Delay(100); // Same delay every time
 ```
 
+### 7. Use Source-Generated Methods
+
+```csharp
+// ✅ Good - no generic parameters, cleaner code
+await DynamoDbBatch.Write
+    .Add(userTable.Put(user))
+    .Add(orderTable.Delete("customer123", "order456"))
+    .ExecuteAsync();
+
+// ⚠️ Acceptable - generic parameters required
+await DynamoDbBatch.Write
+    .Add(userTable.Put<User>().WithItem(user))
+    .Add(orderTable.Delete<Order>().WithKey("pk", "customer123").WithKey("sk", "order456"))
+    .ExecuteAsync();
+```
+
+
 ## Batch Operations vs Transactions
 
 **Use Batch Operations When:**
 - You need to read/write many items efficiently
 - Operations are independent (no atomicity required)
 - You can handle partial failures
+- Cost optimization is important (1x capacity vs 2x for transactions)
 
 **Use Transactions When:**
 - You need ACID guarantees
 - Operations must succeed or fail together
 - You need conditional writes across items
+- Data consistency is critical
 
 See [Transactions](Transactions.md) for transactional operations.
 
@@ -772,72 +792,49 @@ Here's a comprehensive example with retry logic and error handling:
 ```csharp
 public class BatchOperationService
 {
-    private readonly IAmazonDynamoDB _client;
+    private readonly UserTable _userTable;
     private readonly int _maxRetries = 3;
     
-    public BatchOperationService(IAmazonDynamoDB client)
+    public BatchOperationService(UserTable userTable)
     {
-        _client = client;
+        _userTable = userTable;
     }
     
     public async Task<List<User>> GetUsersInBatch(List<string> userIds)
     {
-        var users = new List<User>();
-        var remainingIds = new List<string>(userIds);
-        var retryCount = 0;
-        
-        while (remainingIds.Count > 0 && retryCount <= _maxRetries)
+        var batch = DynamoDbBatch.Get;
+        foreach (var userId in userIds)
         {
-            var response = await new BatchGetItemRequestBuilder(_client)
-                .GetFromTable("users", builder =>
-                {
-                    foreach (var userId in remainingIds)
-                    {
-                        builder.WithKey(UserFields.UserId, UserKeys.Pk(userId));
-                    }
-                    
-                    builder.WithProjection($"{UserFields.UserId}, {UserFields.Name}, {UserFields.Email}");
-                })
-                .ReturnTotalConsumedCapacity()
-                .ExecuteAsync();
-            
-            // Process retrieved items
-            if (response.Responses.TryGetValue("users", out var items))
+            batch.Add(_userTable.Get(userId).WithProjection("userId, name, email"));
+        }
+        
+        var response = await batch
+            .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+            .ExecuteAsync();
+        
+        // Log capacity consumption
+        if (response.RawResponse.ConsumedCapacity != null)
+        {
+            var capacity = response.RawResponse.ConsumedCapacity.FirstOrDefault();
+            Console.WriteLine($"Consumed {capacity?.CapacityUnits} RCUs");
+        }
+        
+        // Deserialize all users
+        var users = new List<User>();
+        for (int i = 0; i < response.Count; i++)
+        {
+            var user = response.GetItem<User>(i);
+            if (user != null)
             {
-                users.AddRange(items.Select(UserMapper.FromAttributeMap));
-            }
-            
-            // Log capacity consumption
-            if (response.ConsumedCapacity != null)
-            {
-                var capacity = response.ConsumedCapacity.FirstOrDefault();
-                Console.WriteLine($"Consumed {capacity?.CapacityUnits} RCUs");
-            }
-            
-            // Handle unprocessed keys
-            if (response.UnprocessedKeys.TryGetValue("users", out var unprocessed))
-            {
-                remainingIds = unprocessed.Keys
-                    .Select(k => k[UserFields.UserId].S)
-                    .ToList();
-                
-                if (remainingIds.Count > 0 && retryCount < _maxRetries)
-                {
-                    var delayMs = 100 * (int)Math.Pow(2, retryCount);
-                    Console.WriteLine($"Retry {retryCount + 1}: {remainingIds.Count} unprocessed keys, waiting {delayMs}ms");
-                    await Task.Delay(delayMs);
-                    retryCount++;
-                }
-            }
-            else
-            {
-                break;
+                users.Add(user);
             }
         }
         
-        if (remainingIds.Count > 0)
+        // Handle unprocessed keys
+        if (response.HasUnprocessedKeys)
         {
-            throw new Exception($"Failed to retrieve {remainingIds.Count} users after {_maxRetries} retries");
+            Console.WriteLine("Warning: Some keys were not processed");
+            // Implement retry logic here
         }
         
         return users;
@@ -856,19 +853,17 @@ public class BatchOperationService
     private async Task SaveChunkWithRetry(List<User> chunk)
     {
         var retryCount = 0;
-        var remainingItems = chunk;
         
-        while (remainingItems.Count > 0 && retryCount <= _maxRetries)
+        while (retryCount <= _maxRetries)
         {
-            var response = await new BatchWriteItemRequestBuilder(_client)
-                .WriteToTable("users", builder =>
-                {
-                    foreach (var user in remainingItems)
-                    {
-                        builder.PutItem(user, UserMapper.ToAttributeMap);
-                    }
-                })
-                .ReturnTotalConsumedCapacity()
+            var batch = DynamoDbBatch.Write;
+            foreach (var user in chunk)
+            {
+                batch.Add(_userTable.Put(user));
+            }
+            
+            var response = await batch
+                .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
                 .ExecuteAsync();
             
             // Log capacity consumption
@@ -878,30 +873,23 @@ public class BatchOperationService
                 Console.WriteLine($"Consumed {capacity?.CapacityUnits} WCUs");
             }
             
-            // Handle unprocessed items
-            if (response.UnprocessedItems.TryGetValue("users", out var unprocessed))
+            // Check for unprocessed items
+            if (response.UnprocessedItems.Count == 0)
             {
-                remainingItems = unprocessed
-                    .Select(wr => UserMapper.FromAttributeMap(wr.PutRequest.Item))
-                    .ToList();
-                
-                if (remainingItems.Count > 0 && retryCount < _maxRetries)
-                {
-                    var delayMs = 100 * (int)Math.Pow(2, retryCount);
-                    Console.WriteLine($"Retry {retryCount + 1}: {remainingItems.Count} unprocessed items, waiting {delayMs}ms");
-                    await Task.Delay(delayMs);
-                    retryCount++;
-                }
+                break; // Success
+            }
+            
+            if (retryCount < _maxRetries)
+            {
+                var delayMs = 100 * (int)Math.Pow(2, retryCount);
+                Console.WriteLine($"Retry {retryCount + 1}: unprocessed items, waiting {delayMs}ms");
+                await Task.Delay(delayMs);
+                retryCount++;
             }
             else
             {
-                break;
+                throw new Exception($"Failed to save all users after {_maxRetries} retries");
             }
-        }
-        
-        if (remainingItems.Count > 0)
-        {
-            throw new Exception($"Failed to save {remainingItems.Count} users after {_maxRetries} retries");
         }
     }
 }

@@ -1,0 +1,372 @@
+# Implementation Plan
+
+- [x] 1. Create marker interfaces for request builders
+  - Create `ITransactablePutBuilder` interface with methods to extract table name, item, condition expression, and attribute mappings
+  - Create `ITransactableUpdateBuilder` interface with methods to extract table name, key, update expression, condition expression, attribute mappings, and encryption support
+  - Create `ITransactableDeleteBuilder` interface with methods to extract table name, key, condition expression, and attribute mappings
+  - Create `ITransactableGetBuilder` interface with methods to extract table name, key, projection expression, attribute names, and consistent read setting
+  - Create `ITransactableConditionCheckBuilder` interface with methods to extract table name, key, condition expression, and attribute mappings
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+
+- [x] 2. Implement marker interfaces on existing request builders
+  - [x] 2.1 Update `PutItemRequestBuilder<TEntity>` to implement `ITransactablePutBuilder`
+    - Add explicit interface implementation for `GetTableName()`, `GetItem()`, `GetConditionExpression()`, `GetExpressionAttributeNames()`, and `GetExpressionAttributeValues()`
+    - Ensure methods return correct values from internal `_req` field
+    - _Requirements: 6.1_
+  - [x] 2.2 Update `UpdateItemRequestBuilder<TEntity>` to implement `ITransactableUpdateBuilder`
+    - Add explicit interface implementation for extraction methods
+    - Add `EncryptParametersIfNeededAsync()` method that calls existing encryption logic
+    - _Requirements: 6.2, 10.1, 10.2_
+  - [x] 2.3 Update `DeleteItemRequestBuilder<TEntity>` to implement `ITransactableDeleteBuilder`
+    - Add explicit interface implementation for extraction methods
+    - _Requirements: 6.3_
+  - [x] 2.4 Update `GetItemRequestBuilder<TEntity>` to implement `ITransactableGetBuilder`
+    - Add explicit interface implementation for extraction methods including projection and consistent read
+    - _Requirements: 6.4_
+
+- [x] 3. Create ConditionCheckBuilder
+  - [x] 3.1 Implement `ConditionCheckBuilder<TEntity>` class
+    - Implement `IWithKey<T>`, `IWithConditionExpression<T>`, `IWithAttributeNames<T>`, `IWithAttributeValues<T>` interfaces
+    - Implement `ITransactableConditionCheckBuilder` marker interface
+    - Add constructor accepting `IAmazonDynamoDB` client and table name
+    - Store key, condition expression, and attribute mappings
+    - Do NOT expose `ExecuteAsync()` or `ToDynamoDbResponseAsync()` methods
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 6.5_
+  - [x] 3.2 Add `ConditionCheck<TEntity>()` method to `DynamoDbTableBase`
+    - Return new `ConditionCheckBuilder<TEntity>` instance with client and table name
+    - _Requirements: 5.1_
+
+- [x] 4. Create TransactionWriteBuilder
+  - [x] 4.1 Implement core TransactionWriteBuilder class
+    - Create private fields for transaction items list, client references, and configuration settings
+    - Implement `Add<TEntity>(PutItemRequestBuilder<TEntity>)` overload that extracts put request and adds to transaction items
+    - Implement `Add<TEntity>(UpdateItemRequestBuilder<TEntity>)` overload that extracts update request
+    - Implement `Add<TEntity>(DeleteItemRequestBuilder<TEntity>)` overload that extracts delete request
+    - Implement `Add<TEntity>(ConditionCheckBuilder<TEntity>)` overload that extracts condition check
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.7_
+  - [x] 4.2 Implement client inference logic
+    - Create `InferClientIfNeeded()` method that extracts client from first builder using reflection
+    - Create `ExtractClientFromBuilder()` method that calls internal `GetDynamoDbClient()` method
+    - Verify subsequent builders use same client instance
+    - Throw `InvalidOperationException` if client mismatch detected
+    - _Requirements: 14.1, 14.2, 14.3_
+  - [x] 4.3 Implement client configuration methods
+    - Add `WithClient(IAmazonDynamoDB)` method to explicitly set client
+    - Implement client precedence: ExecuteAsync parameter > WithClient > inferred
+    - _Requirements: 14.4, 14.5_
+  - [x] 4.4 Implement transaction-level configuration methods
+    - Add `ReturnConsumedCapacity(ReturnConsumedCapacity)` method
+    - Add `WithClientRequestToken(string)` method
+    - Add `ReturnItemCollectionMetrics()` method
+    - _Requirements: 11.1, 11.2, 11.3, 11.4_
+  - [x] 4.5 Implement ExecuteAsync method
+    - Determine effective client (parameter > explicit > inferred)
+    - Validate client is not null, throw clear exception if missing
+    - Validate transaction has at least one operation
+    - Validate transaction has no more than 100 operations
+    - Handle encryption for update operations before building request
+    - Build `TransactWriteItemsRequest` with all items and configuration
+    - Execute transaction using effective client
+    - _Requirements: 1.6, 1.8, 13.3, 13.5, 14.6, 14.7, 10.2_
+
+- [x] 5. Create TransactionGetBuilder
+  - [x] 5.1 Implement core TransactionGetBuilder class
+    - Create private fields for transaction items list, client references, and configuration
+    - Implement `Add<TEntity>(GetItemRequestBuilder<TEntity>)` overload
+    - Extract get request preserving projection expressions and attribute names
+    - _Requirements: 2.1, 2.2, 2.4_
+  - [x] 5.2 Implement client inference and configuration
+    - Reuse client inference pattern from TransactionWriteBuilder
+    - Add `WithClient()` method
+    - Add `ReturnConsumedCapacity()` method
+    - _Requirements: 14.1, 14.2, 14.3, 14.4, 11.5_
+  - [x] 5.3 Implement ExecuteAsync method
+    - Validate client and operation count (max 100)
+    - Build `TransactGetItemsRequest` with all items
+    - Execute using `TransactGetItemsAsync`
+    - _Requirements: 2.3, 2.5, 13.4_
+
+- [x] 6. Create BatchWriteBuilder
+  - [x] 6.1 Implement core BatchWriteBuilder class
+    - Create private dictionary mapping table names to write request lists
+    - Implement `Add<TEntity>(PutItemRequestBuilder<TEntity>)` overload
+    - Implement `Add<TEntity>(DeleteItemRequestBuilder<TEntity>)` overload
+    - Group operations by table name automatically
+    - Ignore condition expressions from builders (not supported in batch)
+    - _Requirements: 3.1, 3.2, 3.3, 3.5, 3.6_
+  - [x] 6.2 Implement client inference and configuration
+    - Reuse client inference pattern
+    - Add `WithClient()` method
+    - Add `ReturnConsumedCapacity()` and `ReturnItemCollectionMetrics()` methods
+    - _Requirements: 14.1, 14.2, 14.3, 14.4, 12.1, 12.2, 12.3_
+  - [x] 6.3 Implement ExecuteAsync method with validation
+    - Validate total operations do not exceed 25
+    - Throw `ValidationException` with clear message about chunking if exceeded
+    - Build `BatchWriteItemRequest` with grouped operations
+    - Execute using `BatchWriteItemAsync`
+    - _Requirements: 3.4, 3.7, 13.1_
+
+- [x] 7. Create BatchGetBuilder
+  - [x] 7.1 Implement core BatchGetBuilder class
+    - Create private dictionary mapping table names to keys and attributes
+    - Implement `Add<TEntity>(GetItemRequestBuilder<TEntity>)` overload
+    - Extract key, projection, attribute names, and consistent read setting
+    - Group operations by table name
+    - _Requirements: 4.1, 4.2, 4.4, 4.5_
+  - [x] 7.2 Implement client inference and configuration
+    - Reuse client inference pattern
+    - Add `WithClient()` method
+    - Add `ReturnConsumedCapacity()` method
+    - _Requirements: 14.1, 14.2, 14.3, 14.4, 12.4, 12.5_
+  - [x] 7.3 Implement ExecuteAsync method with validation
+    - Validate total operations do not exceed 100
+    - Throw `ValidationException` with clear message about chunking if exceeded
+    - Build `BatchGetItemRequest` with grouped operations
+    - Execute using `BatchGetItemAsync`
+    - _Requirements: 4.3, 4.6, 13.2_
+
+- [x] 8. Create static entry point classes
+  - [x] 8.1 Create DynamoDbTransactions static class
+    - Add static `Write` property returning new `TransactionWriteBuilder`
+    - Add static `Get` property returning new `TransactionGetBuilder`
+    - Add XML documentation with usage examples
+    - _Requirements: 1.1, 2.1_
+  - [x] 8.2 Create DynamoDbBatch static class
+    - Add static `Write` property returning new `BatchWriteBuilder`
+    - Add static `Get` property returning new `BatchGetBuilder`
+    - Add XML documentation with usage examples
+    - _Requirements: 3.1, 4.1_
+
+- [x] 9. Add source generator support for ConditionCheck
+  - Update source generator to emit strongly-typed `ConditionCheck(pk, sk)` methods on table classes
+  - Generate overloads for each entity type with appropriate key parameters
+  - Ensure generated methods return `ConditionCheckBuilder<TEntity>` with keys pre-configured
+  - _Requirements: 5.5, 9.1, 9.2, 9.4_
+
+- [x] 10. Implement encryption support in transactions
+  - [x] 10.1 Update TransactionWriteBuilder to handle encryption
+    - Before building final request, iterate through update operations
+    - Call `EncryptParametersIfNeededAsync()` on each update builder
+    - Handle encryption exceptions with clear error messages
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
+  - [x] 10.2 Add encryption context support
+    - Ensure `DynamoDbOperationContext.EncryptionContextId` is used
+    - Preserve encryption metadata from lambda expressions
+    - _Requirements: 10.1_
+
+- [x] 11. Add logging and diagnostics
+  - [x] 11.1 Add logging to TransactionWriteBuilder
+    - Log operation count and types at Information level before execution
+    - Log total consumed capacity at Information level after completion
+    - Log errors with operation details at Error level on failure
+    - Log encryption details at Debug level without exposing sensitive values
+    - _Requirements: 15.1, 15.2, 15.3, 15.4_
+  - [x] 11.2 Add logging to batch builders
+    - Log operation counts per table at Information level
+    - Log unprocessed items count at Warning level
+    - Log detailed operation breakdowns at Trace level
+    - _Requirements: 15.5, 15.6, 15.7_
+
+- [x] 12. Remove old transaction and batch APIs
+  - Remove `TransactWrite()` method from `DynamoDbTableBase`
+  - Remove action-based configuration methods from old transaction builders
+  - Remove old `TransactWriteItemsRequestBuilder` constructor overloads that accept table parameters
+  - Update any internal code that uses old APIs to use new static entry points
+  - _Requirements: N/A (breaking change, no backward compatibility)_
+
+- [x] 13. Implement response deserialization for Transaction Get
+  - [x] 13.1 Create TransactionGetResponse wrapper class
+    - Store the raw `TransactGetItemsResponse` and flattened items list
+    - Implement `GetItem<TEntity>(int index)` method that calls `TEntity.FromDynamoDb()`
+    - Implement `GetItems<TEntity>(params int[] indices)` method for multiple items of same type
+    - Implement `GetItemsRange<TEntity>(int startIndex, int endIndex)` method for contiguous ranges
+    - Add `Count` property and `RawResponse` property for access to underlying response
+    - Handle null/missing items gracefully by returning null
+    - Throw `ArgumentOutOfRangeException` for invalid indices
+    - Throw `DynamoDbMappingException` if deserialization fails with details about which index failed
+    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.6, 16.7_
+  - [x] 13.2 Update TransactionGetBuilder.ExecuteAsync to return wrapper
+    - Change return type from `TransactGetItemsResponse` to `TransactionGetResponse`
+    - Wrap the AWS SDK response in the new wrapper class
+    - _Requirements: 16.1_
+  - [x] 13.3 Add ExecuteAndMapAsync overloads to TransactionGetBuilder
+    - Implement `ExecuteAndMapAsync<T1>()` returning `T1?`
+    - Implement `ExecuteAndMapAsync<T1, T2>()` returning `(T1?, T2?)`
+    - Implement `ExecuteAndMapAsync<T1, T2, T3>()` returning `(T1?, T2?, T3?)`
+    - Continue pattern up to 8 type parameters
+    - Each overload calls `ExecuteAsync()` and uses `GetItem<T>(index)` for each position
+    - _Requirements: 16.5_
+
+- [x] 14. Implement response deserialization for Batch Get
+  - [x] 14.1 Create BatchGetResponse wrapper class
+    - Store the raw `BatchGetItemResponse` and flattened items list in order
+    - Track table order to maintain item sequence across multiple tables
+    - Implement `GetItem<TEntity>(int index)`, `GetItems<TEntity>(params int[] indices)`, and `GetItemsRange<TEntity>(int startIndex, int endIndex)` methods
+    - Add `UnprocessedKeys` property exposing unprocessed keys for retry logic
+    - Add `HasUnprocessedKeys` boolean property
+    - Add `Count` property and `RawResponse` property
+    - Handle null/missing items gracefully
+    - _Requirements: 17.1, 17.2, 17.3, 17.4, 17.6, 17.7, 17.8_
+  - [x] 14.2 Update BatchGetBuilder to track table order
+    - Maintain internal list of table names in the order items were added
+    - Pass table order to BatchGetResponse constructor
+    - _Requirements: 17.1_
+  - [x] 14.3 Update BatchGetBuilder.ExecuteAsync to return wrapper
+    - Change return type from `BatchGetItemResponse` to `BatchGetResponse`
+    - Wrap the AWS SDK response with table order information
+    - _Requirements: 17.1_
+  - [x] 14.4 Add ExecuteAndMapAsync overloads to BatchGetBuilder
+    - Implement overloads for 1-8 type parameters following same pattern as TransactionGetBuilder
+    - _Requirements: 17.5_
+
+- [x] 15. Update documentation
+  - Update transaction documentation to show new static entry point pattern
+  - Update batch documentation to show new static entry point pattern
+  - Add examples showing string formatting in transactions
+  - Add examples showing lambda expressions in transactions
+  - Add examples showing source-generated methods in transactions
+  - Add examples showing response deserialization with `GetItem`, `GetItems`, `GetItemsRange`, and `ExecuteAndMapAsync`
+  - Document client inference behavior and WithClient() usage
+  - Document validation errors and limits
+  - _Requirements: All requirements_
+
+- [x] 16. Write unit tests for marker interfaces
+  - [ ] 16.1 Test PutItemRequestBuilder marker interface implementation
+    - Verify `GetTableName()` returns correct table name
+    - Verify `GetItem()` returns correct item dictionary
+    - Verify `GetConditionExpression()` returns condition when set
+    - Verify `GetExpressionAttributeNames()` and `GetExpressionAttributeValues()` return correct mappings
+    - Test with string formatting placeholders
+    - Test with lambda expressions
+  - [ ] 16.2 Test UpdateItemRequestBuilder marker interface implementation
+    - Verify all extraction methods return correct values
+    - Test `EncryptParametersIfNeededAsync()` with encrypted fields
+    - Test with string formatting and lambda expressions
+  - [ ] 16.3 Test DeleteItemRequestBuilder marker interface implementation
+    - Verify extraction methods work correctly
+    - Test with conditions
+  - [ ] 16.4 Test GetItemRequestBuilder marker interface implementation
+    - Verify extraction methods including projection and consistent read
+    - Test with projection expressions
+  - [ ] 16.5 Test ConditionCheckBuilder marker interface implementation
+    - Verify extraction methods work correctly
+    - Test that ExecuteAsync is not exposed
+    - Test with string formatting and lambda expressions
+
+- [x] 17. Write unit tests for TransactionWriteBuilder
+  - [ ] 17.1 Test Add() method overloads
+    - Test adding Put, Update, Delete, and ConditionCheck builders
+    - Verify operations are added in correct order
+    - Test that transaction items are built correctly from builders
+  - [ ] 17.2 Test client inference
+    - Test client is extracted from first builder
+    - Test client mismatch detection throws exception
+    - Test explicit WithClient() overrides inference
+    - Test ExecuteAsync(client) parameter has highest precedence
+  - [ ] 17.3 Test transaction-level configuration
+    - Test ReturnConsumedCapacity() sets correct value
+    - Test WithClientRequestToken() sets token
+    - Test ReturnItemCollectionMetrics() sets correct value
+  - [ ] 17.4 Test validation
+    - Test empty transaction throws exception
+    - Test transaction with >100 operations throws exception
+    - Test missing client throws exception with clear message
+  - [ ] 17.5 Test encryption in transactions
+    - Test update operations with encrypted fields are encrypted before execution
+    - Test encryption exception handling
+    - Test multiple updates with encryption
+
+- [x] 18. Write unit tests for TransactionGetBuilder
+  - [x] 18.1 Test Add() method and request extraction
+    - Test adding Get builders
+    - Verify projection expressions are preserved
+    - Verify attribute names are preserved
+  - [x] 18.2 Test client inference and configuration
+    - Test client inference pattern
+    - Test ReturnConsumedCapacity()
+  - [x] 18.3 Test validation
+    - Test empty transaction throws exception
+    - Test transaction with >100 operations throws exception
+  - [x] 18.4 Test response deserialization
+    - Test GetItem() deserializes correct type at index
+    - Test GetItems() with multiple indices
+    - Test GetItemsRange() with start and end indices
+    - Test null/missing items return null
+    - Test invalid index throws ArgumentOutOfRangeException
+    - Test ExecuteAndMapAsync overloads for 1-8 types
+
+- [x] 19. Write unit tests for BatchWriteBuilder
+  - [x] 19.1 Test Add() method overloads
+    - Test adding Put and Delete builders
+    - Verify operations are grouped by table name
+    - Test that condition expressions are ignored
+  - [x] 19.2 Test client inference and configuration
+    - Test client inference pattern
+    - Test ReturnConsumedCapacity() and ReturnItemCollectionMetrics()
+  - [x] 19.3 Test validation
+    - Test batch with >25 operations throws ValidationException
+    - Test exception message suggests chunking
+  - [x] 19.4 Test encryption in batch write
+    - Test Put operations with encrypted entities work correctly
+    - Verify encryption happens during ToDynamoDb conversion, not in batch builder
+
+- [x] 20. Write unit tests for BatchGetBuilder
+  - [x] 20.1 Test Add() method and request extraction
+    - Test adding Get builders
+    - Verify operations are grouped by table name
+    - Verify projection expressions and consistent read are preserved
+  - [x] 20.2 Test client inference and configuration
+    - Test client inference pattern
+    - Test ReturnConsumedCapacity()
+  - [x] 20.3 Test validation
+    - Test batch with >100 operations throws ValidationException
+  - [x] 20.4 Test response deserialization
+    - Test GetItem(), GetItems(), GetItemsRange() methods
+    - Test UnprocessedKeys property
+    - Test HasUnprocessedKeys property
+    - Test ExecuteAndMapAsync overloads
+
+- [x] 21. Write unit tests for ConditionCheckBuilder
+  - [x] 21.1 Test builder configuration
+    - Test WithKey() sets key correctly
+    - Test Where() sets condition expression
+    - Test string formatting with placeholders
+    - Test lambda expressions for conditions
+  - [x] 21.2 Test marker interface implementation
+    - Test extraction methods return correct values
+    - Test that condition expression is required
+  - [x] 21.3 Test source-generated methods
+    - Test generated ConditionCheck(pk) for single-key tables
+    - Test generated ConditionCheck(pk, sk) for composite-key tables
+    - Test keys are pre-configured correctly
+
+- [x] 22. Write unit tests for static entry points
+  - [x] 22.1 Test DynamoDbTransactions static class
+    - Test Write property returns new TransactionWriteBuilder
+    - Test Get property returns new TransactionGetBuilder
+  - [x] 22.2 Test DynamoDbBatch static class
+    - Test Write property returns new BatchWriteBuilder
+    - Test Get property returns new BatchGetBuilder
+
+- [x] 23. Write integration tests
+  - [x] 23.1 Test transaction write end-to-end
+    - Test successful multi-operation transaction with Put, Update, Delete, ConditionCheck
+    - Test transaction rollback on condition failure
+    - Test transaction with encrypted fields
+    - Test transaction with source-generated methods
+  - [x] 23.2 Test transaction get end-to-end
+    - Test successful multi-item get with snapshot isolation
+    - Test response deserialization with GetItem and ExecuteAndMapAsync
+    - Test with items from different tables
+  - [x] 23.3 Test batch write end-to-end
+    - Test batch write with multiple tables
+    - Test batch write with encrypted entities
+    - Test unprocessed items handling
+  - [x] 23.4 Test batch get end-to-end
+    - Test batch get with multiple tables
+    - Test response deserialization
+    - Test unprocessed keys handling
+  - [x] 23.5 Test client inference scenarios
+    - Test with scoped IAM credentials (STS tokens)
+    - Test with multiple configured clients
+    - Test explicit client override

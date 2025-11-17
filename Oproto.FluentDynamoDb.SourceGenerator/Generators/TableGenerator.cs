@@ -77,9 +77,6 @@ internal static class TableGenerator
         var entityForIndexes = defaultEntity ?? primaryEntity;
         GenerateIndexProperties(sb, entityForIndexes, tableClassName);
         
-        // Transaction and batch operations (always at table level)
-        GenerateTransactionAndBatchOperations(sb);
-        
         // Generate nested entity accessor classes
         GenerateEntityAccessorClasses(sb, entities);
         
@@ -164,9 +161,6 @@ internal static class TableGenerator
         
         // Index properties
         GenerateIndexProperties(sb, entity, className);
-        
-        // Transaction and batch operations (always at table level)
-        GenerateTransactionAndBatchOperations(sb);
         
         // Generate typed index classes as nested classes (only for indexes with projections)
         foreach (var index in entity.Indexes)
@@ -384,6 +378,9 @@ internal static class TableGenerator
                     break;
             }
         }
+        
+        // Always generate ConditionCheck method (it's always public and available for transactions)
+        GenerateAccessorConditionCheckMethod(sb, entity, "public");
     }
     
     /// <summary>
@@ -833,6 +830,80 @@ internal static class TableGenerator
     }
     
     /// <summary>
+    /// Generates ConditionCheck method for an entity accessor.
+    /// </summary>
+    private static void GenerateAccessorConditionCheckMethod(StringBuilder sb, EntityModel entity, string modifier)
+    {
+        var partitionKey = entity.PartitionKeyProperty;
+        var sortKey = entity.SortKeyProperty;
+        
+        if (partitionKey == null)
+        {
+            return;
+        }
+        
+        var pkAttributeName = partitionKey.AttributeName;
+        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        
+        if (sortKey == null)
+        {
+            // Single partition key
+            var paramName = ToCamelCase(pkAttributeName);
+            
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key).");
+            sb.AppendLine($"        /// Condition checks verify conditions without modifying data and are used within transactions.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+            sb.AppendLine($"        /// <example>");
+            sb.AppendLine($"        /// <code>");
+            sb.AppendLine($"        /// // Use in a transaction");
+            sb.AppendLine($"        /// await DynamoDbTransactions.Write");
+            sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.ConditionCheck({paramName}Value)");
+            sb.AppendLine($"        ///         .Where(\"attribute_exists(#status)\")");
+            sb.AppendLine($"        ///         .WithAttribute(\"#status\", \"status\"))");
+            sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.Update({paramName}Value).Set(...))");
+            sb.AppendLine($"        ///     .ExecuteAsync();");
+            sb.AppendLine($"        /// </code>");
+            sb.AppendLine($"        /// </example>");
+            sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {paramName}) =>");
+            sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            sb.AppendLine();
+        }
+        else
+        {
+            // Composite key
+            var skAttributeName = sortKey.AttributeName;
+            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var pkParamName = ToCamelCase(pkAttributeName);
+            var skParamName = ToCamelCase(skAttributeName);
+            
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
+            sb.AppendLine($"        /// Condition checks verify conditions without modifying data and are used within transactions.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"        /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+            sb.AppendLine($"        /// <example>");
+            sb.AppendLine($"        /// <code>");
+            sb.AppendLine($"        /// // Use in a transaction");
+            sb.AppendLine($"        /// await DynamoDbTransactions.Write");
+            sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.ConditionCheck({pkParamName}Value, {skParamName}Value)");
+            sb.AppendLine($"        ///         .Where(\"attribute_exists(#status)\")");
+            sb.AppendLine($"        ///         .WithAttribute(\"#status\", \"status\"))");
+            sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.Update({pkParamName}Value, {skParamName}Value).Set(...))");
+            sb.AppendLine($"        ///     .ExecuteAsync();");
+            sb.AppendLine($"        /// </code>");
+            sb.AppendLine($"        /// </example>");
+            sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+            sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            sb.AppendLine();
+        }
+    }
+    
+    /// <summary>
     /// Generates Scan methods for an entity accessor.
     /// </summary>
     private static void GenerateAccessorScanMethods(StringBuilder sb, EntityModel entity, string modifier)
@@ -923,6 +994,9 @@ internal static class TableGenerator
                     break;
             }
         }
+        
+        // Always generate ConditionCheck method (it's always available for transactions)
+        GenerateTableLevelConditionCheckMethod(sb, defaultEntity, entityPropertyName);
     }
     
     /// <summary>
@@ -1195,6 +1269,58 @@ internal static class TableGenerator
     }
     
     /// <summary>
+    /// Generates table-level ConditionCheck method that delegates to the default entity's accessor.
+    /// </summary>
+    private static void GenerateTableLevelConditionCheckMethod(StringBuilder sb, EntityModel entity, string entityPropertyName)
+    {
+        var partitionKey = entity.PartitionKeyProperty;
+        var sortKey = entity.SortKeyProperty;
+        
+        if (partitionKey == null)
+        {
+            return;
+        }
+        
+        var pkAttributeName = partitionKey.AttributeName;
+        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        
+        if (sortKey == null)
+        {
+            // Single partition key
+            var paramName = ToCamelCase(pkAttributeName);
+            
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key).");
+            sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+            sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {paramName}) =>");
+            sb.AppendLine($"        {entityPropertyName}.ConditionCheck({paramName});");
+            sb.AppendLine();
+        }
+        else
+        {
+            // Composite key
+            var skAttributeName = sortKey.AttributeName;
+            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var pkParamName = ToCamelCase(pkAttributeName);
+            var skParamName = ToCamelCase(skAttributeName);
+            
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
+            sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+            sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+            sb.AppendLine($"        {entityPropertyName}.ConditionCheck({pkParamName}, {skParamName});");
+            sb.AppendLine();
+        }
+    }
+    
+    /// <summary>
     /// Generates table-level Scan methods that delegate to the default entity's accessor.
     /// </summary>
     private static void GenerateTableLevelScanMethods(StringBuilder sb, EntityModel entity, string entityPropertyName)
@@ -1246,111 +1372,7 @@ internal static class TableGenerator
     /// These methods are always generated at the table level and never on entity accessor classes.
     /// They allow coordinating operations across multiple entity types in a single transaction or batch.
     /// </summary>
-    private static void GenerateTransactionAndBatchOperations(StringBuilder sb)
-    {
-        sb.AppendLine("    // Transaction and batch operations (table level only)");
-        sb.AppendLine();
-        
-        // TransactWrite method
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Creates a new TransactWriteItems operation builder for atomic multi-item writes.");
-        sb.AppendLine("    /// Allows you to perform multiple write operations (Put, Update, Delete, ConditionCheck)");
-        sb.AppendLine("    /// across multiple entity types as a single atomic transaction. All operations succeed or all fail.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    /// <returns>A TransactWriteItemsRequestBuilder for configuring the transaction.</returns>");
-        sb.AppendLine("    /// <example>");
-        sb.AppendLine("    /// <code>");
-        sb.AppendLine("    /// // Atomic transaction across multiple entities");
-        sb.AppendLine("    /// await table.TransactWrite()");
-        sb.AppendLine("    ///     .Put(table, put => put.WithItem(order))");
-        sb.AppendLine("    ///     .Update(table, update => update");
-        sb.AppendLine("    ///         .WithKey(\"id\", accountId)");
-        sb.AppendLine("    ///         .Set(\"SET balance = balance - :amount\")");
-        sb.AppendLine("    ///         .WithValue(\":amount\", 100))");
-        sb.AppendLine("    ///     .ExecuteAsync();");
-        sb.AppendLine("    /// </code>");
-        sb.AppendLine("    /// </example>");
-        sb.AppendLine("    public TransactWriteItemsRequestBuilder TransactWrite() =>");
-        sb.AppendLine("        new TransactWriteItemsRequestBuilder(DynamoDbClient, Logger);");
-        sb.AppendLine();
-        
-        // TransactGet method
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Creates a new TransactGetItems operation builder for atomic multi-item reads.");
-        sb.AppendLine("    /// Allows you to retrieve multiple items from multiple entity types in a single atomic read transaction.");
-        sb.AppendLine("    /// All get operations are performed with snapshot isolation at the same point in time.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    /// <returns>A TransactGetItemsRequestBuilder for configuring the transaction.</returns>");
-        sb.AppendLine("    /// <example>");
-        sb.AppendLine("    /// <code>");
-        sb.AppendLine("    /// // Atomic read transaction across multiple entities");
-        sb.AppendLine("    /// var response = await table.TransactGet()");
-        sb.AppendLine("    ///     .Get(table, get => get.WithKey(\"id\", orderId))");
-        sb.AppendLine("    ///     .Get(table, get => get.WithKey(\"id\", accountId))");
-        sb.AppendLine("    ///     .ExecuteAsync();");
-        sb.AppendLine("    /// </code>");
-        sb.AppendLine("    /// </example>");
-        sb.AppendLine("    public TransactGetItemsRequestBuilder TransactGet() =>");
-        sb.AppendLine("        new TransactGetItemsRequestBuilder(DynamoDbClient, Logger);");
-        sb.AppendLine();
-        
-        // BatchWrite method
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Creates a new BatchWriteItem operation builder for bulk write operations.");
-        sb.AppendLine("    /// Allows putting and deleting multiple items across multiple entity types in a single request,");
-        sb.AppendLine("    /// improving performance and reducing API calls compared to individual write operations.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    /// <returns>A BatchWriteItemRequestBuilder for configuring the batch operation.</returns>");
-        sb.AppendLine("    /// <remarks>");
-        sb.AppendLine("    /// Performance Considerations:");
-        sb.AppendLine("    /// - BatchWriteItem can process up to 25 put or delete requests per batch");
-        sb.AppendLine("    /// - Each item can be up to 400KB in size");
-        sb.AppendLine("    /// - Operations are processed in parallel, improving throughput");
-        sb.AppendLine("    /// - Unprocessed items may be returned if the request exceeds capacity limits");
-        sb.AppendLine("    /// - No conditional writes are supported in batch operations");
-        sb.AppendLine("    /// </remarks>");
-        sb.AppendLine("    /// <example>");
-        sb.AppendLine("    /// <code>");
-        sb.AppendLine("    /// // Batch write across multiple entities");
-        sb.AppendLine("    /// await table.BatchWrite()");
-        sb.AppendLine("    ///     .WriteToTable(table.Name, builder => builder");
-        sb.AppendLine("    ///         .PutItem(orderAttributes)");
-        sb.AppendLine("    ///         .DeleteItem(\"id\", oldOrderId))");
-        sb.AppendLine("    ///     .ExecuteAsync();");
-        sb.AppendLine("    /// </code>");
-        sb.AppendLine("    /// </example>");
-        sb.AppendLine("    public BatchWriteItemRequestBuilder BatchWrite() =>");
-        sb.AppendLine("        new BatchWriteItemRequestBuilder(DynamoDbClient, Logger);");
-        sb.AppendLine();
-        
-        // BatchGet method
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Creates a new BatchGetItem operation builder for bulk read operations.");
-        sb.AppendLine("    /// Allows retrieving multiple items from multiple entity types in a single request,");
-        sb.AppendLine("    /// improving performance and reducing API calls compared to individual GetItem operations.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    /// <returns>A BatchGetItemRequestBuilder for configuring the batch operation.</returns>");
-        sb.AppendLine("    /// <remarks>");
-        sb.AppendLine("    /// Performance Considerations:");
-        sb.AppendLine("    /// - BatchGetItem can retrieve up to 100 items or 16MB of data per request");
-        sb.AppendLine("    /// - Items are retrieved in parallel, improving throughput");
-        sb.AppendLine("    /// - Unprocessed keys may be returned if the request exceeds capacity limits");
-        sb.AppendLine("    /// - Use consistent reads carefully as they consume twice the read capacity");
-        sb.AppendLine("    /// </remarks>");
-        sb.AppendLine("    /// <example>");
-        sb.AppendLine("    /// <code>");
-        sb.AppendLine("    /// // Batch get across multiple entities");
-        sb.AppendLine("    /// var response = await table.BatchGet()");
-        sb.AppendLine("    ///     .GetFromTable(table.Name, builder => builder");
-        sb.AppendLine("    ///         .WithKey(\"id\", orderId1)");
-        sb.AppendLine("    ///         .WithKey(\"id\", orderId2))");
-        sb.AppendLine("    ///     .ExecuteAsync();");
-        sb.AppendLine("    /// </code>");
-        sb.AppendLine("    /// </example>");
-        sb.AppendLine("    public BatchGetItemRequestBuilder BatchGet() =>");
-        sb.AppendLine("        new BatchGetItemRequestBuilder(DynamoDbClient, Logger);");
-        sb.AppendLine();
-    }
+
 
     private static void GenerateConstructors(StringBuilder sb, EntityModel entity, string className)
     {
@@ -1586,6 +1608,28 @@ internal static class TableGenerator
         sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {paramName}) =>");
         sb.AppendLine($"        base.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
+        
+        // ConditionCheck overload
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a condition check operation for an item by its {pkAttributeName} (partition key).");
+        sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+        sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Use in a transaction");
+        sb.AppendLine($"    /// await DynamoDbTransactions.Write");
+        sb.AppendLine($"    ///     .Add(table.ConditionCheck({paramName}Value)");
+        sb.AppendLine($"    ///         .Where(\"attribute_exists(#status)\")");
+        sb.AppendLine($"    ///         .WithAttribute(\"#status\", \"status\"))");
+        sb.AppendLine($"    ///     .Add(table.Update(pk).Set(...))");
+        sb.AppendLine($"    ///     .ExecuteAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {paramName}) =>");
+        sb.AppendLine($"        base.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine();
     }
 
     private static void GenerateCompositeKeyOverloads(StringBuilder sb, EntityModel entity, 
@@ -1625,6 +1669,29 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
         sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
         sb.AppendLine($"        base.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine();
+        
+        // ConditionCheck overload
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a condition check operation for an item by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
+        sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+        sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+        sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+        sb.AppendLine($"    /// <example>");
+        sb.AppendLine($"    /// <code>");
+        sb.AppendLine($"    /// // Use in a transaction");
+        sb.AppendLine($"    /// await DynamoDbTransactions.Write");
+        sb.AppendLine($"    ///     .Add(table.ConditionCheck({pkParamName}Value, {skParamName}Value)");
+        sb.AppendLine($"    ///         .Where(\"attribute_exists(#status)\")");
+        sb.AppendLine($"    ///         .WithAttribute(\"#status\", \"status\"))");
+        sb.AppendLine($"    ///     .Add(table.Update(pk, sk).Set(...))");
+        sb.AppendLine($"    ///     .ExecuteAsync();");
+        sb.AppendLine($"    /// </code>");
+        sb.AppendLine($"    /// </example>");
+        sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+        sb.AppendLine($"        base.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
     }
 

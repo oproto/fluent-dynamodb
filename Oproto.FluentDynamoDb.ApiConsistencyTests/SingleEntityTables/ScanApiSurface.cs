@@ -3,7 +3,7 @@ using NSubstitute;
 using Oproto.FluentDynamoDb.ApiConsistencyTests.Entities;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
-namespace Oproto.FluentDynamoDb.ApiConsistencyTests;
+namespace Oproto.FluentDynamoDb.ApiConsistencyTests.SingleEntityTables;
 
 public class ScanApiSurface
 {

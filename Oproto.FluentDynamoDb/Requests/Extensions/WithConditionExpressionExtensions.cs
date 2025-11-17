@@ -216,4 +216,46 @@ public static class WithConditionExpressionExtensions
         return Where<QueryRequestBuilder<TEntity>, TEntity>(builder, expression, metadata);
     }
 
+    /// <summary>
+    /// Specifies the condition expression using a C# lambda expression for ConditionCheckBuilder.
+    /// This overload provides better type inference for condition check operations in transactions.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being checked.</typeparam>
+    /// <param name="builder">The ConditionCheckBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the condition.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Use in a transaction with lambda expression
+    /// await DynamoDbTransactions.Write
+    ///     .Add(table.BasicPkEntitys.ConditionCheck("1234").Where(x => x.Name == "Test"))
+    ///     .Add(table.Update("1234").Set(x => new BasicPkEntityUpdateModel { Age = 30 }))
+    ///     .ExecuteAsync();
+    /// </code>
+    /// </example>
+    public static ConditionCheckBuilder<TEntity> Where<TEntity>(
+        this ConditionCheckBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class
+    {
+        // If metadata is not provided, try to get it from the entity type's generated GetEntityMetadata() method
+        if (metadata == null)
+        {
+            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
+        }
+        
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None); // Use None for condition checks - they can reference any property
+
+        var translator = new ExpressionTranslator();
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
+    }
+
 }

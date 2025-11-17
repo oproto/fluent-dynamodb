@@ -31,7 +31,8 @@ public class DeleteItemRequestBuilder<TEntity> :
     IWithKey<DeleteItemRequestBuilder<TEntity>>,
     IWithConditionExpression<DeleteItemRequestBuilder<TEntity>>,
     IWithAttributeNames<DeleteItemRequestBuilder<TEntity>>,
-    IWithAttributeValues<DeleteItemRequestBuilder<TEntity>>
+    IWithAttributeValues<DeleteItemRequestBuilder<TEntity>>,
+    ITransactableDeleteBuilder
     where TEntity : class
 {
     /// <summary>
@@ -216,6 +217,15 @@ public class DeleteItemRequestBuilder<TEntity> :
         }
         return _req;
     }
+
+    // ITransactableDeleteBuilder implementation
+    string ITransactableDeleteBuilder.GetTableName() => _req.TableName;
+    Dictionary<string, AttributeValue> ITransactableDeleteBuilder.GetKey() => _req.Key;
+    string? ITransactableDeleteBuilder.GetConditionExpression() => _req.ConditionExpression;
+    Dictionary<string, string>? ITransactableDeleteBuilder.GetExpressionAttributeNames() => 
+        _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
+    Dictionary<string, AttributeValue>? ITransactableDeleteBuilder.GetExpressionAttributeValues() => 
+        _attrV.AttributeValues.Count > 0 ? _attrV.AttributeValues : null;
 
     /// <summary>
     /// Executes the DeleteItem operation asynchronously and returns the raw AWS SDK DeleteItemResponse.

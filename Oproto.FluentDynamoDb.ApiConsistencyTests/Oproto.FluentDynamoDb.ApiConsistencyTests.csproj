@@ -44,4 +44,7 @@
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false" />
     </ItemGroup>
+    <ItemGroup>
+      <Folder Include="MultiEntityTables\" />
+    </ItemGroup>
 </Project>

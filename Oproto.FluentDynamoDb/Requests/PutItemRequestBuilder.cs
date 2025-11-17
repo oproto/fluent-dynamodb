@@ -37,7 +37,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequestBuilder<TEntity>>, IWithAttributeValues<PutItemRequestBuilder<TEntity>>,
-    IWithConditionExpression<PutItemRequestBuilder<TEntity>>
+    IWithConditionExpression<PutItemRequestBuilder<TEntity>>, ITransactablePutBuilder
     where TEntity : class
 {
     /// <summary>
@@ -236,6 +236,15 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         }
         return _req;
     }
+
+    // ITransactablePutBuilder implementation
+    string ITransactablePutBuilder.GetTableName() => _req.TableName;
+    Dictionary<string, AttributeValue> ITransactablePutBuilder.GetItem() => _req.Item;
+    string? ITransactablePutBuilder.GetConditionExpression() => _req.ConditionExpression;
+    Dictionary<string, string>? ITransactablePutBuilder.GetExpressionAttributeNames() => 
+        _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
+    Dictionary<string, AttributeValue>? ITransactablePutBuilder.GetExpressionAttributeValues() => 
+        _attrV.AttributeValues.Count > 0 ? _attrV.AttributeValues : null;
 
     /// <summary>
     /// Executes the PutItem operation asynchronously and returns the raw AWS SDK PutItemResponse.

@@ -34,7 +34,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class UpdateItemRequestBuilder<TEntity> :
-    IWithKey<UpdateItemRequestBuilder<TEntity>>, IWithConditionExpression<UpdateItemRequestBuilder<TEntity>>, IWithAttributeNames<UpdateItemRequestBuilder<TEntity>>, IWithAttributeValues<UpdateItemRequestBuilder<TEntity>>, IWithUpdateExpression<UpdateItemRequestBuilder<TEntity>>
+    IWithKey<UpdateItemRequestBuilder<TEntity>>, IWithConditionExpression<UpdateItemRequestBuilder<TEntity>>, IWithAttributeNames<UpdateItemRequestBuilder<TEntity>>, IWithAttributeValues<UpdateItemRequestBuilder<TEntity>>, IWithUpdateExpression<UpdateItemRequestBuilder<TEntity>>, ITransactableUpdateBuilder
     where TEntity : class
 {
     /// <summary>
@@ -363,6 +363,32 @@ public class UpdateItemRequestBuilder<TEntity> :
                     $"3. Ensure the value being encrypted is in the correct format for your encryption provider. " +
                     $"4. Review the inner exception for more details about the encryption failure.",
                     ex);
+            }
+        }
+    }
+
+    // ITransactableUpdateBuilder implementation
+    string ITransactableUpdateBuilder.GetTableName() => _req.TableName;
+    Dictionary<string, AttributeValue> ITransactableUpdateBuilder.GetKey() => _req.Key;
+    string ITransactableUpdateBuilder.GetUpdateExpression() => _req.UpdateExpression;
+    string? ITransactableUpdateBuilder.GetConditionExpression() => _req.ConditionExpression;
+    Dictionary<string, string>? ITransactableUpdateBuilder.GetExpressionAttributeNames() => 
+        _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
+    Dictionary<string, AttributeValue>? ITransactableUpdateBuilder.GetExpressionAttributeValues() => 
+        _attrV.AttributeValues.Count > 0 ? _attrV.AttributeValues : null;
+
+    async Task ITransactableUpdateBuilder.EncryptParametersIfNeededAsync(CancellationToken cancellationToken)
+    {
+        // Create a temporary request to encrypt parameters
+        var request = ToUpdateItemRequest();
+        await EncryptParametersAsync(request, cancellationToken);
+        
+        // Update the internal attribute values with encrypted values
+        if (request.ExpressionAttributeValues != null)
+        {
+            foreach (var kvp in request.ExpressionAttributeValues)
+            {
+                _attrV.AttributeValues[kvp.Key] = kvp.Value;
             }
         }
     }

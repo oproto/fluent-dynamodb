@@ -138,6 +138,26 @@ public static class LogEventIds
     public const int ExecutingTransaction = 3040;
     
     /// <summary>
+    /// Event ID for when executing a TransactionWrite operation.
+    /// </summary>
+    public const int ExecutingTransactionWrite = 3041;
+    
+    /// <summary>
+    /// Event ID for when executing a TransactionGet operation.
+    /// </summary>
+    public const int ExecutingTransactionGet = 3042;
+    
+    /// <summary>
+    /// Event ID for when executing a BatchWrite operation.
+    /// </summary>
+    public const int ExecutingBatchWrite = 3050;
+    
+    /// <summary>
+    /// Event ID for when executing a BatchGet operation.
+    /// </summary>
+    public const int ExecutingBatchGet = 3051;
+    
+    /// <summary>
     /// Event ID for when a DynamoDB operation completes successfully.
     /// </summary>
     public const int OperationComplete = 3100;
@@ -146,6 +166,16 @@ public static class LogEventIds
     /// Event ID for logging consumed capacity information.
     /// </summary>
     public const int ConsumedCapacity = 3110;
+    
+    /// <summary>
+    /// Event ID for logging unprocessed items in batch operations.
+    /// </summary>
+    public const int UnprocessedItems = 3120;
+    
+    /// <summary>
+    /// Event ID for logging detailed operation breakdowns.
+    /// </summary>
+    public const int OperationBreakdown = 3130;
     
     // ========================================
     // Errors (9000-9999)

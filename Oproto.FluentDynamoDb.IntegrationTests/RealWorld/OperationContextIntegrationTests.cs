@@ -554,25 +554,28 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         }
         
         // Act
-        var response = await _table.BatchGet()
-            .GetFromTable(TableName, builder => builder
-                .WithKey("pk", "batch-get-1", "sk", "product")
-                .WithKey("pk", "batch-get-2", "sk", "product"))
-            .ToDynamoDbResponseAsync();
+        var response = await DynamoDbBatch.Get
+            .Add(_table.Get<ComplexEntity>()
+                .WithKey("pk", "batch-get-1")
+                .WithKey("sk", "product"))
+            .Add(_table.Get<ComplexEntity>()
+                .WithKey("pk", "batch-get-2")
+                .WithKey("sk", "product"))
+            .ExecuteAsync();
         
         // Assert - Verify items were retrieved
-        response.Responses.Should().ContainKey(TableName);
-        response.Responses[TableName].Should().HaveCount(2);
+        response.Should().NotBeNull();
+        response.Count.Should().Be(2);
         
-        // Map to entities for verification
-        var results = response.Responses[TableName]
-            .Where(ComplexEntity.MatchesEntity)
-            .Select(item => ComplexEntity.FromDynamoDb<ComplexEntity>(item))
-            .ToList();
-        results.Should().HaveCount(2);
+        // Get items by index
+        var entity1 = response.GetItem<ComplexEntity>(0);
+        var entity2 = response.GetItem<ComplexEntity>(1);
+        
+        entity1.Should().NotBeNull();
+        entity2.Should().NotBeNull();
         
         // Note: BatchGet doesn't populate DynamoDbOperationContext in the current implementation
-        // This is expected behavior for the Advanced API (ToDynamoDbResponseAsync)
+        // This is expected behavior for the Advanced API (ExecuteAsync)
     }
     
     [Fact]
@@ -586,18 +589,19 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         };
         
         // Act
-        var response = await _table.BatchWrite()
-            .WriteToTable(TableName, builder => builder
-                .PutItem(ComplexEntity.ToDynamoDb(entities[0]))
-                .PutItem(ComplexEntity.ToDynamoDb(entities[1])))
-            .ToDynamoDbResponseAsync();
+        var response = await DynamoDbBatch.Write
+            .Add(_table.Put<ComplexEntity>()
+                .WithItem(entities[0]))
+            .Add(_table.Put<ComplexEntity>()
+                .WithItem(entities[1]))
+            .ExecuteAsync();
         
         // Assert - Verify write was successful
         response.Should().NotBeNull();
         response.ResponseMetadata.Should().NotBeNull();
         
         // Note: BatchWrite doesn't populate DynamoDbOperationContext in the current implementation
-        // This is expected behavior for the Advanced API (ToDynamoDbResponseAsync)
+        // This is expected behavior for the Advanced API (ExecuteAsync)
     }
     
     [Fact]
@@ -617,28 +621,28 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         }
         
         // Act
-        var response = await _table.TransactGet()
-            .Get(_table, g => g
+        var response = await DynamoDbTransactions.Get
+            .Add(_table.Get<ComplexEntity>()
                 .WithKey("pk", "transact-get-1")
                 .WithKey("sk", "product"))
-            .Get(_table, g => g
+            .Add(_table.Get<ComplexEntity>()
                 .WithKey("pk", "transact-get-2")
                 .WithKey("sk", "product"))
             .ExecuteAsync();
         
         // Assert - Verify items were retrieved
-        response.Responses.Should().HaveCount(2);
+        response.Should().NotBeNull();
+        response.Count.Should().Be(2);
         
-        // Map to entities for verification
-        var results = response.Responses
-            .Select(r => r.Item)
-            .Where(item => item != null && ComplexEntity.MatchesEntity(item))
-            .Select(item => ComplexEntity.FromDynamoDb<ComplexEntity>(item))
-            .ToList();
-        results.Should().HaveCount(2);
+        // Get items by index
+        var entity1 = response.GetItem<ComplexEntity>(0);
+        var entity2 = response.GetItem<ComplexEntity>(1);
+        
+        entity1.Should().NotBeNull();
+        entity2.Should().NotBeNull();
         
         // Note: TransactGet doesn't populate DynamoDbOperationContext in the current implementation
-        // This is expected behavior for the Advanced API (ToDynamoDbResponseAsync)
+        // This is expected behavior for the Advanced API (ExecuteAsync)
     }
     
     [Fact]
@@ -649,11 +653,11 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         var entity2 = new ComplexEntity { Id = "transact-write-2", Type = "product", Name = "Product 2" };
         
         // Act
-        var response = await _table.TransactWrite()
-            .Put(_table, put => put
-                .WithItem(ComplexEntity.ToDynamoDb(entity1)))
-            .Put(_table, put => put
-                .WithItem(ComplexEntity.ToDynamoDb(entity2)))
+        var response = await DynamoDbTransactions.Write
+            .Add(_table.Put<ComplexEntity>()
+                .WithItem(entity1))
+            .Add(_table.Put<ComplexEntity>()
+                .WithItem(entity2))
             .ExecuteAsync();
         
         // Assert - Verify write was successful
@@ -661,7 +665,7 @@ public class OperationContextIntegrationTests : IntegrationTestBase
         response.ResponseMetadata.Should().NotBeNull();
         
         // Note: TransactWrite doesn't populate DynamoDbOperationContext in the current implementation
-        // This is expected behavior for the Advanced API (ToDynamoDbResponseAsync)
+        // This is expected behavior for the Advanced API (ExecuteAsync)
     }
     
     [Fact]

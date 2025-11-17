@@ -28,7 +28,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>
+public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>, ITransactableGetBuilder
     where TEntity : class
 {
     /// <summary>
@@ -164,6 +164,14 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
         }
         return _req;
     }
+
+    // ITransactableGetBuilder implementation
+    string ITransactableGetBuilder.GetTableName() => _req.TableName;
+    Dictionary<string, AttributeValue> ITransactableGetBuilder.GetKey() => _req.Key;
+    string? ITransactableGetBuilder.GetProjectionExpression() => _req.ProjectionExpression;
+    Dictionary<string, string>? ITransactableGetBuilder.GetExpressionAttributeNames() => 
+        _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
+    bool ITransactableGetBuilder.GetConsistentRead() => _req.ConsistentRead ?? false;
 
     /// <summary>
     /// Executes the GetItem operation asynchronously and returns the raw AWS SDK GetItemResponse.

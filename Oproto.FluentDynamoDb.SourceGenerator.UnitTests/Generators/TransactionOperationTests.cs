@@ -8,15 +8,15 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
 /// <summary>
 /// Tests for transaction and batch operation generation.
-/// Verifies that TransactWrite, TransactGet, BatchWrite, and BatchGet operations are generated
-/// at the table level only and NOT on entity accessor classes.
-/// Covers requirement 7 from the table-generation-redesign spec.
+/// Verifies that transaction and batch operations use static entry points (DynamoDbTransactions, DynamoDbBatch)
+/// and are NOT generated at the table level or on entity accessor classes.
+/// Covers requirement 7 from the transaction-batch-api-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class TransactionOperationTests
 {
     [Fact]
-    public void TransactWrite_GeneratedAtTableLevel()
+    public void TransactWrite_NotGeneratedAtTableLevel()
     {
         // Arrange
         var source = @"
@@ -48,13 +48,13 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // TransactWrite should be generated at table level
-        tableCode.Should().Contain("TransactWriteItemsRequestBuilder TransactWrite()",
-            "should generate TransactWrite method at table level");
+        // TransactWrite should NOT be generated at table level (use static DynamoDbTransactions.Write instead)
+        tableCode.Should().NotContain("TransactWrite",
+            "should not generate TransactWrite method at table level - use DynamoDbTransactions.Write instead");
     }
 
     [Fact]
-    public void TransactGet_GeneratedAtTableLevel()
+    public void TransactGet_NotGeneratedAtTableLevel()
     {
         // Arrange
         var source = @"
@@ -86,13 +86,13 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // TransactGet should be generated at table level
-        tableCode.Should().Contain("TransactGetItemsRequestBuilder TransactGet()",
-            "should generate TransactGet method at table level");
+        // TransactGet should NOT be generated at table level (use static DynamoDbTransactions.Get instead)
+        tableCode.Should().NotContain("TransactGet",
+            "should not generate TransactGet method at table level - use DynamoDbTransactions.Get instead");
     }
 
     [Fact]
-    public void BatchWrite_GeneratedAtTableLevel()
+    public void BatchWrite_NotGeneratedAtTableLevel()
     {
         // Arrange
         var source = @"
@@ -124,13 +124,13 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // BatchWrite should be generated at table level
-        tableCode.Should().Contain("BatchWriteItemRequestBuilder BatchWrite()",
-            "should generate BatchWrite method at table level");
+        // BatchWrite should NOT be generated at table level (use static DynamoDbBatch.Write instead)
+        tableCode.Should().NotContain("BatchWrite",
+            "should not generate BatchWrite method at table level - use DynamoDbBatch.Write instead");
     }
 
     [Fact]
-    public void BatchGet_GeneratedAtTableLevel()
+    public void BatchGet_NotGeneratedAtTableLevel()
     {
         // Arrange
         var source = @"
@@ -162,9 +162,9 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // BatchGet should be generated at table level
-        tableCode.Should().Contain("BatchGetItemRequestBuilder BatchGet()",
-            "should generate BatchGet method at table level");
+        // BatchGet should NOT be generated at table level (use static DynamoDbBatch.Get instead)
+        tableCode.Should().NotContain("BatchGet",
+            "should not generate BatchGet method at table level - use DynamoDbBatch.Get instead");
     }
 
     [Fact]
@@ -243,7 +243,7 @@ namespace TestNamespace
     }
 
     [Fact]
-    public void AllTransactionMethods_GeneratedAtTableLevel_SingleEntity()
+    public void AllTransactionMethods_NotGeneratedAtTableLevel_SingleEntity()
     {
         // Arrange
         var source = @"
@@ -275,19 +275,19 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // All transaction methods should be generated at table level
-        tableCode.Should().Contain("TransactWriteItemsRequestBuilder TransactWrite()",
-            "should generate TransactWrite method at table level");
-        tableCode.Should().Contain("TransactGetItemsRequestBuilder TransactGet()",
-            "should generate TransactGet method at table level");
-        tableCode.Should().Contain("BatchWriteItemRequestBuilder BatchWrite()",
-            "should generate BatchWrite method at table level");
-        tableCode.Should().Contain("BatchGetItemRequestBuilder BatchGet()",
-            "should generate BatchGet method at table level");
+        // Transaction methods should NOT be generated at table level (use static entry points instead)
+        tableCode.Should().NotContain("TransactWrite",
+            "should not generate TransactWrite - use DynamoDbTransactions.Write");
+        tableCode.Should().NotContain("TransactGet",
+            "should not generate TransactGet - use DynamoDbTransactions.Get");
+        tableCode.Should().NotContain("BatchWrite",
+            "should not generate BatchWrite - use DynamoDbBatch.Write");
+        tableCode.Should().NotContain("BatchGet",
+            "should not generate BatchGet - use DynamoDbBatch.Get");
     }
 
     [Fact]
-    public void AllTransactionMethods_GeneratedAtTableLevel_MultipleEntities()
+    public void AllTransactionMethods_NotGeneratedAtTableLevel_MultipleEntities()
     {
         // Arrange
         var source = @"
@@ -335,19 +335,19 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // All transaction methods should be generated at table level
-        tableCode.Should().Contain("TransactWriteItemsRequestBuilder TransactWrite()",
-            "should generate TransactWrite method at table level with multiple entities");
-        tableCode.Should().Contain("TransactGetItemsRequestBuilder TransactGet()",
-            "should generate TransactGet method at table level with multiple entities");
-        tableCode.Should().Contain("BatchWriteItemRequestBuilder BatchWrite()",
-            "should generate BatchWrite method at table level with multiple entities");
-        tableCode.Should().Contain("BatchGetItemRequestBuilder BatchGet()",
-            "should generate BatchGet method at table level with multiple entities");
+        // Transaction methods should NOT be generated at table level (use static entry points instead)
+        tableCode.Should().NotContain("TransactWrite",
+            "should not generate TransactWrite - use DynamoDbTransactions.Write");
+        tableCode.Should().NotContain("TransactGet",
+            "should not generate TransactGet - use DynamoDbTransactions.Get");
+        tableCode.Should().NotContain("BatchWrite",
+            "should not generate BatchWrite - use DynamoDbBatch.Write");
+        tableCode.Should().NotContain("BatchGet",
+            "should not generate BatchGet - use DynamoDbBatch.Get");
     }
 
     [Fact]
-    public void TransactionMethods_ArePublic()
+    public void TransactionMethods_UseStaticEntryPoints()
     {
         // Arrange
         var source = @"
@@ -379,19 +379,19 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // Transaction methods should be public
-        tableCode.Should().Contain("public TransactWriteItemsRequestBuilder TransactWrite()",
-            "TransactWrite should be public");
-        tableCode.Should().Contain("public TransactGetItemsRequestBuilder TransactGet()",
-            "TransactGet should be public");
-        tableCode.Should().Contain("public BatchWriteItemRequestBuilder BatchWrite()",
-            "BatchWrite should be public");
-        tableCode.Should().Contain("public BatchGetItemRequestBuilder BatchGet()",
-            "BatchGet should be public");
+        // Transaction methods should NOT be on table - use static entry points instead
+        tableCode.Should().NotContain("TransactWrite",
+            "use DynamoDbTransactions.Write static entry point");
+        tableCode.Should().NotContain("TransactGet",
+            "use DynamoDbTransactions.Get static entry point");
+        tableCode.Should().NotContain("BatchWrite",
+            "use DynamoDbBatch.Write static entry point");
+        tableCode.Should().NotContain("BatchGet",
+            "use DynamoDbBatch.Get static entry point");
     }
 
     [Fact]
-    public void TransactionMethods_InTableClassBody_NotInAccessors()
+    public void TransactionMethods_NotInTableOrAccessors()
     {
         // Arrange
         var source = @"
@@ -431,30 +431,21 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // Extract table class body (before first accessor class)
-        var tableClassStart = tableCode.IndexOf("public partial class AppTableTable");
-        var firstAccessorStart = tableCode.IndexOf("public class OrderAccessor");
-        
-        tableClassStart.Should().BeGreaterThan(0, "should contain table class");
-        firstAccessorStart.Should().BeGreaterThan(0, "should contain accessor class");
-        
-        var tableClassBody = tableCode.Substring(tableClassStart, firstAccessorStart - tableClassStart);
-        
-        // Transaction methods should be in table class body
-        tableClassBody.Should().Contain("TransactWriteItemsRequestBuilder TransactWrite()",
-            "TransactWrite should be in table class body");
-        tableClassBody.Should().Contain("TransactGetItemsRequestBuilder TransactGet()",
-            "TransactGet should be in table class body");
-        tableClassBody.Should().Contain("BatchWriteItemRequestBuilder BatchWrite()",
-            "BatchWrite should be in table class body");
-        tableClassBody.Should().Contain("BatchGetItemRequestBuilder BatchGet()",
-            "BatchGet should be in table class body");
+        // Transaction methods should NOT be in table class or accessor classes
+        tableCode.Should().NotContain("TransactWrite",
+            "TransactWrite should not be generated - use DynamoDbTransactions.Write");
+        tableCode.Should().NotContain("TransactGet",
+            "TransactGet should not be generated - use DynamoDbTransactions.Get");
+        tableCode.Should().NotContain("BatchWrite",
+            "BatchWrite should not be generated - use DynamoDbBatch.Write");
+        tableCode.Should().NotContain("BatchGet",
+            "BatchGet should not be generated - use DynamoDbBatch.Get");
     }
 
     [Fact]
-    public void TransactionMethods_GeneratedEvenWithoutDefaultEntity()
+    public void TransactionMethods_NotGeneratedEvenWithoutDefaultEntity()
     {
-        // Arrange - Multiple entities without default (will emit diagnostic but should still generate transaction methods)
+        // Arrange - Multiple entities without default (will emit diagnostic)
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
@@ -487,7 +478,7 @@ namespace TestNamespace
             d.Id == "FDDB001",
             "should emit FDDB001 error when multiple entities exist without default");
         
-        // Even with error, transaction methods should be generated
+        // Transaction methods should NOT be generated (use static entry points)
         var tableFiles = result.GeneratedSources
             .Where(s => s.FileName.Contains("AppTableTable.g.cs"))
             .ToArray();
@@ -496,22 +487,22 @@ namespace TestNamespace
         {
             var tableCode = tableFiles[0].SourceText.ToString();
             
-            // Transaction methods should still be generated
-            tableCode.Should().Contain("TransactWriteItemsRequestBuilder TransactWrite()",
-                "should generate TransactWrite even without default entity");
-            tableCode.Should().Contain("TransactGetItemsRequestBuilder TransactGet()",
-                "should generate TransactGet even without default entity");
-            tableCode.Should().Contain("BatchWriteItemRequestBuilder BatchWrite()",
-                "should generate BatchWrite even without default entity");
-            tableCode.Should().Contain("BatchGetItemRequestBuilder BatchGet()",
-                "should generate BatchGet even without default entity");
+            // Transaction methods should NOT be generated
+            tableCode.Should().NotContain("TransactWrite",
+                "should not generate TransactWrite - use DynamoDbTransactions.Write");
+            tableCode.Should().NotContain("TransactGet",
+                "should not generate TransactGet - use DynamoDbTransactions.Get");
+            tableCode.Should().NotContain("BatchWrite",
+                "should not generate BatchWrite - use DynamoDbBatch.Write");
+            tableCode.Should().NotContain("BatchGet",
+                "should not generate BatchGet - use DynamoDbBatch.Get");
         }
     }
 
     [Fact]
-    public void TransactionMethods_NotAffectedByAccessorConfiguration()
+    public void TransactionMethods_NotGeneratedRegardlessOfAccessorConfiguration()
     {
-        // Arrange - Configure accessor operations but transaction methods should remain unaffected
+        // Arrange - Configure accessor operations but transaction methods should not be generated
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
@@ -542,15 +533,15 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         
-        // Transaction methods should still be public (not affected by accessor configuration)
-        tableCode.Should().Contain("public TransactWriteItemsRequestBuilder TransactWrite()",
-            "TransactWrite should remain public despite accessor configuration");
-        tableCode.Should().Contain("public TransactGetItemsRequestBuilder TransactGet()",
-            "TransactGet should remain public despite accessor configuration");
-        tableCode.Should().Contain("public BatchWriteItemRequestBuilder BatchWrite()",
-            "BatchWrite should remain public despite accessor configuration");
-        tableCode.Should().Contain("public BatchGetItemRequestBuilder BatchGet()",
-            "BatchGet should remain public despite accessor configuration");
+        // Transaction methods should NOT be generated (use static entry points)
+        tableCode.Should().NotContain("TransactWrite",
+            "should not generate TransactWrite - use DynamoDbTransactions.Write");
+        tableCode.Should().NotContain("TransactGet",
+            "should not generate TransactGet - use DynamoDbTransactions.Get");
+        tableCode.Should().NotContain("BatchWrite",
+            "should not generate BatchWrite - use DynamoDbBatch.Write");
+        tableCode.Should().NotContain("BatchGet",
+            "should not generate BatchGet - use DynamoDbBatch.Get");
         
         // Verify accessor operations are internal as configured
         var accessorStart = tableCode.IndexOf("public class OrderAccessor");
