@@ -11,6 +11,8 @@
 
     <ItemGroup>
         <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
+        <PackageReference Include="FsCheck" Version="2.16.6" />
+        <PackageReference Include="FsCheck.Xunit" Version="2.16.6" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
         <PackageReference Include="NSubstitute" Version="5.3.0" />
         <PackageReference Include="xunit" Version="2.9.3" />
@@ -26,6 +28,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
+        <!-- S2Geometry NuGet package for cross-validation tests -->
+        <PackageReference Include="S2Geometry" Version="1.0.3" />
     </ItemGroup>
 
 </Project>
