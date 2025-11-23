@@ -429,8 +429,8 @@ public class DynamoDbAttributeAttribute : Attribute
     /// <description>District-level queries</description>
     /// </item>
     /// <item>
-    /// <term>9</term>
-    /// <description>~174 m</description>
+    /// <term>7</term>
+    /// <description>~1.2 km</description>
     /// <description>Neighborhood queries (default)</description>
     /// </item>
     /// <item>
@@ -450,8 +450,8 @@ public class DynamoDbAttributeAttribute : Attribute
     /// </item>
     /// </list>
     /// <para>
-    /// <strong>Default Value:</strong> If not specified (value is 0), the source generator uses a default resolution of 9,
-    /// which provides approximately 174-meter hexagon edge length and is suitable for most location-based queries.
+    /// <strong>Default Value:</strong> If not specified (value is 0), the source generator uses a default resolution of 7,
+    /// which provides approximately 1.2km hexagon edge length and is suitable for most location-based queries.
     /// </para>
     /// <para>
     /// This property only applies when SpatialIndexType is set to H3. It is ignored for other spatial index types.
@@ -481,7 +481,7 @@ public class DynamoDbAttributeAttribute : Attribute
                     nameof(H3Resolution),
                     value,
                     "H3 resolution must be between 0 (default) and 15. " +
-                    "Common values: 7 (district), 9 (neighborhood), 11 (building).");
+                    "Common values: 7 (neighborhood), 9 (street-level), 11 (building).");
             }
             _h3Resolution = value;
         }

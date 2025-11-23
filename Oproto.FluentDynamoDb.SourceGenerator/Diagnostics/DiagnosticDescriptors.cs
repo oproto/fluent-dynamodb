@@ -798,4 +798,66 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "The builder class must implement all interfaces that are extended by methods marked with [GenerateWrapper]. Add the interface implementation to the builder class or remove the [GenerateWrapper] attribute from methods extending this interface.");
+
+    // Spatial Index Diagnostics (DYNDB108-DYNDB111)
+
+    /// <summary>
+    /// Error when S2Level is specified but SpatialIndexType is not S2.
+    /// </summary>
+    public static readonly DiagnosticDescriptor S2LevelWithoutS2IndexType = new(
+        "DYNDB108",
+        "S2Level specified without S2 index type",
+        "Property '{0}' has S2Level specified but SpatialIndexType is not S2. Set SpatialIndexType = SpatialIndexType.S2 to use S2 indexing",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "S2Level can only be used when SpatialIndexType is set to S2. Either set SpatialIndexType = SpatialIndexType.S2 or remove the S2Level property.");
+
+    /// <summary>
+    /// Error when H3Resolution is specified but SpatialIndexType is not H3.
+    /// </summary>
+    public static readonly DiagnosticDescriptor H3ResolutionWithoutH3IndexType = new(
+        "DYNDB109",
+        "H3Resolution specified without H3 index type",
+        "Property '{0}' has H3Resolution specified but SpatialIndexType is not H3. Set SpatialIndexType = SpatialIndexType.H3 to use H3 indexing",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "H3Resolution can only be used when SpatialIndexType is set to H3. Either set SpatialIndexType = SpatialIndexType.H3 or remove the H3Resolution property.");
+
+    /// <summary>
+    /// Error when GeoHashPrecision is specified but SpatialIndexType is not GeoHash.
+    /// </summary>
+    public static readonly DiagnosticDescriptor GeoHashPrecisionWithoutGeoHashIndexType = new(
+        "DYNDB110",
+        "GeoHashPrecision specified without GeoHash index type",
+        "Property '{0}' has GeoHashPrecision specified but SpatialIndexType is not GeoHash. Set SpatialIndexType = SpatialIndexType.GeoHash or remove the GeoHashPrecision property",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "GeoHashPrecision can only be used when SpatialIndexType is set to GeoHash (or not specified, as GeoHash is the default). Either set SpatialIndexType = SpatialIndexType.GeoHash or remove the GeoHashPrecision property.");
+
+    /// <summary>
+    /// Error when spatial index configuration is used on a non-GeoLocation property.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SpatialIndexOnNonGeoLocation = new(
+        "DYNDB111",
+        "Spatial index configuration on non-GeoLocation property",
+        "Property '{0}' has spatial index configuration but is not of type GeoLocation. Spatial index properties (SpatialIndexType, S2Level, H3Resolution, GeoHashPrecision) can only be used on GeoLocation properties",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Spatial index configuration properties can only be used on properties of type GeoLocation from the Oproto.FluentDynamoDb.Geospatial package.");
+
+    /// <summary>
+    /// Warning when geospatial package is not referenced but spatial index configuration is present.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MissingGeospatialPackage = new(
+        "DYNDB112",
+        "Missing Geospatial package",
+        "Property '{0}' has spatial index configuration but the Oproto.FluentDynamoDb.Geospatial package is not referenced. Add the package reference to enable spatial indexing",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Spatial index configuration requires the Oproto.FluentDynamoDb.Geospatial package to provide GeoLocation type and spatial encoding functionality.");
 }

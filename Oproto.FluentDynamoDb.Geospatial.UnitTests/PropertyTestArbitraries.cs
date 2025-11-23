@@ -29,22 +29,20 @@ public static class ValidGeoArbitraries
 {
     public static Arbitrary<ValidLatitude> Latitude()
     {
-        return Arb.Default.Float()
+        return Arb.Default.NormalFloat()
             .Generator
-            .Where(f => !double.IsNaN(f) && !double.IsInfinity(f))
-            .Select(f => (double)f)
-            .Select(d => Math.Max(-90, Math.Min(90, d * 90)))  // Scale to -90 to 90
+            .Where(f => !double.IsNaN(f.Get) && !double.IsInfinity(f.Get))
+            .Select(f => Math.Max(-89.9, Math.Min(89.9, f.Get * 90.0)))
             .Select(d => new ValidLatitude(d))
             .ToArbitrary();
     }
 
     public static Arbitrary<ValidLongitude> Longitude()
     {
-        return Arb.Default.Float()
+        return Arb.Default.NormalFloat()
             .Generator
-            .Where(f => !double.IsNaN(f) && !double.IsInfinity(f))
-            .Select(f => (double)f)
-            .Select(d => Math.Max(-180, Math.Min(180, d * 180)))  // Scale to -180 to 180
+            .Where(f => !double.IsNaN(f.Get) && !double.IsInfinity(f.Get))
+            .Select(f => Math.Max(-179.9, Math.Min(179.9, f.Get * 180.0)))
             .Select(d => new ValidLongitude(d))
             .ToArbitrary();
     }

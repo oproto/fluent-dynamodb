@@ -51,11 +51,11 @@ This document specifies requirements for extending the Oproto.FluentDynamoDb.Geo
 
 #### Acceptance Criteria
 
-1. WHEN a developer uses WithinDistanceMeters with an S2-indexed property THEN the system SHALL translate the expression to a DynamoDB BETWEEN query using S2 cell covering
-2. WHEN a developer uses WithinDistanceKilometers with an H3-indexed property THEN the system SHALL translate the expression to a DynamoDB BETWEEN query using H3 cell covering
-3. WHEN a developer uses WithinDistanceMiles with any spatial index type THEN the system SHALL translate the expression appropriately for that index type
-4. WHEN the expression translator encounters a spatial query THEN the system SHALL determine the spatial index type from the property metadata
-5. WHEN a spatial query is executed THEN the system SHALL generate parameter values compatible with DynamoDB string comparisons
+1. WHEN a developer calls SpatialQueryAsync without pagination (pageSize = null) THEN the system SHALL execute all cell queries in parallel for maximum performance
+2. WHEN a developer calls SpatialQueryAsync with pagination (pageSize > 0) THEN the system SHALL execute cell queries sequentially in spiral order (closest to farthest)
+3. WHEN a developer calls SpatialQueryAsync with an S2-indexed property THEN the system SHALL compute the S2 cell covering sorted by distance from center
+4. WHEN a developer calls SpatialQueryAsync with an H3-indexed property THEN the system SHALL compute the H3 cell covering sorted by distance from center
+5. WHEN a developer calls SpatialQueryAsync with a GeoHash-indexed property THEN the system SHALL compute the GeoHash range and execute a single BETWEEN query
 
 ### Requirement 4
 
@@ -63,9 +63,9 @@ This document specifies requirements for extending the Oproto.FluentDynamoDb.Geo
 
 #### Acceptance Criteria
 
-1. WHEN a developer uses WithinBoundingBox with an S2-indexed property THEN the system SHALL compute the S2 cell covering for the bounding box
-2. WHEN a developer uses WithinBoundingBox with an H3-indexed property THEN the system SHALL compute the H3 cell covering for the bounding box
-3. WHEN a bounding box query requires multiple cell ranges THEN the system SHALL execute multiple queries and merge results
+1. WHEN a developer calls SpatialQueryAsync with a bounding box and S2-indexed property THEN the system SHALL compute the S2 cell covering for the bounding box
+2. WHEN a developer calls SpatialQueryAsync with a bounding box and H3-indexed property THEN the system SHALL compute the H3 cell covering for the bounding box
+3. WHEN a bounding box query requires multiple cell ranges THEN the system SHALL execute multiple parallel queries and merge results
 4. WHEN a bounding box is very large THEN the system SHALL limit the number of cells to prevent excessive queries
 5. WHEN the system computes cell coverings THEN the system SHALL use the precision level configured on the property
 
@@ -100,10 +100,13 @@ This document specifies requirements for extending the Oproto.FluentDynamoDb.Geo
 #### Acceptance Criteria
 
 1. WHEN a developer reads the documentation THEN the system SHALL provide a comparison table of GeoHash, S2, and H3 characteristics
-2. WHEN a developer reads the documentation THEN the system SHALL explain the precision/resolution levels for each index type
-3. WHEN a developer reads the documentation THEN the system SHALL provide guidance on cell size and accuracy for each precision level
-4. WHEN a developer reads the documentation THEN the system SHALL include code examples for each spatial index type
-5. WHEN a developer reads the documentation THEN the system SHALL explain the trade-offs between single-field and multi-field serialization
+2. WHEN a developer reads the documentation THEN the system SHALL explain the precision/resolution levels for each index type with cell size tables
+3. WHEN a developer reads the documentation THEN the system SHALL provide a formula for calculating approximate cell count based on radius and cell size
+4. WHEN a developer reads the documentation THEN the system SHALL include examples of query explosion scenarios and how to avoid them
+5. WHEN a developer reads the documentation THEN the system SHALL provide a decision matrix for selecting appropriate precision/resolution based on search radius
+6. WHEN a developer reads the documentation THEN the system SHALL include code examples for each spatial index type
+7. WHEN a developer reads the documentation THEN the system SHALL explain the trade-offs between single-field and multi-field serialization
+8. WHEN a developer reads the documentation THEN the system SHALL warn about the maxCells limit and its impact on coverage
 
 ### Requirement 8
 
@@ -140,3 +143,39 @@ This document specifies requirements for extending the Oproto.FluentDynamoDb.Geo
 3. WHEN Plus Codes are not suitable for DynamoDB queries THEN the documentation SHALL explain why they are not supported
 4. WHEN Plus Codes are suitable for DynamoDB queries THEN the system SHALL include them in the spatial index type options
 5. WHEN the evaluation is complete THEN the documentation SHALL provide a clear recommendation on Plus Code support
+
+### Requirement 11
+
+**User Story:** As a developer, I want to paginate through spatial query results, so that I can handle large result sets efficiently without loading everything into memory.
+
+#### Acceptance Criteria
+
+1. WHEN a developer calls SpatialQueryAsync with a page size THEN the system SHALL return at most that many items
+2. WHEN a paginated spatial query has more results than the page size THEN the system SHALL return a continuation token containing the current cell index and DynamoDB LastEvaluatedKey
+3. WHEN a developer provides a continuation token THEN the system SHALL resume querying from the cell and key indicated by the token
+4. WHEN resuming from a continuation token THEN the system SHALL continue querying cells sequentially in spiral order until the page size is reached
+5. WHEN the last cell is fully processed THEN the system SHALL return a null continuation token to indicate completion
+
+### Requirement 12
+
+**User Story:** As a developer, I want to provide custom query conditions in spatial queries, so that I can filter results by partition key, sort key, or other attributes while searching spatially.
+
+#### Acceptance Criteria
+
+1. WHEN a developer provides a query builder lambda THEN the system SHALL allow access to the query builder, current cell value, and pagination configuration
+2. WHEN the query builder lambda is invoked THEN the system SHALL provide the spatial cell value as a parameter
+3. WHEN the developer uses lambda expressions in the query builder THEN the system SHALL support full Where clause lambda syntax
+4. WHEN the developer configures pagination in the query builder THEN the system SHALL use the pagination configuration provided by SpatialQueryAsync
+5. WHEN multiple cells require querying THEN the system SHALL invoke the query builder lambda once per cell with the appropriate cell value
+
+### Requirement 13
+
+**User Story:** As a developer, I want spatial queries to correctly handle the International Date Line and polar regions, so that my location-based features work correctly worldwide without edge case failures.
+
+#### Acceptance Criteria
+
+1. WHEN a bounding box crosses the International Date Line THEN the system SHALL split the query into two separate bounding boxes and merge the results
+2. WHEN a radius query is centered near the International Date Line and the search area crosses it THEN the system SHALL compute cell coverings on both sides of the date line
+3. WHEN a bounding box extends to or beyond a pole (latitude ±90°) THEN the system SHALL clamp the bounding box to valid latitude ranges and handle longitude wrapping correctly
+4. WHEN a radius query is centered at or very near a pole THEN the system SHALL compute cell coverings that account for longitude convergence at the poles
+5. WHEN computing cell coverings near the date line or poles THEN the system SHALL deduplicate cells that may appear in both regions

@@ -205,23 +205,34 @@ internal static class S2Encoder
             // Compute longitude bounds (must handle wrapping around the date line)
             // The reference implementation uses S1Interval.FromPointPair which handles wrapping.
             // A cell spans the date line if the longitude range is > 180°.
-            // In this case, the "min" is actually the eastern edge and "max" is the western edge.
             //
-            // To detect wrapping: check if any two adjacent corners have a longitude difference > 180°
-            // If so, the cell wraps around the date line.
+            // IMPORTANT: GeoBoundingBox doesn't support wrapping (minLon > maxLon).
+            // For cells that wrap around the date line, we return the full longitude range [-180, 180]
+            // as an approximation. This is acceptable because:
+            // 1. Such cells are rare (only near the date line)
+            // 2. The bounds are used for approximate filtering, not exact containment
+            // 3. The alternative would be to change GeoBoundingBox to support wrapping
             var lons = corners.Select(c => c.lon).ToArray();
             
-            // Check for wrapping by looking at the longitude span
-            // If the max-min span is > 180°, the cell likely wraps
-            var lonSpan = lons.Max() - lons.Min();
+            // Check for wrapping by looking at adjacent corners
+            // If any two adjacent corners have a longitude difference > 180°, the cell wraps
+            bool wraps = false;
+            for (int cornerIdx = 0; cornerIdx < 4; cornerIdx++)
+            {
+                var nextIdx = (cornerIdx + 1) % 4;
+                if (Math.Abs(lons[cornerIdx] - lons[nextIdx]) > 180.0)
+                {
+                    wraps = true;
+                    break;
+                }
+            }
             
-            if (lonSpan > 180.0)
+            if (wraps)
             {
                 // Cell wraps around the date line
-                // Find the eastern edge (largest positive longitude) and western edge (smallest negative longitude)
-                // The "min" should be the eastern edge (e.g., 135°) and "max" should be the western edge (e.g., -135°)
-                minLon = lons.Max();  // Eastern edge (e.g., 135°)
-                maxLon = lons.Min();  // Western edge (e.g., -135°)
+                // Return the full longitude range as an approximation
+                minLon = -180.0;
+                maxLon = 180.0;
             }
             else
             {
@@ -255,8 +266,12 @@ internal static class S2Encoder
         // Based on Google's S2 Geometry library (Apache 2.0 license)
         // Reference: s2-geometry-library-csharp/S2Geometry/S2CellId.cs GetEdgeNeighbors and GetAllNeighbors
         //
-        // The key insight is that IJ coordinates are always at leaf cell resolution (MaxSize),
-        // so we need to scale by the cell size at the current level.
+        // CRITICAL FIX: The IJ coordinates returned by CellIdToFaceIJ are at LEAF cell resolution (MaxSize).
+        // To get neighbors at the SAME level, we need to:
+        // 1. Calculate the cell size at the current level
+        // 2. Offset by the cell size in i and j directions
+        // 3. Encode the neighbors at the SAME level (not leaf level)
+        
         var size = 1 << (MaxLevel - level);  // Size of cell in leaf cell units
         
         var neighbors = new List<string>();
@@ -278,7 +293,7 @@ internal static class S2Encoder
             // Check if the neighbor is on the same face
             var sameFace = ni >= 0 && ni < MaxSize && nj >= 0 && nj < MaxSize;
             
-            // Get the neighbor cell ID, handling face boundary transitions
+            // Get the neighbor cell ID at the SAME level, handling face boundary transitions
             var neighborCellId = FromFaceIJSame(face, ni, nj, sameFace, level);
             neighbors.Add(CellIdToToken(neighborCellId));
         }
@@ -569,7 +584,7 @@ internal static class S2Encoder
         }
     }
 
-    internal static ulong FaceIJToCellId(int face, int i, int j, int level)
+    public static ulong FaceIJToCellId(int face, int i, int j, int level)
     {
         // Based on Google's S2 Geometry library (Apache 2.0 license)
         // This implementation uses 8-bit lookup tables to process 4 levels (8 bits of I/J) at a time
@@ -634,7 +649,7 @@ internal static class S2Encoder
         return 1UL << (2 * (MaxLevel - level));
     }
 
-    internal static (int face, int i, int j, int level) CellIdToFaceIJ(ulong cellId)
+    public static (int face, int i, int j, int level) CellIdToFaceIJ(ulong cellId)
     {
         // Based on Google's S2 Geometry library (Apache 2.0 license)
         // Reference: s2-geometry-library-csharp/S2Geometry/S2CellId.cs ToFaceIjOrientation method
@@ -705,14 +720,14 @@ internal static class S2Encoder
 
     // ===== Cell ID to Token Conversion =====
 
-    private static string CellIdToToken(ulong cellId)
+    public static string CellIdToToken(ulong cellId)
     {
         // Convert to hex and remove trailing zeros (standard S2 token format)
         string hex = cellId.ToString("x16");
         return hex.TrimEnd('0');
     }
 
-    private static ulong TokenToCellId(string s2Token)
+    public static ulong TokenToCellId(string s2Token)
     {
         if (s2Token.Length == 0 || s2Token.Length > 16)
         {

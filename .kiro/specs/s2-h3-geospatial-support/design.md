@@ -272,64 +272,459 @@ public static class H3Extensions
 }
 ```
 
-### 4. Query Extensions
+### 4. Spatial Query API
 
-Each spatial index type will provide query extension methods following the pattern of `GeoHashQueryExtensions`. These methods are recognized by the expression translator:
+The library will provide a `SpatialQueryAsync` method that handles multi-cell queries for S2 and H3 (and optimized single-query for GeoHash):
 
-#### S2QueryExtensions
+#### SpatialQueryAsync Signature
 
 ```csharp
-public static class S2QueryExtensions
+public static class SpatialQueryExtensions
 {
-    // These methods are translated by the expression translator
-    // They are not meant to be called directly at runtime
-    public static bool WithinDistanceMeters(this GeoLocation location, GeoLocation center, double distanceMeters);
-    public static bool WithinDistanceKilometers(this GeoLocation location, GeoLocation center, double distanceKilometers);
-    public static bool WithinDistanceMiles(this GeoLocation location, GeoLocation center, double distanceMiles);
-    public static bool WithinBoundingBox(this GeoLocation location, GeoLocation southwest, GeoLocation northeast);
+    // Proximity query with distance
+    public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
+        this DynamoDbTableBase table,
+        string spatialAttributeName,
+        GeoLocation center,
+        double radiusKilometers,
+        Func<QueryRequestBuilder<TEntity>, string, IPaginationRequest, QueryRequestBuilder<TEntity>> queryBuilder,
+        int? pageSize = null,
+        SpatialContinuationToken? continuationToken = null,
+        CancellationToken cancellationToken = default)
+        where TEntity : class;
+    
+    // Bounding box query
+    public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
+        this DynamoDbTableBase table,
+        string spatialAttributeName,
+        GeoBoundingBox boundingBox,
+        Func<QueryRequestBuilder<TEntity>, string, IPaginationRequest, QueryRequestBuilder<TEntity>> queryBuilder,
+        int? pageSize = null,
+        SpatialContinuationToken? continuationToken = null,
+        CancellationToken cancellationToken = default)
+        where TEntity : class;
 }
 ```
 
-#### H3QueryExtensions
+#### Query Builder Lambda
+
+The query builder lambda receives three parameters:
+1. **QueryRequestBuilder<TEntity>** - The query builder to configure
+2. **string cellValue** - The current spatial cell value (GeoHash/S2 token/H3 index)
+3. **IPaginationRequest** - The pagination configuration for this cell
+
+Example usage:
+```csharp
+var results = await table.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: new GeoLocation(37.7749, -122.4194),
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: 50
+);
+```
+
+#### SpatialQueryResponse
 
 ```csharp
-public static class H3QueryExtensions
+public class SpatialQueryResponse<TEntity>
 {
-    // These methods are translated by the expression translator
-    public static bool WithinDistanceMeters(this GeoLocation location, GeoLocation center, double distanceMeters);
-    public static bool WithinDistanceKilometers(this GeoLocation location, GeoLocation center, double distanceKilometers);
-    public static bool WithinDistanceMiles(this GeoLocation location, GeoLocation center, double distanceMiles);
-    public static bool WithinBoundingBox(this GeoLocation location, GeoLocation southwest, GeoLocation northeast);
+    public List<TEntity> Items { get; set; }
+    public SpatialContinuationToken? ContinuationToken { get; set; }
+    public int TotalCellsQueried { get; set; }
+    public int TotalItemsScanned { get; set; }
 }
 ```
 
-### 5. Bounding Box Extensions
-
-Each spatial index type will provide methods to compute cell coverings for bounding boxes:
-
-#### S2BoundingBoxExtensions
+#### SpatialContinuationToken
 
 ```csharp
-public static class S2BoundingBoxExtensions
+public class SpatialContinuationToken
 {
-    // Gets the S2 cell covering for a bounding box
-    // Returns min and max tokens for BETWEEN query
-    public static (string MinToken, string MaxToken) GetS2CellRange(
-        this GeoBoundingBox bbox, int level);
+    // Index of the current cell in the spiral-ordered cell list
+    public int CellIndex { get; set; }
+    
+    // DynamoDB's LastEvaluatedKey for pagination within the current cell
+    // Null if the cell is exhausted and we should move to the next cell
+    public string? LastEvaluatedKey { get; set; }
+    
+    // Serialization methods for passing between requests
+    public string ToBase64();
+    public static SpatialContinuationToken FromBase64(string token);
 }
 ```
 
-#### H3BoundingBoxExtensions
+### 5. Cell Covering Computation
+
+Each spatial index type will provide methods to compute cell coverings for spatial queries:
+
+#### S2CellCovering
 
 ```csharp
-public static class H3BoundingBoxExtensions
+public static class S2CellCovering
 {
-    // Gets the H3 cell covering for a bounding box
-    // Returns min and max indices for BETWEEN query
-    public static (string MinIndex, string MaxIndex) GetH3CellRange(
-        this GeoBoundingBox bbox, int resolution);
+    // Gets the list of S2 cells that cover a circular area
+    public static List<string> GetCellsForRadius(
+        GeoLocation center, 
+        double radiusKilometers, 
+        int level,
+        int maxCells = 100);
+    
+    // Gets the list of S2 cells that cover a bounding box
+    public static List<string> GetCellsForBoundingBox(
+        GeoBoundingBox bbox, 
+        int level,
+        int maxCells = 100);
 }
 ```
+
+#### H3CellCovering
+
+```csharp
+public static class H3CellCovering
+{
+    // Gets the list of H3 cells that cover a circular area
+    public static List<string> GetCellsForRadius(
+        GeoLocation center, 
+        double radiusKilometers, 
+        int resolution,
+        int maxCells = 100);
+    
+    // Gets the list of H3 cells that cover a bounding box
+    public static List<string> GetCellsForBoundingBox(
+        GeoBoundingBox bbox, 
+        int resolution,
+        int maxCells = 100);
+}
+```
+
+#### GeoHashCellCovering
+
+```csharp
+public static class GeoHashCellCovering
+{
+    // Gets the GeoHash range for a circular area (single BETWEEN query)
+    public static (string MinHash, string MaxHash) GetRangeForRadius(
+        GeoLocation center, 
+        double radiusKilometers, 
+        int precision);
+    
+    // Gets the GeoHash range for a bounding box (single BETWEEN query)
+    public static (string MinHash, string MaxHash) GetRangeForBoundingBox(
+        GeoBoundingBox bbox, 
+        int precision);
+}
+```
+
+## Spatial Query Implementation
+
+### Why Different Approaches for Different Index Types
+
+**GeoHash**: Forms a continuous lexicographic space-filling curve. Nearby locations have similar prefixes, allowing efficient single BETWEEN queries.
+
+**S2 and H3**: Use hierarchical cell structures that don't form continuous lexicographic ranges. A bounding box or radius may span multiple non-contiguous cells, requiring multiple discrete queries.
+
+### Two Query Modes
+
+#### Non-Paginated Mode (pageSize = null)
+- **Goal**: Return all results as fast as possible
+- **Strategy**: Query all cells in parallel using `Task.WhenAll`
+- **Performance**: Optimal - all queries execute simultaneously
+- **Use case**: When you need all results and can handle them in memory
+
+#### Paginated Mode (pageSize > 0)
+- **Goal**: Return consistent page sizes with predictable memory usage
+- **Strategy**: Query cells sequentially in spiral order (closest to farthest)
+- **Performance**: Slower than non-paginated, but memory-efficient
+- **Use case**: Large result sets, infinite scroll, API responses
+
+### Spiral Ordering
+
+For paginated queries, cells are ordered by distance from the search center:
+
+```
+Cell ordering for radius search:
+  Cell 0: Center cell (contains the search point)
+  Cells 1-6/8: Immediate neighbors (first ring)
+  Cells 7-18/24: Second ring
+  Cells 19-42/48: Third ring
+  ... and so on
+```
+
+**Benefits:**
+- Most relevant results (closest to center) appear in early pages
+- Early termination: if user only views first page, we only query nearby cells
+- Better UX: "Stores near you" shows closest stores first
+- Predictable performance: each page queries similar number of cells
+
+### SpatialQueryAsync Algorithm
+
+#### Non-Paginated Mode
+
+1. **Determine Spatial Index Type**: Read entity metadata to determine GeoHash/S2/H3
+2. **Compute Cell Covering**: 
+   - For GeoHash: Compute min/max range (single query)
+   - For S2/H3: Compute list of cells that cover the area
+3. **Execute All Queries in Parallel**:
+   - For each cell, invoke query builder lambda with cell value
+   - Execute all queries in parallel using `Task.WhenAll`
+4. **Merge and Deduplicate Results**:
+   - Combine results from all queries
+   - Deduplicate by primary key (items may appear in multiple cells)
+5. **Post-Filter and Sort**:
+   - Calculate exact distance from center to each result
+   - Filter out items outside the exact radius
+   - Sort by distance (closest first)
+6. **Return All Results**: No continuation token
+
+#### Paginated Mode
+
+1. **Determine Spatial Index Type**: Read entity metadata
+2. **Compute Cell Covering and Sort by Distance**:
+   - For S2/H3: Compute list of cells, sort by distance from center (spiral order)
+   - For GeoHash: Compute min/max range (single query, no sorting needed)
+3. **Resume from Continuation Token** (if provided):
+   - Start from cell at `CellIndex`
+   - Use `LastEvaluatedKey` to resume within that cell
+4. **Query Cells Sequentially**:
+   - Query one cell at a time in spiral order
+   - Collect results until `pageSize` reached
+   - If cell exhausted (no LastEvaluatedKey), move to next cell
+   - If `pageSize` reached mid-cell, stop and save position
+5. **Generate Continuation Token**:
+   - If stopped mid-cell: store `CellIndex` + `LastEvaluatedKey`
+   - If stopped between cells: store next `CellIndex`
+   - If all cells complete: return null token
+6. **Post-Filter Results**:
+   - Calculate exact distance from center
+   - Filter out items outside exact radius
+   - Results are already roughly sorted by distance (due to spiral ordering)
+
+### Pagination Strategy
+
+The continuation token contains:
+- **CellIndex**: Which cell in the spiral-ordered covering we're currently querying
+- **LastEvaluatedKey**: DynamoDB's pagination key within the current cell (if mid-cell)
+
+**Example pagination flow:**
+```
+Request 1: pageSize=50
+  - Query cell 0 (center): 30 items
+  - Query cell 1: 25 items (total: 55, over limit)
+  - Return: 50 items (30 from cell 0, 20 from cell 1)
+  - Token: { CellIndex: 1, LastEvaluatedKey: "..." }
+
+Request 2: pageSize=50, token from above
+  - Resume cell 1 from LastEvaluatedKey: 5 items
+  - Query cell 2: 40 items (total: 45)
+  - Query cell 3: 10 items (total: 55, over limit)
+  - Return: 50 items (5 from cell 1, 40 from cell 2, 5 from cell 3)
+  - Token: { CellIndex: 3, LastEvaluatedKey: "..." }
+
+Request 3: pageSize=50, token from above
+  - Resume cell 3 from LastEvaluatedKey: 5 items
+  - Query cell 4: 20 items (total: 25)
+  - Query cell 5: 15 items (total: 40)
+  - Query cell 6: 8 items (total: 48, last cell)
+  - Return: 48 items
+  - Token: null (all cells complete)
+```
+
+### Post-Filtering
+
+Since cell coverings are approximations (especially for circular radius queries), results should be post-filtered:
+1. Calculate exact distance from center to each result
+2. Filter out items outside the exact radius
+3. For non-paginated mode: sort by distance
+4. For paginated mode: results are already roughly sorted due to spiral ordering
+
+This post-filtering happens in-memory after collecting results from cells.
+
+## Dateline and Pole Handling
+
+### International Date Line (±180° Longitude)
+
+The International Date Line presents a challenge because longitude wraps from +180° to -180°. A bounding box that crosses the date line (e.g., from 170°E to -170°E) cannot be represented with the simple constraint `west <= east`.
+
+#### Solution: Split Query Approach
+
+When a bounding box crosses the date line, we split it into two separate bounding boxes:
+
+**Original (crosses dateline):**
+- Southwest: (lat, 170°)
+- Northeast: (lat, -170°)
+
+**Split into two:**
+1. **Western box**: Southwest: (lat, 170°), Northeast: (lat, 180°)
+2. **Eastern box**: Southwest: (lat, -180°), Northeast: (lat, -170°)
+
+**Algorithm:**
+```csharp
+public static bool CrossesDateLine(GeoBoundingBox bbox)
+{
+    return bbox.Southwest.Longitude > bbox.Northeast.Longitude;
+}
+
+public static (GeoBoundingBox western, GeoBoundingBox eastern) SplitAtDateLine(GeoBoundingBox bbox)
+{
+    var western = new GeoBoundingBox(
+        new GeoLocation(bbox.Southwest.Latitude, bbox.Southwest.Longitude),
+        new GeoLocation(bbox.Northeast.Latitude, 180.0));
+    
+    var eastern = new GeoBoundingBox(
+        new GeoLocation(bbox.Southwest.Latitude, -180.0),
+        new GeoLocation(bbox.Northeast.Latitude, bbox.Northeast.Longitude));
+    
+    return (western, eastern);
+}
+```
+
+**Query Execution:**
+1. Detect if bounding box crosses date line
+2. If yes, split into two bounding boxes
+3. Compute cell coverings for both boxes
+4. Execute queries for all cells (deduplicate cells that appear in both)
+5. Merge and deduplicate results by primary key
+
+**Cell Deduplication:**
+Cells near the date line may appear in both coverings. We use a `HashSet<string>` to track unique cell tokens/indices before querying.
+
+### Polar Regions (±90° Latitude)
+
+Near the poles, longitude becomes increasingly meaningless as all meridians converge. At exactly ±90°, longitude is undefined.
+
+#### Challenges:
+
+1. **Longitude Convergence**: At high latitudes, a small change in longitude represents a very small distance
+2. **Bounding Box Distortion**: A "square" bounding box in lat/lon coordinates becomes highly distorted near poles
+3. **Cell Behavior**: S2 and H3 cells behave differently near poles due to their projection methods
+
+#### Solution: Pole-Aware Bounding Box Creation
+
+When creating a bounding box from a center point and radius near the poles:
+
+```csharp
+public static GeoBoundingBox FromCenterAndDistanceMeters(GeoLocation center, double distanceMeters)
+{
+    const double metersPerDegreeLat = 111320.0;
+    
+    // Calculate latitude offset
+    var latOffset = distanceMeters / metersPerDegreeLat;
+    
+    // Calculate longitude offset (varies by latitude)
+    var metersPerDegreeLon = metersPerDegreeLat * Math.Cos(DegreesToRadians(center.Latitude));
+    
+    // Near poles, longitude offset becomes very large or infinite
+    // Clamp to reasonable values
+    var lonOffset = metersPerDegreeLon > 0 ? distanceMeters / metersPerDegreeLon : 180.0;
+    
+    // Clamp longitude offset to prevent wrapping past ±180
+    lonOffset = Math.Min(lonOffset, 180.0);
+    
+    // Calculate corners with clamping
+    var swLat = Math.Max(-90, center.Latitude - latOffset);
+    var swLon = Math.Max(-180, center.Longitude - lonOffset);
+    var neLat = Math.Min(90, center.Latitude + latOffset);
+    var neLon = Math.Min(180, center.Longitude + lonOffset);
+    
+    // Special case: if we're at a pole or the search radius covers a pole
+    if (neLat >= 90 || swLat <= -90)
+    {
+        // At the pole, longitude is meaningless - use full longitude range
+        swLon = -180;
+        neLon = 180;
+    }
+    
+    // Check if longitude wraps around (crosses date line)
+    if (swLon > neLon)
+    {
+        // This will be handled by the date line splitting logic
+    }
+    
+    return new GeoBoundingBox(
+        new GeoLocation(swLat, swLon),
+        new GeoLocation(neLat, neLon));
+}
+```
+
+#### Solution: Pole-Aware Cell Covering
+
+When computing cell coverings near poles:
+
+1. **Detect Polar Queries**: Check if center latitude is > 85° or < -85°, or if bounding box extends beyond these thresholds
+2. **Use Lower Precision**: Near poles, use lower precision levels to avoid excessive cell counts due to longitude convergence
+3. **Full Longitude Range**: If the bounding box touches a pole, expand longitude to full range (-180 to 180)
+4. **Deduplicate Cells**: Cells near poles may be duplicated due to longitude wrapping
+
+```csharp
+private static bool IsNearPole(GeoLocation location, double thresholdLatitude = 85.0)
+{
+    return Math.Abs(location.Latitude) > thresholdLatitude;
+}
+
+private static bool BoundingBoxIncludesPole(GeoBoundingBox bbox)
+{
+    return bbox.Northeast.Latitude >= 90 || bbox.Southwest.Latitude <= -90;
+}
+```
+
+### Combined Dateline and Pole Handling
+
+When a query involves both the date line and polar regions:
+
+1. **Check for pole inclusion first**: If bounding box includes a pole, expand longitude to full range
+2. **Check for date line crossing**: If longitude range is not full and crosses date line, split the query
+3. **Compute cell coverings**: For each resulting bounding box
+4. **Deduplicate cells**: Merge cell lists and remove duplicates
+5. **Execute queries**: Query all unique cells
+6. **Deduplicate results**: Merge results and remove duplicates by primary key
+
+### GeoBoundingBox Constructor Update
+
+The current constructor throws an exception when `southwest.Longitude > northeast.Longitude`. This needs to be updated to allow date line crossing:
+
+```csharp
+public GeoBoundingBox(GeoLocation southwest, GeoLocation northeast)
+{
+    if (southwest.Latitude > northeast.Latitude)
+    {
+        throw new ArgumentException(
+            "Southwest corner latitude must be less than or equal to northeast corner latitude",
+            nameof(southwest));
+    }
+
+    // Allow longitude wrapping for date line crossing
+    // We'll detect and handle this in the query logic
+    // No validation needed here - any longitude combination is valid
+    
+    Southwest = southwest;
+    Northeast = northeast;
+}
+```
+
+### Testing Strategy for Edge Cases
+
+**Unit Tests:**
+- Bounding box creation at various latitudes (0°, 45°, 85°, 89°, 90°)
+- Bounding box creation with various longitudes (0°, 90°, 170°, 179°, -179°, -170°)
+- Date line crossing detection
+- Bounding box splitting at date line
+- Cell covering computation near date line
+- Cell covering computation near poles
+
+**Property-Based Tests:**
+- For any location and radius, bounding box should contain the center point
+- For any bounding box crossing date line, split boxes should cover the same area
+- For any cell covering, all cells should be unique
+- For any query result, all items should be within the specified radius (post-filtering)
+
+**Integration Tests:**
+- Query with center at (0°, 179°) and 200km radius (crosses date line)
+- Query with center at (89°, 0°) and 200km radius (near North Pole)
+- Query with center at (-89°, 0°) and 200km radius (near South Pole)
+- Query with center at (89°, 179°) and 200km radius (both date line and pole)
 
 ## Data Models
 
@@ -442,55 +837,107 @@ Property 2: H3 encoding produces valid cell indices
 *For any* valid GeoLocation and H3 resolution (0-15), encoding the location to an H3 cell index should produce a valid H3 index that can be decoded back to coordinates
 **Validates: Requirements 1.3**
 
-Property 3: S2 expression translation generates BETWEEN queries
-*For any* S2-indexed property and proximity query, the expression translator should generate a DynamoDB BETWEEN expression using S2 cell covering
+Property 3: Non-paginated queries execute all cells in parallel
+*For any* spatial query with pageSize = null, all cell queries should execute in parallel using Task.WhenAll
 **Validates: Requirements 3.1**
 
-Property 4: H3 expression translation generates BETWEEN queries
-*For any* H3-indexed property and proximity query, the expression translator should generate a DynamoDB BETWEEN expression using H3 cell covering
+Property 4: Paginated queries execute cells sequentially in spiral order
+*For any* spatial query with pageSize > 0, cells should be queried sequentially starting from the center cell and moving outward
 **Validates: Requirements 3.2**
 
-Property 5: Distance unit conversion works for all index types
-*For any* spatial index type (GeoHash, S2, H3) and distance in miles, the query should produce equivalent results to the same distance in meters or kilometers
+Property 5: S2 cell covering is sorted by distance from center
+*For any* S2-indexed proximity query, the cell covering should be sorted by distance from the search center (spiral order)
 **Validates: Requirements 3.3**
 
-Property 6: Expression translator identifies index type from metadata
-*For any* GeoLocation property with spatial index configuration, the expression translator should determine the correct index type and generate appropriate query expressions
+Property 6: H3 cell covering is sorted by distance from center
+*For any* H3-indexed proximity query, the cell covering should be sorted by distance from the search center (spiral order)
 **Validates: Requirements 3.4**
 
-Property 7: Spatial query parameters are DynamoDB-compatible strings
-*For any* spatial query, the generated parameter values should be strings that can be used in DynamoDB BETWEEN comparisons
+Property 7: GeoHash queries execute single BETWEEN query
+*For any* GeoHash-indexed property and proximity query, SpatialQueryAsync should compute the GeoHash range and execute a single BETWEEN query
 **Validates: Requirements 3.5**
 
-Property 8: S2 bounding box queries compute correct cell coverings
+Property 8: Query builder lambda receives correct cell value
+*For any* spatial query, the query builder lambda should receive the appropriate cell value (GeoHash/S2 token/H3 index) for each cell being queried
+**Validates: Requirements 12.2**
+
+Property 9: Spatial query results are deduplicated by primary key
+*For any* non-paginated spatial query that returns items from multiple cells, duplicate items should be removed based on primary key
+**Validates: Requirements 3.1**
+
+Property 10: S2 bounding box queries compute correct cell coverings
 *For any* bounding box and S2 level, the S2 cell covering should include all locations within the bounding box
 **Validates: Requirements 4.1**
 
-Property 9: H3 bounding box queries compute correct cell coverings
+Property 11: H3 bounding box queries compute correct cell coverings
 *For any* bounding box and H3 resolution, the H3 cell covering should include all locations within the bounding box
 **Validates: Requirements 4.2**
 
-Property 10: Large bounding boxes are limited to prevent excessive queries
+Property 12: Large bounding boxes are limited to prevent excessive queries
 *For any* very large bounding box, the system should limit the number of cells in the covering to a reasonable maximum
 **Validates: Requirements 4.4**
 
-Property 11: Cell coverings use configured precision
+Property 13: Cell coverings use configured precision
 *For any* GeoLocation property with configured precision, cell coverings should use that precision level
 **Validates: Requirements 4.5**
 
-Property 12: Single-field serialization round-trip preserves cell
+Property 22: Pagination limits results to page size
+*For any* spatial query with a page size, the response should contain at most that many items
+**Validates: Requirements 11.1**
+
+Property 23: Continuation token contains cell index and LastEvaluatedKey
+*For any* paginated spatial query that stops mid-cell, the continuation token should contain both the cell index and DynamoDB's LastEvaluatedKey
+**Validates: Requirements 11.2**
+
+Property 24: Continuation token enables resumption from correct position
+*For any* spatial query with a continuation token, the query should resume from the exact cell and key position indicated by the token
+**Validates: Requirements 11.3, 11.4**
+
+Property 25: Completed queries return null continuation token
+*For any* spatial query where all cells are fully processed, the continuation token should be null
+**Validates: Requirements 11.5**
+
+Property 26: Query builder lambda receives all required parameters
+*For any* spatial query, the query builder lambda should receive the query builder, cell value, and pagination configuration
+**Validates: Requirements 12.1, 12.2**
+
+Property 27: Dateline crossing is detected correctly
+*For any* bounding box where southwest longitude > northeast longitude, the system should detect it as crossing the International Date Line
+**Validates: Requirements 13.1**
+
+Property 28: Dateline-crossing bounding boxes are split correctly
+*For any* bounding box that crosses the date line, splitting it should produce two bounding boxes that together cover the same area without overlap
+**Validates: Requirements 13.1**
+
+Property 29: Dateline queries deduplicate cells
+*For any* query that crosses the date line, cells that appear in both western and eastern coverings should be deduplicated before querying
+**Validates: Requirements 13.2, 13.5**
+
+Property 30: Polar bounding boxes clamp latitude correctly
+*For any* bounding box that would extend beyond ±90° latitude, the latitude should be clamped to valid ranges
+**Validates: Requirements 13.3**
+
+Property 31: Polar queries handle longitude convergence
+*For any* query centered at latitude > 85° or < -85°, the cell covering should account for longitude convergence and avoid excessive cell counts
+**Validates: Requirements 13.4**
+
+Property 32: Query results are deduplicated by primary key
+*For any* spatial query (including dateline and polar queries), duplicate items should be removed based on primary key before returning results
+**Validates: Requirements 13.5**
+
+Property 13: Single-field serialization round-trip preserves cell
 *For any* GeoLocation serialized in single-field mode, deserializing should return a location within the same spatial index cell
 **Validates: Requirements 5.4, 5.5**
 
-Property 13: Coordinate storage creates separate attributes
+Property 14: Coordinate storage creates separate attributes
 *For any* GeoLocation with StoreCoordinatesAttribute, the serialized data should contain the spatial index attribute plus separate latitude and longitude attributes
 **Validates: Requirements 6.1, 6.2**
 
-Property 14: Coordinate deserialization preserves exact values
+Property 15: Coordinate deserialization preserves exact values
 *For any* GeoLocation serialized with coordinate storage, deserializing should return the exact original coordinates, not the cell center
 **Validates: Requirements 6.3**
 
-Property 15: Single-field mode stores only spatial index
+Property 16: Single-field mode stores only spatial index
 *For any* GeoLocation without coordinate storage, the serialized data should contain only one attribute: the spatial index
 **Validates: Requirements 6.4**
 
@@ -801,6 +1248,354 @@ The design maintains full backward compatibility:
 3. No breaking changes to existing APIs
 4. New functionality is additive only
 5. Existing data can be read with new spatial index types (returns cell center)
+
+## Performance Characteristics
+
+### Query Mode Comparison
+
+| Mode | Cell Execution | Latency | Memory | Use Case |
+|------|---------------|---------|--------|----------|
+| **Non-Paginated** | All cells in parallel | Lowest (1x cell query time) | High (all results) | Small result sets, need all data |
+| **Paginated** | Sequential, spiral order | Higher (N× cell query time) | Low (one page) | Large result sets, infinite scroll |
+
+### Cell Count Impact and Query Explosion
+
+The number of cells in a covering depends on the ratio of search radius to cell size. This can **explode quickly** with poor precision choices.
+
+#### Approximate Cell Count Formula
+
+```
+cellCount ≈ π × (radius / cellSize)²
+```
+
+This is an approximation because:
+- Cells aren't perfect squares/hexagons
+- Earth's curvature affects cell sizes
+- Cell covering algorithms may include extra cells for complete coverage
+
+#### S2 Cell Sizes by Level
+
+| Level | Cell Size (approx) | 1km radius | 5km radius | 10km radius | 50km radius |
+|-------|-------------------|------------|------------|-------------|-------------|
+| 10 | ~100km | 1 cell | 1 cell | 1 cell | 1 cell |
+| 12 | ~25km | 1 cell | 1 cell | 2 cells | 16 cells |
+| 14 | ~6km | 1 cell | 3 cells | 11 cells | 275 cells |
+| 16 | ~1.5km | 2 cells | 44 cells | 175 cells | **4,400 cells** ⚠️ |
+| 18 | ~400m | 25 cells | 625 cells | **2,500 cells** ⚠️ | **62,500 cells** 🚫 |
+| 20 | ~100m | 400 cells | **10,000 cells** 🚫 | **40,000 cells** 🚫 | **1M cells** 🚫 |
+
+#### H3 Cell Sizes by Resolution
+
+| Resolution | Cell Edge (approx) | 1km radius | 5km radius | 10km radius | 50km radius |
+|------------|-------------------|------------|------------|-------------|-------------|
+| 5 | ~8.5km | 1 cell | 2 cells | 6 cells | 140 cells |
+| 6 | ~3.2km | 3 cells | 10 cells | 40 cells | **1,000 cells** ⚠️ |
+| 7 | ~1.2km | 3 cells | 70 cells | 280 cells | **7,000 cells** 🚫 |
+| 8 | ~460m | 20 cells | 480 cells | **1,900 cells** ⚠️ | **48,000 cells** 🚫 |
+| 9 | ~174m | 130 cells | **3,300 cells** 🚫 | **13,000 cells** 🚫 | **325,000 cells** 🚫 |
+| 10 | ~66m | 920 cells | **23,000 cells** 🚫 | **92,000 cells** 🚫 | **2.3M cells** 🚫 |
+
+**Legend:**
+- ✅ Good: < 100 cells
+- ⚠️ Warning: 100-1000 cells (will hit maxCells limit, may be slow)
+- 🚫 Bad: > 1000 cells (will definitely hit maxCells limit, very slow)
+
+#### Query Explosion Examples
+
+**Bad Example 1: Too much precision for large radius**
+```csharp
+// ❌ BAD: 50km radius with S2 Level 16 (~1.5km cells)
+// Result: ~4,400 cells needed, will hit maxCells limit (100)
+// Only covers ~2.3% of the area!
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+public GeoLocation Location { get; set; }
+
+var result = await table.SpatialQueryAsync(
+    center: center,
+    radiusKilometers: 50,  // Too large for this precision!
+    ...
+);
+```
+
+**Good Example 1: Appropriate precision for radius**
+```csharp
+// ✅ GOOD: 50km radius with S2 Level 12 (~25km cells)
+// Result: ~16 cells, fast and complete coverage
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 12)]
+public GeoLocation Location { get; set; }
+
+var result = await table.SpatialQueryAsync(
+    center: center,
+    radiusKilometers: 50,
+    ...
+);
+```
+
+**Bad Example 2: Too much precision for any reasonable radius**
+```csharp
+// ❌ BAD: H3 Resolution 10 (~66m cells) with 5km radius
+// Result: ~23,000 cells needed, will hit maxCells limit
+// Paginated queries will be extremely slow
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 10)]
+public GeoLocation Location { get; set; }
+```
+
+**Good Example 2: Balanced precision**
+```csharp
+// ✅ GOOD: H3 Resolution 7 (~1.2km cells) with 5km radius
+// Result: ~70 cells, good balance of accuracy and performance
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 7)]
+public GeoLocation Location { get; set; }
+```
+
+### Pagination Performance
+
+**Non-Paginated Mode:**
+- All cells query in parallel
+- Latency = single cell query time (~50ms)
+- Total time: ~50ms regardless of cell count
+
+**Paginated Mode:**
+- Cells query sequentially in spiral order
+- Latency = N × cell query time
+- Total time for first page: ~50-200ms (1-4 cells typically)
+- Total time for all pages: ~50ms × number of cells
+
+**Why Sequential is Acceptable:**
+1. **Spiral ordering**: Most users only see first page (closest results)
+2. **Early termination**: If user stops at page 2, we only queried 2-4 cells
+3. **Predictable**: Consistent latency per page
+4. **Memory efficient**: Only one page in memory at a time
+
+### Precision Selection Guide
+
+Use this guide to choose the right precision/resolution for your use case:
+
+#### By Use Case
+
+| Use Case | Typical Radius | Recommended S2 Level | Recommended H3 Resolution |
+|----------|---------------|---------------------|--------------------------|
+| City-wide search | 20-50km | 12-14 | 5-6 |
+| Neighborhood search | 5-10km | 14-16 | 6-7 |
+| Local search | 1-5km | 16-18 | 7-8 |
+| Precise tracking | 100m-1km | 18-20 | 8-9 |
+| Asset tracking | < 100m | 20-22 | 9-10 |
+
+#### Decision Matrix
+
+**Step 1: Determine your maximum search radius**
+- What's the largest radius users will search?
+- Example: "Find stores within 10km"
+
+**Step 2: Calculate cell count for different precisions**
+```
+cellCount ≈ π × (radius / cellSize)²
+```
+
+**Step 3: Choose precision where cellCount < 100**
+- Target: 20-50 cells for optimal performance
+- Maximum: 100 cells (maxCells limit)
+- Avoid: > 100 cells (will be truncated, incomplete coverage)
+
+**Example Calculation:**
+```
+Radius: 10km
+S2 Level 14 (~6km cells): π × (10/6)² ≈ 11 cells ✅
+S2 Level 16 (~1.5km cells): π × (10/1.5)² ≈ 175 cells ⚠️ (will hit limit)
+S2 Level 18 (~400m cells): π × (10/0.4)² ≈ 2,500 cells 🚫 (way over limit)
+
+Recommendation: Use S2 Level 14
+```
+
+### Optimization Tips
+
+1. **Choose appropriate precision**: Use the decision matrix above - higher precision = more cells = slower paginated queries
+2. **Use non-paginated for small areas**: If you know the result set is small (<100 items), skip pagination
+3. **Limit search radius**: Smaller radius = fewer cells = faster queries
+4. **Consider precision vs radius ratio**: 
+   - Good: 5km radius with 1.5km cells (~44 cells)
+   - Bad: 50km radius with 1.5km cells (~4,400 cells - will hit maxCells limit)
+5. **Adjust maxCells if needed**: Default is 100, but you can increase it for non-paginated queries (at the cost of more parallel queries)
+6. **Monitor cell counts**: Log `TotalCellsQueried` in production to identify problematic queries
+7. **Consider multiple precision levels**: Store data at multiple precisions for different query types (e.g., Level 12 for city-wide, Level 16 for local)
+
+## Usage Examples
+
+### Basic Proximity Query with S2 (Non-Paginated)
+
+```csharp
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string PartitionKey { get; set; }
+    
+    [SortKey]
+    [DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation Location { get; set; }
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; }
+}
+
+// Find ALL stores within 5km (no pagination - fastest)
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: null  // No pagination - query all cells in parallel
+);
+
+Console.WriteLine($"Found {result.Items.Count} stores");
+Console.WriteLine($"Queried {result.TotalCellsQueried} cells in parallel");
+// Results are sorted by distance from center
+```
+
+### Basic Proximity Query with S2 (Paginated)
+
+```csharp
+// Find stores within 5km, paginated (50 per page)
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: 50  // Paginated - queries cells sequentially in spiral order
+);
+
+Console.WriteLine($"Found {result.Items.Count} stores (page 1)");
+Console.WriteLine($"Queried {result.TotalCellsQueried} cells");
+Console.WriteLine($"Has more: {result.ContinuationToken != null}");
+// Results are roughly sorted by distance (spiral ordering)
+```
+
+### Paginated Query with H3
+
+```csharp
+var center = new GeoLocation(37.7749, -122.4194);
+var allStores = new List<Store>();
+SpatialContinuationToken? token = null;
+
+do
+{
+    var result = await storeTable.SpatialQueryAsync(
+        spatialAttributeName: "location",
+        center: center,
+        radiusKilometers: 10,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: 100,
+        continuationToken: token
+    );
+    
+    allStores.AddRange(result.Items);
+    token = result.ContinuationToken;
+    
+    Console.WriteLine($"Fetched {result.Items.Count} items, total so far: {allStores.Count}");
+} while (token != null);
+
+Console.WriteLine($"Total stores found: {allStores.Count}");
+```
+
+### Bounding Box Query with Additional Filters
+
+```csharp
+var southwest = new GeoLocation(37.7, -122.5);
+var northeast = new GeoLocation(37.8, -122.4);
+var bbox = new GeoBoundingBox(southwest, northeast);
+
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    boundingBox: bbox,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => 
+            x.PartitionKey == "STORE" && 
+            x.Location == cell &&
+            x.IsOpen == true)
+        .Paginate(pagination),
+    pageSize: 50
+);
+
+// Results are already filtered by IsOpen and within the bounding box
+foreach (var store in result.Items)
+{
+    Console.WriteLine($"{store.Name}: {store.Location}");
+}
+```
+
+### Using with GSI (Global Secondary Index)
+
+```csharp
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    [DynamoDbAttribute("gsi1pk")]
+    public string Category { get; set; }
+    
+    [DynamoDbAttribute("gsi1sk", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 9)]
+    public GeoLocation Location { get; set; }
+}
+
+// Query by category and location using GSI
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.CategoryLocationIndex.SpatialQueryAsync(
+    spatialAttributeName: "gsi1sk",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.Category == "GROCERY" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: 50
+);
+```
+
+### Serializing Continuation Token for API Responses
+
+```csharp
+// In your API controller
+public async Task<IActionResult> GetNearbyStores(
+    double lat, 
+    double lon, 
+    double radiusKm,
+    string? continuationToken = null)
+{
+    var center = new GeoLocation(lat, lon);
+    var token = continuationToken != null 
+        ? SpatialContinuationToken.FromBase64(continuationToken)
+        : null;
+    
+    var result = await storeTable.SpatialQueryAsync(
+        spatialAttributeName: "location",
+        center: center,
+        radiusKilometers: radiusKm,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: 20,
+        continuationToken: token
+    );
+    
+    return Ok(new
+    {
+        items = result.Items,
+        nextToken = result.ContinuationToken?.ToBase64(),
+        hasMore = result.ContinuationToken != null
+    });
+}
+```
 
 ## Open Questions
 

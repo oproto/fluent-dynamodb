@@ -1,317 +1,595 @@
-# GeoHash Precision Guide
+# Precision and Resolution Selection Guide
 
-This guide helps you choose the right GeoHash precision level for your geospatial queries in DynamoDB.
+This guide helps you choose the optimal precision/resolution level for your spatial queries to balance accuracy with performance.
 
-## Understanding GeoHash Precision
+## Table of Contents
 
-GeoHash precision determines the size of the geographic cell that a hash represents. Higher precision means smaller cells and more accurate location representation, but also impacts query efficiency and storage.
+- [Understanding Cell Sizes](#understanding-cell-sizes)
+- [Query Explosion Warning](#query-explosion-warning)
+- [Cell Count Formula](#cell-count-formula)
+- [Decision Matrix](#decision-matrix)
+- [Real-World Scenarios](#real-world-scenarios)
+- [MaxCells Limit](#maxcells-limit)
+- [Trade-offs](#trade-offs)
 
-## Precision Levels Reference
+## Understanding Cell Sizes
 
-| Precision | Cell Width | Cell Height | Approximate Area | Example Use Case |
-|-----------|------------|-------------|------------------|------------------|
-| 1 | ±2500 km | ±2500 km | 5000 km × 5000 km | Continental-scale queries |
-| 2 | ±630 km | ±630 km | 1260 km × 1260 km | Country or large region queries |
-| 3 | ±78 km | ±156 km | 156 km × 156 km | State/province or large city area |
-| 4 | ±20 km | ±20 km | 40 km × 40 km | Metropolitan area queries |
-| 5 | ±2.4 km | ±4.9 km | 4.9 km × 4.9 km | City district or neighborhood |
-| **6** | **±0.61 km** | **±0.61 km** | **1.2 km × 1.2 km** | **Default - Urban district** |
-| 7 | ±0.076 km | ±0.153 km | 152 m × 152 m | Street or block level |
-| 8 | ±0.019 km | ±0.019 km | 38 m × 38 m | Building or venue level |
-| 9 | ±4.8 m | ±4.8 m | 9.6 m × 9.6 m | Precise location (room level) |
-| 10 | ±1.2 m | ±0.6 m | 1.2 m × 1.2 m | Very precise (parking spot) |
-| 11 | ±0.149 m | ±0.149 m | 30 cm × 30 cm | Sub-meter precision |
-| 12 | ±0.037 m | ±0.037 m | 7.4 cm × 7.4 cm | Centimeter precision |
+Spatial indices divide the Earth into cells at different precision levels. Higher precision = smaller cells = more accurate queries but more DynamoDB queries.
 
-## Choosing the Right Precision
+### GeoHash Precision Levels (1-12)
 
-### Common Scenarios
+| Precision | Cell Width | Cell Height | Area | Example Use Case |
+|-----------|------------|-------------|------|------------------|
+| 1 | ±2500 km | ±5000 km | Continental | Country-level |
+| 2 | ±630 km | ±1250 km | Regional | State/province |
+| 3 | ±78 km | ±156 km | Large city | Metropolitan area |
+| 4 | ±20 km | ±39 km | City | City-wide search |
+| 5 | ±2.4 km | ±4.9 km | Neighborhood | District search |
+| **6** | **±610 m** | **±1.2 km** | **~0.73 km²** | **Default - Local area** |
+| 7 | ±76 m | ±153 m | ~0.012 km² | Street-level |
+| 8 | ±19 m | ±38 m | ~0.0007 km² | Building-level |
+| 9 | ±4.8 m | ±4.8 m | ~0.00002 km² | Precise location |
+| 10 | ±1.2 m | ±0.6 m | Sub-meter | Very precise |
+| 11 | ±0.149 m | ±0.149 m | Centimeter | Extremely precise |
+| 12 | ±0.037 m | ±0.019 m | Millimeter | Maximum precision |
 
-#### Precision 4-5: City-Wide Services
-**Use Case**: Food delivery, ride-sharing city zones, weather services
+### S2 Levels (0-30)
 
+| Level | Cell Size (approx) | Area | Example Use Case |
+|-------|-------------------|------|------------------|
+| 0 | ~85,000 km | Entire face | Global |
+| 5 | ~2,700 km | Continental | Continent |
+| 8 | ~340 km | Regional | Large region |
+| 10 | ~100 km | ~10,000 km² | Metropolitan area |
+| 12 | ~25 km | ~625 km² | City-wide |
+| 14 | ~6 km | ~36 km² | District |
+| **16** | **~1.5 km** | **~2.25 km²** | **Default - Neighborhood** |
+| 18 | ~400 m | ~0.16 km² | Street-level |
+| 20 | ~100 m | ~0.01 km² | Building-level |
+| 22 | ~25 m | ~0.0006 km² | Precise location |
+| 24 | ~6 m | ~0.00004 km² | Very precise |
+| 26 | ~1.5 m | Sub-meter | Extremely precise |
+| 28 | ~40 cm | Centimeter | Maximum precision |
+| 30 | ~10 cm | Millimeter | Ultra-precise |
+
+### H3 Resolutions (0-15)
+
+| Resolution | Hexagon Edge | Area | Example Use Case |
+|------------|--------------|------|------------------|
+| 0 | ~1,108 km | ~4,357,449 km² | Global |
+| 1 | ~418 km | ~609,788 km² | Continental |
+| 2 | ~158 km | ~86,801 km² | Regional |
+| 3 | ~60 km | ~12,393 km² | Large region |
+| 4 | ~23 km | ~1,770 km² | Metropolitan |
+| 5 | ~8.5 km | ~253 km² | City-wide |
+| 6 | ~3.2 km | ~36 km² | District |
+| **7** | **~1.2 km** | **~5.2 km²** | **Default - Neighborhood** |
+| 8 | ~460 m | ~0.74 km² | Local area |
+| 9 | ~174 m | ~0.11 km² | Street-level |
+| 10 | ~66 m | ~0.015 km² | Building-level |
+| 11 | ~25 m | ~0.002 km² | Precise location |
+| 12 | ~9.4 m | ~0.0003 km² | Very precise |
+| 13 | ~3.5 m | ~0.00004 km² | Extremely precise |
+| 14 | ~1.3 m | Sub-meter | Maximum precision |
+| 15 | ~0.5 m | Centimeter | Ultra-precise |
+
+## Query Explosion Warning
+
+⚠️ **CRITICAL**: Choosing too high a precision for your search radius can cause "query explosion" - generating thousands of cells that make queries extremely slow or incomplete.
+
+### The Problem
+
+DynamoDB spatial queries work by:
+1. Computing which cells cover your search area
+2. Querying each cell individually
+3. Merging and deduplicating results
+
+**If you use small cells with a large radius, you'll need to query MANY cells!**
+
+### Cell Count Formula
+
+The approximate number of cells needed to cover a circular area:
+
+```
+cellCount ≈ π × (radius / cellSize)²
+```
+
+**Example Calculations:**
+
+**Good Example** - 10km radius with S2 Level 14 (~6km cells):
+```
+cellCount ≈ π × (10 / 6)² ≈ π × 2.78 ≈ 8.7 cells ✅
+```
+
+**Bad Example** - 10km radius with S2 Level 18 (~400m cells):
+```
+cellCount ≈ π × (10000 / 400)² ≈ π × 625 ≈ 1,963 cells 🚫
+```
+
+### Query Explosion Examples
+
+#### Example 1: 10km Radius with Different Precisions
+
+**GeoHash:**
+| Precision | Cell Size | Cell Count | Status |
+|-----------|-----------|------------|--------|
+| 4 | ~20 km | 1 cell | ✅ Excellent |
+| 5 | ~2.4 km | ~55 cells | ✅ Good |
+| 6 | ~610 m | ~350 cells | ⚠️ Warning - will hit maxCells limit |
+| 7 | ~76 m | ~22,000 cells | 🚫 Query explosion! |
+
+**S2:**
+| Level | Cell Size | Cell Count | Status |
+|-------|-----------|------------|--------|
+| 12 | ~25 km | 2 cells | ✅ Excellent |
+| 14 | ~6 km | 11 cells | ✅ Excellent |
+| 16 | ~1.5 km | 175 cells | ⚠️ Warning - will hit maxCells limit |
+| 18 | ~400 m | 2,500 cells | 🚫 Query explosion! |
+| 20 | ~100 m | 40,000 cells | 🚫 Extreme query explosion! |
+
+**H3:**
+| Resolution | Cell Edge | Cell Count | Status |
+|------------|-----------|------------|--------|
+| 5 | ~8.5 km | 6 cells | ✅ Excellent |
+| 6 | ~3.2 km | 40 cells | ✅ Good |
+| 7 | ~1.2 km | 280 cells | ⚠️ Warning - will hit maxCells limit |
+| 8 | ~460 m | 1,900 cells | 🚫 Query explosion! |
+| 9 | ~174 m | 13,000 cells | 🚫 Extreme query explosion! |
+
+#### Example 2: 50km Radius with Different Precisions
+
+**S2:**
+| Level | Cell Size | Cell Count | Status |
+|-------|-----------|------------|--------|
+| 10 | ~100 km | 1 cell | ✅ Excellent |
+| 12 | ~25 km | 16 cells | ✅ Excellent |
+| 14 | ~6 km | 275 cells | ⚠️ Warning - will hit maxCells limit |
+| 16 | ~1.5 km | 4,400 cells | 🚫 Query explosion! |
+| 18 | ~400 m | 62,500 cells | 🚫 Extreme query explosion! |
+
+**H3:**
+| Resolution | Cell Edge | Cell Count | Status |
+|------------|-----------|------------|--------|
+| 4 | ~23 km | 20 cells | ✅ Excellent |
+| 5 | ~8.5 km | 140 cells | ⚠️ Warning - will hit maxCells limit |
+| 6 | ~3.2 km | 1,000 cells | 🚫 Query explosion! |
+| 7 | ~1.2 km | 7,000 cells | 🚫 Extreme query explosion! |
+
+### What Happens During Query Explosion?
+
+1. **MaxCells Limit Hit**: Default limit is 100 cells
+   - Only the first 100 cells are queried
+   - **Your results are INCOMPLETE** - you're missing data!
+   - No error is thrown - you just get partial results
+
+2. **Slow Paginated Queries**: If you increase maxCells
+   - Each cell is queried sequentially in paginated mode
+   - 1,000 cells = 1,000 sequential DynamoDB queries
+   - At ~50ms per query = 50 seconds total!
+
+3. **High Costs**: More queries = higher DynamoDB costs
+   - 1,000 queries = 1,000 read capacity units consumed
+   - Can quickly exhaust provisioned capacity
+
+## Decision Matrix
+
+Use this matrix to choose the right precision for your search radius:
+
+### For GeoHash
+
+| Search Radius | Recommended Precision | Cell Count | Notes |
+|---------------|----------------------|------------|-------|
+| < 1 km | 6-7 | 1-10 | Excellent |
+| 1-5 km | 5-6 | 10-50 | Good |
+| 5-10 km | 4-5 | 20-100 | Acceptable |
+| 10-50 km | 3-4 | 50-200 | Use with caution |
+| > 50 km | 2-3 | 100+ | Consider S2/H3 |
+
+### For S2
+
+| Search Radius | Recommended Level | Cell Count | Notes |
+|---------------|------------------|------------|-------|
+| < 1 km | 18-20 | 1-10 | Excellent |
+| 1-5 km | 16-18 | 10-50 | Good |
+| 5-10 km | 14-16 | 20-100 | Acceptable |
+| 10-50 km | 12-14 | 50-200 | Good |
+| 50-100 km | 10-12 | 100-300 | Use with caution |
+| > 100 km | 8-10 | 200+ | Consider lower precision |
+
+### For H3
+
+| Search Radius | Recommended Resolution | Cell Count | Notes |
+|---------------|----------------------|------------|-------|
+| < 1 km | 10-11 | 1-10 | Excellent |
+| 1-5 km | 8-10 | 10-50 | Good |
+| 5-10 km | 7-8 | 20-100 | Acceptable |
+| 10-50 km | 5-7 | 50-200 | Good |
+| 50-100 km | 4-5 | 100-300 | Use with caution |
+| > 100 km | 2-4 | 200+ | Consider lower resolution |
+
+### Quick Reference Rules
+
+**Rule of Thumb**: Cell size should be **20-50% of your search radius**
+
+```
+Optimal cell size ≈ radius / 3
+```
+
+**Examples:**
+- 10km radius → ~3km cells → S2 Level 14 or H3 Resolution 6
+- 5km radius → ~1.5km cells → S2 Level 16 or H3 Resolution 7
+- 1km radius → ~300m cells → S2 Level 18 or H3 Resolution 9
+
+## Real-World Scenarios
+
+### Scenario 1: Restaurant Finder App
+
+**Requirements:**
+- Users search for restaurants within 5km
+- Need accurate results
+- Fast response time important
+
+**Recommendation:**
 ```csharp
-[DynamoDbAttribute("location", GeoHashPrecision = 5)]
+// S2 Level 16 (~1.5km cells)
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
 public GeoLocation Location { get; set; }
+
+// Cell count: π × (5 / 1.5)² ≈ 35 cells ✅
+// Query time: ~50ms (non-paginated, parallel)
 ```
 
-**Characteristics**:
-- Cell size: ~2-5 km
-- Good for: Broad city-area queries
-- Query efficiency: Excellent (few cells to scan)
-- Accuracy: Suitable for zone-based services
+**Why this works:**
+- 35 cells is well under the 100 cell limit
+- All queries execute in parallel
+- Results are accurate within 1.5km
+- Fast response time
 
-**Example**: Finding all delivery zones in a city
+### Scenario 2: Delivery Zone Management
+
+**Requirements:**
+- Define delivery zones for drivers
+- Zones are typically 10-20km radius
+- Need uniform coverage for visualization
+
+**Recommendation:**
 ```csharp
-var cityCenter = new GeoLocation(37.7749, -122.4194);
-var zones = await table.Query
-    .Where<Zone>(x => x.Location.WithinDistanceKilometers(cityCenter, 20))
-    .ExecuteAsync();
+// H3 Resolution 7 (~1.2km hexagons)
+[DynamoDbAttribute("zone_center", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 7)]
+public GeoLocation ZoneCenter { get; set; }
+
+// For 15km radius: π × (15 / 1.2)² ≈ 620 cells
+// This will hit maxCells limit!
 ```
 
-#### Precision 6-7: Neighborhood Services (Recommended Default)
-**Use Case**: Store locators, restaurant finders, local services
-
+**Better approach - use lower resolution:**
 ```csharp
-[DynamoDbAttribute("location", GeoHashPrecision = 6)]  // or 7
-public GeoLocation Location { get; set; }
+// H3 Resolution 6 (~3.2km hexagons)
+[DynamoDbAttribute("zone_center", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 6)]
+public GeoLocation ZoneCenter { get; set; }
+
+// For 15km radius: π × (15 / 3.2)² ≈ 70 cells ✅
+// Query time: ~50ms (non-paginated, parallel)
 ```
 
-**Characteristics**:
-- Cell size: ~150m - 1.2 km
-- Good for: Most location-based applications
-- Query efficiency: Very good
-- Accuracy: Suitable for "nearby" searches
+### Scenario 3: Global Asset Tracking
 
-**Example**: Finding nearby stores
+**Requirements:**
+- Track assets worldwide (including polar regions)
+- Queries vary from 1km to 100km radius
+- Need consistent performance
+
+**Recommendation - Multiple Precision Levels:**
 ```csharp
-var userLocation = new GeoLocation(37.7749, -122.4194);
-var nearbyStores = await storeTable.Query
-    .Where<Store>(x => x.Location.WithinDistanceKilometers(userLocation, 5))
-    .ExecuteAsync();
-```
-
-#### Precision 8-9: Precise Location Services
-**Use Case**: Asset tracking, parking spot finders, precise POI
-
-```csharp
-[DynamoDbAttribute("location", GeoHashPrecision = 8)]
-public GeoLocation Location { get; set; }
-```
-
-**Characteristics**:
-- Cell size: ~5-40 m
-- Good for: Building-level or precise location queries
-- Query efficiency: Good (more cells to scan)
-- Accuracy: High precision
-
-**Example**: Finding available parking spots
-```csharp
-var parkingLot = new GeoLocation(37.7749, -122.4194);
-var availableSpots = await spotTable.Query
-    .Where<ParkingSpot>(x => x.Location.WithinDistanceMeters(parkingLot, 100))
-    .ExecuteAsync();
-```
-
-#### Precision 10-12: High-Precision Tracking
-**Use Case**: Indoor positioning, drone tracking, surveying
-
-```csharp
-[DynamoDbAttribute("location", GeoHashPrecision = 10)]
-public GeoLocation Location { get; set; }
-```
-
-**Characteristics**:
-- Cell size: <1 m
-- Good for: Sub-meter precision requirements
-- Query efficiency: Lower (many cells to scan)
-- Accuracy: Very high precision
-
-**Example**: Indoor asset tracking
-```csharp
-var warehouseZone = new GeoLocation(37.7749, -122.4194);
-var assets = await assetTable.Query
-    .Where<Asset>(x => x.Location.WithinDistanceMeters(warehouseZone, 10))
-    .ExecuteAsync();
-```
-
-## Trade-offs and Considerations
-
-### Query Efficiency vs. Accuracy
-
-```
-Lower Precision (1-5)
-├── Pros: Fast queries, fewer DynamoDB reads, lower cost
-├── Cons: Less accurate, larger bounding boxes
-└── Best for: Broad area queries, city-level searches
-
-Medium Precision (6-7) ⭐ RECOMMENDED
-├── Pros: Good balance of speed and accuracy
-├── Cons: None for most use cases
-└── Best for: Most location-based applications
-
-Higher Precision (8-12)
-├── Pros: Very accurate, small bounding boxes
-├── Cons: More DynamoDB reads, higher cost, slower queries
-└── Best for: Precise location requirements
-```
-
-### Storage Considerations
-
-GeoHash strings are stored as DynamoDB string attributes:
-
-| Precision | Storage Size | Example |
-|-----------|--------------|---------|
-| 5 | 5 bytes | "9q8yy" |
-| 6 | 6 bytes | "9q8yy9" |
-| 7 | 7 bytes | "9q8yy9r" |
-| 8 | 8 bytes | "9q8yy9r0" |
-
-**Impact**: Minimal - the difference between precision levels is negligible for storage costs.
-
-### Query Cost Considerations
-
-Higher precision can increase query costs:
-
-1. **More Cells to Query**: Higher precision means smaller cells, potentially requiring queries across multiple cells for the same geographic area
-2. **Boundary Cases**: Locations near cell boundaries may require querying neighbor cells
-3. **DynamoDB Read Units**: More cells = more items scanned = higher read costs
-
-**Example**: A 5km radius query might span:
-- Precision 5: 1-4 cells
-- Precision 6: 4-9 cells
-- Precision 7: 9-25 cells
-- Precision 8: 25-100 cells
-
-## Best Practices
-
-### 1. Start with Precision 6 or 7
-
-The default precision of 6 is a good starting point for most applications:
-
-```csharp
-[DynamoDbAttribute("location", GeoHashPrecision = 6)]
-public GeoLocation Location { get; set; }
-```
-
-### 2. Match Precision to Query Radius
-
-Choose precision based on your typical query radius:
-
-| Typical Query Radius | Recommended Precision |
-|---------------------|----------------------|
-| > 10 km | 4-5 |
-| 1-10 km | 6 |
-| 100m - 1 km | 7 |
-| 10-100 m | 8 |
-| < 10 m | 9-10 |
-
-### 3. Consider Your Data Distribution
-
-- **Sparse data** (few locations): Use higher precision for accuracy
-- **Dense data** (many locations): Use lower precision to reduce query complexity
-
-### 4. Test with Your Data
-
-Benchmark different precision levels with your actual data:
-
-```csharp
-// Test query performance at different precisions
-var precisions = new[] { 5, 6, 7, 8 };
-foreach (var precision in precisions)
+public partial class Asset
 {
-    var stopwatch = Stopwatch.StartNew();
-    var results = await QueryWithPrecision(precision);
-    stopwatch.Stop();
+    // Low precision for large area queries (50-100km)
+    [DynamoDbAttribute("location_region", SpatialIndexType = SpatialIndexType.S2, S2Level = 12)]
+    public GeoLocation LocationRegion => Location;
     
-    Console.WriteLine($"Precision {precision}: {stopwatch.ElapsedMilliseconds}ms, {results.Count} results");
-}
-```
-
-### 5. Use Post-Filtering for Exact Distances
-
-GeoHash queries return rectangular bounding boxes. For circular queries, post-filter:
-
-```csharp
-var center = new GeoLocation(37.7749, -122.4194);
-var radiusKm = 5.0;
-
-// Query with bounding box (rectangular)
-var candidates = await storeTable.Query
-    .Where<Store>(x => x.Location.WithinDistanceKilometers(center, radiusKm))
-    .ExecuteAsync();
-
-// Post-filter for exact circular distance
-var exactResults = candidates
-    .Where(s => s.Location.DistanceToKilometers(center) <= radiusKm)
-    .OrderBy(s => s.Location.DistanceToKilometers(center))
-    .ToList();
-```
-
-## Advanced Scenarios
-
-### Variable Precision by Use Case
-
-Use different precision levels for different entity types:
-
-```csharp
-// Stores: Medium precision for neighborhood searches
-[DynamoDbTable("stores")]
-public partial class Store
-{
-    [DynamoDbAttribute("location", GeoHashPrecision = 6)]
+    // Medium precision for city queries (10-50km)
+    [DynamoDbAttribute("location_city", SpatialIndexType = SpatialIndexType.S2, S2Level = 14)]
+    public GeoLocation LocationCity => Location;
+    
+    // High precision for local queries (1-10km)
+    [DynamoDbAttribute("location_local", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation LocationLocal => Location;
+    
+    [DynamoDbAttribute("location")]
     public GeoLocation Location { get; set; }
 }
 
-// Parking spots: High precision for exact location
-[DynamoDbTable("parking-spots")]
-public partial class ParkingSpot
+// Query logic chooses appropriate attribute based on radius
+var attributeName = radiusKm switch
 {
-    [DynamoDbAttribute("location", GeoHashPrecision = 9)]
-    public GeoLocation Location { get; set; }
-}
+    <= 10 => "location_local",   // S2 Level 16
+    <= 50 => "location_city",    // S2 Level 14
+    _ => "location_region"       // S2 Level 12
+};
+```
 
-// Delivery zones: Low precision for broad areas
-[DynamoDbTable("delivery-zones")]
-public partial class DeliveryZone
+### Scenario 4: Store Locator with Variable Radius
+
+**Requirements:**
+- Users can search 1km, 5km, 10km, or 25km
+- Most searches are 5km
+- Need to optimize for common case
+
+**Recommendation:**
+```csharp
+// Optimize for 5km searches (most common)
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+public GeoLocation Location { get; set; }
+
+// Cell counts:
+// 1km: π × (1 / 1.5)² ≈ 2 cells ✅ Excellent
+// 5km: π × (5 / 1.5)² ≈ 35 cells ✅ Good
+// 10km: π × (10 / 1.5)² ≈ 140 cells ⚠️ Will hit maxCells limit
+// 25km: π × (25 / 1.5)² ≈ 870 cells 🚫 Query explosion
+```
+
+**Handle large radius queries differently:**
+```csharp
+public async Task<List<Store>> SearchStores(GeoLocation center, double radiusKm)
 {
-    [DynamoDbAttribute("location", GeoHashPrecision = 5)]
-    public GeoLocation Location { get; set; }
+    if (radiusKm > 10)
+    {
+        // For large radius, use bounding box instead
+        var bbox = GeoBoundingBox.FromCenterAndDistanceKilometers(center, radiusKm);
+        var result = await table.SpatialQueryAsync(
+            spatialAttributeName: "location",
+            boundingBox: bbox,
+            queryBuilder: ...,
+            pageSize: null
+        );
+        
+        // Post-filter by exact distance
+        return result.Items
+            .Where(s => s.Location.DistanceToKilometers(center) <= radiusKm)
+            .OrderBy(s => s.Location.DistanceToKilometers(center))
+            .ToList();
+    }
+    else
+    {
+        // For small radius, use proximity query
+        var result = await table.SpatialQueryAsync(
+            spatialAttributeName: "location",
+            center: center,
+            radiusKilometers: radiusKm,
+            queryBuilder: ...,
+            pageSize: null
+        );
+        
+        return result.Items;
+    }
 }
 ```
 
-### Handling Boundary Cases
+### Scenario 5: Real-Time Vehicle Tracking
 
-For critical applications, query neighbor cells to avoid missing results:
+**Requirements:**
+- Track vehicles in real-time
+- Need precise locations (within 50m)
+- Queries are typically 2-3km radius
+
+**Recommendation:**
+```csharp
+// H3 Resolution 10 (~66m hexagons)
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 10)]
+public GeoLocation Location { get; set; }
+
+// For 2km radius: π × (2000 / 66)² ≈ 2,900 cells 🚫
+// This is query explosion!
+```
+
+**Better approach - use lower resolution:**
+```csharp
+// H3 Resolution 9 (~174m hexagons)
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 9)]
+public GeoLocation Location { get; set; }
+
+// For 2km radius: π × (2000 / 174)² ≈ 415 cells ⚠️
+// Still too many! Will hit maxCells limit
+```
+
+**Best approach - use even lower resolution:**
+```csharp
+// H3 Resolution 8 (~460m hexagons)
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 8)]
+public GeoLocation Location { get; set; }
+
+// For 2km radius: π × (2000 / 460)² ≈ 60 cells ✅
+// Query time: ~50ms (non-paginated, parallel)
+// Accuracy: ±460m (acceptable for vehicle tracking)
+```
+
+## MaxCells Limit
+
+### What is MaxCells?
+
+The `maxCells` parameter limits the number of cells queried to prevent query explosion. Default is **100 cells**.
+
+### When MaxCells is Reached
+
+**Non-Paginated Mode:**
+```csharp
+var result = await table.SpatialQueryAsync(
+    center: center,
+    radiusKilometers: 10,
+    queryBuilder: ...,
+    pageSize: null,  // Non-paginated
+    maxCells: 100    // Default
+);
+
+// If 200 cells are needed:
+// - Only first 100 cells are queried
+// - Results are INCOMPLETE
+// - No error is thrown
+// - You're missing ~50% of the data!
+```
+
+**Paginated Mode:**
+```csharp
+var result = await table.SpatialQueryAsync(
+    center: center,
+    radiusKilometers: 10,
+    queryBuilder: ...,
+    pageSize: 50,    // Paginated
+    maxCells: 100    // Default
+);
+
+// If 200 cells are needed:
+// - Queries cells sequentially until pageSize reached
+// - May stop before reaching maxCells
+// - Continuation token allows resuming
+// - Eventually all cells will be queried across multiple pages
+```
+
+### Adjusting MaxCells
+
+You can increase maxCells, but be aware of the trade-offs:
 
 ```csharp
-var location = new GeoLocation(37.7749, -122.4194);
-var cell = location.ToGeoHashCell(7);
-var neighbors = cell.GetNeighbors();
+// Increase maxCells for non-paginated queries
+var result = await table.SpatialQueryAsync(
+    center: center,
+    radiusKilometers: 20,
+    queryBuilder: ...,
+    pageSize: null,
+    maxCells: 500    // Increased from 100
+);
 
-// Query all cells (center + 8 neighbors)
-var allCells = new[] { cell }.Concat(neighbors);
-var allResults = new List<Store>();
-
-foreach (var c in allCells)
-{
-    var results = await storeTable.Query
-        .Where($"location = :hash")
-        .WithValue(":hash", c.Hash)
-        .ExecuteAsync();
-    allResults.AddRange(results);
-}
-
-// Deduplicate and filter by actual distance
-var uniqueResults = allResults
-    .Distinct()
-    .Where(s => s.Location.DistanceToKilometers(location) <= 5)
-    .ToList();
+// Trade-offs:
+// ✅ More complete results
+// ❌ More parallel queries (higher memory usage)
+// ❌ Higher DynamoDB costs
+// ❌ Potential timeout issues
 ```
 
-## Performance Benchmarks
+### Monitoring MaxCells
 
-Typical performance characteristics (based on 10,000 locations):
+Always monitor if you're hitting the limit:
 
-| Precision | Avg Query Time | Items Scanned | Accuracy |
-|-----------|---------------|---------------|----------|
-| 5 | 15ms | 50-200 | ±2.4 km |
-| 6 | 20ms | 100-400 | ±0.61 km |
-| 7 | 30ms | 200-800 | ±0.15 km |
-| 8 | 50ms | 400-1600 | ±0.04 km |
+```csharp
+var result = await table.SpatialQueryAsync(...);
 
-*Note: Actual performance depends on data distribution, DynamoDB configuration, and query patterns.*
+if (result.TotalCellsQueried >= maxCells)
+{
+    Console.WriteLine($"⚠️ WARNING: Hit maxCells limit!");
+    Console.WriteLine($"Results may be incomplete.");
+    Console.WriteLine($"Consider:");
+    Console.WriteLine($"  - Reducing search radius");
+    Console.WriteLine($"  - Lowering precision level");
+    Console.WriteLine($"  - Increasing maxCells (with caution)");
+}
+```
+
+## Trade-offs
+
+### Higher Precision (Smaller Cells)
+
+**Advantages:**
+- ✅ More accurate results
+- ✅ Less post-filtering needed
+- ✅ Better for small search areas
+
+**Disadvantages:**
+- ❌ More cells to query
+- ❌ Slower paginated queries
+- ❌ Higher DynamoDB costs
+- ❌ Risk of hitting maxCells limit
+- ❌ Incomplete results if limit is hit
+
+### Lower Precision (Larger Cells)
+
+**Advantages:**
+- ✅ Fewer cells to query
+- ✅ Faster queries
+- ✅ Lower DynamoDB costs
+- ✅ Better for large search areas
+- ✅ Less likely to hit maxCells limit
+
+**Disadvantages:**
+- ❌ Less accurate results
+- ❌ More post-filtering needed
+- ❌ May return items outside search area
+
+### The Sweet Spot
+
+**Optimal Configuration:**
+- Cell size ≈ radius / 3
+- Cell count: 20-50 cells
+- Query time: ~50ms
+- Accuracy: Within 1-2 cell sizes
+
+**Example:**
+```csharp
+// 5km radius with S2 Level 16 (~1.5km cells)
+// Cell count: ~35 cells
+// Accuracy: ±1.5km
+// Query time: ~50ms
+// Perfect balance! ✅
+```
+
+## Calculation Tool
+
+Use this formula to estimate cell count before deploying:
+
+```csharp
+public static int EstimateCellCount(double radiusKm, double cellSizeKm)
+{
+    return (int)Math.Ceiling(Math.PI * Math.Pow(radiusKm / cellSizeKm, 2));
+}
+
+// Example usage:
+var cellCount = EstimateCellCount(radiusKm: 10, cellSizeKm: 1.5);
+Console.WriteLine($"Estimated cells: {cellCount}");
+
+if (cellCount > 100)
+{
+    Console.WriteLine("⚠️ WARNING: Will hit maxCells limit!");
+    Console.WriteLine($"Recommend using larger cells.");
+    
+    // Calculate recommended cell size
+    var recommendedCellSize = radiusKm / 3;
+    Console.WriteLine($"Recommended cell size: ~{recommendedCellSize:F1}km");
+}
+```
 
 ## Summary
 
-- **Default to precision 6-7** for most applications
-- **Lower precision (4-5)** for city-wide or regional queries
-- **Higher precision (8-10)** for building-level or precise tracking
-- **Always post-filter** for exact circular distance queries
-- **Test with your data** to find the optimal precision
-- **Consider query costs** when choosing higher precision levels
+### Key Takeaways
 
-For more information, see:
-- [README.md](README.md) - Getting started guide
-- [EXAMPLES.md](EXAMPLES.md) - Usage examples
-- [LIMITATIONS.md](LIMITATIONS.md) - Known limitations and edge cases
+1. **Cell size should be 20-50% of search radius**
+2. **Target 20-50 cells for optimal performance**
+3. **Watch out for query explosion with high precision + large radius**
+4. **Monitor TotalCellsQueried in production**
+5. **Consider multiple precision levels for varying search radii**
+6. **MaxCells limit (default 100) prevents runaway queries**
+7. **Non-paginated mode is fastest but uses more memory**
+8. **Paginated mode is slower but memory-efficient**
+
+### Quick Decision Guide
+
+**Small search area (< 5km):**
+- Use high precision (S2 Level 16-18, H3 Resolution 9-10)
+- Non-paginated mode for speed
+- ~10-50 cells
+
+**Medium search area (5-20km):**
+- Use medium precision (S2 Level 14-16, H3 Resolution 7-8)
+- Non-paginated or paginated depending on result size
+- ~50-100 cells
+
+**Large search area (> 20km):**
+- Use low precision (S2 Level 12-14, H3 Resolution 5-7)
+- Paginated mode recommended
+- ~100-200 cells (watch maxCells limit!)
+
+**When in doubt, start with defaults and adjust based on monitoring!**
+
+## Additional Resources
+
+- [S2 and H3 Usage Guide](S2_H3_USAGE_GUIDE.md) - Choosing between index types
+- [Performance Guide](PERFORMANCE_GUIDE.md) - Query optimization
+- [Examples](EXAMPLES.md) - Code examples for different scenarios

@@ -1,16 +1,19 @@
 # Oproto.FluentDynamoDb.Geospatial
 
-Geospatial query support for Oproto.FluentDynamoDb using GeoHash encoding. This package enables efficient location-based queries in DynamoDB with type-safe APIs and seamless integration with the FluentDynamoDb library.
+Geospatial query support for Oproto.FluentDynamoDb with multiple spatial indexing systems. This package enables efficient location-based queries in DynamoDB with type-safe APIs and seamless integration with the FluentDynamoDb library.
 
 ## Features
 
+- **Multiple Spatial Index Types**: Choose between GeoHash, S2, and H3 based on your needs
 - **GeoLocation Type**: Type-safe geographic coordinates with validation
 - **Distance Calculations**: Built-in Haversine formula for accurate distance calculations in meters, kilometers, and miles
-- **GeoHash Encoding**: Efficient encoding/decoding for DynamoDB storage and queries
+- **Flexible Encoding**: GeoHash, S2 (Google), and H3 (Uber) spatial indexing systems
 - **Lambda Expression Queries**: Type-safe proximity and bounding box queries
 - **Bounding Box Support**: Create rectangular geographic areas for queries
+- **Coordinate Storage**: Optional full-resolution coordinate storage alongside spatial indices
+- **Pagination Support**: Efficient paginated queries with spiral ordering
 - **AOT Compatible**: Works with Native AOT compilation
-- **Zero External Dependencies**: Custom GeoHash implementation with no external geospatial libraries
+- **Zero External Dependencies**: Custom implementations with no external geospatial libraries
 
 ## Installation
 
@@ -28,6 +31,9 @@ Or add to your `.csproj` file:
 
 ### 1. Define Your Entity
 
+Choose your spatial index type based on your needs:
+
+**Option A: GeoHash (Simple, Fast)**
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
@@ -40,6 +46,40 @@ public partial class Store
     public string StoreId { get; set; }
     
     [DynamoDbAttribute("location", GeoHashPrecision = 7)]
+    public GeoLocation Location { get; set; }
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; }
+}
+```
+
+**Option B: S2 (Global Coverage, Better at Poles)**
+```csharp
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    [DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation Location { get; set; }
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; }
+}
+```
+
+**Option C: H3 (Hexagonal, Most Uniform Coverage)**
+```csharp
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    [DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 9)]
     public GeoLocation Location { get; set; }
     
     [DynamoDbAttribute("name")]
@@ -64,6 +104,7 @@ await storeTable.Put.Item(store).ExecuteAsync();
 
 ### 3. Query by Proximity
 
+**GeoHash (Legacy Lambda Expression API):**
 ```csharp
 using Oproto.FluentDynamoDb.Geospatial.GeoHash;
 
@@ -77,6 +118,30 @@ var nearbyStores = await storeTable.Query
 var sortedStores = nearbyStores
     .OrderBy(s => s.Location.DistanceToKilometers(center))
     .ToList();
+```
+
+**S2 and H3 (New SpatialQueryAsync API):**
+```csharp
+using Oproto.FluentDynamoDb.Geospatial;
+
+// Find ALL stores within 5km (non-paginated - fastest)
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: null  // No pagination - queries all cells in parallel
+);
+
+// Results are automatically sorted by distance
+foreach (var store in result.Items)
+{
+    var distance = store.Location.DistanceToKilometers(center);
+    Console.WriteLine($"{store.Name}: {distance:F2}km away");
+}
 ```
 
 ## Basic Usage Examples
@@ -154,24 +219,66 @@ var stores = await storeTable.Query
     .ExecuteAsync();
 ```
 
-## GeoHash Precision Guide
+## Choosing a Spatial Index Type
 
-Choose the right precision level for your use case:
+### Quick Comparison
 
-| Precision | Cell Size | Accuracy | Use Case |
-|-----------|-----------|----------|----------|
-| 1 | ±2500 km | Continental | Country-level queries |
-| 2 | ±630 km | Regional | State/province queries |
-| 3 | ±78 km | City | Large city queries |
-| 4 | ±20 km | District | City queries |
-| 5 | ±2.4 km | Neighborhood | Neighborhood queries |
-| **6** | **±0.61 km** | **District** | **Default - Most common** |
-| 7 | ±0.076 km | Street | Street-level queries |
-| 8 | ±0.019 km | Building | Building-level queries |
-| 9 | ±4.8 m | Precise | Precise location queries |
-| 10-12 | <1 m | Very Precise | Sub-meter precision |
+| Feature | GeoHash | S2 | H3 |
+|---------|---------|----|----|
+| **Cell Shape** | Rectangle | Square | Hexagon |
+| **Precision Levels** | 1-12 | 0-30 | 0-15 |
+| **Default** | 6 (~610m) | 16 (~1.5km) | 9 (~174m) |
+| **Query Type** | Single BETWEEN | Multiple queries | Multiple queries |
+| **Best For** | Simple queries | Global coverage | Uniform coverage |
+| **Pole Handling** | Poor | Good | Excellent |
 
-**Recommendation**: Use precision 6-7 for most applications. Higher precision increases storage and may reduce query efficiency.
+### When to Use Each
+
+**Use GeoHash when:**
+- ✅ Simple proximity queries
+- ✅ Low latency critical (single query)
+- ✅ Mid-latitude locations
+- ✅ Backward compatibility needed
+
+**Use S2 when:**
+- ✅ Global coverage needed
+- ✅ Polar regions important
+- ✅ Hierarchical queries
+- ✅ Area uniformity matters
+
+**Use H3 when:**
+- ✅ Most uniform coverage needed
+- ✅ Hexagonal neighbors important
+- ✅ Grid analysis required
+- ✅ Visual appeal matters
+
+### Precision Guide
+
+**GeoHash:**
+| Precision | Cell Size | Use Case |
+|-----------|-----------|----------|
+| 5 | ~2.4 km | Neighborhood |
+| **6** | **~610 m** | **Default - District** |
+| 7 | ~76 m | Street-level |
+| 8 | ~19 m | Building-level |
+
+**S2:**
+| Level | Cell Size | Use Case |
+|-------|-----------|----------|
+| 14 | ~6 km | District |
+| **16** | **~1.5 km** | **Default - Neighborhood** |
+| 18 | ~400 m | Street-level |
+| 20 | ~100 m | Building-level |
+
+**H3:**
+| Resolution | Cell Edge | Use Case |
+|------------|-----------|----------|
+| 7 | ~1.2 km | Neighborhood |
+| 8 | ~460 m | Local area |
+| **9** | **~174 m** | **Default - Street-level** |
+| 10 | ~66 m | Building-level |
+
+**⚠️ Warning**: Higher precision = more cells = slower paginated queries. See [Precision Guide](PRECISION_GUIDE.md) for details.
 
 ## Important Limitations
 
@@ -202,13 +309,99 @@ Choose the right precision level for your use case:
 - **Memory**: All types are readonly structs with minimal heap allocations
 - **Caching**: Consider caching frequently used GeoHash values for hot paths
 
+## Advanced Features
+
+### Paginated Queries
+
+For large result sets, use pagination:
+
+```csharp
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 10,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: 50  // Paginated - queries cells sequentially in spiral order
+);
+
+Console.WriteLine($"Found {result.Items.Count} stores (page 1)");
+Console.WriteLine($"Has more: {result.ContinuationToken != null}");
+
+// Get next page
+if (result.ContinuationToken != null)
+{
+    var nextPage = await storeTable.SpatialQueryAsync(
+        spatialAttributeName: "location",
+        center: center,
+        radiusKilometers: 10,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: 50,
+        continuationToken: result.ContinuationToken
+    );
+}
+```
+
+### Storing Exact Coordinates
+
+Preserve full-resolution coordinates alongside spatial indices:
+
+```csharp
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    // Spatial index for queries
+    [DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation Location { get; set; }
+    
+    // Store exact coordinates
+    [DynamoDbAttribute("location_lat")]
+    public double LocationLatitude => Location.Latitude;
+    
+    [DynamoDbAttribute("location_lon")]
+    public double LocationLongitude => Location.Longitude;
+}
+
+// Deserialization automatically uses exact coordinates if available
+// Falls back to spatial index (cell center) if coordinates are missing
+```
+
+### Working with Cells Directly
+
+```csharp
+using Oproto.FluentDynamoDb.Geospatial.S2;
+using Oproto.FluentDynamoDb.Geospatial.H3;
+
+var location = new GeoLocation(37.7749, -122.4194);
+
+// S2 cells
+var s2Cell = location.ToS2Cell(level: 16);
+var s2Neighbors = s2Cell.GetNeighbors();  // 8 neighbors
+var s2Parent = s2Cell.GetParent();        // Level 15
+var s2Children = s2Cell.GetChildren();    // 4 children
+
+// H3 cells
+var h3Cell = location.ToH3Cell(resolution: 9);
+var h3Neighbors = h3Cell.GetNeighbors();  // 6 neighbors (hexagons)
+var h3Parent = h3Cell.GetParent();        // Resolution 8
+var h3Children = h3Cell.GetChildren();    // 7 children
+```
+
 ## Documentation
 
 For comprehensive documentation, examples, and advanced usage patterns, see:
-- [Full Documentation](https://github.com/yourusername/Oproto.FluentDynamoDb/docs)
-- [API Reference](https://github.com/yourusername/Oproto.FluentDynamoDb/docs/api)
-- [Precision Guide](https://github.com/yourusername/Oproto.FluentDynamoDb/docs/geospatial/precision-guide.md)
-- [Usage Examples](https://github.com/yourusername/Oproto.FluentDynamoDb/docs/geospatial/examples.md)
+- [S2 and H3 Usage Guide](S2_H3_USAGE_GUIDE.md) - Choosing between index types
+- [Precision Selection Guide](PRECISION_GUIDE.md) - Choosing precision levels and avoiding query explosion
+- [Performance Guide](PERFORMANCE_GUIDE.md) - Query optimization and performance tuning
+- [Coordinate Storage Guide](COORDINATE_STORAGE_GUIDE.md) - Storing full-resolution coordinates
+- [Examples](EXAMPLES.md) - More code examples and patterns
 
 ## Requirements
 

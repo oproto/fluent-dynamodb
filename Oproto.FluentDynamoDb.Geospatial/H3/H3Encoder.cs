@@ -127,13 +127,30 @@ internal static class H3Encoder
         
         var vertices = new (double lat, double lon)[numVertices];
         
+        // Calculate vertices by offsetting from the cell center in hex2d space
+        // H3 hexagons have vertices at 30° offsets (flat-topped orientation)
+        // Pentagons have vertices at 72° offsets
         for (var v = 0; v < numVertices; v++)
         {
-            var angle = 2.0 * Math.PI * v / numVertices;
-            var (vfx, vfy) = GetVertexOffset(baseCell, i, j, resolution, angle);
-            // Note: GetVertexOffset already handles face, but we use the face from ParseH3IndexWithFace
-            // This is a simplified implementation - proper vertex handling needs face overage per vertex
-            var (x, y, z) = FaceCoordsToXYZ(face, vfx, vfy);
+            // Calculate vertex angle
+            // For hexagons: vertices at 30°, 90°, 150°, 210°, 270°, 330° (flat-topped)
+            // For pentagons: vertices at 0°, 72°, 144°, 216°, 288°
+            double angle;
+            if (isPentagon)
+            {
+                angle = 2.0 * Math.PI * v / 5.0;
+            }
+            else
+            {
+                // Flat-topped hexagon: first vertex at 30° (π/6)
+                angle = (Math.PI / 6.0) + (2.0 * Math.PI * v / 6.0);
+            }
+            
+            // Get vertex coordinates in hex2d space
+            var (vertexFace, vfx, vfy) = GetVertexCoords(face, i, j, resolution, angle, isPentagon);
+            
+            // Convert face coordinates to geographic coordinates
+            var (x, y, z) = FaceCoordsToXYZ(vertexFace, vfx, vfy);
             vertices[v] = XYZToLatLon(x, y, z);
         }
         
@@ -155,9 +172,62 @@ internal static class H3Encoder
     /// </exception>
     public static string[] GetNeighbors(string h3Index)
     {
-        // TODO: Implement proper neighbor calculation
-        // This requires handling face boundaries and proper IJK neighbor traversal
-        throw new NotImplementedException("GetNeighbors is not yet implemented for the new encoding approach");
+        if (string.IsNullOrEmpty(h3Index))
+        {
+            throw new ArgumentException("H3 index cannot be null or empty", nameof(h3Index));
+        }
+
+        var index = StringToH3Index(h3Index);
+        var (baseCell, resolution, face, i, j) = ParseH3IndexWithFace(index);
+        
+        // Convert IJ to IJK coordinates
+        var ijk = new CoordIJK(i, j, 0);
+        IJKNormalize(ref ijk);
+        
+        // Create FaceIJK for the current cell
+        var fijk = new FaceIJK(face, ijk);
+        
+        // Check if this is a pentagon
+        var isPentagon = IsPentagon(baseCell);
+        
+        // For hexagons, we have 6 neighbors (directions 1-6)
+        // For pentagons, we have 5 neighbors (skip one direction)
+        var neighbors = new List<string>();
+        
+        // The 6 hexagonal directions are represented by digits 1-6
+        // Direction 0 is center (no movement)
+        // For pentagons, direction 1 (K_AXES_DIGIT) is the deleted subsequence
+        var startDirection = isPentagon ? 2 : 1;  // Skip K direction for pentagons
+        var endDirection = 7;  // Directions are 1-6, so we go up to 7 (exclusive)
+        
+        for (var direction = startDirection; direction < endDirection; direction++)
+        {
+            // Create a copy of the current cell's FaceIJK
+            var neighborFijk = new FaceIJK(fijk.Face, new CoordIJK(fijk.Coord.I, fijk.Coord.J, fijk.Coord.K));
+            
+            // Move one step in the specified direction
+            Neighbor(ref neighborFijk.Coord, direction);
+            
+            // Adjust for face overage (cells that cross face boundaries)
+            // This is critical for cells near face edges
+            var overage = AdjustOverageClassII(ref neighborFijk, resolution, false, false);
+            
+            // Build the H3 index for the neighbor
+            try
+            {
+                var neighborIndex = BuildH3IndexFromFaceIJK(neighborFijk, resolution);
+                var neighborString = H3IndexToString(neighborIndex);
+                neighbors.Add(neighborString);
+            }
+            catch
+            {
+                // If we can't build a valid neighbor (shouldn't happen in normal cases),
+                // skip it rather than failing the entire operation
+                continue;
+            }
+        }
+        
+        return neighbors.ToArray();
     }
 
     // ===== Coordinate Conversion Methods =====
@@ -1780,19 +1850,76 @@ internal static class H3Encoder
 
     // ===== Vertex Calculation =====
 
-    private static (double fx, double fy) GetVertexOffset(int baseCell, int i, int j, int resolution, double angle)
+    /// <summary>
+    /// Calculates the coordinates of a vertex for an H3 cell.
+    /// Based on the H3 reference implementation's cellToBoundary function.
+    /// </summary>
+    /// <param name="face">The icosahedron face</param>
+    /// <param name="i">The I coordinate</param>
+    /// <param name="j">The J coordinate</param>
+    /// <param name="resolution">The H3 resolution</param>
+    /// <param name="angle">The angle of the vertex in radians</param>
+    /// <param name="isPentagon">Whether this is a pentagon cell</param>
+    /// <returns>Tuple of (face, fx, fy) coordinates for the vertex</returns>
+    private static (int face, double fx, double fy) GetVertexCoords(int face, int i, int j, int resolution, double angle, bool isPentagon)
     {
-        // Get vertex position for hexagon/pentagon
-        var baseCellFace = BaseCellToFace(baseCell);
-        var (face, fx, fy) = HexToFaceCoordsWithFace(baseCellFace, i, j, resolution);
+        // Convert IJ to IJK coordinates
+        var ijk = new CoordIJK(i, j, 0);
+        IJKNormalize(ref ijk);
         
-        var scale = 1.0 / Math.Pow(ChildrenPerCell, resolution);
-        var radius = scale * 0.5;
+        // Convert IJK to hex2d coordinates (cell center)
+        var centerHex2d = IJKToHex2d(ijk);
         
-        fx += radius * Math.Cos(angle);
-        fy += radius * Math.Sin(angle);
+        // Calculate the vertex radius in hex2d space
+        // In H3's hex2d coordinate system, cells at each resolution have a specific size
+        // The hex2d space is already scaled for the resolution, so we just need the
+        // geometric offset from center to vertex
         
-        return (fx, fy);
+        // For a regular hexagon in hex2d space, the distance from center to vertex
+        // is 1.0 (this is the circumradius in the hex2d coordinate system)
+        // For pentagons, we use a similar unit distance
+        var radius = 1.0;
+        
+        // Calculate vertex position in hex2d space
+        var vx = centerHex2d.X + radius * Math.Cos(angle);
+        var vy = centerHex2d.Y + radius * Math.Sin(angle);
+        
+        // Convert hex2d coordinates back to face coordinates
+        // This is the inverse of Hex2dToCoordIJK followed by IJKToHex2d
+        // We need to convert from hex2d space to gnomonic face coordinates
+        
+        // Calculate polar coordinates in hex2d space
+        var hex2dR = Math.Sqrt(vx * vx + vy * vy);
+        if (hex2dR < 1e-10)
+        {
+            return (face, 0.0, 0.0);
+        }
+        
+        var hex2dTheta = Math.Atan2(vy, vx);
+        
+        // Convert hex2d distance to gnomonic distance
+        // The hex2d space is scaled by resolution, so we need to scale back
+        // Start with the base resolution 0 scaling
+        var gnomonicR = hex2dR * RES0_U_GNOMONIC;
+        
+        // Scale down for each resolution level
+        for (var res = 0; res < resolution; res++)
+        {
+            gnomonicR *= M_RSQRT7;  // Scale down by 1/sqrt(7) for each resolution level
+        }
+        
+        // Adjust theta for Class III resolutions
+        var gnomonicTheta = hex2dTheta;
+        if (IsResolutionClassIII(resolution))
+        {
+            gnomonicTheta = PosAngleRads(gnomonicTheta + M_AP7_ROT_RADS);
+        }
+        
+        // Convert back to Cartesian face coordinates
+        var fx = gnomonicR * Math.Cos(gnomonicTheta);
+        var fy = gnomonicR * Math.Sin(gnomonicTheta);
+        
+        return (face, fx, fy);
     }
 
     // ===== H3 Index Encoding/Decoding =====

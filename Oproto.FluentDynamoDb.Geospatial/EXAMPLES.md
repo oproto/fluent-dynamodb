@@ -778,3 +778,674 @@ private string GetCachedGeoHash(GeoLocation location, int precision)
 - [README.md](README.md) - Getting started guide
 - [PRECISION_GUIDE.md](PRECISION_GUIDE.md) - Choosing the right precision
 - [LIMITATIONS.md](LIMITATIONS.md) - Known limitations and edge cases
+
+
+## S2 and H3 Examples
+
+### Entity Definition with S2
+
+```csharp
+using Oproto.FluentDynamoDb.Attributes;
+using Oproto.FluentDynamoDb.Geospatial;
+
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    // S2 spatial index for queries
+    [DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation Location { get; set; }
+    
+    // Optional: Store exact coordinates
+    [DynamoDbAttribute("location_lat")]
+    public double LocationLatitude => Location.Latitude;
+    
+    [DynamoDbAttribute("location_lon")]
+    public double LocationLongitude => Location.Longitude;
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; }
+}
+```
+
+### Entity Definition with H3
+
+```csharp
+[DynamoDbTable("delivery_zones")]
+public partial class DeliveryZone
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string ZoneId { get; set; }
+    
+    // H3 spatial index for queries
+    [DynamoDbAttribute("center", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 9)]
+    public GeoLocation Center { get; set; }
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; }
+    
+    [DynamoDbAttribute("radius_km")]
+    public double RadiusKm { get; set; }
+}
+```
+
+### Non-Paginated Proximity Query (Fastest)
+
+```csharp
+using Oproto.FluentDynamoDb.Geospatial;
+
+// Find ALL stores within 5km - fastest approach
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: null  // No pagination - queries all cells in parallel
+);
+
+Console.WriteLine($"Found {result.Items.Count} stores");
+Console.WriteLine($"Queried {result.TotalCellsQueried} cells in parallel");
+Console.WriteLine($"Scanned {result.TotalItemsScanned} items");
+
+// Results are automatically sorted by distance from center
+foreach (var store in result.Items.Take(10))
+{
+    var distance = store.Location.DistanceToKilometers(center);
+    Console.WriteLine($"{store.Name}: {distance:F2}km away");
+}
+```
+
+### Paginated Proximity Query (Memory Efficient)
+
+```csharp
+// Find stores within 10km, paginated (50 per page)
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 10,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: 50  // Paginated - queries cells sequentially in spiral order
+);
+
+Console.WriteLine($"Found {result.Items.Count} stores (page 1)");
+Console.WriteLine($"Queried {result.TotalCellsQueried} cells");
+Console.WriteLine($"Has more results: {result.ContinuationToken != null}");
+
+// Get next page if available
+if (result.ContinuationToken != null)
+{
+    var nextPage = await storeTable.SpatialQueryAsync(
+        spatialAttributeName: "location",
+        center: center,
+        radiusKilometers: 10,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: 50,
+        continuationToken: result.ContinuationToken
+    );
+    
+    Console.WriteLine($"Found {nextPage.Items.Count} more stores (page 2)");
+}
+```
+
+### Paginated Query - Fetching All Pages
+
+```csharp
+var center = new GeoLocation(37.7749, -122.4194);
+var allStores = new List<Store>();
+SpatialContinuationToken? token = null;
+int pageNumber = 1;
+
+do
+{
+    var result = await storeTable.SpatialQueryAsync(
+        spatialAttributeName: "location",
+        center: center,
+        radiusKilometers: 10,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: 50,
+        continuationToken: token
+    );
+    
+    allStores.AddRange(result.Items);
+    token = result.ContinuationToken;
+    
+    Console.WriteLine($"Page {pageNumber}: {result.Items.Count} items");
+    pageNumber++;
+} while (token != null);
+
+Console.WriteLine($"Total stores found: {allStores.Count}");
+```
+
+### Bounding Box Query with S2
+
+```csharp
+// Define a rectangular area
+var southwest = new GeoLocation(37.7, -122.5);
+var northeast = new GeoLocation(37.8, -122.4);
+var bbox = new GeoBoundingBox(southwest, northeast);
+
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    boundingBox: bbox,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: null  // Get all results
+);
+
+Console.WriteLine($"Found {result.Items.Count} stores in bounding box");
+```
+
+### Working with S2 Cells
+
+```csharp
+using Oproto.FluentDynamoDb.Geospatial.S2;
+
+var location = new GeoLocation(37.7749, -122.4194);
+
+// Convert to S2 cell
+var cell = location.ToS2Cell(level: 16);
+Console.WriteLine($"S2 Token: {cell.Token}");
+Console.WriteLine($"Level: {cell.Level}");
+Console.WriteLine($"Bounds: {cell.Bounds}");
+
+// Get neighboring cells (8 neighbors for S2)
+var neighbors = cell.GetNeighbors();
+Console.WriteLine($"Found {neighbors.Length} neighbors");
+
+foreach (var neighbor in neighbors)
+{
+    Console.WriteLine($"  Neighbor: {neighbor.Token}");
+}
+
+// Get parent cell (lower precision)
+var parent = cell.GetParent();
+Console.WriteLine($"Parent token: {parent.Token} (level {parent.Level})");
+
+// Get child cells (4 children for S2)
+var children = cell.GetChildren();
+Console.WriteLine($"Found {children.Length} children");
+
+foreach (var child in children)
+{
+    Console.WriteLine($"  Child: {child.Token} (level {child.Level})");
+}
+```
+
+### Working with H3 Cells
+
+```csharp
+using Oproto.FluentDynamoDb.Geospatial.H3;
+
+var location = new GeoLocation(37.7749, -122.4194);
+
+// Convert to H3 cell
+var cell = location.ToH3Cell(resolution: 9);
+Console.WriteLine($"H3 Index: {cell.Index}");
+Console.WriteLine($"Resolution: {cell.Resolution}");
+Console.WriteLine($"Bounds: {cell.Bounds}");
+
+// Get neighboring cells (6 neighbors for hexagons, 5 for pentagons)
+var neighbors = cell.GetNeighbors();
+Console.WriteLine($"Found {neighbors.Length} neighbors");
+
+foreach (var neighbor in neighbors)
+{
+    Console.WriteLine($"  Neighbor: {neighbor.Index}");
+}
+
+// Get parent cell (lower resolution)
+var parent = cell.GetParent();
+Console.WriteLine($"Parent index: {parent.Index} (resolution {parent.Resolution})");
+
+// Get child cells (7 children for H3 aperture-7)
+var children = cell.GetChildren();
+Console.WriteLine($"Found {children.Length} children");
+
+foreach (var child in children)
+{
+    Console.WriteLine($"  Child: {child.Index} (resolution {child.Resolution})");
+}
+```
+
+### Encoding and Decoding with All Three Systems
+
+```csharp
+using Oproto.FluentDynamoDb.Geospatial.GeoHash;
+using Oproto.FluentDynamoDb.Geospatial.S2;
+using Oproto.FluentDynamoDb.Geospatial.H3;
+
+var location = new GeoLocation(37.7749, -122.4194);
+
+// Encode with all three systems
+var geohash = location.ToGeoHash(precision: 7);
+var s2Token = location.ToS2Token(level: 16);
+var h3Index = location.ToH3Index(resolution: 9);
+
+Console.WriteLine($"Original: {location}");
+Console.WriteLine($"GeoHash: {geohash}");
+Console.WriteLine($"S2 Token: {s2Token}");
+Console.WriteLine($"H3 Index: {h3Index}");
+
+// Decode back to locations
+var fromGeoHash = GeoLocation.FromGeoHash(geohash);
+var fromS2 = GeoLocation.FromS2Token(s2Token);
+var fromH3 = GeoLocation.FromH3Index(h3Index);
+
+// Calculate precision loss
+Console.WriteLine($"\nPrecision Loss:");
+Console.WriteLine($"GeoHash: {location.DistanceToMeters(fromGeoHash):F2}m");
+Console.WriteLine($"S2: {location.DistanceToMeters(fromS2):F2}m");
+Console.WriteLine($"H3: {location.DistanceToMeters(fromH3):F2}m");
+```
+
+### Query with Additional Filters
+
+```csharp
+var center = new GeoLocation(37.7749, -122.4194);
+
+// Find nearby stores that are also open
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => 
+            x.PartitionKey == "STORE" && 
+            x.Location == cell &&
+            x.IsOpen == true)
+        .Paginate(pagination),
+    pageSize: null
+);
+
+Console.WriteLine($"Found {result.Items.Count} open stores within 5km");
+```
+
+### Using with Global Secondary Index (GSI)
+
+```csharp
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    // GSI for querying by category and location
+    [DynamoDbAttribute("gsi1pk")]
+    public string Category { get; set; }
+    
+    [DynamoDbAttribute("gsi1sk", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 9)]
+    public GeoLocation Location { get; set; }
+}
+
+// Query by category and location using GSI
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.CategoryLocationIndex.SpatialQueryAsync(
+    spatialAttributeName: "gsi1sk",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.Category == "GROCERY" && x.Location == cell)
+        .Paginate(pagination),
+    pageSize: 50
+);
+
+Console.WriteLine($"Found {result.Items.Count} grocery stores within 5km");
+```
+
+### Serializing Continuation Token for API Responses
+
+```csharp
+// In your API controller
+public async Task<IActionResult> GetNearbyStores(
+    double lat, 
+    double lon, 
+    double radiusKm,
+    string? continuationToken = null)
+{
+    var center = new GeoLocation(lat, lon);
+    var token = continuationToken != null 
+        ? SpatialContinuationToken.FromBase64(continuationToken)
+        : null;
+    
+    var result = await storeTable.SpatialQueryAsync(
+        spatialAttributeName: "location",
+        center: center,
+        radiusKilometers: radiusKm,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: 20,
+        continuationToken: token
+    );
+    
+    return Ok(new
+    {
+        items = result.Items.Select(s => new
+        {
+            id = s.StoreId,
+            name = s.Name,
+            location = new { lat = s.Location.Latitude, lon = s.Location.Longitude },
+            distance = s.Location.DistanceToKilometers(center)
+        }),
+        nextToken = result.ContinuationToken?.ToBase64(),
+        hasMore = result.ContinuationToken != null,
+        totalCellsQueried = result.TotalCellsQueried,
+        totalItemsScanned = result.TotalItemsScanned
+    });
+}
+```
+
+### Real-World: Store Locator with S2
+
+```csharp
+public class StoreLocatorService
+{
+    private readonly StoreTable _storeTable;
+    
+    public async Task<StoreLocatorResponse> FindNearbyStores(
+        double latitude, 
+        double longitude, 
+        double radiusKm,
+        int maxResults = 10)
+    {
+        var userLocation = new GeoLocation(latitude, longitude);
+        
+        // Use non-paginated mode for fast response
+        var result = await _storeTable.SpatialQueryAsync(
+            spatialAttributeName: "location",
+            center: userLocation,
+            radiusKilometers: radiusKm,
+            queryBuilder: (query, cell, pagination) => query
+                .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+                .Paginate(pagination),
+            pageSize: null
+        );
+        
+        // Results are already sorted by distance
+        var stores = result.Items
+            .Take(maxResults)
+            .Select(s => new StoreResult
+            {
+                StoreId = s.StoreId,
+                Name = s.Name,
+                DistanceKm = s.Location.DistanceToKilometers(userLocation),
+                Location = s.Location
+            })
+            .ToList();
+        
+        return new StoreLocatorResponse
+        {
+            Stores = stores,
+            TotalFound = result.Items.Count,
+            CellsQueried = result.TotalCellsQueried,
+            QueryTimeMs = result.QueryTimeMs
+        };
+    }
+}
+```
+
+### Real-World: Delivery Zone Checker with H3
+
+```csharp
+public class DeliveryService
+{
+    private readonly DeliveryZoneTable _zoneTable;
+    
+    public async Task<DeliveryZoneInfo> CheckDeliveryAvailability(
+        double latitude, 
+        double longitude)
+    {
+        var location = new GeoLocation(latitude, longitude);
+        
+        // Query nearby zones (H3 provides excellent coverage)
+        var result = await _zoneTable.SpatialQueryAsync(
+            spatialAttributeName: "center",
+            center: location,
+            radiusKilometers: 10,
+            queryBuilder: (query, cell, pagination) => query
+                .Where<DeliveryZone>(x => x.PartitionKey == "ZONE" && x.Center == cell)
+                .Paginate(pagination),
+            pageSize: null
+        );
+        
+        // Find the zone that contains this location
+        var zone = result.Items
+            .Where(z => location.DistanceToKilometers(z.Center) <= z.RadiusKm)
+            .OrderBy(z => location.DistanceToKilometers(z.Center))
+            .FirstOrDefault();
+        
+        if (zone != null)
+        {
+            return new DeliveryZoneInfo
+            {
+                IsAvailable = true,
+                ZoneName = zone.Name,
+                DistanceFromCenter = location.DistanceToKilometers(zone.Center)
+            };
+        }
+        
+        return new DeliveryZoneInfo
+        {
+            IsAvailable = false
+        };
+    }
+}
+```
+
+### Real-World: Asset Tracking with Multiple Precision Levels
+
+```csharp
+public class AssetTrackingService
+{
+    private readonly AssetTable _assetTable;
+    
+    // Store assets at multiple precision levels for different query types
+    [DynamoDbTable("assets")]
+    public partial class Asset
+    {
+        [PartitionKey]
+        [DynamoDbAttribute("pk")]
+        public string AssetId { get; set; }
+        
+        // Low precision for regional queries (50-100km)
+        [DynamoDbAttribute("location_region", SpatialIndexType = SpatialIndexType.S2, S2Level = 12)]
+        public GeoLocation LocationRegion => Location;
+        
+        // Medium precision for city queries (10-50km)
+        [DynamoDbAttribute("location_city", SpatialIndexType = SpatialIndexType.S2, S2Level = 14)]
+        public GeoLocation LocationCity => Location;
+        
+        // High precision for local queries (1-10km)
+        [DynamoDbAttribute("location_local", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+        public GeoLocation LocationLocal => Location;
+        
+        [DynamoDbAttribute("location")]
+        public GeoLocation Location { get; set; }
+    }
+    
+    public async Task<List<Asset>> FindAssets(
+        double latitude,
+        double longitude,
+        double radiusKm)
+    {
+        var center = new GeoLocation(latitude, longitude);
+        
+        // Choose appropriate precision based on radius
+        var attributeName = radiusKm switch
+        {
+            <= 10 => "location_local",   // S2 Level 16
+            <= 50 => "location_city",    // S2 Level 14
+            _ => "location_region"       // S2 Level 12
+        };
+        
+        var result = await _assetTable.SpatialQueryAsync(
+            spatialAttributeName: attributeName,
+            center: center,
+            radiusKilometers: radiusKm,
+            queryBuilder: (query, cell, pagination) => query
+                .Where<Asset>(x => x.PartitionKey == "ASSET" && x.Location == cell)
+                .Paginate(pagination),
+            pageSize: null
+        );
+        
+        return result.Items;
+    }
+}
+```
+
+### Performance Monitoring
+
+```csharp
+public async Task<SpatialQueryResponse<Store>> SearchStoresWithMonitoring(
+    GeoLocation center,
+    double radiusKm,
+    int? pageSize = null)
+{
+    var stopwatch = Stopwatch.StartNew();
+    
+    var result = await _storeTable.SpatialQueryAsync(
+        spatialAttributeName: "location",
+        center: center,
+        radiusKilometers: radiusKm,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: pageSize
+    );
+    
+    stopwatch.Stop();
+    
+    var efficiency = result.Items.Count / (double)result.TotalItemsScanned * 100;
+    
+    _logger.LogInformation(
+        "Spatial query: " +
+        "Radius={Radius}km, " +
+        "PageSize={PageSize}, " +
+        "Cells={Cells}, " +
+        "Scanned={Scanned}, " +
+        "Returned={Returned}, " +
+        "Efficiency={Efficiency:F1}%, " +
+        "Latency={Latency}ms",
+        radiusKm,
+        pageSize?.ToString() ?? "null",
+        result.TotalCellsQueried,
+        result.TotalItemsScanned,
+        result.Items.Count,
+        efficiency,
+        stopwatch.ElapsedMilliseconds
+    );
+    
+    // Alert on potential issues
+    if (result.TotalCellsQueried >= 100)
+    {
+        _logger.LogWarning(
+            "High cell count! Consider reducing precision or radius."
+        );
+    }
+    
+    return result;
+}
+```
+
+## Precision Selection Examples
+
+### Example 1: Choosing Precision for 5km Radius
+
+```csharp
+// Calculate cell count for different precisions
+var radiusKm = 5.0;
+
+// S2 Level 14 (~6km cells)
+var cellCountL14 = Math.PI * Math.Pow(radiusKm / 6.0, 2);
+Console.WriteLine($"S2 Level 14: ~{cellCountL14:F0} cells"); // ~2 cells ✅
+
+// S2 Level 16 (~1.5km cells)
+var cellCountL16 = Math.PI * Math.Pow(radiusKm / 1.5, 2);
+Console.WriteLine($"S2 Level 16: ~{cellCountL16:F0} cells"); // ~35 cells ✅
+
+// S2 Level 18 (~400m cells)
+var cellCountL18 = Math.PI * Math.Pow(radiusKm / 0.4, 2);
+Console.WriteLine($"S2 Level 18: ~{cellCountL18:F0} cells"); // ~490 cells ⚠️
+
+// Recommendation: Use Level 16 for good balance
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+public GeoLocation Location { get; set; }
+```
+
+### Example 2: Query Explosion Scenario
+
+```csharp
+// ❌ BAD: 50km radius with S2 Level 16 (~1.5km cells)
+var radiusKm = 50.0;
+var cellSize = 1.5;
+var cellCount = Math.PI * Math.Pow(radiusKm / cellSize, 2);
+Console.WriteLine($"Cell count: ~{cellCount:F0}"); // ~3,490 cells 🚫
+
+// This will hit maxCells limit (default 100)
+// Results will be INCOMPLETE!
+
+// ✅ GOOD: 50km radius with S2 Level 12 (~25km cells)
+cellSize = 25.0;
+cellCount = Math.PI * Math.Pow(radiusKm / cellSize, 2);
+Console.WriteLine($"Cell count: ~{cellCount:F0}"); // ~13 cells ✅
+
+// Recommendation: Use Level 12 for large radius
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 12)]
+public GeoLocation Location { get; set; }
+```
+
+### Example 3: Adaptive Precision Based on Radius
+
+```csharp
+public async Task<List<Store>> SearchStoresAdaptive(
+    GeoLocation center,
+    double radiusKm)
+{
+    // Choose precision based on radius to avoid query explosion
+    var (attributeName, level) = radiusKm switch
+    {
+        <= 5 => ("location_precise", 18),   // ~400m cells
+        <= 10 => ("location_local", 16),    // ~1.5km cells
+        <= 50 => ("location_city", 14),     // ~6km cells
+        _ => ("location_region", 12)        // ~25km cells
+    };
+    
+    Console.WriteLine($"Using {attributeName} (S2 Level {level}) for {radiusKm}km radius");
+    
+    var result = await _storeTable.SpatialQueryAsync(
+        spatialAttributeName: attributeName,
+        center: center,
+        radiusKilometers: radiusKm,
+        queryBuilder: (query, cell, pagination) => query
+            .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+            .Paginate(pagination),
+        pageSize: null
+    );
+    
+    return result.Items;
+}
+```
+
+## See Also
+
+- [README.md](README.md) - Getting started guide
+- [S2_H3_USAGE_GUIDE.md](S2_H3_USAGE_GUIDE.md) - Choosing between index types
+- [PRECISION_GUIDE.md](PRECISION_GUIDE.md) - Precision selection and query explosion
+- [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md) - Query optimization
+- [COORDINATE_STORAGE_GUIDE.md](COORDINATE_STORAGE_GUIDE.md) - Storing exact coordinates
