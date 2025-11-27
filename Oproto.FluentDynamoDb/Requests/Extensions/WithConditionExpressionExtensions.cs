@@ -201,6 +201,8 @@ public static class WithConditionExpressionExtensions
     /// <summary>
     /// Specifies the condition expression using a C# lambda expression for QueryRequestBuilder.
     /// This overload provides better type inference for query operations.
+    /// When querying a GSI (via UsingIndex()), the index's key schema is used for validation
+    /// instead of the main table's keys.
     /// </summary>
     /// <typeparam name="TEntity">The entity type being queried.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -213,7 +215,26 @@ public static class WithConditionExpressionExtensions
         EntityMetadata? metadata = null)
         where TEntity : class
     {
-        return Where<QueryRequestBuilder<TEntity>, TEntity>(builder, expression, metadata);
+        // If metadata is not provided, try to get it from the entity type's generated GetEntityMetadata() method
+        if (metadata == null)
+        {
+            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
+        }
+        
+        // Get the index name from the builder (set via UsingIndex())
+        var indexName = builder.GetIndexName();
+        
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.KeysOnly,
+            indexName);
+
+        var translator = new ExpressionTranslator();
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
     }
 
     /// <summary>

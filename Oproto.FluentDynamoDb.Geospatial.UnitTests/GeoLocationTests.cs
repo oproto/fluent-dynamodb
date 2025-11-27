@@ -11,6 +11,31 @@ public class GeoLocationTests
         // Assert
         location.Latitude.Should().Be(37.7749);
         location.Longitude.Should().Be(-122.4194);
+        location.SpatialIndex.Should().BeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithCoordinatesAndSpatialIndex_CreatesLocationWithIndex()
+    {
+        // Arrange & Act
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Assert
+        location.Latitude.Should().Be(37.7749);
+        location.Longitude.Should().Be(-122.4194);
+        location.SpatialIndex.Should().Be("9q8yyk8yuv");
+    }
+
+    [Fact]
+    public void Constructor_WithCoordinatesAndNullSpatialIndex_CreatesLocationWithNullIndex()
+    {
+        // Arrange & Act
+        var location = new GeoLocation(37.7749, -122.4194, null);
+
+        // Assert
+        location.Latitude.Should().Be(37.7749);
+        location.Longitude.Should().Be(-122.4194);
+        location.SpatialIndex.Should().BeNull();
     }
 
     [Theory]
@@ -46,6 +71,22 @@ public class GeoLocationTests
     }
 
     [Theory]
+    [InlineData(-91, 0, "latitude")]
+    [InlineData(91, 0, "latitude")]
+    [InlineData(-100, 0, "latitude")]
+    [InlineData(100, 0, "latitude")]
+    public void Constructor_WithSpatialIndex_WithInvalidLatitude_ThrowsArgumentOutOfRangeException(
+        double lat, double lon, string expectedParamName)
+    {
+        // Arrange & Act
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new GeoLocation(lat, lon, "test"));
+
+        // Assert
+        exception.ParamName.Should().Be(expectedParamName);
+        exception.Message.Should().Contain("Latitude must be between -90 and 90 degrees");
+    }
+
+    [Theory]
     [InlineData(0, -181, "longitude")]
     [InlineData(0, 181, "longitude")]
     [InlineData(0, -200, "longitude")]
@@ -55,6 +96,22 @@ public class GeoLocationTests
     {
         // Arrange & Act
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new GeoLocation(lat, lon));
+
+        // Assert
+        exception.ParamName.Should().Be(expectedParamName);
+        exception.Message.Should().Contain("Longitude must be between -180 and 180 degrees");
+    }
+
+    [Theory]
+    [InlineData(0, -181, "longitude")]
+    [InlineData(0, 181, "longitude")]
+    [InlineData(0, -200, "longitude")]
+    [InlineData(0, 200, "longitude")]
+    public void Constructor_WithSpatialIndex_WithInvalidLongitude_ThrowsArgumentOutOfRangeException(
+        double lat, double lon, string expectedParamName)
+    {
+        // Arrange & Act
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new GeoLocation(lat, lon, "test"));
 
         // Assert
         exception.ParamName.Should().Be(expectedParamName);
@@ -270,5 +327,141 @@ public class GeoLocationTests
 
         // Assert
         result.Should().Be("-33.8688,-151.2093");
+    }
+
+    [Fact]
+    public void ImplicitCast_ToString_ReturnsSpatialIndex()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act
+        string? result = location;
+
+        // Assert
+        result.Should().Be("9q8yyk8yuv");
+    }
+
+    [Fact]
+    public void ImplicitCast_ToString_WithNullSpatialIndex_ReturnsNull()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194);
+
+        // Act
+        string? result = location;
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void EqualityOperator_WithMatchingSpatialIndex_ReturnsTrue()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        (location == "9q8yyk8yuv").Should().BeTrue();
+    }
+
+    [Fact]
+    public void EqualityOperator_WithDifferentSpatialIndex_ReturnsFalse()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        (location == "different").Should().BeFalse();
+    }
+
+    [Fact]
+    public void EqualityOperator_WithNullSpatialIndex_ComparingToNull_ReturnsTrue()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194);
+
+        // Act & Assert
+        (location == (string?)null).Should().BeTrue();
+    }
+
+    [Fact]
+    public void EqualityOperator_WithNullSpatialIndex_ComparingToString_ReturnsFalse()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194);
+
+        // Act & Assert
+        (location == "9q8yyk8yuv").Should().BeFalse();
+    }
+
+    [Fact]
+    public void InequalityOperator_WithMatchingSpatialIndex_ReturnsFalse()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        (location != "9q8yyk8yuv").Should().BeFalse();
+    }
+
+    [Fact]
+    public void InequalityOperator_WithDifferentSpatialIndex_ReturnsTrue()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        (location != "different").Should().BeTrue();
+    }
+
+    [Fact]
+    public void ReverseEqualityOperator_WithMatchingSpatialIndex_ReturnsTrue()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        ("9q8yyk8yuv" == location).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ReverseEqualityOperator_WithDifferentSpatialIndex_ReturnsFalse()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        ("different" == location).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ReverseEqualityOperator_WithNullSpatialIndex_ComparingToNull_ReturnsTrue()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194);
+
+        // Act & Assert
+        ((string?)null == location).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ReverseInequalityOperator_WithMatchingSpatialIndex_ReturnsFalse()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        ("9q8yyk8yuv" != location).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ReverseInequalityOperator_WithDifferentSpatialIndex_ReturnsTrue()
+    {
+        // Arrange
+        var location = new GeoLocation(37.7749, -122.4194, "9q8yyk8yuv");
+
+        // Act & Assert
+        ("different" != location).Should().BeTrue();
     }
 }

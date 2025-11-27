@@ -141,6 +141,8 @@ public static class H3CellCovering
 
     /// <summary>
     /// Internal method that computes cell covering for a single bounding box (no dateline crossing).
+    /// Uses a ring expansion algorithm starting from the center cell and expanding outward
+    /// until the bounding box is covered or maxCells is reached.
     /// </summary>
     private static List<(string Index, double Distance)> GetCellsForBoundingBoxInternal(
         GeoBoundingBox boundingBox,
@@ -153,24 +155,19 @@ public static class H3CellCovering
         var nearPole = center.IsNearPole(85.0);
 
         // If near pole (>85° or <-85°), consider using lower resolution to avoid excessive cells
-        // Log a warning if the current resolution might produce too many cells
+        // At high latitudes with high resolution, cell counts can explode due to longitude convergence
+        // Resolution 5 (~8.5km cells) is generally safe even near poles
         if (nearPole && resolution > 5)
         {
-            // At high latitudes with high resolution, cell counts can explode due to longitude convergence
-            // Resolution 5 (~8.5km cells) is generally safe even near poles
-            // This is just a warning - we still proceed with the requested resolution
             System.Diagnostics.Debug.WriteLine(
                 $"Warning: H3 cell covering near pole (lat={center.Latitude:F2}) with resolution {resolution} " +
                 $"may produce excessive cells. Consider using resolution 5 or lower for polar queries.");
         }
 
         // If pole is included, ensure we're working with full longitude range
-        // The bounding box should already have this from FromCenterAndDistanceMeters,
-        // but we verify it here for safety
+        // At the pole, longitude is meaningless - we should cover all longitudes
         if (includesPole)
         {
-            // At the pole, longitude is meaningless - we should cover all longitudes
-            // The bounding box should already be (-180 to 180), but we note this for clarity
             System.Diagnostics.Debug.WriteLine(
                 $"Info: H3 cell covering includes pole. Using full longitude range.");
         }
@@ -184,7 +181,16 @@ public static class H3CellCovering
         cellSet.Add(centerIndex);
         cellsWithDistance.Add((centerIndex, 0.0));
 
+        // Calculate cell size and expanded bbox once
+        var cellSizeKm = GetApproximateCellSizeKm(resolution);
+        var bboxRadiusKm = GetBoundingBoxRadiusKm(boundingBox);
+        var expandedBbox = GeoBoundingBox.FromCenterAndDistanceKilometers(
+            boundingBox.Center,
+            bboxRadiusKm + cellSizeKm);
+
         // Get cells in expanding rings until we cover the bounding box or hit maxCells
+        // Ring expansion: start with center cell, then add neighbors of current ring,
+        // filtering to only include cells that intersect the expanded bounding box
         var currentRing = new HashSet<string> { centerIndex };
         var visited = new HashSet<string> { centerIndex };
 
@@ -194,7 +200,7 @@ public static class H3CellCovering
 
             foreach (var cellIndex in currentRing)
             {
-                // Get neighbors of this cell
+                // Get neighbors of this cell (6 for hexagons, 5 for pentagons)
                 var neighbors = H3Encoder.GetNeighbors(cellIndex);
 
                 foreach (var neighbor in neighbors)
@@ -210,17 +216,11 @@ public static class H3CellCovering
                     var neighborLocation = new GeoLocation(lat, lon);
 
                     // Check if this cell intersects the bounding box
-                    // We use a simple check: if the cell center is within an expanded bounding box
-                    // (expanded by the cell size to account for cell boundaries)
-                    var cellSizeKm = GetApproximateCellSizeKm(resolution);
-                    var expandedBbox = GeoBoundingBox.FromCenterAndDistanceKilometers(
-                        boundingBox.Center,
-                        GetBoundingBoxRadiusKm(boundingBox) + cellSizeKm);
-
+                    // A cell intersects if its center is within the expanded bounding box
                     if (expandedBbox.Contains(neighborLocation))
                     {
-                        cellSet.Add(neighbor);
                         var distance = center.DistanceToKilometers(neighborLocation);
+                        cellSet.Add(neighbor);
                         cellsWithDistance.Add((neighbor, distance));
                         nextRing.Add(neighbor);
 

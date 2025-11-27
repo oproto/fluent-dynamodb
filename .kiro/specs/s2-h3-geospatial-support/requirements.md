@@ -179,3 +179,20 @@ This document specifies requirements for extending the Oproto.FluentDynamoDb.Geo
 3. WHEN a bounding box extends to or beyond a pole (latitude ±90°) THEN the system SHALL clamp the bounding box to valid latitude ranges and handle longitude wrapping correctly
 4. WHEN a radius query is centered at or very near a pole THEN the system SHALL compute cell coverings that account for longitude convergence at the poles
 5. WHEN computing cell coverings near the date line or poles THEN the system SHALL deduplicate cells that may appear in both regions
+
+### Requirement 14
+
+**User Story:** As a developer, I want comprehensive end-to-end integration tests with DynamoDB Local, so that I can trust that all spatial indexing features work correctly in real-world scenarios.
+
+#### Acceptance Criteria
+
+1. WHEN integration tests are executed THEN the system SHALL verify S2 and H3 serialization and deserialization with actual DynamoDB storage
+2. WHEN integration tests are executed THEN the system SHALL verify multi-field coordinate storage works correctly with DynamoDB
+3. WHEN integration tests are executed THEN the system SHALL verify SpatialQueryAsync works with all three spatial index types (GeoHash, S2, H3)
+4. WHEN integration tests are executed THEN the system SHALL verify both paginated and non-paginated query modes work correctly
+5. WHEN integration tests are executed THEN the system SHALL verify all query expression methods work (lambda expressions, format strings, plain text with WithValue)
+6. WHEN integration tests are executed THEN the system SHALL verify spatial queries with additional filter conditions and sort key conditions
+7. WHEN integration tests are executed THEN the system SHALL verify edge cases (date line crossing, polar regions) work correctly with actual DynamoDB
+8. WHEN integration tests are executed THEN the system SHALL verify pagination continuation tokens work correctly across multiple pages
+9. WHEN integration tests are executed THEN the system SHALL verify query result deduplication works correctly
+10. WHEN integration tests are executed THEN the system SHALL verify performance characteristics with large datasets

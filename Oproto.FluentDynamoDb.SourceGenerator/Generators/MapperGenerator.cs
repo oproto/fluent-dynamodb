@@ -3669,7 +3669,7 @@ internal static class MapperGenerator
                 break;
             
             case "H3":
-                var h3Resolution = property.H3Resolution ?? 7; // Default H3 resolution is 7
+                var h3Resolution = property.H3Resolution ?? 9; // Default H3 resolution is 9
                 encodingCall = $"ToH3Index({h3Resolution})";
                 indexTypeName = "H3";
                 break;
@@ -3785,7 +3785,13 @@ internal static class MapperGenerator
             sb.AppendLine("                {");
             sb.AppendLine($"                    var latitude = double.Parse({propertyName.ToLowerInvariant()}LatValue.N, System.Globalization.CultureInfo.InvariantCulture);");
             sb.AppendLine($"                    var longitude = double.Parse({propertyName.ToLowerInvariant()}LonValue.N, System.Globalization.CultureInfo.InvariantCulture);");
-            sb.AppendLine($"                    entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation(latitude, longitude);");
+            sb.AppendLine($"                    // Also read the spatial index if available to preserve it");
+            sb.AppendLine($"                    string? spatialIndexValue = null;");
+            sb.AppendLine($"                    if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}IndexValue) && {propertyName.ToLowerInvariant()}IndexValue.S != null)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        spatialIndexValue = {propertyName.ToLowerInvariant()}IndexValue.S;");
+            sb.AppendLine("                    }");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation(latitude, longitude, spatialIndexValue);");
             sb.AppendLine("                }");
             sb.AppendLine("                catch (Exception ex)");
             sb.AppendLine("                {");
@@ -3801,7 +3807,10 @@ internal static class MapperGenerator
             sb.AppendLine($"                // Fallback to spatial index decoding (for backward compatibility or when coordinates are missing)");
             sb.AppendLine("                try");
             sb.AppendLine("                {");
-            sb.AppendLine($"                    entity.{escapedPropertyName} = {decodingCall}({propertyName.ToLowerInvariant()}Value.S);");
+            sb.AppendLine($"                    var spatialIndexString = {propertyName.ToLowerInvariant()}Value.S;");
+            sb.AppendLine($"                    var decodedLocation = {decodingCall}(spatialIndexString);");
+            sb.AppendLine($"                    // Preserve the spatial index by passing it to the constructor");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation(decodedLocation.Latitude, decodedLocation.Longitude, spatialIndexString);");
             sb.AppendLine("                }");
             sb.AppendLine("                catch (Exception ex)");
             sb.AppendLine("                {");
@@ -3822,7 +3831,10 @@ internal static class MapperGenerator
             sb.AppendLine("                {");
             sb.AppendLine("                    try");
             sb.AppendLine("                    {");
-            sb.AppendLine($"                        entity.{escapedPropertyName} = {decodingCall}({propertyName.ToLowerInvariant()}Value.S);");
+            sb.AppendLine($"                        var spatialIndexString = {propertyName.ToLowerInvariant()}Value.S;");
+            sb.AppendLine($"                        var decodedLocation = {decodingCall}(spatialIndexString);");
+            sb.AppendLine($"                        // Preserve the spatial index by passing it to the constructor");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation(decodedLocation.Latitude, decodedLocation.Longitude, spatialIndexString);");
             sb.AppendLine("                    }");
             sb.AppendLine("                    catch (Exception ex)");
             sb.AppendLine("                    {");

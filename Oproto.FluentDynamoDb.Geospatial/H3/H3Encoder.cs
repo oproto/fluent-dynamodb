@@ -24,6 +24,390 @@ internal static class H3Encoder
     };
 
     /// <summary>
+    /// H3 digit representing ijk+ axes direction.
+    /// Values are within the lowest 3 bits of an integer.
+    /// From H3 reference implementation coordijk.h
+    /// </summary>
+    private enum Direction
+    {
+        /// <summary>H3 digit in center</summary>
+        CENTER_DIGIT = 0,
+        /// <summary>H3 digit in k-axes direction</summary>
+        K_AXES_DIGIT = 1,
+        /// <summary>H3 digit in j-axes direction</summary>
+        J_AXES_DIGIT = 2,
+        /// <summary>H3 digit in j == k direction</summary>
+        JK_AXES_DIGIT = 3,  // J_AXES_DIGIT | K_AXES_DIGIT
+        /// <summary>H3 digit in i-axes direction</summary>
+        I_AXES_DIGIT = 4,
+        /// <summary>H3 digit in i == k direction</summary>
+        IK_AXES_DIGIT = 5,  // I_AXES_DIGIT | K_AXES_DIGIT
+        /// <summary>H3 digit in i == j direction</summary>
+        IJ_AXES_DIGIT = 6,  // I_AXES_DIGIT | J_AXES_DIGIT
+        /// <summary>H3 digit in the invalid direction</summary>
+        INVALID_DIGIT = 7
+    }
+
+    /// <summary>
+    /// New digit when traversing along Class II grids.
+    /// Current digit -> direction -> new digit.
+    /// From H3 reference implementation algos.c
+    /// </summary>
+    private static readonly Direction[,] NEW_DIGIT_II = new Direction[7, 7]
+    {
+        { Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT },
+        { Direction.K_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.K_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.IK_AXES_DIGIT },
+        { Direction.JK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT },
+        { Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.K_AXES_DIGIT },
+        { Direction.IK_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.I_AXES_DIGIT },
+        { Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.IK_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.K_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.JK_AXES_DIGIT }
+    };
+
+    /// <summary>
+    /// New traversal direction when traversing along Class II grids.
+    /// Current digit -> direction -> new ap7 move (at coarser level).
+    /// From H3 reference implementation algos.c
+    /// </summary>
+    private static readonly Direction[,] NEW_ADJUSTMENT_II = new Direction[7, 7]
+    {
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.IK_AXES_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.J_AXES_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.I_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IJ_AXES_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.IK_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.J_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.IJ_AXES_DIGIT }
+    };
+
+    /// <summary>
+    /// New digit when traversing along Class III grids.
+    /// Current digit -> direction -> new digit.
+    /// From H3 reference implementation algos.c
+    /// </summary>
+    private static readonly Direction[,] NEW_DIGIT_III = new Direction[7, 7]
+    {
+        { Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT },
+        { Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT },
+        { Direction.JK_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT },
+        { Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT },
+        { Direction.IK_AXES_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.I_AXES_DIGIT },
+        { Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT }
+    };
+
+    /// <summary>
+    /// New traversal direction when traversing along Class III grids.
+    /// Current digit -> direction -> new ap7 move (at coarser level).
+    /// From H3 reference implementation algos.c
+    /// </summary>
+    private static readonly Direction[,] NEW_ADJUSTMENT_III = new Direction[7, 7]
+    {
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.JK_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.J_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.IJ_AXES_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.JK_AXES_DIGIT, Direction.J_AXES_DIGIT, Direction.JK_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.I_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.I_AXES_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.K_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.IK_AXES_DIGIT, Direction.IK_AXES_DIGIT, Direction.CENTER_DIGIT },
+        { Direction.CENTER_DIGIT, Direction.CENTER_DIGIT, Direction.IJ_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.I_AXES_DIGIT, Direction.CENTER_DIGIT, Direction.IJ_AXES_DIGIT }
+    };
+    /// <summary>
+    /// Invalid base cell constant (used to indicate no neighbor in a direction).
+    /// From H3 reference implementation baseCells.h
+    /// </summary>
+    private const int INVALID_BASE_CELL = 127;
+
+    /// <summary>
+    /// Neighboring base cell ID in each IJK direction.
+    /// For each base cell, for each direction, the neighboring base cell ID is given.
+    /// INVALID_BASE_CELL (127) indicates there is no neighbor in that direction.
+    /// From H3 reference implementation baseCells.c
+    /// </summary>
+    private static readonly int[,] BaseCellNeighbors = new int[122, 7]
+    {
+        {0, 1, 5, 2, 4, 3, 8},                          // base cell 0
+        {1, 7, 6, 9, 0, 3, 2},                          // base cell 1
+        {2, 6, 10, 11, 0, 1, 5},                        // base cell 2
+        {3, 13, 1, 7, 4, 12, 0},                        // base cell 3
+        {4, INVALID_BASE_CELL, 15, 8, 3, 0, 12},        // base cell 4 (pentagon)
+        {5, 2, 18, 10, 8, 0, 16},                       // base cell 5
+        {6, 14, 11, 17, 1, 9, 2},                       // base cell 6
+        {7, 21, 9, 19, 3, 13, 1},                       // base cell 7
+        {8, 5, 22, 16, 4, 0, 15},                       // base cell 8
+        {9, 19, 14, 20, 1, 7, 6},                       // base cell 9
+        {10, 11, 24, 23, 5, 2, 18},                     // base cell 10
+        {11, 17, 23, 25, 2, 6, 10},                     // base cell 11
+        {12, 28, 13, 26, 4, 15, 3},                     // base cell 12
+        {13, 26, 21, 29, 3, 12, 7},                     // base cell 13
+        {14, INVALID_BASE_CELL, 17, 27, 9, 20, 6},      // base cell 14 (pentagon)
+        {15, 22, 28, 31, 4, 8, 12},                     // base cell 15
+        {16, 18, 33, 30, 8, 5, 22},                     // base cell 16
+        {17, 11, 14, 6, 35, 25, 27},                    // base cell 17
+        {18, 24, 30, 32, 5, 10, 16},                    // base cell 18
+        {19, 34, 20, 36, 7, 21, 9},                     // base cell 19
+        {20, 14, 19, 9, 40, 27, 36},                    // base cell 20
+        {21, 38, 19, 34, 13, 29, 7},                    // base cell 21
+        {22, 16, 41, 33, 15, 8, 31},                    // base cell 22
+        {23, 24, 11, 10, 39, 37, 25},                   // base cell 23
+        {24, INVALID_BASE_CELL, 32, 37, 10, 23, 18},    // base cell 24 (pentagon)
+        {25, 23, 17, 11, 45, 39, 35},                   // base cell 25
+        {26, 42, 29, 43, 12, 28, 13},                   // base cell 26
+        {27, 40, 35, 46, 14, 20, 17},                   // base cell 27
+        {28, 31, 42, 44, 12, 15, 26},                   // base cell 28
+        {29, 43, 38, 47, 13, 26, 21},                   // base cell 29
+        {30, 32, 48, 50, 16, 18, 33},                   // base cell 30
+        {31, 41, 44, 53, 15, 22, 28},                   // base cell 31
+        {32, 30, 24, 18, 52, 50, 37},                   // base cell 32
+        {33, 30, 49, 48, 22, 16, 41},                   // base cell 33
+        {34, 19, 38, 21, 54, 36, 51},                   // base cell 34
+        {35, 46, 45, 56, 17, 27, 25},                   // base cell 35
+        {36, 20, 34, 19, 55, 40, 54},                   // base cell 36
+        {37, 39, 52, 57, 24, 23, 32},                   // base cell 37
+        {38, INVALID_BASE_CELL, 34, 51, 29, 47, 21},    // base cell 38 (pentagon)
+        {39, 37, 25, 23, 59, 57, 45},                   // base cell 39
+        {40, 27, 36, 20, 60, 46, 55},                   // base cell 40
+        {41, 49, 53, 61, 22, 33, 31},                   // base cell 41
+        {42, 58, 43, 62, 28, 44, 26},                   // base cell 42
+        {43, 62, 47, 64, 26, 42, 29},                   // base cell 43
+        {44, 53, 58, 65, 28, 31, 42},                   // base cell 44
+        {45, 39, 35, 25, 63, 59, 56},                   // base cell 45
+        {46, 60, 56, 68, 27, 40, 35},                   // base cell 46
+        {47, 38, 43, 29, 69, 51, 64},                   // base cell 47
+        {48, 49, 30, 33, 67, 66, 50},                   // base cell 48
+        {49, INVALID_BASE_CELL, 61, 66, 33, 48, 41},    // base cell 49 (pentagon)
+        {50, 48, 32, 30, 70, 67, 52},                   // base cell 50
+        {51, 69, 54, 71, 38, 47, 34},                   // base cell 51
+        {52, 57, 70, 74, 32, 37, 50},                   // base cell 52
+        {53, 61, 65, 75, 31, 41, 44},                   // base cell 53
+        {54, 71, 55, 73, 34, 51, 36},                   // base cell 54
+        {55, 40, 54, 36, 72, 60, 73},                   // base cell 55
+        {56, 68, 63, 77, 35, 46, 45},                   // base cell 56
+        {57, 59, 74, 78, 37, 39, 52},                   // base cell 57
+        {58, INVALID_BASE_CELL, 62, 76, 44, 65, 42},    // base cell 58 (pentagon)
+        {59, 63, 78, 79, 39, 45, 57},                   // base cell 59
+        {60, 72, 68, 80, 40, 55, 46},                   // base cell 60
+        {61, 53, 49, 41, 81, 75, 66},                   // base cell 61
+        {62, 43, 58, 42, 82, 64, 76},                   // base cell 62
+        {63, INVALID_BASE_CELL, 56, 45, 79, 59, 77},    // base cell 63 (pentagon)
+        {64, 47, 62, 43, 84, 69, 82},                   // base cell 64
+        {65, 58, 53, 44, 86, 76, 75},                   // base cell 65
+        {66, 67, 81, 85, 49, 48, 61},                   // base cell 66
+        {67, 66, 50, 48, 87, 85, 70},                   // base cell 67
+        {68, 56, 60, 46, 90, 77, 80},                   // base cell 68
+        {69, 51, 64, 47, 89, 71, 84},                   // base cell 69
+        {70, 67, 52, 50, 83, 87, 74},                   // base cell 70
+        {71, 89, 73, 91, 51, 69, 54},                   // base cell 71
+        {72, INVALID_BASE_CELL, 73, 55, 80, 60, 88},    // base cell 72 (pentagon)
+        {73, 91, 72, 88, 54, 71, 55},                   // base cell 73
+        {74, 78, 83, 92, 52, 57, 70},                   // base cell 74
+        {75, 65, 61, 53, 94, 86, 81},                   // base cell 75
+        {76, 86, 82, 96, 58, 65, 62},                   // base cell 76
+        {77, 63, 68, 56, 93, 79, 90},                   // base cell 77
+        {78, 74, 59, 57, 95, 92, 79},                   // base cell 78
+        {79, 78, 63, 59, 93, 95, 77},                   // base cell 79
+        {80, 68, 72, 60, 99, 90, 88},                   // base cell 80
+        {81, 85, 94, 101, 61, 66, 75},                  // base cell 81
+        {82, 96, 84, 98, 62, 76, 64},                   // base cell 82
+        {83, INVALID_BASE_CELL, 74, 70, 100, 87, 92},   // base cell 83 (pentagon)
+        {84, 69, 82, 64, 97, 89, 98},                   // base cell 84
+        {85, 87, 101, 102, 66, 67, 81},                 // base cell 85
+        {86, 76, 75, 65, 104, 96, 94},                  // base cell 86
+        {87, 83, 102, 100, 67, 70, 85},                 // base cell 87
+        {88, 72, 91, 73, 99, 80, 105},                  // base cell 88
+        {89, 97, 91, 103, 69, 84, 71},                  // base cell 89
+        {90, 77, 80, 68, 106, 93, 99},                  // base cell 90
+        {91, 73, 89, 71, 105, 88, 103},                 // base cell 91
+        {92, 83, 78, 74, 108, 100, 95},                 // base cell 92
+        {93, 79, 90, 77, 109, 95, 106},                 // base cell 93
+        {94, 86, 81, 75, 107, 104, 101},                // base cell 94
+        {95, 92, 79, 78, 109, 108, 93},                 // base cell 95
+        {96, 104, 98, 110, 76, 86, 82},                 // base cell 96
+        {97, INVALID_BASE_CELL, 98, 84, 103, 89, 111},  // base cell 97 (pentagon)
+        {98, 110, 97, 111, 82, 96, 84},                 // base cell 98
+        {99, 80, 105, 88, 106, 90, 113},                // base cell 99
+        {100, 102, 83, 87, 108, 114, 92},               // base cell 100
+        {101, 102, 107, 112, 81, 85, 94},               // base cell 101
+        {102, 101, 87, 85, 114, 112, 100},              // base cell 102
+        {103, 91, 97, 89, 116, 105, 111},               // base cell 103
+        {104, 107, 110, 115, 86, 94, 96},               // base cell 104
+        {105, 88, 103, 91, 113, 99, 116},               // base cell 105
+        {106, 93, 99, 90, 117, 109, 113},               // base cell 106
+        {107, INVALID_BASE_CELL, 101, 94, 115, 104, 112}, // base cell 107 (pentagon)
+        {108, 100, 95, 92, 118, 114, 109},              // base cell 108
+        {109, 108, 93, 95, 117, 118, 106},              // base cell 109
+        {110, 98, 104, 96, 119, 111, 115},              // base cell 110
+        {111, 97, 110, 98, 116, 103, 119},              // base cell 111
+        {112, 107, 102, 101, 120, 115, 114},            // base cell 112
+        {113, 99, 116, 105, 117, 106, 121},             // base cell 113
+        {114, 112, 100, 102, 118, 120, 108},            // base cell 114
+        {115, 110, 107, 104, 120, 119, 112},            // base cell 115
+        {116, 103, 119, 111, 113, 105, 121},            // base cell 116
+        {117, INVALID_BASE_CELL, 109, 118, 113, 121, 106}, // base cell 117 (pentagon)
+        {118, 120, 108, 114, 117, 121, 109},            // base cell 118
+        {119, 111, 115, 110, 121, 116, 120},            // base cell 119
+        {120, 115, 114, 112, 121, 119, 118},            // base cell 120
+        {121, 116, 120, 119, 117, 113, 118},            // base cell 121
+    };
+
+    /// <summary>
+    /// Neighboring base cell rotations in each IJK direction.
+    /// For each base cell, for each direction, the number of 60 degree CCW rotations
+    /// to the coordinate system of the neighbor is given.
+    /// -1 indicates there is no neighbor in that direction.
+    /// From H3 reference implementation baseCells.c
+    /// </summary>
+    private static readonly int[,] BaseCellNeighbor60CCWRots = new int[122, 7]
+    {
+        {0, 5, 0, 0, 1, 5, 1},   // base cell 0
+        {0, 0, 1, 0, 1, 0, 1},   // base cell 1
+        {0, 0, 0, 0, 0, 5, 0},   // base cell 2
+        {0, 5, 0, 0, 2, 5, 1},   // base cell 3
+        {0, -1, 1, 0, 3, 4, 2},  // base cell 4 (pentagon)
+        {0, 0, 1, 0, 1, 0, 1},   // base cell 5
+        {0, 0, 0, 3, 5, 5, 0},   // base cell 6
+        {0, 0, 0, 0, 0, 5, 0},   // base cell 7
+        {0, 5, 0, 0, 0, 5, 1},   // base cell 8
+        {0, 0, 1, 3, 0, 0, 1},   // base cell 9
+        {0, 0, 1, 3, 0, 0, 1},   // base cell 10
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 11
+        {0, 5, 0, 0, 3, 5, 1},   // base cell 12
+        {0, 0, 1, 0, 1, 0, 1},   // base cell 13
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 14 (pentagon)
+        {0, 5, 0, 0, 4, 5, 1},   // base cell 15
+        {0, 0, 0, 0, 0, 5, 0},   // base cell 16
+        {0, 3, 3, 3, 3, 0, 3},   // base cell 17
+        {0, 0, 0, 3, 5, 5, 0},   // base cell 18
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 19
+        {0, 3, 3, 3, 0, 3, 0},   // base cell 20
+        {0, 0, 0, 3, 5, 5, 0},   // base cell 21
+        {0, 0, 1, 0, 1, 0, 1},   // base cell 22
+        {0, 3, 3, 3, 0, 3, 0},   // base cell 23
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 24 (pentagon)
+        {0, 0, 0, 3, 0, 0, 3},   // base cell 25
+        {0, 0, 0, 0, 0, 5, 0},   // base cell 26
+        {0, 3, 0, 0, 0, 3, 3},   // base cell 27
+        {0, 0, 1, 0, 1, 0, 1},   // base cell 28
+        {0, 0, 1, 3, 0, 0, 1},   // base cell 29
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 30
+        {0, 0, 0, 0, 0, 5, 0},   // base cell 31
+        {0, 3, 3, 3, 3, 0, 3},   // base cell 32
+        {0, 0, 1, 3, 0, 0, 1},   // base cell 33
+        {0, 3, 3, 3, 3, 0, 3},   // base cell 34
+        {0, 0, 3, 0, 3, 0, 3},   // base cell 35
+        {0, 0, 0, 3, 0, 0, 3},   // base cell 36
+        {0, 3, 0, 0, 0, 3, 3},   // base cell 37
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 38 (pentagon)
+        {0, 3, 0, 0, 3, 3, 0},   // base cell 39
+        {0, 3, 0, 0, 3, 3, 0},   // base cell 40
+        {0, 0, 0, 3, 5, 5, 0},   // base cell 41
+        {0, 0, 0, 3, 5, 5, 0},   // base cell 42
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 43
+        {0, 0, 1, 3, 0, 0, 1},   // base cell 44
+        {0, 0, 3, 0, 0, 3, 3},   // base cell 45
+        {0, 0, 0, 3, 0, 3, 0},   // base cell 46
+        {0, 3, 3, 3, 0, 3, 0},   // base cell 47
+        {0, 3, 3, 3, 0, 3, 0},   // base cell 48
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 49 (pentagon)
+        {0, 0, 0, 3, 0, 0, 3},   // base cell 50
+        {0, 3, 0, 0, 0, 3, 3},   // base cell 51
+        {0, 0, 3, 0, 3, 0, 3},   // base cell 52
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 53
+        {0, 0, 3, 0, 3, 0, 3},   // base cell 54
+        {0, 0, 3, 0, 0, 3, 3},   // base cell 55
+        {0, 3, 3, 3, 0, 0, 3},   // base cell 56
+        {0, 0, 0, 3, 0, 3, 0},   // base cell 57
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 58 (pentagon)
+        {0, 3, 3, 3, 3, 3, 0},   // base cell 59
+        {0, 3, 3, 3, 3, 3, 0},   // base cell 60
+        {0, 3, 3, 3, 3, 0, 3},   // base cell 61
+        {0, 3, 3, 3, 3, 0, 3},   // base cell 62
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 63 (pentagon)
+        {0, 0, 0, 3, 0, 0, 3},   // base cell 64
+        {0, 3, 3, 3, 0, 3, 0},   // base cell 65
+        {0, 3, 0, 0, 0, 3, 3},   // base cell 66
+        {0, 3, 0, 0, 3, 3, 0},   // base cell 67
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 68
+        {0, 3, 0, 0, 3, 3, 0},   // base cell 69
+        {0, 0, 3, 0, 0, 3, 3},   // base cell 70
+        {0, 0, 0, 3, 0, 3, 0},   // base cell 71
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 72 (pentagon)
+        {0, 3, 3, 3, 0, 0, 3},   // base cell 73
+        {0, 3, 3, 3, 0, 0, 3},   // base cell 74
+        {0, 0, 0, 3, 0, 0, 3},   // base cell 75
+        {0, 3, 0, 0, 0, 3, 3},   // base cell 76
+        {0, 0, 0, 3, 0, 5, 0},   // base cell 77
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 78
+        {0, 0, 1, 3, 1, 0, 1},   // base cell 79
+        {0, 0, 1, 3, 1, 0, 1},   // base cell 80
+        {0, 0, 3, 0, 3, 0, 3},   // base cell 81
+        {0, 0, 3, 0, 3, 0, 3},   // base cell 82
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 83 (pentagon)
+        {0, 0, 3, 0, 0, 3, 3},   // base cell 84
+        {0, 0, 0, 3, 0, 3, 0},   // base cell 85
+        {0, 3, 0, 0, 3, 3, 0},   // base cell 86
+        {0, 3, 3, 3, 3, 3, 0},   // base cell 87
+        {0, 0, 0, 3, 0, 5, 0},   // base cell 88
+        {0, 3, 3, 3, 3, 3, 0},   // base cell 89
+        {0, 0, 0, 0, 0, 0, 1},   // base cell 90
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 91
+        {0, 0, 0, 3, 0, 5, 0},   // base cell 92
+        {0, 5, 0, 0, 5, 5, 0},   // base cell 93
+        {0, 0, 3, 0, 0, 3, 3},   // base cell 94
+        {0, 0, 0, 0, 0, 0, 1},   // base cell 95
+        {0, 0, 0, 3, 0, 3, 0},   // base cell 96
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 97 (pentagon)
+        {0, 3, 3, 3, 0, 0, 3},   // base cell 98
+        {0, 5, 0, 0, 5, 5, 0},   // base cell 99
+        {0, 0, 1, 3, 1, 0, 1},   // base cell 100
+        {0, 3, 3, 3, 0, 0, 3},   // base cell 101
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 102
+        {0, 0, 1, 3, 1, 0, 1},   // base cell 103
+        {0, 3, 3, 3, 3, 3, 0},   // base cell 104
+        {0, 0, 0, 0, 0, 0, 1},   // base cell 105
+        {0, 0, 1, 0, 3, 5, 1},   // base cell 106
+        {0, -1, 3, 0, 5, 2, 0},  // base cell 107 (pentagon)
+        {0, 5, 0, 0, 5, 5, 0},   // base cell 108
+        {0, 0, 1, 0, 4, 5, 1},   // base cell 109
+        {0, 3, 3, 3, 0, 0, 0},   // base cell 110
+        {0, 0, 0, 3, 0, 5, 0},   // base cell 111
+        {0, 0, 0, 3, 0, 5, 0},   // base cell 112
+        {0, 0, 1, 0, 2, 5, 1},   // base cell 113
+        {0, 0, 0, 0, 0, 0, 1},   // base cell 114
+        {0, 0, 1, 3, 1, 0, 1},   // base cell 115
+        {0, 5, 0, 0, 5, 5, 0},   // base cell 116
+        {0, -1, 1, 0, 3, 4, 2},  // base cell 117 (pentagon)
+        {0, 0, 1, 0, 0, 5, 1},   // base cell 118
+        {0, 0, 0, 0, 0, 0, 1},   // base cell 119
+        {0, 5, 0, 0, 5, 5, 0},   // base cell 120
+        {0, 0, 1, 0, 1, 5, 1},   // base cell 121
+    };
+
+    /// <summary>
+    /// Returns whether the indicated base cell is a polar pentagon.
+    /// Polar pentagons are base cells 4 and 117, where all neighbors are oriented towards it.
+    /// From H3 reference implementation baseCells.c
+    /// </summary>
+    private static bool IsBaseCellPolarPentagon(int baseCell)
+    {
+        return baseCell == 4 || baseCell == 117;
+    }
+
+    /// <summary>
+    /// Returns whether the tested face is a clockwise offset face for the given base cell.
+    /// From H3 reference implementation baseCells.c
+    /// </summary>
+    private static bool BaseCellIsCwOffset(int baseCell, int testFace)
+    {
+        if (baseCell < 0 || baseCell >= NumBaseCells)
+        {
+            return false;
+        }
+        
+        var baseCellData = BaseCellDataTable[baseCell];
+        return baseCellData.CwOffsetFace1 == testFace || baseCellData.CwOffsetFace2 == testFace;
+    }
+
+    /// <summary>
     /// Encodes a geographic location into an H3 cell index.
     /// </summary>
     /// <param name="latitude">The latitude in degrees (-90 to 90).</param>
@@ -77,11 +461,47 @@ internal static class H3Encoder
     /// <summary>
     /// Decodes an H3 cell index to its center point coordinates.
     /// </summary>
-    /// <param name="h3Index">The H3 cell index to decode.</param>
-    /// <returns>A tuple containing the latitude and longitude of the center point.</returns>
+    /// <remarks>
+    /// <para>
+    /// Returns the geographic coordinates (latitude, longitude) of the center point of the
+    /// specified H3 cell. The center point is the centroid of the hexagonal (or pentagonal) cell.
+    /// </para>
+    /// <para>
+    /// <b>Accuracy:</b> The decoding accuracy is typically within 0.1° for all cell types.
+    /// Both hexagonal cells (110 base cells) and pentagonal cells (12 base cells) decode
+    /// with the same level of accuracy after the pentagon rotation fix.
+    /// </para>
+    /// <para>
+    /// <b>Pentagon Base Cells:</b> The H3 grid contains 12 pentagon base cells at positions
+    /// 4, 14, 24, 38, 49, 58, 63, 72, 83, 97, 107, 117. These cells and their descendants
+    /// are handled correctly with proper coordinate rotation during decoding.
+    /// </para>
+    /// <para>
+    /// <b>Round-Trip Consistency:</b> Encoding a point and then decoding the result will
+    /// return a point within the same cell, though not necessarily the exact original point
+    /// (since multiple points map to the same cell).
+    /// </para>
+    /// </remarks>
+    /// <param name="h3Index">The H3 cell index to decode (hexadecimal string format).</param>
+    /// <returns>
+    /// A tuple containing the latitude and longitude of the center point in degrees.
+    /// Latitude ranges from -90 to 90, longitude ranges from -180 to 180.
+    /// </returns>
     /// <exception cref="ArgumentException">
     /// Thrown when the H3 index is null, empty, or invalid.
     /// </exception>
+    /// <example>
+    /// <code>
+    /// // Decode a cell in San Francisco
+    /// var (lat, lon) = H3Encoder.Decode("89283082803ffff");
+    /// // Returns approximately (37.77, -122.42)
+    /// 
+    /// // Round-trip: encode then decode
+    /// var encoded = H3Encoder.Encode(37.7749, -122.4194, 9);
+    /// var (decodedLat, decodedLon) = H3Encoder.Decode(encoded);
+    /// // decodedLat and decodedLon will be close to but not exactly 37.7749, -122.4194
+    /// </code>
+    /// </example>
     public static (double Latitude, double Longitude) Decode(string h3Index)
     {
         if (string.IsNullOrEmpty(h3Index))
@@ -163,71 +583,130 @@ internal static class H3Encoder
     }
 
     /// <summary>
-    /// Gets the neighboring H3 cells for a given H3 index.
+    /// Gets the neighboring H3 cell indices for a given H3 cell.
     /// </summary>
-    /// <param name="h3Index">The H3 cell index.</param>
-    /// <returns>An array of H3 cell indices representing the neighboring cells (6 for hexagons, 5 for pentagons).</returns>
-    /// <exception cref="ArgumentException">
-    /// Thrown when the H3 index is null, empty, or invalid.
-    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// Returns 6 neighbors for hexagonal cells (the vast majority of H3 cells) and 
+    /// 5 neighbors for pentagonal cells (12 pentagon base cells exist in the H3 grid).
+    /// </para>
+    /// <para>
+    /// This implementation uses the proper IJK-based neighbor calculation from the H3 reference
+    /// implementation (h3NeighborRotations), ensuring that returned neighbors are actually 
+    /// adjacent to the input cell and share an edge with it.
+    /// </para>
+    /// <para>
+    /// <b>Pentagon Handling:</b> The H3 grid contains 12 pentagon cells at each resolution
+    /// (base cells 4, 14, 24, 38, 49, 58, 63, 72, 83, 97, 107, 117). Pentagon cells have only
+    /// 5 neighbors because the K-axis direction is invalid for pentagons. This method
+    /// automatically detects pentagon cells and returns the correct 5 neighbors.
+    /// </para>
+    /// <para>
+    /// <b>Neighbor Symmetry:</b> If cell B is a neighbor of cell A, then cell A is guaranteed
+    /// to be a neighbor of cell B. This symmetry property is essential for correct ring
+    /// expansion in cell covering algorithms.
+    /// </para>
+    /// <para>
+    /// <b>Expected Distance:</b> All returned neighbors will decode to geographic locations
+    /// that are within approximately 2 * cellSize distance from the input cell's center,
+    /// where cellSize is the edge length of cells at the given resolution.
+    /// </para>
+    /// </remarks>
+    /// <param name="h3Index">The H3 cell index to get neighbors for (hexadecimal string format).</param>
+    /// <returns>
+    /// Array of neighbor H3 cell indices. Returns 6 neighbors for hexagonal cells,
+    /// 5 neighbors for pentagonal cells. The neighbors are not in any particular order.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when the H3 index is null, empty, or invalid.</exception>
+    /// <example>
+    /// <code>
+    /// // Get neighbors of a cell in San Francisco at resolution 9
+    /// var neighbors = H3Encoder.GetNeighbors("89283082803ffff");
+    /// // Returns 6 neighbor cell indices, all adjacent to the input cell
+    /// 
+    /// // Pentagon cells return 5 neighbors
+    /// var pentagonNeighbors = H3Encoder.GetNeighbors("8009fffffffffff"); // Base cell 4 (pentagon)
+    /// // Returns 5 neighbor cell indices
+    /// </code>
+    /// </example>
     public static string[] GetNeighbors(string h3Index)
     {
         if (string.IsNullOrEmpty(h3Index))
         {
             throw new ArgumentException("H3 index cannot be null or empty", nameof(h3Index));
         }
-
+        
+        // Parse the H3 index
         var index = StringToH3Index(h3Index);
-        var (baseCell, resolution, face, i, j) = ParseH3IndexWithFace(index);
-        
-        // Convert IJ to IJK coordinates
-        var ijk = new CoordIJK(i, j, 0);
-        IJKNormalize(ref ijk);
-        
-        // Create FaceIJK for the current cell
-        var fijk = new FaceIJK(face, ijk);
-        
-        // Check if this is a pentagon
+        var baseCell = H3_GET_BASE_CELL(index);
         var isPentagon = IsPentagon(baseCell);
         
-        // For hexagons, we have 6 neighbors (directions 1-6)
-        // For pentagons, we have 5 neighbors (skip one direction)
-        var neighbors = new List<string>();
+        // Pentagons have 5 neighbors (K-axis direction is invalid)
+        // Hexagons have 6 neighbors
+        var neighborCount = isPentagon ? 5 : 6;
+        var neighbors = new List<string>(neighborCount);
         
-        // The 6 hexagonal directions are represented by digits 1-6
-        // Direction 0 is center (no movement)
-        // For pentagons, direction 1 (K_AXES_DIGIT) is the deleted subsequence
-        var startDirection = isPentagon ? 2 : 1;  // Skip K direction for pentagons
-        var endDirection = 7;  // Directions are 1-6, so we go up to 7 (exclusive)
-        
-        for (var direction = startDirection; direction < endDirection; direction++)
+        // Loop through all 6 possible directions
+        // For pentagons, skip the K_AXES_DIGIT direction (direction 1)
+        for (var dir = 1; dir <= 6; dir++)
         {
-            // Create a copy of the current cell's FaceIJK
-            var neighborFijk = new FaceIJK(fijk.Face, new CoordIJK(fijk.Coord.I, fijk.Coord.J, fijk.Coord.K));
+            var direction = (Direction)dir;
             
-            // Move one step in the specified direction
-            Neighbor(ref neighborFijk.Coord, direction);
-            
-            // Adjust for face overage (cells that cross face boundaries)
-            // This is critical for cells near face edges
-            var overage = AdjustOverageClassII(ref neighborFijk, resolution, false, false);
-            
-            // Build the H3 index for the neighbor
-            try
+            // For pentagons, skip the K-axis direction as it's invalid
+            if (isPentagon && direction == Direction.K_AXES_DIGIT)
             {
-                var neighborIndex = BuildH3IndexFromFaceIJK(neighborFijk, resolution);
+                continue;
+            }
+            
+            // Calculate the neighbor in this direction using h3NeighborRotations
+            var rotations = 0;
+            var success = H3NeighborRotations(index, direction, ref rotations, out var neighborIndex);
+            
+            if (success)
+            {
+                // Convert the neighbor index to a string and add to results
                 var neighborString = H3IndexToString(neighborIndex);
                 neighbors.Add(neighborString);
             }
-            catch
-            {
-                // If we can't build a valid neighbor (shouldn't happen in normal cases),
-                // skip it rather than failing the entire operation
-                continue;
-            }
+            // If not successful (E_PENTAGON error), skip this direction
+            // This should only happen for pentagons in the K-axis direction,
+            // which we already filter out above, but we handle it defensively
         }
         
         return neighbors.ToArray();
+    }
+    
+    /// <summary>
+    /// Gets the approximate cell size in kilometers for a given H3 resolution.
+    /// </summary>
+    private static double GetApproximateCellSizeKm(int resolution)
+    {
+        // Approximate edge lengths for H3 resolutions (in km)
+        // Source: H3 documentation
+        // These represent the average edge length of a hexagon at each resolution
+        var edgeLengths = new[]
+        {
+            1107.712591, // res 0
+            418.676005,  // res 1
+            158.244655,  // res 2
+            59.810857,   // res 3
+            22.606379,   // res 4
+            8.544408,    // res 5
+            3.229482,    // res 6
+            1.220629,    // res 7
+            0.461354,    // res 8
+            0.174375,    // res 9
+            0.065907,    // res 10
+            0.024910,    // res 11
+            0.009415,    // res 12
+            0.003559,    // res 13
+            0.001348,    // res 14
+            0.000509     // res 15
+        };
+
+        return resolution >= 0 && resolution < edgeLengths.Length 
+            ? edgeLengths[resolution] 
+            : 0.0;
     }
 
     // ===== Coordinate Conversion Methods =====
@@ -1324,15 +1803,6 @@ internal static class H3Encoder
         return BaseCellDataTable[baseCell].Face;
     }
 
-    /// <summary>
-    /// Returns true if the specified face is a CW offset face for the given pentagon base cell.
-    /// </summary>
-    private static bool BaseCellIsCwOffset(int baseCell, int face)
-    {
-        var data = BaseCellDataTable[baseCell];
-        return data.CwOffsetFace1 == face || data.CwOffsetFace2 == face;
-    }
-
     // ===== Hexagonal Grid Coordinates =====
     
     // Constants for hexagonal grid calculations
@@ -2164,6 +2634,14 @@ internal static class H3Encoder
     /// </summary>
     private static (int baseCell, int resolution, int face, int i, int j) ParseH3IndexWithFace(ulong index)
     {
+        return ParseH3IndexWithFaceInternal(index, false);
+    }
+    
+    /// <summary>
+    /// Internal implementation with optional debug output.
+    /// </summary>
+    internal static (int baseCell, int resolution, int face, int i, int j) ParseH3IndexWithFaceInternal(ulong index, bool debug)
+    {
         // Extract resolution and base cell from the index
         var resolution = (int)((index >> H3ResOffset) & 0xF);
         var baseCell = (int)((index >> H3BcOffset) & 0x7F);
@@ -2178,20 +2656,25 @@ internal static class H3Encoder
         // If this is a pentagon base cell and the leading non-zero digit is 5,
         // we need to rotate the index 60 degrees clockwise
         var isPentagon = IsPentagon(baseCell);
-        if (isPentagon && GetLeadingNonZeroDigit(index, resolution) == 5)
+        var leadingDigit = GetLeadingNonZeroDigit(index, resolution);
+        if (isPentagon && leadingDigit == 5)
         {
             index = RotateH3Index60cw(index, resolution);
+            if (debug) Console.WriteLine($"  Pentagon leading digit 5, rotated index");
         }
         
         // Start with the base cell's home FaceIJK
         var baseCellData = BaseCellDataTable[baseCell];
         var fijk = new FaceIJK(baseCellData.Face, new CoordIJK(baseCellData.I, baseCellData.J, baseCellData.K));
         
+        if (debug) Console.WriteLine($"  Base cell {baseCell}: home face={baseCellData.Face}, IJK=({baseCellData.I},{baseCellData.J},{baseCellData.K}), isPentagon={isPentagon}, leadingDigit={leadingDigit}");
+        
         // If resolution is 0, we're at the base cell level
         if (resolution == 0)
         {
             var i0 = fijk.Coord.I - fijk.Coord.K;
             var j0 = fijk.Coord.J - fijk.Coord.K;
+            if (debug) Console.WriteLine($"  Resolution 0: returning face={fijk.Face}, IJ=({i0},{j0})");
             return (baseCell, resolution, fijk.Face, i0, j0);
         }
         
@@ -2200,6 +2683,8 @@ internal static class H3Encoder
         // This check is done BEFORE traversing the digit path
         var baseCellIsCenter = (baseCellData.I == 0 && baseCellData.J == 0 && baseCellData.K == 0);
         var possibleOverage = isPentagon || !baseCellIsCenter;
+        
+        if (debug) Console.WriteLine($"  possibleOverage={possibleOverage}, baseCellIsCenter={baseCellIsCenter}");
         
         // Traverse the digit path from resolution 1 to target resolution
         // H3 alternates between Class II (rotate CW) and Class III (rotate CCW) resolutions
@@ -2223,6 +2708,8 @@ internal static class H3Encoder
             
             // Apply the neighbor offset for this digit
             Neighbor(ref fijk.Coord, digit);
+            
+            if (debug) Console.WriteLine($"  After res {r} (digit={digit}): IJK=({fijk.Coord.I},{fijk.Coord.J},{fijk.Coord.K}), sum={fijk.Coord.I + fijk.Coord.J + fijk.Coord.K}");
         }
         
         // Handle face overage if possible
@@ -2236,21 +2723,30 @@ internal static class H3Encoder
             {
                 DownAp7r(ref fijk.Coord);
                 adjRes++;
+                if (debug) Console.WriteLine($"  Class III: dropped to adjRes={adjRes}, IJK=({fijk.Coord.I},{fijk.Coord.J},{fijk.Coord.K})");
             }
+            
+            var maxDim = MaxDimByCIIRes[adjRes];
+            var sum = fijk.Coord.I + fijk.Coord.J + fijk.Coord.K;
+            if (debug) Console.WriteLine($"  Before overage check: face={fijk.Face}, IJK=({fijk.Coord.I},{fijk.Coord.J},{fijk.Coord.K}), sum={sum}, maxDim={maxDim}");
             
             // Adjust for overage if needed
             // A pentagon base cell with a leading 4 digit requires special handling
             var pentLeading4 = isPentagon && GetLeadingNonZeroDigit(index, resolution) == 4;
             var overage = AdjustOverageClassII(ref fijk, adjRes, pentLeading4, false);
             
+            if (debug) Console.WriteLine($"  After first overage: overage={overage}, face={fijk.Face}, IJK=({fijk.Coord.I},{fijk.Coord.J},{fijk.Coord.K})");
+            
             if (overage != Overage.NoOverage)
             {
                 // If the base cell is a pentagon we have the potential for secondary overages
                 if (isPentagon)
                 {
+                    var overageCount = 1;
                     while (AdjustOverageClassII(ref fijk, adjRes, false, false) != Overage.NoOverage)
                     {
-                        // Keep adjusting until no more overage
+                        overageCount++;
+                        if (debug) Console.WriteLine($"  Secondary overage {overageCount}: face={fijk.Face}, IJK=({fijk.Coord.I},{fijk.Coord.J},{fijk.Coord.K})");
                     }
                 }
                 
@@ -2258,12 +2754,14 @@ internal static class H3Encoder
                 if (adjRes != resolution)
                 {
                     UpAp7r(ref fijk.Coord);
+                    if (debug) Console.WriteLine($"  After UpAp7r: IJK=({fijk.Coord.I},{fijk.Coord.J},{fijk.Coord.K})");
                 }
             }
             else if (adjRes != resolution)
             {
                 // No overage but we changed resolution, restore original
                 fijk.Coord = origIJK;
+                if (debug) Console.WriteLine($"  No overage, restored original IJK");
             }
         }
         
@@ -2305,6 +2803,7 @@ internal static class H3Encoder
     /// <summary>
     /// Rotates an H3 index 60 degrees clockwise.
     /// Used for pentagon handling when the leading non-zero digit is 5.
+    /// From H3 reference: K(1)→JK(3), JK(3)→J(2), J(2)→IJ(6), IJ(6)→I(4), I(4)→IK(5), IK(5)→K(1)
     /// </summary>
     private static ulong RotateH3Index60cw(ulong index, int resolution)
     {
@@ -2313,18 +2812,18 @@ internal static class H3Encoder
         for (var r = 1; r <= resolution; r++)
         {
             var digitOffset = (MaxH3Resolution - r) * H3PerDigitOffset;
-            var digit = (int)((index >> digitOffset) & H3DigitMask);
+            var digit = (int)((newIndex >> digitOffset) & H3DigitMask);
             
             // Rotate the digit 60 degrees clockwise
-            // Digit rotation: 1->5, 2->1, 3->2, 4->3, 5->4, 6->6 (unchanged)
+            // From H3 reference _rotate60cw: 1→3, 3→2, 2→6, 6→4, 4→5, 5→1
             var rotatedDigit = digit switch
             {
-                1 => 5,
-                2 => 1,
-                3 => 2,
-                4 => 3,
-                5 => 4,
-                6 => 6,
+                1 => 3,  // K → JK
+                2 => 6,  // J → IJ
+                3 => 2,  // JK → J
+                4 => 5,  // I → IK
+                5 => 1,  // IK → K
+                6 => 4,  // IJ → I
                 _ => 0
             };
             
@@ -2337,6 +2836,7 @@ internal static class H3Encoder
 
     /// <summary>
     /// Rotates an H3 index 60 degrees counter-clockwise (hexagons).
+    /// From H3 reference: K(1)→IK(5), IK(5)→I(4), I(4)→IJ(6), IJ(6)→J(2), J(2)→JK(3), JK(3)→K(1)
     /// </summary>
     private static ulong RotateH3Index60ccw(ulong index, int resolution)
     {
@@ -2347,14 +2847,15 @@ internal static class H3Encoder
             var digitOffset = (MaxH3Resolution - r) * H3PerDigitOffset;
             var digit = (int)((newIndex >> digitOffset) & H3DigitMask);
 
+            // From H3 reference _rotate60ccw: 1→5, 5→4, 4→6, 6→2, 2→3, 3→1
             var rotatedDigit = digit switch
             {
-                1 => 2,
-                2 => 3,
-                3 => 4,
-                4 => 5,
-                5 => 1,
-                6 => 6,
+                1 => 5,  // K → IK
+                2 => 3,  // J → JK
+                3 => 1,  // JK → K
+                4 => 6,  // I → IJ
+                5 => 4,  // IK → I
+                6 => 2,  // IJ → J
                 _ => 0
             };
 
@@ -2366,6 +2867,7 @@ internal static class H3Encoder
 
     /// <summary>
     /// Rotates an H3 pentagon index 60 degrees counter-clockwise, handling the missing k-axis.
+    /// From H3 reference _h3RotatePent60ccw.
     /// </summary>
     private static ulong RotatePentagon60ccw(ulong index, int resolution)
     {
@@ -2377,14 +2879,15 @@ internal static class H3Encoder
             var digitOffset = (MaxH3Resolution - r) * H3PerDigitOffset;
             var digit = (int)((newIndex >> digitOffset) & H3DigitMask);
 
+            // From H3 reference _rotate60ccw: 1→5, 5→4, 4→6, 6→2, 2→3, 3→1
             digit = digit switch
             {
-                1 => 2,
-                2 => 3,
-                3 => 4,
-                4 => 5,
-                5 => 1,
-                6 => 6,
+                1 => 5,  // K → IK
+                2 => 3,  // J → JK
+                3 => 1,  // JK → K
+                4 => 6,  // I → IJ
+                5 => 4,  // IK → I
+                6 => 2,  // IJ → J
                 _ => 0
             };
 
@@ -2914,5 +3417,508 @@ internal static class H3Encoder
             lng += 2.0 * Math.PI;
         }
         return lng;
+    }
+
+    // ===== H3 Index Manipulation Helper Functions =====
+    // These functions manipulate the bit representation of H3 indices.
+    // Based on H3 reference implementation h3Index.h and h3Index.c
+    
+    /// <summary>
+    /// Bit offset constants for H3 index structure.
+    /// From H3 reference implementation h3Index.h
+    /// 
+    /// H3 Index bit layout (64 bits total):
+    /// - Bit 63 (1 bit): High bit (reserved, should be 0)
+    /// - Bits 59-62 (4 bits): Mode (1 for cell mode)
+    /// - Bits 56-58 (3 bits): Reserved (should be 0)
+    /// - Bits 52-55 (4 bits): Resolution (0-15)
+    /// - Bits 45-51 (7 bits): Base cell (0-121)
+    /// - Bits 0-44 (45 bits): Index digits (15 digits × 3 bits each)
+    /// </summary>
+    private const int H3_MAX_OFFSET = 63;
+    private const int H3_MODE_OFFSET = 59;
+    private const int H3_RESERVED_OFFSET = 56;
+    private const int H3_RES_OFFSET = 52;
+    private const int H3_BC_OFFSET = 45;
+    private const int H3_PER_DIGIT_OFFSET = 3;
+    
+    /// <summary>
+    /// Bit masks for H3 index structure.
+    /// </summary>
+    private const ulong H3_HIGH_BIT_MASK = 1UL << H3_MAX_OFFSET;
+    private const ulong H3_MODE_MASK = 15UL << H3_MODE_OFFSET;
+    private const ulong H3_RESERVED_MASK = 7UL << H3_RESERVED_OFFSET;
+    private const ulong H3_RES_MASK = 15UL << H3_RES_OFFSET;
+    private const ulong H3_BC_MASK = 127UL << H3_BC_OFFSET;
+    private const ulong H3_DIGIT_MASK = 7UL;
+    
+    /// <summary>
+    /// H3 index initialization value.
+    /// Mode 0, res 0, base cell 0, and 7 for all index digits.
+    /// From H3 reference implementation: H3_INIT = 35184372088831
+    /// </summary>
+    private const ulong H3_INIT = 35184372088831UL;
+    
+    /// <summary>
+    /// Gets the resolution from an H3 index.
+    /// Equivalent to H3_GET_RESOLUTION macro in H3 reference implementation.
+    /// </summary>
+    private static int H3_GET_RESOLUTION(ulong h3)
+    {
+        return (int)((h3 & H3_RES_MASK) >> H3_RES_OFFSET);
+    }
+    
+    /// <summary>
+    /// Sets the resolution in an H3 index.
+    /// Equivalent to H3_SET_RESOLUTION macro in H3 reference implementation.
+    /// </summary>
+    private static ulong H3_SET_RESOLUTION(ulong h3, int res)
+    {
+        return (h3 & ~H3_RES_MASK) | ((ulong)res << H3_RES_OFFSET);
+    }
+    
+    /// <summary>
+    /// Gets the base cell from an H3 index.
+    /// Equivalent to H3_GET_BASE_CELL macro in H3 reference implementation.
+    /// </summary>
+    private static int H3_GET_BASE_CELL(ulong h3)
+    {
+        return (int)((h3 & H3_BC_MASK) >> H3_BC_OFFSET);
+    }
+    
+    /// <summary>
+    /// Sets the base cell in an H3 index.
+    /// Equivalent to H3_SET_BASE_CELL macro in H3 reference implementation.
+    /// </summary>
+    private static ulong H3_SET_BASE_CELL(ulong h3, int bc)
+    {
+        return (h3 & ~H3_BC_MASK) | ((ulong)bc << H3_BC_OFFSET);
+    }
+    
+    /// <summary>
+    /// Gets the digit at a specific resolution from an H3 index.
+    /// Equivalent to H3_GET_INDEX_DIGIT macro in H3 reference implementation.
+    /// </summary>
+    /// <param name="h3">The H3 index</param>
+    /// <param name="res">The resolution (1-15) to get the digit for</param>
+    /// <returns>The digit (0-7) at that resolution</returns>
+    private static Direction H3_GET_INDEX_DIGIT(ulong h3, int res)
+    {
+        return (Direction)((h3 >> ((MaxH3Resolution - res) * H3_PER_DIGIT_OFFSET)) & H3_DIGIT_MASK);
+    }
+    
+    /// <summary>
+    /// Sets the digit at a specific resolution in an H3 index.
+    /// Equivalent to H3_SET_INDEX_DIGIT macro in H3 reference implementation.
+    /// </summary>
+    /// <param name="h3">The H3 index</param>
+    /// <param name="res">The resolution (1-15) to set the digit for</param>
+    /// <param name="digit">The digit (0-7) to set</param>
+    /// <returns>The modified H3 index</returns>
+    private static ulong H3_SET_INDEX_DIGIT(ulong h3, int res, Direction digit)
+    {
+        var shift = (MaxH3Resolution - res) * H3_PER_DIGIT_OFFSET;
+        var mask = H3_DIGIT_MASK << shift;
+        return (h3 & ~mask) | ((ulong)digit << shift);
+    }
+    
+    /// <summary>
+    /// Finds the first non-zero digit in an H3 index, starting from resolution 1.
+    /// Returns the direction of the first non-zero digit, or CENTER_DIGIT if all are zero.
+    /// From H3 reference implementation h3Index.c: _h3LeadingNonZeroDigit
+    /// </summary>
+    /// <param name="h3">The H3 index to examine</param>
+    /// <returns>The first non-zero digit direction</returns>
+    private static Direction H3LeadingNonZeroDigit(ulong h3)
+    {
+        var res = H3_GET_RESOLUTION(h3);
+        
+        for (var r = 1; r <= res; r++)
+        {
+            var digit = H3_GET_INDEX_DIGIT(h3, r);
+            if (digit != Direction.CENTER_DIGIT)
+            {
+                return digit;
+            }
+        }
+        
+        return Direction.CENTER_DIGIT;
+    }
+    
+    /// <summary>
+    /// Rotates an H3 index 60 degrees counter-clockwise.
+    /// From H3 reference implementation h3Index.c: _h3Rotate60ccw
+    /// </summary>
+    /// <param name="h3">The H3 index to rotate</param>
+    /// <returns>The rotated H3 index</returns>
+    private static ulong H3Rotate60ccw(ulong h3)
+    {
+        var res = H3_GET_RESOLUTION(h3);
+        
+        for (var r = 1; r <= res; r++)
+        {
+            var oldDigit = H3_GET_INDEX_DIGIT(h3, r);
+            var newDigit = RotateDigit60ccw(oldDigit);
+            h3 = H3_SET_INDEX_DIGIT(h3, r, newDigit);
+        }
+        
+        return h3;
+    }
+    
+    /// <summary>
+    /// Rotates an H3 index 60 degrees clockwise.
+    /// From H3 reference implementation h3Index.c: _h3Rotate60cw
+    /// </summary>
+    /// <param name="h3">The H3 index to rotate</param>
+    /// <returns>The rotated H3 index</returns>
+    private static ulong H3Rotate60cw(ulong h3)
+    {
+        var res = H3_GET_RESOLUTION(h3);
+        
+        for (var r = 1; r <= res; r++)
+        {
+            var oldDigit = H3_GET_INDEX_DIGIT(h3, r);
+            var newDigit = RotateDigit60cw(oldDigit);
+            h3 = H3_SET_INDEX_DIGIT(h3, r, newDigit);
+        }
+        
+        return h3;
+    }
+    
+    /// <summary>
+    /// Rotates a pentagon H3 index 60 degrees counter-clockwise.
+    /// Pentagons have special rotation rules due to their 5-fold symmetry.
+    /// From H3 reference implementation h3Index.c: _h3RotatePent60ccw
+    /// </summary>
+    /// <param name="h3">The pentagon H3 index to rotate</param>
+    /// <returns>The rotated H3 index</returns>
+    private static ulong H3RotatePent60ccw(ulong h3)
+    {
+        // Find the first non-zero digit
+        var foundFirstNonZeroDigit = false;
+        var res = H3_GET_RESOLUTION(h3);
+        
+        for (var r = 1; r <= res; r++)
+        {
+            var oldDigit = H3_GET_INDEX_DIGIT(h3, r);
+            
+            // Rotate this digit
+            var newDigit = RotateDigit60ccw(oldDigit);
+            h3 = H3_SET_INDEX_DIGIT(h3, r, newDigit);
+            
+            // Check if this is the first non-zero digit
+            if (!foundFirstNonZeroDigit && oldDigit != Direction.CENTER_DIGIT)
+            {
+                foundFirstNonZeroDigit = true;
+                
+                // Adjust for deleted k-subsequence (pentagon distortion)
+                // If the leading digit is in the k-axes direction, we need to skip it
+                if (H3LeadingNonZeroDigit(h3) == Direction.K_AXES_DIGIT)
+                {
+                    // Rotate again to skip the deleted k-subsequence
+                    h3 = H3Rotate60ccw(h3);
+                }
+            }
+        }
+        
+        return h3;
+    }
+    
+    /// <summary>
+    /// Rotates a pentagon H3 index 60 degrees clockwise.
+    /// Pentagons have special rotation rules due to their 5-fold symmetry.
+    /// From H3 reference implementation h3Index.c: _h3RotatePent60cw
+    /// </summary>
+    /// <param name="h3">The pentagon H3 index to rotate</param>
+    /// <returns>The rotated H3 index</returns>
+    private static ulong H3RotatePent60cw(ulong h3)
+    {
+        // Find the first non-zero digit
+        var foundFirstNonZeroDigit = false;
+        var res = H3_GET_RESOLUTION(h3);
+        
+        for (var r = 1; r <= res; r++)
+        {
+            var oldDigit = H3_GET_INDEX_DIGIT(h3, r);
+            
+            // Rotate this digit
+            var newDigit = RotateDigit60cw(oldDigit);
+            h3 = H3_SET_INDEX_DIGIT(h3, r, newDigit);
+            
+            // Check if this is the first non-zero digit
+            if (!foundFirstNonZeroDigit && oldDigit != Direction.CENTER_DIGIT)
+            {
+                foundFirstNonZeroDigit = true;
+                
+                // Adjust for deleted k-subsequence (pentagon distortion)
+                // If the leading digit is in the k-axes direction, we need to skip it
+                if (H3LeadingNonZeroDigit(h3) == Direction.K_AXES_DIGIT)
+                {
+                    // Rotate again to skip the deleted k-subsequence
+                    h3 = H3Rotate60cw(h3);
+                }
+            }
+        }
+        
+        return h3;
+    }
+    
+    /// <summary>
+    /// Rotates a single digit 60 degrees counter-clockwise.
+    /// Based on the IJK coordinate system rotation.
+    /// </summary>
+    private static Direction RotateDigit60ccw(Direction digit)
+    {
+        // From H3 reference implementation coordijk.c: _rotate60ccw
+        // Rotation order CCW: K -> IK -> I -> IJ -> J -> JK -> K
+        return digit switch
+        {
+            Direction.CENTER_DIGIT => Direction.CENTER_DIGIT,
+            Direction.K_AXES_DIGIT => Direction.IK_AXES_DIGIT,
+            Direction.IK_AXES_DIGIT => Direction.I_AXES_DIGIT,
+            Direction.I_AXES_DIGIT => Direction.IJ_AXES_DIGIT,
+            Direction.IJ_AXES_DIGIT => Direction.J_AXES_DIGIT,
+            Direction.J_AXES_DIGIT => Direction.JK_AXES_DIGIT,
+            Direction.JK_AXES_DIGIT => Direction.K_AXES_DIGIT,
+            _ => digit  // Return digit unchanged for invalid/unknown values
+        };
+    }
+    
+    /// <summary>
+    /// Rotates a single digit 60 degrees clockwise.
+    /// Based on the IJK coordinate system rotation.
+    /// </summary>
+    private static Direction RotateDigit60cw(Direction digit)
+    {
+        // From H3 reference implementation coordijk.c: _rotate60cw
+        // Rotation order CW: K -> JK -> J -> IJ -> I -> IK -> K
+        return digit switch
+        {
+            Direction.CENTER_DIGIT => Direction.CENTER_DIGIT,
+            Direction.K_AXES_DIGIT => Direction.JK_AXES_DIGIT,
+            Direction.JK_AXES_DIGIT => Direction.J_AXES_DIGIT,
+            Direction.J_AXES_DIGIT => Direction.IJ_AXES_DIGIT,
+            Direction.IJ_AXES_DIGIT => Direction.I_AXES_DIGIT,
+            Direction.I_AXES_DIGIT => Direction.IK_AXES_DIGIT,
+            Direction.IK_AXES_DIGIT => Direction.K_AXES_DIGIT,
+            _ => digit  // Return digit unchanged for invalid/unknown values
+        };
+    }
+    
+    /// <summary>
+    /// Calculates a neighbor H3 index in a given direction with rotation tracking.
+    /// This is the core neighbor calculation function from the H3 reference implementation.
+    /// 
+    /// Based on H3 reference implementation algos.c: h3NeighborRotations (lines 449-598)
+    /// 
+    /// The algorithm works by:
+    /// 1. Starting at the finest resolution and working backwards to resolution 0
+    /// 2. At each resolution, applying digit transitions based on Class II/III grids
+    /// 3. When reaching resolution 0, transitioning to the neighbor base cell
+    /// 4. Handling pentagon cells and their deleted K-axes subsequence
+    /// 5. Tracking coordinate system rotations across base cell boundaries
+    /// </summary>
+    /// <param name="origin">The origin H3 cell index</param>
+    /// <param name="dir">The direction to the neighbor (K_AXES, J_AXES, etc.)</param>
+    /// <param name="rotations">Input/output parameter tracking 60° CCW rotations</param>
+    /// <param name="out">Output parameter for the neighbor H3 index</param>
+    /// <returns>True if successful, false if invalid (e.g., pentagon K-axis direction)</returns>
+    private static bool H3NeighborRotations(ulong origin, Direction dir, ref int rotations, out ulong @out)
+    {
+        @out = origin;
+        var current = origin;
+        
+        // Validate direction
+        if (dir < Direction.CENTER_DIGIT || dir >= Direction.INVALID_DIGIT)
+        {
+            return false;
+        }
+        
+        // Ensure rotations is modulo 6 to prevent overflow
+        rotations = rotations % 6;
+        
+        // Apply initial rotations to the direction
+        for (var i = 0; i < rotations; i++)
+        {
+            dir = RotateDigit60ccw(dir);
+        }
+        
+        var newRotations = 0;
+        var oldBaseCell = H3_GET_BASE_CELL(current);
+        
+        // Validate base cell
+        if (oldBaseCell < 0 || oldBaseCell >= NumBaseCells)
+        {
+            return false;
+        }
+        
+        var oldLeadingDigit = H3LeadingNonZeroDigit(current);
+        
+        // Adjust the indexing digits and, if needed, the base cell
+        // Work backwards from finest resolution to resolution 0
+        var res = H3_GET_RESOLUTION(current);
+        var r = res - 1;
+        
+        while (true)
+        {
+            if (r == -1)
+            {
+                // We've reached resolution 0 - transition to neighbor base cell
+                var neighborBaseCell = BaseCellNeighbors[oldBaseCell, (int)dir];
+                current = H3_SET_BASE_CELL(current, neighborBaseCell);
+                newRotations = BaseCellNeighbor60CCWRots[oldBaseCell, (int)dir];
+                
+                if (neighborBaseCell == INVALID_BASE_CELL)
+                {
+                    // Adjust for the deleted k vertex at the base cell level
+                    // This edge actually borders a different neighbor
+                    neighborBaseCell = BaseCellNeighbors[oldBaseCell, (int)Direction.IK_AXES_DIGIT];
+                    current = H3_SET_BASE_CELL(current, neighborBaseCell);
+                    newRotations = BaseCellNeighbor60CCWRots[oldBaseCell, (int)Direction.IK_AXES_DIGIT];
+                    
+                    // Perform the adjustment for the k-subsequence we're skipping over
+                    current = H3Rotate60ccw(current);
+                    rotations = rotations + 1;
+                }
+                
+                break;
+            }
+            else
+            {
+                // Get the digit at this resolution level
+                var oldDigit = H3_GET_INDEX_DIGIT(current, r + 1);
+                
+                if (oldDigit == Direction.INVALID_DIGIT)
+                {
+                    // Only possible on invalid input
+                    return false;
+                }
+                
+                // Apply digit transition based on resolution class
+                Direction nextDir;
+                if (IsResolutionClassIII(r + 1))
+                {
+                    // Class III resolution: use Class II transition tables
+                    var newDigit = NEW_DIGIT_II[(int)oldDigit, (int)dir];
+                    current = H3_SET_INDEX_DIGIT(current, r + 1, newDigit);
+                    nextDir = NEW_ADJUSTMENT_II[(int)oldDigit, (int)dir];
+                }
+                else
+                {
+                    // Class II resolution: use Class III transition tables
+                    var newDigit = NEW_DIGIT_III[(int)oldDigit, (int)dir];
+                    current = H3_SET_INDEX_DIGIT(current, r + 1, newDigit);
+                    nextDir = NEW_ADJUSTMENT_III[(int)oldDigit, (int)dir];
+                }
+                
+                if (nextDir != Direction.CENTER_DIGIT)
+                {
+                    // Continue traversing to coarser resolution
+                    dir = nextDir;
+                    r--;
+                }
+                else
+                {
+                    // No more adjustment needed
+                    break;
+                }
+            }
+        }
+        
+        var newBaseCell = H3_GET_BASE_CELL(current);
+        
+        if (IsPentagon(newBaseCell))
+        {
+            var alreadyAdjustedKSubsequence = false;
+            
+            // Force rotation out of missing k-axes sub-sequence
+            if (H3LeadingNonZeroDigit(current) == Direction.K_AXES_DIGIT)
+            {
+                if (oldBaseCell != newBaseCell)
+                {
+                    // We traversed into the deleted k subsequence of a pentagon base cell
+                    // We need to rotate out of that case depending on how we got here
+                    // Check for a cw/ccw offset face; default is ccw
+                    
+                    if (BaseCellIsCwOffset(newBaseCell, BaseCellDataTable[oldBaseCell].Face))
+                    {
+                        current = H3Rotate60cw(current);
+                    }
+                    else
+                    {
+                        current = H3Rotate60ccw(current);
+                    }
+                    alreadyAdjustedKSubsequence = true;
+                }
+                else
+                {
+                    // We traversed into the deleted k subsequence from within the same pentagon base cell
+                    if (oldLeadingDigit == Direction.CENTER_DIGIT)
+                    {
+                        // Undefined: the k direction is deleted from here
+                        // This is the E_PENTAGON error case
+                        return false;
+                    }
+                    else if (oldLeadingDigit == Direction.JK_AXES_DIGIT)
+                    {
+                        // Rotate out of the deleted k subsequence
+                        // We also need an additional change to the direction we're moving in
+                        current = H3Rotate60ccw(current);
+                        rotations = rotations + 1;
+                    }
+                    else if (oldLeadingDigit == Direction.IK_AXES_DIGIT)
+                    {
+                        // Rotate out of the deleted k subsequence
+                        // We also need an additional change to the direction we're moving in
+                        current = H3Rotate60cw(current);
+                        rotations = rotations + 5;
+                    }
+                    else
+                    {
+                        // Should never occur
+                        return false;
+                    }
+                }
+            }
+            
+            // Apply pentagon rotations
+            for (var i = 0; i < newRotations; i++)
+            {
+                current = H3RotatePent60ccw(current);
+            }
+            
+            // Account for differing orientation of the base cells
+            if (oldBaseCell != newBaseCell)
+            {
+                if (IsBaseCellPolarPentagon(newBaseCell))
+                {
+                    // 'Polar' base cells behave differently because they have all i neighbors
+                    if (oldBaseCell != 118 && oldBaseCell != 8 &&
+                        H3LeadingNonZeroDigit(current) != Direction.JK_AXES_DIGIT)
+                    {
+                        rotations = rotations + 1;
+                    }
+                }
+                else if (H3LeadingNonZeroDigit(current) == Direction.IK_AXES_DIGIT &&
+                         !alreadyAdjustedKSubsequence)
+                {
+                    // Account for distortion introduced to the 5 neighbor by the deleted k subsequence
+                    rotations = rotations + 1;
+                }
+            }
+        }
+        else
+        {
+            // Regular hexagon: apply standard rotations
+            for (var i = 0; i < newRotations; i++)
+            {
+                current = H3Rotate60ccw(current);
+            }
+        }
+        
+        rotations = (rotations + newRotations) % 6;
+        @out = current;
+        
+        return true;
     }
 }

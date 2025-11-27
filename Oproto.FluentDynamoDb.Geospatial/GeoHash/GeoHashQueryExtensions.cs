@@ -1,141 +1,183 @@
 namespace Oproto.FluentDynamoDb.Geospatial.GeoHash;
 
 /// <summary>
-/// Extension methods for geospatial queries using GeoHash encoding.
-/// These methods are designed for use in lambda expressions that are translated to DynamoDB query expressions.
-/// The actual query logic is handled by the expression translator - these methods provide a type-safe API.
+/// Extension methods for GeoHash spatial queries in lambda expressions.
+/// These methods are markers for expression translation and should not be called directly.
+/// They will be recognized by the ExpressionTranslator and converted to DynamoDB BETWEEN syntax.
 /// </summary>
 /// <remarks>
+/// <para><strong>How It Works:</strong></para>
 /// <para>
-/// These extension methods are not intended to be called directly at runtime. Instead, they are recognized
-/// by the FluentDynamoDb expression translator and converted into DynamoDB BETWEEN expressions that query
-/// GeoHash-encoded location data.
+/// When you use these methods in a lambda expression, the ExpressionTranslator recognizes them
+/// and translates them to the corresponding DynamoDB BETWEEN expression. The methods themselves
+/// are never actually executed - they serve as markers in the expression tree.
 /// </para>
-/// <para>
-/// Example usage:
+/// <para><strong>Example Usage:</strong></para>
 /// <code>
-/// var center = new GeoLocation(37.7749, -122.4194);
-/// var results = await table.Query
-///     .Where&lt;Store&gt;(x => x.Location.WithinDistanceKilometers(center, 5))
-///     .ExecuteAsync();
+/// // Proximity query with WithinDistanceKilometers
+/// var results = await table.Query&lt;Store&gt;()
+///     .Where&lt;Store&gt;(x => x.Region == "west" &amp;&amp; x.Location.WithinDistanceKilometers(center, 5.0))
+///     .ToListAsync();
+/// 
+/// // Bounding box query with WithinBoundingBox
+/// var results = await table.Query&lt;Store&gt;()
+///     .Where&lt;Store&gt;(x => x.Region == "west" &amp;&amp; x.Location.WithinBoundingBox(southwest, northeast))
+///     .ToListAsync();
 /// </code>
-/// </para>
 /// <para>
-/// Note: These methods create rectangular bounding boxes for queries. Results may include locations
-/// outside the exact circular distance and should be post-filtered if precise circular queries are needed.
+/// These methods generate efficient single BETWEEN queries because GeoHash forms a continuous
+/// lexicographic space-filling curve. This is more efficient than S2/H3 which require multiple
+/// discrete cell queries.
 /// </para>
 /// </remarks>
 public static class GeoHashQueryExtensions
 {
     /// <summary>
-    /// Checks if the location is within a specified distance in meters from a center point.
-    /// This method is translated to a DynamoDB BETWEEN expression by the expression translator.
+    /// Marker method for proximity queries using GeoHash.
+    /// Translates to a BETWEEN query on the GeoHash-indexed attribute.
     /// </summary>
-    /// <param name="location">The location to check.</param>
-    /// <param name="center">The center point to measure distance from.</param>
-    /// <param name="distanceMeters">The maximum distance in meters.</param>
-    /// <returns>True if the location is within the specified distance; otherwise, false.</returns>
+    /// <param name="location">The GeoLocation property to query.</param>
+    /// <param name="center">The center point of the search radius.</param>
+    /// <param name="radiusKilometers">The search radius in kilometers.</param>
+    /// <returns>
+    /// This method is never actually executed. It serves as a marker for the ExpressionTranslator.
+    /// </returns>
     /// <remarks>
-    /// This method creates a rectangular bounding box around the center point. The actual query
-    /// may return locations outside the exact circular distance. Use <see cref="GeoLocation.DistanceToMeters"/>
-    /// to post-filter results for precise circular queries.
+    /// <para>
+    /// This method should only be used in lambda expressions passed to Query().Where().
+    /// It will be translated to a DynamoDB BETWEEN expression that queries the GeoHash range
+    /// covering the specified radius.
+    /// </para>
+    /// <para>
+    /// Note: GeoHash BETWEEN queries return a rectangular bounding box approximation.
+    /// Results may include locations slightly outside the exact circular radius and should
+    /// be post-filtered for exact distance if needed.
+    /// </para>
+    /// <para><strong>Example:</strong></para>
+    /// <code>
+    /// var center = new GeoLocation(37.7749, -122.4194);
+    /// var results = await table.Query&lt;Store&gt;()
+    ///     .Where&lt;Store&gt;(x => x.Region == "west" &amp;&amp; x.Location.WithinDistanceKilometers(center, 5.0))
+    ///     .ToListAsync();
+    /// 
+    /// // Post-filter for exact circular distance
+    /// var exactResults = results
+    ///     .Where(s => s.Location.DistanceToKilometers(center) &lt;= 5.0)
+    ///     .ToList();
+    /// </code>
     /// </remarks>
-    public static bool WithinDistanceMeters(
-        this GeoLocation location,
-        GeoLocation center,
-        double distanceMeters)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if this method is called directly instead of being used in a lambda expression.
+    /// </exception>
+    public static bool WithinDistanceKilometers(this GeoLocation location, GeoLocation center, double radiusKilometers)
     {
-        // Simple implementation for runtime use (if called directly)
-        // The expression translator will replace this with a BETWEEN expression
-        return location.DistanceToMeters(center) <= distanceMeters;
+        throw new InvalidOperationException(
+            "WithinDistanceKilometers is a marker method for expression translation and should not be called directly. " +
+            "Use it only in lambda expressions passed to Query().Where().");
     }
 
     /// <summary>
-    /// Checks if the location is within a specified distance in kilometers from a center point.
-    /// This method is translated to a DynamoDB BETWEEN expression by the expression translator.
+    /// Marker method for proximity queries using GeoHash with distance in meters.
+    /// Translates to a BETWEEN query on the GeoHash-indexed attribute.
     /// </summary>
-    /// <param name="location">The location to check.</param>
-    /// <param name="center">The center point to measure distance from.</param>
-    /// <param name="distanceKilometers">The maximum distance in kilometers.</param>
-    /// <returns>True if the location is within the specified distance; otherwise, false.</returns>
+    /// <param name="location">The GeoLocation property to query.</param>
+    /// <param name="center">The center point of the search radius.</param>
+    /// <param name="radiusMeters">The search radius in meters.</param>
+    /// <returns>
+    /// This method is never actually executed. It serves as a marker for the ExpressionTranslator.
+    /// </returns>
     /// <remarks>
-    /// This method creates a rectangular bounding box around the center point. The actual query
-    /// may return locations outside the exact circular distance. Use <see cref="GeoLocation.DistanceToKilometers"/>
-    /// to post-filter results for precise circular queries.
+    /// <para>
+    /// This method should only be used in lambda expressions passed to Query().Where().
+    /// It will be translated to a DynamoDB BETWEEN expression that queries the GeoHash range
+    /// covering the specified radius.
+    /// </para>
+    /// <para>
+    /// Note: GeoHash BETWEEN queries return a rectangular bounding box approximation.
+    /// Results may include locations slightly outside the exact circular radius and should
+    /// be post-filtered for exact distance if needed.
+    /// </para>
     /// </remarks>
-    public static bool WithinDistanceKilometers(
-        this GeoLocation location,
-        GeoLocation center,
-        double distanceKilometers)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if this method is called directly instead of being used in a lambda expression.
+    /// </exception>
+    public static bool WithinDistanceMeters(this GeoLocation location, GeoLocation center, double radiusMeters)
     {
-        // Simple implementation for runtime use (if called directly)
-        // The expression translator will replace this with a BETWEEN expression
-        return location.DistanceToKilometers(center) <= distanceKilometers;
+        throw new InvalidOperationException(
+            "WithinDistanceMeters is a marker method for expression translation and should not be called directly. " +
+            "Use it only in lambda expressions passed to Query().Where().");
     }
 
     /// <summary>
-    /// Checks if the location is within a specified distance in miles from a center point.
-    /// This method is translated to a DynamoDB BETWEEN expression by the expression translator.
+    /// Marker method for proximity queries using GeoHash with distance in miles.
+    /// Translates to a BETWEEN query on the GeoHash-indexed attribute.
     /// </summary>
-    /// <param name="location">The location to check.</param>
-    /// <param name="center">The center point to measure distance from.</param>
-    /// <param name="distanceMiles">The maximum distance in miles.</param>
-    /// <returns>True if the location is within the specified distance; otherwise, false.</returns>
+    /// <param name="location">The GeoLocation property to query.</param>
+    /// <param name="center">The center point of the search radius.</param>
+    /// <param name="radiusMiles">The search radius in miles.</param>
+    /// <returns>
+    /// This method is never actually executed. It serves as a marker for the ExpressionTranslator.
+    /// </returns>
     /// <remarks>
-    /// This method creates a rectangular bounding box around the center point. The actual query
-    /// may return locations outside the exact circular distance. Use <see cref="GeoLocation.DistanceToMiles"/>
-    /// to post-filter results for precise circular queries.
+    /// <para>
+    /// This method should only be used in lambda expressions passed to Query().Where().
+    /// It will be translated to a DynamoDB BETWEEN expression that queries the GeoHash range
+    /// covering the specified radius.
+    /// </para>
+    /// <para>
+    /// Note: GeoHash BETWEEN queries return a rectangular bounding box approximation.
+    /// Results may include locations slightly outside the exact circular radius and should
+    /// be post-filtered for exact distance if needed.
+    /// </para>
     /// </remarks>
-    public static bool WithinDistanceMiles(
-        this GeoLocation location,
-        GeoLocation center,
-        double distanceMiles)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if this method is called directly instead of being used in a lambda expression.
+    /// </exception>
+    public static bool WithinDistanceMiles(this GeoLocation location, GeoLocation center, double radiusMiles)
     {
-        // Simple implementation for runtime use (if called directly)
-        // The expression translator will replace this with a BETWEEN expression
-        return location.DistanceToMiles(center) <= distanceMiles;
+        throw new InvalidOperationException(
+            "WithinDistanceMiles is a marker method for expression translation and should not be called directly. " +
+            "Use it only in lambda expressions passed to Query().Where().");
     }
 
     /// <summary>
-    /// Checks if the location is within a specified bounding box.
-    /// This method is translated to a DynamoDB BETWEEN expression by the expression translator.
+    /// Marker method for bounding box queries using GeoHash.
+    /// Translates to a BETWEEN query on the GeoHash-indexed attribute.
     /// </summary>
-    /// <param name="location">The location to check.</param>
-    /// <param name="boundingBox">The bounding box to check against.</param>
-    /// <returns>True if the location is within the bounding box; otherwise, false.</returns>
-    /// <remarks>
-    /// This method queries for locations within the rectangular bounding box defined by
-    /// southwest and northeast corners.
-    /// </remarks>
-    public static bool WithinBoundingBox(
-        this GeoLocation location,
-        GeoBoundingBox boundingBox)
-    {
-        // Simple implementation for runtime use (if called directly)
-        // The expression translator will replace this with a BETWEEN expression
-        return boundingBox.Contains(location);
-    }
-
-    /// <summary>
-    /// Checks if the location is within a bounding box defined by southwest and northeast corners.
-    /// This method is translated to a DynamoDB BETWEEN expression by the expression translator.
-    /// </summary>
-    /// <param name="location">The location to check.</param>
+    /// <param name="location">The GeoLocation property to query.</param>
     /// <param name="southwest">The southwest corner of the bounding box.</param>
     /// <param name="northeast">The northeast corner of the bounding box.</param>
-    /// <returns>True if the location is within the bounding box; otherwise, false.</returns>
+    /// <returns>
+    /// This method is never actually executed. It serves as a marker for the ExpressionTranslator.
+    /// </returns>
     /// <remarks>
-    /// This method queries for locations within the rectangular bounding box defined by
-    /// the southwest and northeast corners.
+    /// <para>
+    /// This method should only be used in lambda expressions passed to Query().Where().
+    /// It will be translated to a DynamoDB BETWEEN expression that queries the GeoHash range
+    /// covering the specified bounding box.
+    /// </para>
+    /// <para>
+    /// This is particularly efficient for rectangular area queries because GeoHash BETWEEN
+    /// queries execute as a single DynamoDB query operation, unlike S2/H3 which require
+    /// multiple discrete cell queries.
+    /// </para>
+    /// <para><strong>Example:</strong></para>
+    /// <code>
+    /// var southwest = new GeoLocation(37.765, -122.425);
+    /// var northeast = new GeoLocation(37.81, -122.40);
+    /// var results = await table.Query&lt;Store&gt;()
+    ///     .Where&lt;Store&gt;(x => x.Region == "west" &amp;&amp; x.Location.WithinBoundingBox(southwest, northeast))
+    ///     .ToListAsync();
+    /// </code>
+    /// </para>
     /// </remarks>
-    public static bool WithinBoundingBox(
-        this GeoLocation location,
-        GeoLocation southwest,
-        GeoLocation northeast)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if this method is called directly instead of being used in a lambda expression.
+    /// </exception>
+    public static bool WithinBoundingBox(this GeoLocation location, GeoLocation southwest, GeoLocation northeast)
     {
-        // Simple implementation for runtime use (if called directly)
-        // The expression translator will replace this with a BETWEEN expression
-        var boundingBox = new GeoBoundingBox(southwest, northeast);
-        return boundingBox.Contains(location);
+        throw new InvalidOperationException(
+            "WithinBoundingBox is a marker method for expression translation and should not be called directly. " +
+            "Use it only in lambda expressions passed to Query().Where().");
     }
 }

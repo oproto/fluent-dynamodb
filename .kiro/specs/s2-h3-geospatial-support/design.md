@@ -164,6 +164,114 @@ Oproto.FluentDynamoDb.Geospatial/
 
 ## Components and Interfaces
 
+### 0. GeoLocation Enhancement for Query Support
+
+To enable natural lambda expression syntax in spatial queries, the `GeoLocation` struct is enhanced to store and expose the spatial index value:
+
+```csharp
+public readonly struct GeoLocation : IEquatable<GeoLocation>
+{
+    /// <summary>
+    /// Gets the latitude in degrees. Valid range is -90 to 90.
+    /// </summary>
+    public double Latitude { get; }
+
+    /// <summary>
+    /// Gets the longitude in degrees. Valid range is -180 to 180.
+    /// </summary>
+    public double Longitude { get; }
+    
+    /// <summary>
+    /// Gets the spatial index value (GeoHash/S2 token/H3 index) if this location
+    /// was deserialized from DynamoDB. Returns null if the location was created
+    /// directly from coordinates.
+    /// </summary>
+    public string? SpatialIndex { get; }
+
+    /// <summary>
+    /// Initializes a new instance from coordinates only.
+    /// SpatialIndex will be null.
+    /// </summary>
+    public GeoLocation(double latitude, double longitude)
+    {
+        Latitude = latitude;
+        Longitude = longitude;
+        SpatialIndex = null;
+    }
+    
+    /// <summary>
+    /// Initializes a new instance from coordinates and spatial index.
+    /// Used by the source generator during deserialization.
+    /// </summary>
+    public GeoLocation(double latitude, double longitude, string? spatialIndex)
+    {
+        Latitude = latitude;
+        Longitude = longitude;
+        SpatialIndex = spatialIndex;
+    }
+    
+    /// <summary>
+    /// Implicit cast to string returns the SpatialIndex value.
+    /// Enables natural comparison syntax: x.Location == cell
+    /// </summary>
+    public static implicit operator string?(GeoLocation location) => location.SpatialIndex;
+    
+    /// <summary>
+    /// Equality operator for comparing GeoLocation to spatial index string.
+    /// Enables lambda expressions: x.Location == cell
+    /// </summary>
+    public static bool operator ==(GeoLocation location, string? spatialIndex)
+        => location.SpatialIndex == spatialIndex;
+    
+    public static bool operator !=(GeoLocation location, string? spatialIndex)
+        => location.SpatialIndex != spatialIndex;
+    
+    // Reverse order operators
+    public static bool operator ==(string? spatialIndex, GeoLocation location)
+        => location.SpatialIndex == spatialIndex;
+    
+    public static bool operator !=(string? spatialIndex, GeoLocation location)
+        => location.SpatialIndex != spatialIndex;
+    
+    // ... existing methods (DistanceToMeters, Equals, etc.)
+}
+```
+
+**Key Design Points:**
+
+1. **SpatialIndex Property**: Stores the original spatial index value (GeoHash/S2 token/H3 index) when deserialized from DynamoDB
+2. **Dual Constructors**: 
+   - `GeoLocation(lat, lon)` - For creating locations from coordinates (SpatialIndex = null)
+   - `GeoLocation(lat, lon, spatialIndex)` - For deserialization (preserves the spatial index)
+3. **Implicit Cast**: Allows `GeoLocation` to be used as a string in comparisons
+4. **Equality Operators**: Enable natural syntax `x.Location == cell` in lambda expressions
+5. **No Recalculation**: The spatial index is stored, not recalculated, for efficiency
+
+**Source Generator Integration:**
+
+When deserializing a `GeoLocation` property with a spatial index, the source generator will:
+
+```csharp
+// Read the spatial index from DynamoDB
+var s2Token = item["location"].S;
+
+// Decode to coordinates
+var (lat, lon) = S2Encoder.Decode(s2Token);
+
+// Create GeoLocation with the spatial index preserved
+entity.Location = new GeoLocation(lat, lon, s2Token);
+```
+
+This applies to all three spatial index types (GeoHash, S2, H3) and works with both single-field and multi-field (coordinate storage) modes.
+
+**Expression Translation:**
+
+The ExpressionTranslator will recognize both forms:
+- `x.Location == cell` (implicit cast)
+- `x.Location.SpatialIndex == cell` (explicit property access)
+
+Both translate to the same DynamoDB expression: `location = :cell`
+
 ### 1. Spatial Index Encoders
 
 Each spatial index type will have its own encoder class following the pattern established by `GeoHashEncoder`:
@@ -284,27 +392,44 @@ public static class SpatialQueryExtensions
     // Proximity query with distance
     public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
         this DynamoDbTableBase table,
-        string spatialAttributeName,
+        Func<TEntity, GeoLocation> locationSelector,
+        SpatialIndexType spatialIndexType,
+        int precision,
         GeoLocation center,
         double radiusKilometers,
         Func<QueryRequestBuilder<TEntity>, string, IPaginationRequest, QueryRequestBuilder<TEntity>> queryBuilder,
         int? pageSize = null,
         SpatialContinuationToken? continuationToken = null,
+        int maxCells = 100,
         CancellationToken cancellationToken = default)
-        where TEntity : class;
+        where TEntity : class, IDynamoDbEntity;
     
     // Bounding box query
     public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
         this DynamoDbTableBase table,
-        string spatialAttributeName,
+        Func<TEntity, GeoLocation> locationSelector,
+        SpatialIndexType spatialIndexType,
+        int precision,
         GeoBoundingBox boundingBox,
         Func<QueryRequestBuilder<TEntity>, string, IPaginationRequest, QueryRequestBuilder<TEntity>> queryBuilder,
         int? pageSize = null,
         SpatialContinuationToken? continuationToken = null,
+        int maxCells = 100,
         CancellationToken cancellationToken = default)
-        where TEntity : class;
+        where TEntity : class, IDynamoDbEntity;
 }
 ```
+
+**Important Design Decision: Location Selector Parameter**
+
+The API uses `Func<TEntity, GeoLocation> locationSelector` instead of `string spatialAttributeName` for the following reasons:
+
+1. **Type Safety**: The lambda expression `entity => entity.Location` is compile-time checked, ensuring the property exists
+2. **AOT Compatibility**: No reflection needed - the lambda is just a property accessor
+3. **Explicit and Clear**: Users specify exactly which property contains the location data
+4. **Works with Current Architecture**: Since `QueryRequestBuilder<TEntity>.ToListAsync()` returns a single concrete type, the lambda approach is perfect
+
+**Future Consideration**: For multi-entity table support (querying heterogeneous entity types), an overload accepting `string spatialAttributeName` could be added that uses entity metadata to extract location values. However, this is not needed for the current single-entity-type query model.
 
 #### Query Builder Lambda
 
@@ -316,15 +441,41 @@ The query builder lambda receives three parameters:
 Example usage:
 ```csharp
 var results = await table.SpatialQueryAsync(
-    spatialAttributeName: "location",
+    locationSelector: store => store.Location,  // Lambda extracts the location
+    spatialIndexType: SpatialIndexType.S2,
+    precision: 16,
     center: new GeoLocation(37.7749, -122.4194),
     radiusKilometers: 5,
     queryBuilder: (query, cell, pagination) => query
+        // Lambda expression: x.Location == cell works due to implicit cast
+        // The GeoLocation.SpatialIndex property is compared to the cell token
         .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
         .Paginate(pagination),
     pageSize: 50
 );
 ```
+
+**Alternative Query Expressions:**
+
+The query builder supports multiple expression styles:
+
+```csharp
+// 1. Lambda with implicit cast (recommended - type-safe)
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+
+// 2. Lambda with explicit property access
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location.SpatialIndex == cell)
+
+// 3. Format string (works without GeoLocation enhancement)
+.Where("pk = {0} AND location = {1}", "STORE", cell)
+
+// 4. Plain text with parameters (works without GeoLocation enhancement)
+.Where("pk = :pk AND location = :loc")
+    .WithValue(":pk", "STORE")
+    .WithValue(":loc", cell)
+```
+
+All four approaches produce the same DynamoDB query, but lambda expressions provide compile-time type safety.
 
 #### SpatialQueryResponse
 
@@ -541,6 +692,254 @@ Since cell coverings are approximations (especially for circular radius queries)
 4. For paginated mode: results are already roughly sorted due to spiral ordering
 
 This post-filtering happens in-memory after collecting results from cells.
+
+## Spatial Query Architecture
+
+### Layered Architecture
+
+The spatial query implementation uses a layered architecture to support both table and GSI queries without code duplication, and to allow users to provide custom cell lists:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           PUBLIC API LAYER                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Table.SpatialQueryAsync(center, radius, ...)                               │
+│  Index.SpatialQueryAsync(center, radius, ...)                               │
+│       │                                                                      │
+│       ▼                                                                      │
+│  Calculates cells using S2/H3/GeoHash covering                              │
+│       │                                                                      │
+├───────┼─────────────────────────────────────────────────────────────────────┤
+│       │                                                                      │
+│  Table.SpatialQueryAsync(cells[], ...)    ◄── User provides custom cells    │
+│  Index.SpatialQueryAsync(cells[], ...)                                       │
+│       │                                                                      │
+│       ▼                                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                        SHARED CORE IMPLEMENTATION                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  SpatialQueryCore.ExecuteAsync(querySource, cells[], ...)                   │
+│       - Handles pagination vs parallel execution                             │
+│       - Handles spiral ordering (when center provided)                       │
+│       - Handles result merging and distance filtering                        │
+│       - Works with any query source (table or index)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Query Source Abstraction
+
+Both `DynamoDbTableBase.Query<TEntity>()` and `DynamoDbIndex.Query<TEntity>()` return `QueryRequestBuilder<TEntity>`. The only difference is which one creates the builder.
+
+The shared implementation simply accepts a factory function:
+
+```csharp
+// Core implementation signature
+private static async Task<SpatialQueryResponse<TEntity>> SpatialQueryCoreAsync<TEntity>(
+    Func<QueryRequestBuilder<TEntity>> createQuery,  // Factory to create query builder
+    // ... other parameters
+)
+
+// Table extension calls:
+SpatialQueryCoreAsync(() => table.Query<TEntity>(), ...)
+
+// Index extension calls:
+SpatialQueryCoreAsync(() => index.Query<TEntity>(), ...)
+```
+
+No interface or delegate type needed - just a simple `Func<QueryRequestBuilder<TEntity>>`. This is the minimal abstraction required.
+
+### Custom Cell List Support
+
+Users can provide their own list of cells for advanced use cases:
+
+```csharp
+/// <summary>
+/// Performs a spatial query using a pre-computed list of cells.
+/// Use this when you have custom cell computation logic (e.g., H3 k-ring, polyfill).
+/// </summary>
+public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
+    this DynamoDbTableBase table,
+    Func<TEntity, GeoLocation> locationSelector,
+    IEnumerable<string> cells,
+    Func<QueryRequestBuilder<TEntity>, string, IPaginationRequest, QueryRequestBuilder<TEntity>> queryBuilder,
+    GeoLocation? center = null,  // Optional: for distance sorting
+    double? radiusKilometers = null,  // Optional: for distance filtering
+    int? pageSize = null,
+    SpatialContinuationToken? continuationToken = null,
+    CancellationToken cancellationToken = default)
+    where TEntity : class, IDynamoDbEntity;
+```
+
+**Use Cases for Custom Cell Lists:**
+
+1. **H3 K-Ring**: Use H3's k-ring function for hexagonal ring queries
+2. **H3 Polyfill**: Use H3's polyfill for polygon-based queries
+3. **Custom Algorithms**: Implement specialized cell selection logic
+4. **Third-Party Libraries**: Use external S2/H3 libraries for advanced features
+
+**Example: Using H3 K-Ring from External Library**
+
+```csharp
+// Using a third-party H3 library for k-ring
+var centerCell = H3Index.FromLatLng(center.Latitude, center.Longitude, resolution: 9);
+var cells = centerCell.KRing(k: 2);  // Get 2-ring of hexagons
+
+var result = await table.SpatialQueryAsync(
+    locationSelector: store => store.Location,
+    cells: cells.Select(c => c.ToString()),
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    center: center,  // For distance sorting
+    radiusKilometers: 5.0,  // For distance filtering
+    pageSize: 50
+);
+```
+
+### GSI Support
+
+The spatial query extensions support both main table queries and GSI queries:
+
+#### Table Query (Main Table)
+
+```csharp
+// Query the main table
+var result = await table.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    spatialIndexType: SpatialIndexType.S2,
+    precision: 16,
+    center: center,
+    radiusKilometers: 5.0,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination)
+);
+```
+
+#### GSI Query (Global Secondary Index)
+
+```csharp
+// Define a GSI where the spatial index is the partition key
+public class StoreTable : DynamoDbTableBase
+{
+    public DynamoDbIndex LocationIndex => new DynamoDbIndex(this, "location-index");
+}
+
+// Query via GSI - allows multiple stores per cell
+var result = await table.LocationIndex.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    spatialIndexType: SpatialIndexType.S2,
+    precision: 16,
+    center: center,
+    radiusKilometers: 5.0,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.Location == cell)  // GSI PK is the cell
+        .Paginate(pagination)
+);
+```
+
+#### When to Use GSI for Spatial Queries
+
+**Use Main Table When:**
+- Location is the sort key (one item per cell per partition)
+- You always query with a known partition key
+- Simple access patterns
+
+**Use GSI When:**
+- You need multiple items per cell (e.g., many stores in same area)
+- You want to query by location without knowing the partition key
+- You need to support large-scale pagination tests (1000+ items)
+
+#### GSI Design Pattern for Spatial Queries
+
+```csharp
+[DynamoDbTable("stores")]
+public partial class StoreWithGsi
+{
+    // Main table: PK=StoreId (unique), SK=Category
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Category { get; set; }
+    
+    // GSI: PK=S2Cell, SK=StoreId
+    // This allows multiple stores per cell
+    [DynamoDbAttribute("s2cell", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation Location { get; set; }
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; }
+}
+
+// GSI Definition (in DynamoDB):
+// - GSI Name: "location-index"
+// - GSI PK: "s2cell" (the S2 token)
+// - GSI SK: "pk" (the StoreId, for uniqueness)
+```
+
+### Shared Core Implementation
+
+The core implementation is simply a refactoring of the existing private methods to accept a query factory instead of a table:
+
+```csharp
+// Before (current implementation)
+private static async Task<SpatialQueryResponse<TEntity>> SpatialQueryRadiusNonPaginatedAsync<TEntity>(
+    DynamoDbTableBase table,  // Tied to table
+    // ... other params
+)
+{
+    foreach (var cellValue in cells)
+    {
+        var query = table.Query<TEntity>();  // Creates query from table
+        // ...
+    }
+}
+
+// After (refactored)
+private static async Task<SpatialQueryResponse<TEntity>> SpatialQueryRadiusNonPaginatedAsync<TEntity>(
+    Func<QueryRequestBuilder<TEntity>> createQuery,  // Factory function
+    // ... other params
+)
+{
+    foreach (var cellValue in cells)
+    {
+        var query = createQuery();  // Creates query from factory
+        // ...
+    }
+}
+```
+
+The public extension methods become thin wrappers:
+
+```csharp
+// Table extension
+public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
+    this DynamoDbTableBase table, ...)
+{
+    return SpatialQueryRadiusNonPaginatedAsync(
+        () => table.Query<TEntity>(),  // Pass factory
+        ...);
+}
+
+// Index extension
+public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
+    this DynamoDbIndex index, ...)
+{
+    return SpatialQueryRadiusNonPaginatedAsync(
+        () => index.Query<TEntity>(),  // Pass factory
+        ...);
+}
+```
+
+**Benefits:**
+
+1. **Minimal Change**: Just change parameter type from `DynamoDbTableBase` to `Func<QueryRequestBuilder<TEntity>>`
+2. **No New Types**: No interfaces or delegate types needed
+3. **Same Logic**: All existing pagination, spiral ordering, and filtering logic stays the same
+4. **Easy to Test**: Can pass mock query factories for unit testing
 
 ## Dateline and Pole Handling
 
@@ -798,9 +1197,29 @@ Serialized as:
 ```
 
 During deserialization:
-1. If `lat` and `lon` exist, reconstruct `GeoLocation` from them (exact coordinates)
-2. If only `location` exists, decode from spatial index (cell center)
-3. The source generator handles this automatically based on property configuration
+1. Read the spatial index value from the `location` attribute
+2. If `lat` and `lon` exist, reconstruct `GeoLocation` from them (exact coordinates) **and include the spatial index**
+3. If only `location` exists, decode from spatial index (cell center) **and include the spatial index**
+4. The source generator handles this automatically based on property configuration
+
+**Generated Deserialization Code (Single-Field Mode):**
+```csharp
+// Read and preserve the spatial index
+var s2Token = item["location"].S;
+var (lat, lon) = S2Encoder.Decode(s2Token);
+entity.Location = new GeoLocation(lat, lon, s2Token); // Spatial index preserved!
+```
+
+**Generated Deserialization Code (Multi-Field Mode):**
+```csharp
+// Read spatial index and coordinates
+var s2Token = item["location"].S;
+var lat = double.Parse(item["lat"].N);
+var lon = double.Parse(item["lon"].N);
+entity.Location = new GeoLocation(lat, lon, s2Token); // Exact coords + spatial index!
+```
+
+This ensures that `GeoLocation.SpatialIndex` is always populated when deserializing from DynamoDB, enabling efficient query comparisons without recalculation.
 
 #### Multi-Field Mode with StoreCoordinatesAttribute
 
@@ -926,8 +1345,28 @@ Property 32: Query results are deduplicated by primary key
 **Validates: Requirements 13.5**
 
 Property 13: Single-field serialization round-trip preserves cell
-*For any* GeoLocation serialized in single-field mode, deserializing should return a location within the same spatial index cell
+*For any* GeoLocation serialized in single-field mode, deserializing should return a location within the same spatial index cell, and the SpatialIndex property should contain the original spatial index value
 **Validates: Requirements 5.4, 5.5**
+
+Property 33: Deserialized GeoLocation preserves spatial index
+*For any* GeoLocation deserialized from DynamoDB, the SpatialIndex property should contain the original spatial index value (GeoHash/S2 token/H3 index) from the database
+**Validates: Requirements 5.4, 5.5, 12.1, 12.2**
+
+Property 34: GSI queries produce same results as table queries
+*For any* spatial query, executing via DynamoDbIndex should produce the same results as executing via DynamoDbTableBase when querying the same data
+**Validates: Requirements 3.1, 3.2**
+
+Property 35: Custom cell list queries use provided cells
+*For any* spatial query with a custom cell list, the query should use exactly the provided cells without computing a cell covering
+**Validates: Requirements 3.1, 3.2**
+
+Property 36: Custom cell list with center sorts by distance
+*For any* spatial query with a custom cell list and a center point, results should be sorted by distance from the center
+**Validates: Requirements 3.1, 3.2**
+
+Property 37: Shared core produces consistent results
+*For any* spatial query, the shared core implementation should produce identical results regardless of whether called from table or index extensions
+**Validates: Requirements 3.1, 3.2**
 
 Property 14: Coordinate storage creates separate attributes
 *For any* GeoLocation with StoreCoordinatesAttribute, the serialized data should contain the spatial index attribute plus separate latitude and longitude attributes

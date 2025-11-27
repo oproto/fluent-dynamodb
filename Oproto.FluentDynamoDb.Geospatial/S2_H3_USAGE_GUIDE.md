@@ -122,6 +122,212 @@ All three systems encode geographic coordinates into sortable strings that enabl
 
 **Note**: H3 hexagons have more uniform area than GeoHash/S2 squares, making them ideal for grid-based analysis.
 
+## Understanding the SpatialIndex Property
+
+The `GeoLocation` struct includes a `SpatialIndex` property that enables efficient spatial queries using natural lambda expression syntax. This property stores the original spatial index value (GeoHash/S2 token/H3 index) when a location is deserialized from DynamoDB.
+
+### When is SpatialIndex Populated?
+
+**SpatialIndex is NULL:**
+```csharp
+// Creating from coordinates
+var location1 = new GeoLocation(37.7749, -122.4194);
+Console.WriteLine(location1.SpatialIndex); // null
+
+// Using ToGeoHash/ToS2Token/ToH3Index returns a string, not a GeoLocation
+string hash = location1.ToGeoHash(7);
+// hash is a string, not a GeoLocation with SpatialIndex
+```
+
+**SpatialIndex is POPULATED:**
+```csharp
+// 1. Deserializing from DynamoDB (automatic via source generator)
+var store = await storeTable.GetAsync("STORE#123");
+Console.WriteLine(store.Location.SpatialIndex); // "9q8yy9r" (or S2/H3 value)
+
+// 2. Using From* methods
+var location2 = GeoLocation.FromGeoHash("9q8yy9r");
+Console.WriteLine(location2.SpatialIndex); // "9q8yy9r"
+
+var location3 = GeoLocation.FromS2Token("89c25985");
+Console.WriteLine(location3.SpatialIndex); // "89c25985"
+
+var location4 = GeoLocation.FromH3Index("8928308280fffff");
+Console.WriteLine(location4.SpatialIndex); // "8928308280fffff"
+```
+
+### Implicit Cast to String
+
+`GeoLocation` has an implicit cast to `string?` that returns the `SpatialIndex` value:
+
+```csharp
+var location = GeoLocation.FromS2Token("89c25985");
+
+// These are equivalent:
+string? token1 = location.SpatialIndex;  // Explicit property access
+string? token2 = location;               // Implicit cast
+
+Console.WriteLine(token1 == token2); // true
+```
+
+### Using in Lambda Expressions
+
+The implicit cast enables natural comparison syntax in spatial queries:
+
+```csharp
+// ✅ Recommended: Implicit cast (most concise and readable)
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+
+// ✅ Also works: Explicit property access
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location.SpatialIndex == cell)
+
+// Both compile to the same DynamoDB expression: location = :cell
+```
+
+**Why this works:**
+1. The source generator deserializes `GeoLocation` with the spatial index preserved
+2. The expression translator recognizes `GeoLocation` comparisons with strings
+3. The implicit cast operator converts `GeoLocation` to its `SpatialIndex` value
+4. The comparison becomes a simple string equality check
+
+### Equality Operators
+
+`GeoLocation` provides equality operators for comparing with spatial index strings:
+
+```csharp
+var location = GeoLocation.FromS2Token("89c25985");
+string cell = "89c25985";
+
+// All of these work:
+if (location == cell) { }                    // Implicit cast
+if (cell == location) { }                    // Reverse order
+if (location.SpatialIndex == cell) { }       // Explicit property
+if (location != cell) { }                    // Inequality
+
+// Useful in queries
+var results = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        // All of these work:
+        .Where<Store>(x => x.Location == cell)                    // Implicit
+        .Where<Store>(x => x.Location.SpatialIndex == cell)       // Explicit
+        .Where<Store>(x => cell == x.Location)                    // Reverse
+        .Paginate(pagination)
+);
+```
+
+### Why This Matters for Performance
+
+**Without SpatialIndex property:**
+```csharp
+// ❌ Would need to recalculate spatial index for every comparison
+.Where<Store>(x => x.Location.ToS2Token(16) == cell)
+// This would be slow and wouldn't work in DynamoDB expressions
+```
+
+**With SpatialIndex property:**
+```csharp
+// ✅ No recalculation - value is preserved from DynamoDB
+.Where<Store>(x => x.Location == cell)
+// Fast, type-safe, and works perfectly with DynamoDB
+```
+
+### Complete Example: Understanding the Flow
+
+```csharp
+// 1. Create and store a location
+var newStore = new Store
+{
+    StoreId = "STORE#123",
+    Location = new GeoLocation(37.7749, -122.4194), // SpatialIndex is null here
+    Name = "Downtown Store"
+};
+await storeTable.PutAsync(newStore);
+// Source generator encodes to S2 token: "89c25985"
+// DynamoDB now contains: { "location": "89c25985", ... }
+
+// 2. Query using spatial index
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        // cell = "89c25985" (or similar S2 token)
+        // x.Location == cell works because:
+        // - Source generator deserializes with SpatialIndex = "89c25985"
+        // - Implicit cast converts GeoLocation to string
+        // - Expression translator generates: location = :cell
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination)
+);
+
+// 3. Retrieved locations have SpatialIndex populated
+foreach (var store in result.Items)
+{
+    Console.WriteLine($"Store: {store.Name}");
+    Console.WriteLine($"Coordinates: {store.Location.Latitude}, {store.Location.Longitude}");
+    Console.WriteLine($"S2 Token: {store.Location.SpatialIndex}"); // "89c25985"
+    
+    // Can compare directly
+    if (store.Location == "89c25985")
+    {
+        Console.WriteLine("This is the exact cell we queried!");
+    }
+    
+    // Can use in further queries
+    var nearbyStores = await storeTable.Query
+        .Where<Store>(x => x.Location == store.Location.SpatialIndex)
+        .ExecuteAsync();
+}
+```
+
+### Multi-Field Serialization with SpatialIndex
+
+When using coordinate storage, the `SpatialIndex` is still populated:
+
+```csharp
+[DynamoDbTable("stores")]
+public partial class Store
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; }
+    
+    // Spatial index for queries
+    [DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation Location { get; set; }
+    
+    // Store exact coordinates
+    [DynamoDbAttribute("location_lat")]
+    public double LocationLatitude => Location.Latitude;
+    
+    [DynamoDbAttribute("location_lon")]
+    public double LocationLongitude => Location.Longitude;
+}
+
+// When deserialized:
+// - Location.Latitude and Location.Longitude come from the exact coordinate fields
+// - Location.SpatialIndex comes from the "location" field
+// - Best of both worlds: exact coordinates + efficient queries
+
+var store = await storeTable.GetAsync("STORE#123");
+Console.WriteLine($"Exact coordinates: {store.Location.Latitude}, {store.Location.Longitude}");
+Console.WriteLine($"S2 Token for queries: {store.Location.SpatialIndex}");
+
+// Can still use in queries
+var nearby = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: store.Location,
+    radiusKilometers: 1,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination)
+);
+```
+
 ## Code Examples
 
 ### Basic Setup with S2
@@ -179,6 +385,8 @@ var result = await storeTable.SpatialQueryAsync(
     center: center,
     radiusKilometers: 5,
     queryBuilder: (query, cell, pagination) => query
+        // Lambda expression: x.Location == cell works due to implicit cast
+        // The GeoLocation.SpatialIndex property is compared to the S2 cell token
         .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
         .Paginate(pagination),
     pageSize: null  // No pagination - queries all cells in parallel
@@ -192,8 +400,38 @@ foreach (var store in result.Items)
 {
     var distance = store.Location.DistanceToKilometers(center);
     Console.WriteLine($"{store.Name}: {distance:F2} km away");
+    
+    // The SpatialIndex property contains the S2 token from DynamoDB
+    Console.WriteLine($"  S2 Token: {store.Location.SpatialIndex}");
 }
 ```
+
+**Understanding the Query Expression:**
+
+The `x.Location == cell` syntax works because:
+1. When deserialized from DynamoDB, `GeoLocation` stores the original S2 token in the `SpatialIndex` property
+2. `GeoLocation` has an implicit cast to `string?` that returns `SpatialIndex`
+3. The expression translator recognizes this pattern and generates: `location = :cell`
+
+**Alternative Expression Styles:**
+
+```csharp
+// 1. Implicit cast (recommended - most concise)
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+
+// 2. Explicit property access (also works)
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location.SpatialIndex == cell)
+
+// 3. Format string (works without lambda expressions)
+.Where("pk = {0} AND location = {1}", "STORE", cell)
+
+// 4. Plain text with parameters (works without lambda expressions)
+.Where("pk = :pk AND location = :loc")
+    .WithValue(":pk", "STORE")
+    .WithValue(":loc", cell)
+```
+
+All four approaches produce the same DynamoDB query, but lambda expressions provide compile-time type safety.
 
 ### Proximity Query with H3 (Paginated)
 
@@ -318,7 +556,7 @@ Console.WriteLine($"GeoHash: {geohash}");     // "9q8yy9r"
 Console.WriteLine($"S2 Token: {s2Token}");    // "89c25985"
 Console.WriteLine($"H3 Index: {h3Index}");    // "8928308280fffff"
 
-// Decode back to locations
+// Decode back to locations (these will have SpatialIndex populated)
 var fromGeoHash = GeoLocation.FromGeoHash(geohash);
 var fromS2 = GeoLocation.FromS2Token(s2Token);
 var fromH3 = GeoLocation.FromH3Index(h3Index);
@@ -327,6 +565,26 @@ var fromH3 = GeoLocation.FromH3Index(h3Index);
 Console.WriteLine($"GeoHash distance: {location.DistanceToMeters(fromGeoHash):F2}m");
 Console.WriteLine($"S2 distance: {location.DistanceToMeters(fromS2):F2}m");
 Console.WriteLine($"H3 distance: {location.DistanceToMeters(fromH3):F2}m");
+
+// The decoded locations have SpatialIndex populated
+Console.WriteLine($"\nSpatialIndex values:");
+Console.WriteLine($"GeoHash: {fromGeoHash.SpatialIndex}");  // "9q8yy9r"
+Console.WriteLine($"S2: {fromS2.SpatialIndex}");            // "89c25985"
+Console.WriteLine($"H3: {fromH3.SpatialIndex}");            // "8928308280fffff"
+
+// Can compare directly using implicit cast
+if (fromGeoHash == geohash)
+{
+    Console.WriteLine("GeoHash comparison works!");
+}
+if (fromS2 == s2Token)
+{
+    Console.WriteLine("S2 comparison works!");
+}
+if (fromH3 == h3Index)
+{
+    Console.WriteLine("H3 comparison works!");
+}
 ```
 
 ### Using with Global Secondary Index (GSI)
@@ -691,3 +949,213 @@ var result = await table.SpatialQueryAsync(
 - **H3**: Best for uniform coverage and grid analysis
 
 Choose based on your specific requirements, and don't hesitate to experiment with different index types to find the best fit for your use case!
+
+
+## Global Secondary Index (GSI) Support
+
+The spatial query extensions support querying via Global Secondary Indexes (GSIs), which is essential when you need multiple stores per spatial cell.
+
+### Why Use GSI for Spatial Queries?
+
+When using the main table with the spatial index as the sort key, you're limited to one item per cell (since PK + SK must be unique). With a GSI where the spatial index is the partition key, you can have multiple items in the same cell.
+
+**Main Table Approach (Limited):**
+```
+PK (StoreId) | SK (S2 Cell)
+store-001    | 89c25985
+store-002    | 89c25985  ❌ Conflict! Same PK+SK
+```
+
+**GSI Approach (Recommended for Multiple Items per Cell):**
+```
+Main Table:
+PK (StoreId) | SK (Category) | s2_cell
+store-001    | COFFEE        | 89c25985
+store-002    | COFFEE        | 89c25985  ✅ Works!
+
+GSI (s2-location-index):
+PK (s2_cell) | SK (StoreId)
+89c25985     | store-001
+89c25985     | store-002  ✅ Multiple items per cell!
+```
+
+### Setting Up a GSI for Spatial Queries
+
+```csharp
+[DynamoDbTable("stores")]
+[GenerateAccessors]
+public partial class Store : IDynamoDbEntity
+{
+    // Main table: PK=StoreId (unique), SK=Category
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string StoreId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Category { get; set; } = string.Empty;
+    
+    // GSI: PK=S2Cell, SK=StoreId
+    [GlobalSecondaryIndex("s2-location-index", IsPartitionKey = true)]
+    [DynamoDbAttribute("s2_cell", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    public GeoLocation Location { get; set; }
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+### Querying via GSI
+
+```csharp
+public class StoreTable : DynamoDbTableBase
+{
+    public DynamoDbIndex S2LocationIndex { get; }
+    
+    public StoreTable(IAmazonDynamoDB client, string tableName) 
+        : base(client, tableName)
+    {
+        S2LocationIndex = new DynamoDbIndex(this, "s2-location-index");
+    }
+}
+
+// Query via GSI
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.S2LocationIndex.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    spatialIndexType: SpatialIndexType.S2,
+    precision: 16,
+    center: center,
+    radiusKilometers: 5.0,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.Location == cell)
+        .Paginate(pagination),
+    pageSize: 50
+);
+
+// All stores within 5km, including multiple stores per cell
+foreach (var store in result.Items)
+{
+    Console.WriteLine($"{store.Name}: {store.Location.DistanceToKilometers(center):F2}km");
+}
+```
+
+### When to Use GSI vs Main Table
+
+| Scenario | Use Main Table | Use GSI |
+|----------|----------------|---------|
+| One item per location | ✅ | ✅ |
+| Multiple items per location | ❌ | ✅ |
+| Need to query by other attributes first | ✅ | Depends |
+| Large-scale pagination | ❌ | ✅ |
+| Cost optimization | ✅ (no GSI cost) | ❌ (GSI storage cost) |
+
+## Custom Cell List Support
+
+For advanced use cases, you can provide your own list of cells instead of letting the library compute them. This is useful when:
+
+- Using external H3/S2 libraries with advanced features (k-ring, polyfill)
+- Implementing custom cell selection algorithms
+- Integrating with third-party spatial libraries
+
+### Using Custom Cell Lists
+
+```csharp
+// Get cells from external library or custom algorithm
+var customCells = new List<string>
+{
+    "89c25985",
+    "89c25987",
+    "89c2598d",
+    // ... more cells
+};
+
+// Or use the built-in cell covering
+var center = new GeoLocation(37.7749, -122.4194);
+var customCells = S2CellCovering.GetCellsForRadius(center, 5.0, 16, maxCells: 20);
+
+// Query with custom cell list
+var result = await storeTable.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    cells: customCells,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    center: center,           // Optional: for distance sorting
+    radiusKilometers: 5.0,    // Optional: for distance filtering
+    pageSize: 50
+);
+```
+
+### Custom Cell List with GSI
+
+```csharp
+// Query GSI with custom cell list
+var result = await storeTable.S2LocationIndex.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    cells: customCells,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.Location == cell)
+        .Paginate(pagination),
+    center: center,
+    radiusKilometers: 5.0,
+    pageSize: 50
+);
+```
+
+### Example: Using H3 K-Ring from External Library
+
+```csharp
+// Using a third-party H3 library for k-ring
+// (This is pseudocode - actual API depends on the library)
+var centerCell = H3Index.FromLatLng(center.Latitude, center.Longitude, resolution: 9);
+var cells = centerCell.KRing(k: 2);  // Get 2-ring of hexagons
+
+var result = await storeTable.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    cells: cells.Select(c => c.ToString()),
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination),
+    center: center,
+    radiusKilometers: 5.0,
+    pageSize: 50
+);
+```
+
+### Distance Sorting with Custom Cells
+
+When you provide a `center` point, results are automatically sorted by distance:
+
+```csharp
+var result = await storeTable.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    cells: customCells,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell),
+    center: center,           // ✅ Enables distance sorting
+    radiusKilometers: 5.0     // ✅ Enables distance filtering
+);
+
+// Results are sorted by distance from center
+foreach (var store in result.Items)
+{
+    var distance = store.Location.DistanceToKilometers(center);
+    Console.WriteLine($"{store.Name}: {distance:F2}km");
+}
+```
+
+Without a center point, results are returned in cell order (no distance sorting):
+
+```csharp
+var result = await storeTable.SpatialQueryAsync<Store>(
+    locationSelector: store => store.Location,
+    cells: customCells,
+    queryBuilder: (query, cell, pagination) => query
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell),
+    center: null,             // ❌ No distance sorting
+    radiusKilometers: null    // ❌ No distance filtering
+);
+
+// Results are in cell order, not distance order
+```

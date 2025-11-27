@@ -16,13 +16,29 @@ public readonly struct GeoLocation : IEquatable<GeoLocation>
     public double Longitude { get; }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GeoLocation"/> struct.
+    /// Gets the spatial index value (GeoHash/S2 token/H3 index) if this location
+    /// was deserialized from DynamoDB. Returns null if the location was created
+    /// directly from coordinates.
+    /// </summary>
+    /// <remarks>
+    /// This property is populated by the source generator during deserialization
+    /// to preserve the original spatial index value stored in DynamoDB. This enables
+    /// efficient spatial queries using lambda expressions like: x.Location == cell
+    /// </remarks>
+    public string? SpatialIndex { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GeoLocation"/> struct from coordinates only.
     /// </summary>
     /// <param name="latitude">The latitude in degrees (-90 to 90).</param>
     /// <param name="longitude">The longitude in degrees (-180 to 180).</param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when latitude is outside the range -90 to 90, or longitude is outside the range -180 to 180.
     /// </exception>
+    /// <remarks>
+    /// When using this constructor, the <see cref="SpatialIndex"/> property will be null.
+    /// This constructor is typically used when creating new locations from coordinates.
+    /// </remarks>
     public GeoLocation(double latitude, double longitude)
     {
         if (latitude < -90 || latitude > 90)
@@ -43,6 +59,44 @@ public readonly struct GeoLocation : IEquatable<GeoLocation>
 
         Latitude = latitude;
         Longitude = longitude;
+        SpatialIndex = null;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GeoLocation"/> struct from coordinates and spatial index.
+    /// </summary>
+    /// <param name="latitude">The latitude in degrees (-90 to 90).</param>
+    /// <param name="longitude">The longitude in degrees (-180 to 180).</param>
+    /// <param name="spatialIndex">The spatial index value (GeoHash/S2 token/H3 index) from DynamoDB.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when latitude is outside the range -90 to 90, or longitude is outside the range -180 to 180.
+    /// </exception>
+    /// <remarks>
+    /// This constructor is used by the source generator during deserialization to preserve
+    /// the original spatial index value. This enables efficient spatial queries and avoids
+    /// recalculating the spatial index during query operations.
+    /// </remarks>
+    public GeoLocation(double latitude, double longitude, string? spatialIndex)
+    {
+        if (latitude < -90 || latitude > 90)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(latitude),
+                latitude,
+                "Latitude must be between -90 and 90 degrees");
+        }
+
+        if (longitude < -180 || longitude > 180)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(longitude),
+                longitude,
+                "Longitude must be between -180 and 180 degrees");
+        }
+
+        Latitude = latitude;
+        Longitude = longitude;
+        SpatialIndex = spatialIndex;
     }
 
     /// <summary>
@@ -162,4 +216,70 @@ public readonly struct GeoLocation : IEquatable<GeoLocation>
     {
         return !left.Equals(right);
     }
+
+    /// <summary>
+    /// Implicitly converts a <see cref="GeoLocation"/> to its spatial index string value.
+    /// </summary>
+    /// <param name="location">The location to convert.</param>
+    /// <returns>The spatial index value (GeoHash/S2 token/H3 index), or null if not set.</returns>
+    /// <remarks>
+    /// This implicit cast enables natural comparison syntax in lambda expressions:
+    /// <code>
+    /// query.Where(x => x.Location == cell)
+    /// </code>
+    /// The cast returns the <see cref="SpatialIndex"/> property value, which is populated
+    /// during deserialization from DynamoDB. If the location was created directly from
+    /// coordinates, this will return null.
+    /// </remarks>
+    public static implicit operator string?(GeoLocation location) => location.SpatialIndex;
+
+    /// <summary>
+    /// Determines whether a <see cref="GeoLocation"/> has the specified spatial index value.
+    /// </summary>
+    /// <param name="location">The location to compare.</param>
+    /// <param name="spatialIndex">The spatial index value to compare against.</param>
+    /// <returns>True if the location's spatial index equals the specified value; otherwise, false.</returns>
+    /// <remarks>
+    /// This operator enables natural comparison syntax in lambda expressions:
+    /// <code>
+    /// query.Where(x => x.Location == "9q8yy")
+    /// </code>
+    /// The comparison uses the <see cref="SpatialIndex"/> property, which is populated
+    /// during deserialization from DynamoDB.
+    /// </remarks>
+    public static bool operator ==(GeoLocation location, string? spatialIndex)
+        => location.SpatialIndex == spatialIndex;
+
+    /// <summary>
+    /// Determines whether a <see cref="GeoLocation"/> does not have the specified spatial index value.
+    /// </summary>
+    /// <param name="location">The location to compare.</param>
+    /// <param name="spatialIndex">The spatial index value to compare against.</param>
+    /// <returns>True if the location's spatial index does not equal the specified value; otherwise, false.</returns>
+    public static bool operator !=(GeoLocation location, string? spatialIndex)
+        => location.SpatialIndex != spatialIndex;
+
+    /// <summary>
+    /// Determines whether a spatial index value equals a <see cref="GeoLocation"/>'s spatial index.
+    /// </summary>
+    /// <param name="spatialIndex">The spatial index value to compare.</param>
+    /// <param name="location">The location to compare against.</param>
+    /// <returns>True if the spatial index equals the location's spatial index; otherwise, false.</returns>
+    /// <remarks>
+    /// This operator enables reverse-order comparison syntax:
+    /// <code>
+    /// query.Where(x => "9q8yy" == x.Location)
+    /// </code>
+    /// </remarks>
+    public static bool operator ==(string? spatialIndex, GeoLocation location)
+        => location.SpatialIndex == spatialIndex;
+
+    /// <summary>
+    /// Determines whether a spatial index value does not equal a <see cref="GeoLocation"/>'s spatial index.
+    /// </summary>
+    /// <param name="spatialIndex">The spatial index value to compare.</param>
+    /// <param name="location">The location to compare against.</param>
+    /// <returns>True if the spatial index does not equal the location's spatial index; otherwise, false.</returns>
+    public static bool operator !=(string? spatialIndex, GeoLocation location)
+        => location.SpatialIndex != spatialIndex;
 }

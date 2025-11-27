@@ -451,14 +451,12 @@ public class SpatialIndexCodeGenerationTests
             "should check for latitude attribute");
         result.Should().Contain("item.TryGetValue(\"lon\"", 
             "should check for longitude attribute");
-        result.Should().Contain("Reconstruct from exact coordinates", 
-            "should include reconstruction comment");
         result.Should().Contain("double.Parse(locationLatValue.N, System.Globalization.CultureInfo.InvariantCulture)", 
             "should parse latitude from number attribute");
         result.Should().Contain("double.Parse(locationLonValue.N, System.Globalization.CultureInfo.InvariantCulture)", 
             "should parse longitude from number attribute");
-        result.Should().Contain("new Oproto.FluentDynamoDb.Geospatial.GeoLocation(latitude, longitude)", 
-            "should reconstruct GeoLocation from coordinates");
+        result.Should().Contain("new Oproto.FluentDynamoDb.Geospatial.GeoLocation(latitude, longitude, spatialIndexValue)", 
+            "should reconstruct GeoLocation from coordinates with spatial index");
     }
 
     [Fact]

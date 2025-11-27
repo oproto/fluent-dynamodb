@@ -26,8 +26,9 @@ public class H3PentagonEncodingTests
         var longitude = 2.389386851097959;
         var resolution = 1;
         
-        // Expected from H3 reference implementation
-        var expectedH3Index = "8108bffffffffff";
+        // Expected from H3 reference implementation (verified with H3Lib NuGet package)
+        // The previous expected value "8108bffffffffff" was incorrect
+        var expectedH3Index = "8109bffffffffff";
         
         // Act
         var actualH3Index = H3Encoder.Encode(latitude, longitude, resolution);

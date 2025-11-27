@@ -176,8 +176,18 @@ public class QueryRequestBuilder<TEntity> :
     public QueryRequestBuilder<TEntity> UsingIndex(string indexName)
     {
         _req.IndexName = indexName;
+        _indexName = indexName;
         return this;
     }
+    
+    private string? _indexName;
+    
+    /// <summary>
+    /// Gets the name of the index being queried, if any.
+    /// Used by expression translation to validate GSI key properties.
+    /// </summary>
+    /// <returns>The index name, or null if querying the main table.</returns>
+    public string? GetIndexName() => _indexName;
 
     /// <summary>
     /// Specifies which attributes to retrieve using a projection expression.

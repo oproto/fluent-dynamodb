@@ -299,6 +299,173 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     }
     
     /// <summary>
+    /// Creates a DynamoDB table with a Global Secondary Index for the specified entity type.
+    /// The table is automatically tracked for cleanup after the test completes.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <param name="gsiName">The name of the GSI to create.</param>
+    /// <param name="gsiPartitionKeyAttribute">The attribute name for the GSI partition key.</param>
+    /// <param name="gsiSortKeyAttribute">Optional attribute name for the GSI sort key.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    protected async Task CreateTableWithGsiAsync<TEntity>(
+        string gsiName,
+        string gsiPartitionKeyAttribute,
+        string? gsiSortKeyAttribute = null) where TEntity : IDynamoDbEntity
+    {
+        var metadata = TEntity.GetEntityMetadata();
+        
+        // Find partition key property
+        var partitionKeyProp = metadata.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        if (partitionKeyProp == null)
+        {
+            throw new InvalidOperationException(
+                $"Entity {typeof(TEntity).Name} does not have a partition key property");
+        }
+        
+        var attributeDefinitions = new List<AttributeDefinition>
+        {
+            new AttributeDefinition
+            {
+                AttributeName = partitionKeyProp.AttributeName,
+                AttributeType = GetScalarAttributeType(partitionKeyProp.PropertyType)
+            }
+        };
+        
+        var keySchema = new List<KeySchemaElement>
+        {
+            new KeySchemaElement
+            {
+                AttributeName = partitionKeyProp.AttributeName,
+                KeyType = KeyType.HASH
+            }
+        };
+        
+        // Add sort key if present
+        var sortKeyProp = metadata.Properties.FirstOrDefault(p => p.IsSortKey);
+        if (sortKeyProp != null)
+        {
+            keySchema.Add(new KeySchemaElement
+            {
+                AttributeName = sortKeyProp.AttributeName,
+                KeyType = KeyType.RANGE
+            });
+            
+            attributeDefinitions.Add(new AttributeDefinition
+            {
+                AttributeName = sortKeyProp.AttributeName,
+                AttributeType = GetScalarAttributeType(sortKeyProp.PropertyType)
+            });
+        }
+        
+        // Add GSI partition key attribute definition if not already present
+        if (!attributeDefinitions.Any(a => a.AttributeName == gsiPartitionKeyAttribute))
+        {
+            attributeDefinitions.Add(new AttributeDefinition
+            {
+                AttributeName = gsiPartitionKeyAttribute,
+                AttributeType = ScalarAttributeType.S // GSI keys are typically strings for spatial indices
+            });
+        }
+        
+        // Add GSI sort key attribute definition if specified and not already present
+        if (gsiSortKeyAttribute != null && !attributeDefinitions.Any(a => a.AttributeName == gsiSortKeyAttribute))
+        {
+            attributeDefinitions.Add(new AttributeDefinition
+            {
+                AttributeName = gsiSortKeyAttribute,
+                AttributeType = ScalarAttributeType.S
+            });
+        }
+        
+        // Build GSI key schema
+        var gsiKeySchema = new List<KeySchemaElement>
+        {
+            new KeySchemaElement
+            {
+                AttributeName = gsiPartitionKeyAttribute,
+                KeyType = KeyType.HASH
+            }
+        };
+        
+        if (gsiSortKeyAttribute != null)
+        {
+            gsiKeySchema.Add(new KeySchemaElement
+            {
+                AttributeName = gsiSortKeyAttribute,
+                KeyType = KeyType.RANGE
+            });
+        }
+        
+        var request = new CreateTableRequest
+        {
+            TableName = TableName,
+            KeySchema = keySchema,
+            AttributeDefinitions = attributeDefinitions,
+            BillingMode = BillingMode.PAY_PER_REQUEST,
+            GlobalSecondaryIndexes = new List<GlobalSecondaryIndex>
+            {
+                new GlobalSecondaryIndex
+                {
+                    IndexName = gsiName,
+                    KeySchema = gsiKeySchema,
+                    Projection = new Projection
+                    {
+                        ProjectionType = ProjectionType.ALL
+                    }
+                }
+            }
+        };
+        
+        await DynamoDb.CreateTableAsync(request);
+        _tablesToCleanup.Add(TableName);
+        
+        Console.WriteLine($"[Setup] Created table with GSI: {TableName} (GSI: {gsiName})");
+        
+        // Wait for table and GSI to be active
+        await WaitForTableAndGsiActiveAsync(TableName, gsiName);
+    }
+    
+    /// <summary>
+    /// Waits for a DynamoDB table and its GSI to become active.
+    /// </summary>
+    /// <param name="tableName">The name of the table to wait for.</param>
+    /// <param name="gsiName">The name of the GSI to wait for.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    protected async Task WaitForTableAndGsiActiveAsync(string tableName, string gsiName)
+    {
+        var maxAttempts = 60; // GSIs can take longer to become active
+        var delayMs = 500;
+        
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                var response = await DynamoDb.DescribeTableAsync(tableName);
+                
+                var tableActive = response.Table.TableStatus == TableStatus.ACTIVE;
+                var gsi = response.Table.GlobalSecondaryIndexes?.FirstOrDefault(g => g.IndexName == gsiName);
+                var gsiActive = gsi?.IndexStatus == IndexStatus.ACTIVE;
+                
+                if (tableActive && gsiActive)
+                {
+                    Console.WriteLine($"[Setup] Table {tableName} and GSI {gsiName} are active after {attempt} attempt(s)");
+                    return;
+                }
+                
+                await Task.Delay(delayMs);
+            }
+            catch (ResourceNotFoundException)
+            {
+                // Table not found yet, wait and retry
+                await Task.Delay(delayMs);
+            }
+        }
+        
+        throw new TimeoutException(
+            $"Table {tableName} or GSI {gsiName} did not become active after {maxAttempts} attempts");
+    }
+    
+    /// <summary>
     /// Gets the DynamoDB scalar attribute type for a C# type.
     /// </summary>
     private static ScalarAttributeType GetScalarAttributeType(Type type)

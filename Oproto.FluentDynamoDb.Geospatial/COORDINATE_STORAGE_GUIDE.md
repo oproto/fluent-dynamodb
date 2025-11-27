@@ -279,7 +279,7 @@ var store = new Store
     Name = "Downtown Store"
 };
 
-await storeTable.Put.Item(store).ExecuteAsync();
+await storeTable.PutAsync(store);
 
 // DynamoDB stores:
 // {
@@ -334,7 +334,7 @@ var store = new Store
     Name = "Downtown Store"
 };
 
-await storeTable.Put.Item(store).ExecuteAsync();
+await storeTable.PutAsync(store);
 
 // DynamoDB stores:
 // {
@@ -384,7 +384,7 @@ var store = new Store
     Name = "Downtown Store"
 };
 
-await storeTable.Put.Item(store).ExecuteAsync();
+await storeTable.PutAsync(store);
 
 // DynamoDB stores:
 // {
@@ -581,7 +581,7 @@ var store = new Store
     Location = new GeoLocation(37.7749, -122.4194)
 };
 
-await storeTable.Put.Item(store).ExecuteAsync();
+await storeTable.PutAsync(store);
 // Stores: location, location_lat, location_lon
 ```
 
@@ -600,7 +600,7 @@ var allStores = await storeTable.Scan.ExecuteAsync();
 foreach (var store in allStores)
 {
     // Re-save to add coordinate attributes
-    await storeTable.Put.Item(store).ExecuteAsync();
+    await storeTable.PutAsync(store);
 }
 ```
 
@@ -631,7 +631,7 @@ var stores = JsonSerializer.Deserialize<List<Store>>(backupJson);
 // Re-save all items (adds coordinate attributes)
 foreach (var store in stores)
 {
-    await storeTable.Put.Item(store).ExecuteAsync();
+    await storeTable.PutAsync(store);
 }
 ```
 

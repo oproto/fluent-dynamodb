@@ -244,6 +244,14 @@ public class ExpressionTranslator
             return sb.ToString();
         }
 
+        // Special handling for GeoLocation comparisons
+        // Detects patterns like: x.Location == cell or x.Location.SpatialIndex == cell
+        // These use the implicit cast operator or explicit SpatialIndex property access
+        if (IsGeoLocationComparison(node, entityParameter, out var geoLocationExpr, out var valueExpr, out var isLeftSide))
+        {
+            return TranslateGeoLocationComparison(node, geoLocationExpr!, valueExpr!, isLeftSide, entityParameter, context);
+        }
+
         // Special handling for string.CompareOrdinal(x.Property, value) >= 0 pattern
         // This allows string comparison operators in expressions
         // Example: string.CompareOrdinal(x.Type, "value") >= 0 translates to: #attr0 >= :p0
@@ -323,6 +331,164 @@ public class ExpressionTranslator
     }
     
     /// <summary>
+    /// Checks if a binary expression is comparing a GeoLocation property to a string value.
+    /// Detects both implicit cast (x.Location == cell) and explicit property access (x.Location.SpatialIndex == cell).
+    /// Only supports equality and inequality operators, as spatial indices (S2, H3) are not lexicographically ordered.
+    /// </summary>
+    /// <param name="node">The binary expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="geoLocationExpr">The GeoLocation property expression if detected.</param>
+    /// <param name="valueExpr">The string value expression if detected.</param>
+    /// <param name="isLeftSide">True if GeoLocation is on the left side, false if on the right.</param>
+    /// <returns>True if this is a GeoLocation comparison, false otherwise.</returns>
+    private bool IsGeoLocationComparison(
+        BinaryExpression node,
+        ParameterExpression entityParameter,
+        out Expression? geoLocationExpr,
+        out Expression? valueExpr,
+        out bool isLeftSide)
+    {
+        geoLocationExpr = null;
+        valueExpr = null;
+        isLeftSide = false;
+
+        // Only handle equality and inequality operators
+        // Note: S2 and H3 spatial indices are NOT lexicographically ordered,
+        // so comparison operators (<, >, <=, >=) don't make semantic sense.
+        // GeoHash BETWEEN queries are handled by WithinDistance/WithinBoundingBox methods.
+        if (node.NodeType != ExpressionType.Equal &&
+            node.NodeType != ExpressionType.NotEqual)
+        {
+            return false;
+        }
+
+        // Check left side for GeoLocation
+        if (IsGeoLocationPropertyAccess(node.Left, entityParameter))
+        {
+            geoLocationExpr = node.Left;
+            valueExpr = node.Right;
+            isLeftSide = true;
+            return true;
+        }
+
+        // Check right side for GeoLocation
+        if (IsGeoLocationPropertyAccess(node.Right, entityParameter))
+        {
+            geoLocationExpr = node.Right;
+            valueExpr = node.Left;
+            isLeftSide = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if an expression is accessing a GeoLocation property or its SpatialIndex property.
+    /// Detects: x.Location (GeoLocation property) or x.Location.SpatialIndex (explicit property access).
+    /// </summary>
+    private bool IsGeoLocationPropertyAccess(Expression expr, ParameterExpression entityParameter)
+    {
+        if (expr is not MemberExpression member)
+            return false;
+
+        // Check for x.Location.SpatialIndex pattern
+        if (member.Member.Name == "SpatialIndex" &&
+            member.Expression is MemberExpression parentMember &&
+            parentMember.Expression == entityParameter)
+        {
+            // Check if the parent property is of type GeoLocation
+            var propertyType = parentMember.Member.DeclaringType?.GetProperty(parentMember.Member.Name)?.PropertyType;
+            return IsGeoLocationType(propertyType);
+        }
+
+        // Check for x.Location pattern (direct GeoLocation property access)
+        if (member.Expression == entityParameter)
+        {
+            var propertyType = member.Member.DeclaringType?.GetProperty(member.Member.Name)?.PropertyType;
+            return IsGeoLocationType(propertyType);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a type is GeoLocation.
+    /// </summary>
+    private bool IsGeoLocationType(Type? type)
+    {
+        if (type == null)
+            return false;
+
+        // Check for exact type match
+        if (type.FullName == "Oproto.FluentDynamoDb.Geospatial.GeoLocation")
+            return true;
+
+        // Check for nullable GeoLocation
+        if (type.IsGenericType &&
+            type.GetGenericTypeDefinition() == typeof(Nullable<>) &&
+            type.GetGenericArguments()[0].FullName == "Oproto.FluentDynamoDb.Geospatial.GeoLocation")
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Translates a GeoLocation comparison to a DynamoDB expression.
+    /// Handles both x.Location == cell and x.Location.SpatialIndex == cell patterns.
+    /// Only supports equality (==) and inequality (!=) operators.
+    /// </summary>
+    private string TranslateGeoLocationComparison(
+        BinaryExpression node,
+        Expression geoLocationExpr,
+        Expression valueExpr,
+        bool isLeftSide,
+        ParameterExpression entityParameter,
+        ExpressionContext context)
+    {
+        // Extract the base GeoLocation property (x.Location)
+        MemberExpression baseProperty;
+        if (geoLocationExpr is MemberExpression member && member.Member.Name == "SpatialIndex")
+        {
+            // x.Location.SpatialIndex - get the parent (x.Location)
+            baseProperty = (MemberExpression)member.Expression!;
+        }
+        else
+        {
+            // x.Location - already the base property
+            baseProperty = (MemberExpression)geoLocationExpr;
+        }
+
+        // Get the property metadata for the GeoLocation property
+        var propertyMetadata = GetPropertyMetadata(baseProperty, entityParameter, context);
+
+        // Translate the GeoLocation property to its DynamoDB attribute name
+        var attributeName = Visit(baseProperty, entityParameter, context);
+
+        // Evaluate and capture the string value
+        var value = VisitWithPropertyMetadata(valueExpr, entityParameter, context, propertyMetadata);
+
+        // Map the comparison operator (only == and != are supported)
+        var dynamoDbOperator = node.NodeType switch
+        {
+            ExpressionType.Equal => "=",
+            ExpressionType.NotEqual => "<>",
+            _ => throw new UnsupportedExpressionException(
+                $"Binary operator '{node.NodeType}' is not supported for GeoLocation comparisons. " +
+                $"Only equality (==) and inequality (!=) operators are supported because spatial indices " +
+                $"(S2, H3) are not lexicographically ordered. Use WithinDistance or WithinBoundingBox methods " +
+                $"for range-based spatial queries.",
+                node)
+        };
+
+        // Build the expression: attribute operator value
+        // Note: We always put the attribute on the left side in DynamoDB expressions
+        var builder = new StringBuilder(attributeName.Length + value.Length + dynamoDbOperator.Length + 2);
+        builder.Append(attributeName).Append(' ').Append(dynamoDbOperator).Append(' ').Append(value);
+        return builder.ToString();
+    }
+
+    /// <summary>
     /// Visits an expression node with property metadata for format application.
     /// </summary>
     private string VisitWithPropertyMetadata(Expression node, ParameterExpression entityParameter, ExpressionContext context, PropertyMetadata? propertyMetadata)
@@ -398,7 +564,7 @@ public class ExpressionTranslator
                 // Validate key-only mode for Query().Where()
                 if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
                 {
-                    var isKey = propertyMetadata.IsPartitionKey || propertyMetadata.IsSortKey;
+                    var isKey = IsKeyProperty(propertyName, propertyMetadata, context);
                     if (!isKey)
                     {
                         throw new InvalidKeyExpressionException(propertyName, node);
@@ -423,6 +589,36 @@ public class ExpressionTranslator
         // Evaluate the member expression to get its value
         var value = EvaluateExpression(node);
         return CaptureValue(value, context, propertyMetadata: null);
+    }
+
+    /// <summary>
+    /// Determines if a property is a key property for the current query context.
+    /// When querying a GSI (IndexName is set), checks if the property is the GSI's partition or sort key.
+    /// Otherwise, checks if the property is the main table's partition or sort key.
+    /// </summary>
+    /// <param name="propertyName">The C# property name to check.</param>
+    /// <param name="propertyMetadata">The property metadata from entity metadata.</param>
+    /// <param name="context">The expression context containing index information.</param>
+    /// <returns>True if the property is a key property for the current query context.</returns>
+    private bool IsKeyProperty(string propertyName, PropertyMetadata propertyMetadata, ExpressionContext context)
+    {
+        // If querying a GSI, check if the property is a key in that GSI
+        if (!string.IsNullOrEmpty(context.IndexName) && context.EntityMetadata?.Indexes != null)
+        {
+            var indexMetadata = context.EntityMetadata.Indexes
+                .FirstOrDefault(i => string.Equals(i.IndexName, context.IndexName, StringComparison.OrdinalIgnoreCase));
+            
+            if (indexMetadata != null)
+            {
+                // Check if this property is the GSI partition key or sort key
+                var isGsiKey = string.Equals(indexMetadata.PartitionKeyProperty, propertyName, StringComparison.Ordinal) ||
+                               string.Equals(indexMetadata.SortKeyProperty, propertyName, StringComparison.Ordinal);
+                return isGsiKey;
+            }
+        }
+        
+        // Fall back to main table key validation
+        return propertyMetadata.IsPartitionKey || propertyMetadata.IsSortKey;
     }
 
     /// <summary>

@@ -366,7 +366,7 @@
     - Include examples of query explosion scenarios and how to avoid them
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 13. Final Checkpoint - Ensure all tests pass
+- [x] 13. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Additional Tasks for S2 and H3 Implementation Fixes
@@ -714,7 +714,7 @@
     - Reference implementation is in this repository in the h3 directory
     - _Requirements: 1.3, 9.2_
   
-  - [ ] 15.7 Fix H3 encoding for non-center base cells
+  - [x] 15.7 Fix H3 encoding for non-center base cells
     - **CRITICAL**: Current encoding works for base cell 0 but fails for base cell 37
     - Issue: Encoding (20°, 123°) at res 2 produces digits (2, 0) instead of (6, 3)
     - Root cause: Current implementation uses pre-computed gnomonic face coordinates
@@ -944,5 +944,708 @@
     - Add performance notes about cell counts near poles
     - _Requirements: 13.1, 13.2, 13.3, 13.4_
 
-- [ ] 22. Final checkpoint - Ensure all dateline and pole tests pass
-  - Ensure all tests pass, ask the user if questions arise.
+## End-to-End Integration Tests with DynamoDB Local
+
+### Test Entity Setup
+
+- [-] 23. Create test entities for S2 and H3 integration tests
+  - [x] 23.1 Create S2StoreEntity with S2-indexed location
+    - Add entity with S2 spatial index at level 16
+    - Include partition key, sort key, name, and location properties
+    - Add to TestEntities folder
+    - _Requirements: 1.2, 5.1, 5.2, 5.3_
+  
+  - [x] 23.2 Create H3StoreEntity with H3-indexed location
+    - Add entity with H3 spatial index at resolution 9
+    - Include partition key, sort key, name, and location properties
+    - Add to TestEntities folder
+    - _Requirements: 1.3, 5.1, 5.2, 5.3_
+  
+  - [x] 23.3 Create S2StoreWithCoordsEntity with coordinate storage
+    - Add entity with S2 spatial index and StoreCoordinatesAttribute
+    - Configure separate latitude and longitude attribute names
+    - Test multi-field serialization approach
+    - _Requirements: 6.1, 6.2, 6.5_
+  
+  - [x] 23.4 Create H3StoreWithCoordsEntity with coordinate storage
+    - Add entity with H3 spatial index and StoreCoordinatesAttribute
+    - Configure separate latitude and longitude attribute names
+    - Test multi-field serialization approach
+    - _Requirements: 6.1, 6.2, 6.5_
+  
+  - [ ] 23.5 Create entities with computed coordinate properties
+    - Add S2 entity with computed Latitude and Longitude properties
+    - Add H3 entity with computed Latitude and Longitude properties
+    - Test computed property serialization approach
+    - _Requirements: 6.1, 6.2, 6.5_
+
+### S2 Storage Integration Tests
+
+- [x] 24. Create S2 storage integration tests
+  - [x] 24.1 Test S2 single-field serialization
+    - Write entity with S2-indexed GeoLocation to DynamoDB
+    - Verify location is stored as S2 token string
+    - Verify token length matches expected format
+    - Verify token can be decoded back to coordinates
+    - _Requirements: 1.2, 5.1, 5.2, 5.3_
+  
+  - [x] 24.2 Test S2 single-field deserialization
+    - Store S2 token directly in DynamoDB
+    - Read entity back using source generator
+    - Verify GeoLocation is reconstructed correctly
+    - Verify coordinates are within cell bounds
+    - _Requirements: 1.2, 5.4, 5.5_
+  
+  - [x] 24.3 Test S2 round-trip persistence
+    - Write entity with S2 location
+    - Read it back
+    - Verify location is preserved (within cell precision)
+    - Test with multiple locations (poles, equator, date line)
+    - _Requirements: 1.2, 5.1, 5.2, 5.3, 5.4, 5.5_
+  
+  - [x] 24.4 Test S2 multi-field serialization with StoreCoordinatesAttribute
+    - Write entity with S2 index and coordinate storage
+    - Verify three attributes are created (token, lat, lon)
+    - Verify attribute names match configuration
+    - Verify all three fields have correct values
+    - _Requirements: 6.1, 6.2, 6.5_
+  
+  - [x] 24.5 Test S2 multi-field deserialization with coordinates
+    - Store S2 token and coordinates in DynamoDB
+    - Read entity back
+    - Verify GeoLocation is reconstructed from coordinates (not token)
+    - Verify exact coordinate precision is preserved
+    - _Requirements: 6.3, 6.4_
+  
+  - [x] 24.6 Test S2 multi-field deserialization fallback
+    - Store only S2 token (no coordinates) in DynamoDB
+    - Read entity back
+    - Verify GeoLocation is reconstructed from token
+    - Verify fallback behavior works correctly
+    - _Requirements: 6.3, 6.4_
+  
+  - [x] 24.7 Test S2 computed property serialization
+    - Write entity with computed Latitude/Longitude properties
+    - Verify all three attributes are created
+    - Verify computed properties are serialized correctly
+    - _Requirements: 6.1, 6.2, 6.5_
+
+### H3 Storage Integration Tests
+
+- [x] 25. Create H3 storage integration tests
+  - [x] 25.1 Test H3 single-field serialization
+    - Write entity with H3-indexed GeoLocation to DynamoDB
+    - Verify location is stored as H3 index string
+    - Verify index format is correct (15-character hex)
+    - Verify index can be decoded back to coordinates
+    - _Requirements: 1.3, 5.1, 5.2, 5.3_
+  
+  - [x] 25.2 Test H3 single-field deserialization
+    - Store H3 index directly in DynamoDB
+    - Read entity back using source generator
+    - Verify GeoLocation is reconstructed correctly
+    - Verify coordinates are within cell bounds
+    - _Requirements: 1.3, 5.4, 5.5_
+  
+  - [x] 25.3 Test H3 round-trip persistence
+    - Write entity with H3 location
+    - Read it back
+    - Verify location is preserved (within cell precision)
+    - Test with multiple locations including pentagon cells
+    - _Requirements: 1.3, 5.1, 5.2, 5.3, 5.4, 5.5_
+  
+  - [x] 25.4 Test H3 multi-field serialization with StoreCoordinatesAttribute
+    - Write entity with H3 index and coordinate storage
+    - Verify three attributes are created (index, lat, lon)
+    - Verify attribute names match configuration
+    - Verify all three fields have correct values
+    - _Requirements: 6.1, 6.2, 6.5_
+  
+  - [x] 25.5 Test H3 multi-field deserialization with coordinates
+    - Store H3 index and coordinates in DynamoDB
+    - Read entity back
+    - Verify GeoLocation is reconstructed from coordinates (not index)
+    - Verify exact coordinate precision is preserved
+    - _Requirements: 6.3, 6.4_
+  
+  - [x] 25.6 Test H3 multi-field deserialization fallback
+    - Store only H3 index (no coordinates) in DynamoDB
+    - Read entity back
+    - Verify GeoLocation is reconstructed from index
+    - Verify fallback behavior works correctly
+    - _Requirements: 6.3, 6.4_
+  
+  - [x] 25.7 Test H3 computed property serialization
+    - Write entity with computed Latitude/Longitude properties
+    - Verify all three attributes are created
+    - Verify computed properties are serialized correctly
+    - _Requirements: 6.1, 6.2, 6.5_
+
+### SpatialQueryAsync Integration Layer
+
+- [x] 25a. Implement SpatialQueryAsync integration with source generator
+  - [x] 25a.1 Refactor SpatialQueryAsync to use QueryRequestBuilder properly
+    - **CRITICAL**: Current implementation calls `ToDynamoDbResponseAsync()` which returns raw DynamoDB responses
+    - The queryBuilder lambda should return a configured `QueryRequestBuilder<TEntity>`, not execute the query
+    - SpatialQueryAsync should call the appropriate execution method that handles deserialization
+    - Research how existing query methods handle entity deserialization (likely through source generator extensions)
+    - Update method signature if needed to support proper entity deserialization
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
+  
+  - [x] 25a.2 Implement CalculateDistance helper
+    - Accept entity and center point as parameters
+    - Use reflection to find GeoLocation property with spatial index attribute
+    - Calculate distance using `GeoLocation.DistanceToKilometers(center)`
+    - Add error handling for entities without GeoLocation properties
+    - Consider caching PropertyInfo for performance
+    - _Requirements: 3.1, 3.2, 12.3_
+  
+  - [x] 25a.3 Remove unnecessary deduplication logic
+    - Remove `GenerateItemKey` method (no longer needed)
+    - Remove `seenKeys` HashSet from query methods
+    - Remove deduplication loop - each DynamoDB item has unique primary key
+    - Items can only have ONE location value, so no duplicates across cell queries
+    - Simplify result merging to just concatenate results from all cells
+    - Update comments to explain why deduplication is not needed
+    - _Requirements: 12.5, 13.5_
+  
+  - [x] 25a.4 Update SpatialQueryExtensions documentation
+    - Remove "PLACEHOLDER IMPLEMENTATION" comments
+    - Update XML documentation to reflect actual implementation
+    - Remove TODO comments about integration requirements
+    - Add examples showing proper usage
+    - _Requirements: 7.1, 7.2, 7.3_
+  
+  - [x] 25a.5 Write unit tests for integration helpers
+    - I don't know if the following requirements are valid anymore, we changed how CalculateDistance worked after writing this and above tasks say we've removed GenerateItemKey
+    - Test CalculateDistance with various entity types
+    - Test GenerateItemKey with different key configurations
+    - Test error handling for invalid entities
+    - _Requirements: 3.1, 3.2, 12.3, 12.5_
+
+### S2 Spatial Query Integration Tests
+
+- [x] 26. Create S2 spatial query integration tests
+  - [x] 26.1 Test S2 proximity query (non-paginated) with lambda expressions
+    - Create table with S2-indexed stores at known locations
+    - Execute SpatialQueryAsync with radius search
+    - Use lambda expression in queryBuilder: `query.Where<S2Store>(x => x.PartitionKey == "STORE" && x.Location == cell)`
+    - Verify all results are within radius
+    - Verify results are sorted by distance
+    - Verify no duplicates
+    - _Requirements: 3.1, 3.3, 12.3_
+  
+  - [x] 26.2 Test S2 proximity query (non-paginated) with format string expressions
+    - Execute SpatialQueryAsync with radius search
+    - Use format string in queryBuilder: `query.Where("pk = {0} AND location = {1}", "STORE", cell)`
+    - Verify results match lambda expression approach
+    - _Requirements: 3.1, 3.3, 12.3_
+  
+  - [x] 26.3 Test S2 proximity query (non-paginated) with plain text expressions
+    - Execute SpatialQueryAsync with radius search
+    - Use plain text with WithValue: `query.Where("pk = :pk AND location = :loc").WithValue(":pk", "STORE").WithValue(":loc", cell)`
+    - Verify results match other expression approaches
+    - _Requirements: 3.1, 3.3, 12.3_
+  
+  - [x] 26.4 Test S2 proximity query (paginated) with lambda expressions
+    - Create table with many S2-indexed stores
+    - Execute SpatialQueryAsync with pageSize=10
+    - Use lambda expression in queryBuilder
+    - Verify page size is respected
+    - Verify continuation token is returned
+    - Verify results are in spiral order (closest first)
+    - _Requirements: 3.2, 3.3, 11.1, 11.2, 12.3_
+  
+  - [x] 26.5 Test S2 pagination continuation
+    - Execute first page of S2 proximity query
+    - Use continuation token to fetch second page
+    - Continue until all results retrieved
+    - Verify no duplicates across pages
+    - Verify null token on final page
+    - _Requirements: 11.2, 11.3, 11.4, 11.5_
+  
+  - [x] 26.6 Test S2 bounding box query (non-paginated) with lambda expressions
+    - Execute SpatialQueryAsync with bounding box
+    - Use lambda expression in queryBuilder
+    - Verify all results are within bounding box
+    - Verify parallel execution (multiple cells)
+    - _Requirements: 4.1, 4.3, 4.5, 12.3_
+  
+  - [x] 26.7 Test S2 bounding box query (paginated)
+    - Execute SpatialQueryAsync with bounding box and pageSize
+    - Verify sequential cell querying
+    - Test pagination continuation
+    - _Requirements: 4.1, 4.3, 4.5, 11.1, 11.2, 11.3_
+  
+  - [x] 26.8 Test S2 query with additional filter conditions
+    - Execute SpatialQueryAsync with radius
+    - Add additional WHERE conditions in queryBuilder (e.g., status filter)
+    - Verify both spatial and non-spatial filters are applied
+    - _Requirements: 12.1, 12.2, 12.5_
+  
+  - [x] 26.9 Test S2 query with sort key conditions
+    - Execute SpatialQueryAsync with radius
+    - Add sort key condition in queryBuilder
+    - Verify spatial and sort key conditions work together
+    - _Requirements: 12.1, 12.2, 12.5_
+
+### H3 Spatial Query Integration Tests
+
+- [x] 27. Create H3 spatial query integration tests
+  - [x] 27.1 Test H3 proximity query (non-paginated) with lambda expressions
+    - Create table with H3-indexed stores at known locations
+    - Execute SpatialQueryAsync with radius search
+    - Use lambda expression in queryBuilder: `query.Where<H3Store>(x => x.PartitionKey == "STORE" && x.Location == cell)`
+    - Verify all results are within radius
+    - Verify results are sorted by distance
+    - Verify no duplicates
+    - _Requirements: 3.1, 3.4, 12.3_
+  
+  - [x] 27.2 Test H3 proximity query (non-paginated) with format string expressions
+    - Execute SpatialQueryAsync with radius search
+    - Use format string in queryBuilder: `query.Where("pk = {0} AND location = {1}", "STORE", cell)`
+    - Verify results match lambda expression approach
+    - _Requirements: 3.1, 3.4, 12.3_
+  
+  - [x] 27.3 Test H3 proximity query (non-paginated) with plain text expressions
+    - Execute SpatialQueryAsync with radius search
+    - Use plain text with WithValue: `query.Where("pk = :pk AND location = :loc").WithValue(":pk", "STORE").WithValue(":loc", cell)`
+    - Verify results match other expression approaches
+    - _Requirements: 3.1, 3.4, 12.3_
+  
+  - [x] 27.4 Test H3 proximity query (paginated) with lambda expressions
+    - Create table with many H3-indexed stores
+    - Execute SpatialQueryAsync with pageSize=10
+    - Use lambda expression in queryBuilder
+    - Verify page size is respected
+    - Verify continuation token is returned
+    - Verify results are in spiral order (closest first)
+    - _Requirements: 3.2, 3.4, 11.1, 11.2, 12.3_
+  
+  - [x] 27.5 Test H3 pagination continuation
+    - Execute first page of H3 proximity query
+    - Use continuation token to fetch second page
+    - Continue until all results retrieved
+    - Verify no duplicates across pages
+    - Verify null token on final page
+    - _Requirements: 11.2, 11.3, 11.4, 11.5_
+  
+  - [x] 27.6 Test H3 bounding box query (non-paginated) with lambda expressions
+    - Execute SpatialQueryAsync with bounding box
+    - Use lambda expression in queryBuilder
+    - Verify all results are within bounding box
+    - Verify parallel execution (multiple cells)
+    - _Requirements: 4.2, 4.3, 4.5, 12.3_
+  
+  - [x] 27.7 Test H3 bounding box query (paginated)
+    - Execute SpatialQueryAsync with bounding box and pageSize
+    - Verify sequential cell querying
+    - Test pagination continuation
+    - _Requirements: 4.2, 4.3, 4.5, 11.1, 11.2, 11.3_
+  
+  - [x] 27.8 Test H3 query with additional filter conditions
+    - Execute SpatialQueryAsync with radius
+    - Add additional WHERE conditions in queryBuilder (e.g., status filter)
+    - Verify both spatial and non-spatial filters are applied
+    - _Requirements: 12.1, 12.2, 12.5_
+  
+  - [x] 27.9 Test H3 query with sort key conditions
+    - Execute SpatialQueryAsync with radius
+    - Add sort key condition in queryBuilder
+    - Verify spatial and sort key conditions work together
+    - _Requirements: 12.1, 12.2, 12.5_
+
+### GeoHash Spatial Query Integration Tests
+
+- [x] 28. Create GeoHash spatial query integration tests
+  - [x] 28.1 Test GeoHash proximity query with WithinDistanceKilometers in lambda expression
+    - Create table with GeoHash-indexed stores at known locations
+    - Execute Query with lambda expression using WithinDistanceKilometers extension
+    - Use: `query.Where<GeoHashStore>(x => x.PartitionKey == "STORE" && x.Location.WithinDistanceKilometers(center, radius))`
+    - Verify query executes successfully
+    - Verify all results are within the specified radius (with post-filtering for exact circular distance)
+    - Verify results are returned (not filtered out by DynamoDB)
+    - _Requirements: 3.5, 12.3_
+  
+  - [x] 28.2 Test GeoHash proximity query with manual BETWEEN expression
+    - Execute Query with manual BETWEEN expression using GeoHash range
+    - Calculate GeoHash range from bounding box: `var bbox = GeoBoundingBox.FromCenterAndDistanceKilometers(center, radius); var (minHash, maxHash) = bbox.GetGeoHashRange(precision);`
+    - Use: `query.Where("pk = {0} AND location BETWEEN {1} AND {2}", "STORE", minHash, maxHash)`
+    - Verify results match lambda expression approach (with post-filtering)
+    - Verify BETWEEN query is executed efficiently
+    - _Requirements: 3.5, 12.3_
+  
+  - [x] 28.3 Test GeoHash proximity query with plain text BETWEEN and WithValue
+    - Execute Query with plain text BETWEEN expression and WithValue
+    - Calculate GeoHash range from bounding box
+    - Use: `query.Where("pk = :pk AND location BETWEEN :minHash AND :maxHash").WithValue(":pk", "STORE").WithValue(":minHash", minHash).WithValue(":maxHash", maxHash)`
+    - Verify results match other expression approaches (with post-filtering)
+    - Verify parameter substitution works correctly
+    - _Requirements: 3.5, 12.3_
+  
+  - [x] 28.4 Test GeoHash bounding box query with WithinBoundingBox extension
+    - Define a rectangular bounding box with southwest and northeast corners
+    - Execute Query with WithinBoundingBox extension: `query.Where<GeoHashStore>(x => x.PartitionKey == "STORE" && x.Location.WithinBoundingBox(southwest, northeast))`
+    - Verify single BETWEEN query is executed (not multiple cells)
+    - Verify all results are within bounding box
+    - Verify this is efficient for rectangular area queries
+    - _Requirements: 3.5_
+  
+  - [x] 28.5 Test GeoHash query with WithinDistanceMeters and WithinDistanceMiles
+    - Execute Query with WithinDistanceMeters extension
+    - Use: `query.Where<GeoHashStore>(x => x.PartitionKey == "STORE" && x.Location.WithinDistanceMeters(center, distanceMeters))`
+    - Execute Query with WithinDistanceMiles extension
+    - Use: `query.Where<GeoHashStore>(x => x.PartitionKey == "STORE" && x.Location.WithinDistanceMiles(center, distanceMiles))`
+    - Verify both methods work correctly and return equivalent results (when distances are equivalent)
+    - Verify post-filtering produces accurate results
+    - _Requirements: 3.5, 12.3_
+
+### Edge Case Integration Tests
+
+- [x] 29. Create edge case integration tests with DynamoDB
+  - [x] 29.1 Test S2 query crossing date line
+    - Create stores near date line (longitude ~180°)
+    - Execute SpatialQueryAsync centered at (0°, 179°) with 200km radius
+    - Verify stores on both sides of date line are returned
+    - Verify no duplicates
+    - _Requirements: 13.1, 13.2, 13.5_
+  
+  - [x] 29.2 Test H3 query crossing date line
+    - Create stores near date line
+    - Execute SpatialQueryAsync centered at (0°, -179°) with 200km radius
+    - Verify stores on both sides of date line are returned
+    - Verify no duplicates
+    - _Requirements: 13.1, 13.2, 13.5_
+  
+  - [x] 29.3 Test S2 query near North Pole
+    - Create stores near North Pole (latitude ~89°)
+    - Execute SpatialQueryAsync centered at (89°, 0°) with 200km radius
+    - Verify all results are within radius
+    - Verify longitude convergence is handled correctly
+    - _Requirements: 13.3, 13.4_
+  
+  - [x] 29.4 Test H3 query near South Pole
+    - Create stores near South Pole (latitude ~-89°)
+    - Execute SpatialQueryAsync centered at (-89°, 0°) with 200km radius
+    - Verify all results are within radius
+    - Verify longitude convergence is handled correctly
+    - _Requirements: 13.3, 13.4_
+  
+  - [x] 29.5 Test S2 query with both date line and pole
+    - Create stores near North Pole and date line
+    - Execute SpatialQueryAsync centered at (89°, 179°) with 200km radius
+    - Verify both edge cases are handled correctly
+    - Verify no duplicates
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
+  
+  - [x] 29.6 Test H3 query with both date line and pole
+    - Create stores near South Pole and date line
+    - Execute SpatialQueryAsync centered at (-89°, -179°) with 200km radius
+    - Verify both edge cases are handled correctly
+    - Verify no duplicates
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
+
+### Performance and Stress Tests
+
+- [x] 30. Create performance integration tests
+  - [x] 30.1 Test S2 query with large result set (non-paginated)
+    - Create table with 1000+ stores
+    - Execute SpatialQueryAsync with large radius
+    - Verify parallel execution completes efficiently
+    - Measure and log query time
+    - _Requirements: 3.1, 3.3_
+  
+  - [x] 30.2 Test H3 query with large result set (non-paginated)
+    - Create table with 1000+ stores
+    - Execute SpatialQueryAsync with large radius
+    - Verify parallel execution completes efficiently
+    - Measure and log query time
+    - _Requirements: 3.1, 3.4_
+  
+  - [x] 30.3 Test S2 paginated query with many pages
+    - **BLOCKED**: Requires GSI support (see task 34)
+    - Current S2StoreEntity uses Location as SK, limiting to 1 store per cell
+    - Need GSI where S2 cell is PK to support multiple stores per cell
+    - Create table with 1000+ stores
+    - Execute SpatialQueryAsync with pageSize=10
+    - Iterate through all pages
+    - Verify memory usage remains constant
+    - Verify sequential execution works correctly
+    - _Requirements: 3.2, 11.1, 11.2, 11.3_
+  
+  - [x] 30.4 Test H3 paginated query with many pages
+    - Uses H3StoreWithGsiEntity with GSI support
+    - GSI (h3-location-index) has H3 cell as PK to support multiple stores per cell
+    - Create table with 1000+ stores
+    - Execute SpatialQueryAsync with pageSize=10
+    - Iterate through all pages
+    - Verify memory usage remains constant
+    - Verify sequential execution works correctly
+    - _Requirements: 3.2, 11.1, 11.2, 11.3_
+  
+  - [x] 30.5 Test query with maxCells limit
+    - Execute SpatialQueryAsync with very large radius
+    - Verify maxCells limit prevents excessive queries
+    - Verify warning is logged when limit is hit
+    - Verify partial results are still returned
+    - _Requirements: 4.4_
+
+### Cross-Index Comparison Tests
+
+- [x] 31. Create cross-index comparison tests
+  - [x] 31.1 Test same location with different index types
+    - Store same location using GeoHash, S2, and H3
+    - Query same location with all three index types
+    - Verify all three return the location
+    - Compare precision and accuracy
+    - _Requirements: 1.1, 1.2, 1.3_
+  
+  - [x] 31.2 Test query performance comparison
+    - Execute same spatial query with GeoHash, S2, and H3
+    - Measure query times for each
+    - Compare cell counts for each
+    - Document performance characteristics
+    - _Requirements: 3.1, 3.3, 3.4, 3.5_
+  
+  - [x] 31.3 Test precision comparison at different levels
+    - Store location with different precision levels
+    - Query and compare accuracy for each
+    - Verify higher precision = smaller cells = more accuracy
+    - _Requirements: 2.1, 2.2, 2.3_
+
+- [x] 32. Add SpatialIndex property to GeoLocation and implement implicit cast support
+  - [x] 32.1 Update GeoLocation struct to store spatial index value
+    - Add `SpatialIndex` property of type `string?`
+    - Add new constructor: `GeoLocation(double latitude, double longitude, string? spatialIndex)`
+    - Keep existing constructor for backward compatibility (sets SpatialIndex to null)
+    - Update XML documentation to explain when SpatialIndex is populated
+    - _Requirements: 1.1, 1.2, 1.3, 5.4, 5.5_
+  
+  - [x] 32.2 Add implicit cast and equality operators to GeoLocation
+    - Implement `implicit operator string?(GeoLocation location)` to return SpatialIndex
+    - Implement `operator ==(GeoLocation location, string? spatialIndex)` for comparison
+    - Implement `operator !=(GeoLocation location, string? spatialIndex)` for comparison
+    - Implement reverse order operators: `operator ==(string?, GeoLocation)` and `operator !=`
+    - Add XML documentation explaining the implicit cast behavior
+    - _Requirements: 12.1, 12.2_
+  
+  - [x] 32.3 Update source generator deserialization to pass spatial index
+    - Modify GeoHash deserialization to pass the GeoHash string to GeoLocation constructor
+    - Modify S2 deserialization to pass the S2 token to GeoLocation constructor
+    - Modify H3 deserialization to pass the H3 index to GeoLocation constructor
+    - Ensure coordinate storage mode also includes spatial index when available
+    - Generate code that reads the spatial index value before decoding
+    - _Requirements: 5.4, 5.5, 6.3, 6.4_
+  
+  - [x] 32.4 Update ExpressionTranslator to support GeoLocation comparisons
+    - Detect binary expressions comparing GeoLocation property to string value
+    - Detect expressions using `x.Location.SpatialIndex == cell`
+    - Detect expressions using `x.Location == cell` (implicit cast)
+    - Translate both forms to compare the DynamoDB attribute value
+    - Handle all comparison operators (==, !=, <, >, <=, >=) if applicable
+    - Add error handling for invalid comparisons
+    - _Requirements: 12.1, 12.2, 12.5_
+  
+  - [x] 32.5 Write unit tests for GeoLocation with SpatialIndex
+    - I think this may have already been done as part of 32.4 even though it wasn't listed in the tasks
+    - Test constructor with spatial index parameter
+    - Test constructor without spatial index (backward compatibility)
+    - Test implicit cast to string
+    - Test equality operators (both orders)
+    - Test that SpatialIndex is preserved through operations
+    - Test null handling for SpatialIndex
+    - _Requirements: 1.1, 1.2, 1.3_
+  
+  - [x] 32.6 Write unit tests for source generator deserialization
+    - Test GeoHash deserialization includes spatial index
+    - Test S2 deserialization includes spatial index
+    - Test H3 deserialization includes spatial index
+    - Test coordinate storage mode includes spatial index
+    - Test fallback when only spatial index is present (no coordinates)
+    - Verify round-trip: serialize → deserialize → SpatialIndex matches original
+    - _Requirements: 5.4, 5.5, 6.3, 6.4_
+  
+  - [x] 32.7 Write unit tests for ExpressionTranslator
+    - Test translation of `x.Location == cell`
+    - Test translation of `x.Location.SpatialIndex == cell`
+    - Test translation of `cell == x.Location` (reverse order)
+    - Test with all three spatial index types
+    - Test with other comparison operators
+    - Test error cases (comparing to non-string, etc.)
+    - _Requirements: 12.1, 12.2, 12.5_
+  
+  - [x] 32.8 Update integration tests to use lambda expressions
+    - Update test 26.1 to use `x.Location == cell` in lambda expression
+    - Verify test passes with the new implicit cast support
+    - Add test variations using `x.Location.SpatialIndex == cell`
+    - Test with all three spatial index types (GeoHash, S2, H3)
+    - Verify format string expressions still work (26.2)
+    - _Requirements: 3.1, 3.3, 12.1, 12.2_
+  
+  - [x] 32.9 Update documentation and examples
+    - Document the SpatialIndex property in GeoLocation
+    - Show examples of both explicit and implicit syntax
+    - Explain when SpatialIndex is null vs populated
+    - Document the implicit cast behavior
+    - Add examples to S2_H3_USAGE_GUIDE.md
+    - Update README with lambda expression examples
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+
+### ExpressionTranslator GSI Key Validation Support
+
+- [x] 35. Add GSI key awareness to ExpressionTranslator for lambda expressions
+  
+  - [x] 35.1 Analyze current key validation architecture
+    - Review ExpressionTranslator.VisitMember() key validation logic (line ~567)
+    - Current behavior: validates against entity metadata IsPartitionKey/IsSortKey
+    - Problem: entity metadata only knows main table keys, not GSI keys
+    - Document how QueryRequestBuilder tracks index name via UsingIndex()
+    - Identify how to pass index context to ExpressionTranslator
+    - _Requirements: 12.1, 12.2_
+  
+  - [x] 35.2 Design GSI key metadata approach
+    - Option A: Add GSI key attributes to entity metadata via source generator
+    - Option B: Pass index key schema to ExpressionTranslator at runtime
+    - Option C: Add ExpressionValidationMode.GsiKeysOnly that skips validation
+    - Evaluate trade-offs and select approach
+    - Document decision rationale
+    - _Requirements: 12.1, 12.2, 12.5_
+  
+  - [x] 35.3 Implement GSI key validation support
+    - Implement chosen approach from 35.2
+    - Ensure backward compatibility with existing table queries
+    - Ensure GeoLocation properties with spatial index attributes work in GSI queries
+    - Handle case where same property is key in GSI but not in main table
+    - _Requirements: 12.1, 12.2, 12.5_
+  
+  - [x] 35.4 Update QueryRequestBuilder to support GSI context
+    - If needed, add method to set GSI key schema context
+    - Ensure DynamoDbIndex.Query() passes appropriate context
+    - Maintain API compatibility
+    - _Requirements: 12.1, 12.2_
+  
+  - [x] 35.5 Write unit tests for GSI lambda expressions
+    - Test lambda expression with GSI partition key property
+    - Test lambda expression with GSI sort key property
+    - Test that main table key validation still works
+    - Test error case: non-key property in GSI query
+    - Test GeoLocation property as GSI key
+    - _Requirements: 12.1, 12.2, 12.5_
+  
+  - [x] 35.6 Update GSI spatial query integration tests
+    - Verify GsiSpatialQueryIntegrationTests pass with lambda expressions
+    - Test `x.Location == cell` works for GSI queries
+    - Test pagination with lambda expressions via GSI
+    - Test custom cell list with lambda expressions via GSI
+    - _Requirements: 3.1, 3.2, 12.1, 12.2_
+  
+  - [x] 35.7 Update documentation
+    - Document GSI lambda expression support
+    - Add examples showing GSI queries with lambda expressions
+    - Explain any limitations or special considerations
+    - Update S2_H3_USAGE_GUIDE.md with GSI lambda examples
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+
+- [x] 33. Final integration test checkpoint
+  - Ensure all integration tests pass with DynamoDB Local
+  - Verify test coverage for all query expression methods (lambda, format string, plain text)
+  - Verify test coverage for all spatial index types (GeoHash, S2, H3)
+  - Verify test coverage for all query modes (paginated, non-paginated)
+  - Verify test coverage for all serialization modes (single-field, multi-field)
+  - Verify lambda expressions work with GeoLocation comparisons
+  - Verify lambda expressions work with GSI queries
+  - Ask the user if questions arise.
+
+### Refactor Spatial Query Architecture & Add GSI Support
+
+- [x] 34. Refactor SpatialQueryExtensions architecture and add GSI support
+  
+  - [x] 34.1 Refactor private methods to accept query factory
+    - Change private method signatures from `DynamoDbTableBase table` to `Func<QueryRequestBuilder<TEntity>> createQuery`
+    - Update internal calls from `table.Query<TEntity>()` to `createQuery()`
+    - No new interfaces or types needed - just use `Func<QueryRequestBuilder<TEntity>>`
+    - _Requirements: 3.1, 3.2_
+  
+  - [x] 34.2 Update public table extension methods
+    - Update public `SpatialQueryAsync` methods to pass `() => table.Query<TEntity>()` to private methods
+    - Maintain backward compatibility - no API changes for existing users
+    - _Requirements: 3.1, 3.2_
+  
+  - [x] 34.3 Add custom cell list overloads
+    - Add SpatialQueryAsync overload that accepts IEnumerable<string> cells directly
+    - Skip cell calculation step - go straight to core implementation
+    - Allows users to provide cells from H3 k-ring, polyfill, or any 3rd party library
+    - Support both Table and Index versions
+    - Include optional center point for distance sorting (null = no distance sorting)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  
+  - [x] 34.4 Refactor existing Table extension methods
+    - Update SpatialQueryAsync(center, radius, ...) to use shared core
+    - Update SpatialQueryAsync(boundingBox, ...) to use shared core
+    - Maintain backward compatibility - no API changes
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
+  
+  - [x] 34.5 Add GSI extension methods for DynamoDbIndex
+    - Add SpatialQueryAsync(center, radius, ...) for DynamoDbIndex - passes `() => index.Query<TEntity>()`
+    - Add SpatialQueryAsync(boundingBox, ...) for DynamoDbIndex
+    - Add SpatialQueryAsync(cells[], ...) for DynamoDbIndex
+    - All call the same private methods as table extensions, just with different query factory
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
+  
+  - [x] 34.6 Create test entity with S2 GSI
+    - Create S2StoreWithGsiEntity with:
+      - Main table: PK=StoreId (unique), SK=Category
+      - GSI (s2-location-index): PK=S2Cell (S2 token), SK=StoreId
+    - Location stored as regular attribute with S2 spatial index
+    - GSI allows multiple stores per S2 cell
+    - _Requirements: 1.2, 5.1, 5.2_
+  
+  - [x] 34.7 Update IntegrationTestBase to support GSI creation
+    - Add method to create tables with GSIs from entity metadata
+    - Support GSI attribute definitions and key schema
+    - Wait for GSI to become active
+    - _Requirements: 3.1, 3.2_
+  
+  - [x] 34.8 Write unit tests for refactored architecture
+    - Test shared core with mock query source
+    - Test custom cell list overloads
+    - Test pagination via GSI
+    - Test that GSI name is correctly applied to queries
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  
+  - [x] 34.9 Write integration tests for GSI spatial queries
+    - Create table with S2 GSI
+    - Insert multiple stores that fall into the same S2 cell
+    - Query via GSI and verify all stores in cell are returned
+    - Test pagination with many stores across multiple cells
+    - _Requirements: 3.1, 3.2, 11.1, 11.2, 11.3_
+  
+  - [x] 34.10 Write integration tests for custom cell list
+    - Test providing custom cell list to Table.SpatialQueryAsync
+    - Test providing custom cell list to Index.SpatialQueryAsync
+    - Verify pagination works with custom cells
+    - Verify distance sorting works when center provided
+    - _Requirements: 3.1, 3.2, 11.1, 11.2, 11.3_
+  
+  - [x] 34.11 Update task 30.3 to use GSI-based entity
+    - Remove Skip attribute from test
+    - Use S2StoreWithGsiEntity instead of S2StoreEntity
+    - Query via GSI to support multiple stores per cell
+    - Verify pagination works correctly with 1000+ stores
+    - _Requirements: 3.2, 11.1, 11.2, 11.3_
+  
+  - [x] 34.12 Update task 30.4 to use GSI-based entity (H3)
+    - Create H3StoreWithGsiEntity similar to S2 version
+    - Remove Skip attribute from test
+    - Query via GSI to support multiple stores per cell
+    - Verify pagination works correctly with 1000+ stores
+    - _Requirements: 3.2, 11.1, 11.2, 11.3_
+  
+  - [x] 34.13 Update documentation
+    - Document refactored architecture
+    - Document custom cell list API for advanced use cases
+    - Document how to set up GSI for spatial queries
+    - Show examples of querying via GSI
+    - Explain when to use GSI vs main table for spatial queries
+    - Add to S2_H3_USAGE_GUIDE.md
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_

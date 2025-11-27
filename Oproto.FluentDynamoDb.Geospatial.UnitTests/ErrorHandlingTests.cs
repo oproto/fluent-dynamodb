@@ -70,18 +70,19 @@ public class ErrorHandlingTests
     }
 
     [Fact]
-    public void GeoBoundingBox_WestEastOfEast_ThrowsArgumentException()
+    public void GeoBoundingBox_WestEastOfEast_AllowsDatelineCrossing()
     {
-        // Arrange
-        var southwest = new GeoLocation(37.7, -122.3);
-        var northeast = new GeoLocation(37.9, -122.5);
+        // Arrange - This is now valid for dateline-crossing bounding boxes
+        var southwest = new GeoLocation(37.7, 170.0);  // West of dateline
+        var northeast = new GeoLocation(37.9, -170.0); // East of dateline
 
-        // Act & Assert
-        var exception = Assert.Throws<ArgumentException>(
-            () => new GeoBoundingBox(southwest, northeast));
+        // Act - Should not throw, dateline crossing is now allowed
+        var bbox = new GeoBoundingBox(southwest, northeast);
         
-        exception.ParamName.Should().Be("southwest");
-        exception.Message.Should().Contain("Southwest corner longitude must be less than or equal to northeast corner longitude");
+        // Assert
+        bbox.CrossesDateLine().Should().BeTrue();
+        bbox.Southwest.Longitude.Should().Be(170.0);
+        bbox.Northeast.Longitude.Should().Be(-170.0);
     }
 
     #endregion

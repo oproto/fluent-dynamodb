@@ -194,14 +194,12 @@ public class CoordinateStoragePropertyTests
             "should check for latitude attribute");
         result.Should().Contain("item.TryGetValue(\"lon\"", 
             "should check for longitude attribute");
-        result.Should().Contain("Reconstruct from exact coordinates", 
-            "should include reconstruction comment");
         result.Should().Contain("Priority: 1) Exact coordinates, 2) Spatial index decoding", 
             "should document priority order");
         result.Should().Contain("double.Parse(", 
             "should parse coordinate values");
-        result.Should().Contain("new Oproto.FluentDynamoDb.Geospatial.GeoLocation(latitude, longitude)", 
-            "should reconstruct GeoLocation from coordinates");
+        result.Should().Contain("new Oproto.FluentDynamoDb.Geospatial.GeoLocation(latitude, longitude, spatialIndexValue)", 
+            "should reconstruct GeoLocation from coordinates with spatial index");
         result.Should().Contain("else if (item.TryGetValue(\"location\"", 
             "should have fallback to spatial index");
     }

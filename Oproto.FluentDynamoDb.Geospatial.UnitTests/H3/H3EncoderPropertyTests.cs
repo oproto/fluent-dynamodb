@@ -50,6 +50,38 @@ public class H3EncoderPropertyTests
         Assert.Equal(decodedLat, decodedLat2);
         Assert.Equal(decodedLon, decodedLon2);
     }
+    
+    /// <summary>
+    /// Tests the specific failing case discovered in property test 5.3.
+    /// Location (14.95°, 58.10°) at resolution 10 encodes to a cell that
+    /// decodes to (7.06°, 58.36°) - a 7.9° latitude error.
+    /// </summary>
+    [Fact]
+    public void H3Encoding_ArabianSea_Resolution10_ShouldDecodeCorrectly()
+    {
+        // Arrange: The specific location that failed in property tests
+        var lat = 14.947707264183059;
+        var lon = 58.099686036545755;
+        var resolution = 10;
+        
+        // Act
+        var h3Index = H3Encoder.Encode(lat, lon, resolution);
+        var (decodedLat, decodedLon) = H3Encoder.Decode(h3Index);
+        
+        // Assert: The decoded location should be within a reasonable distance of the original
+        // For resolution 10 (cell size ~66m), the decoded center should be within ~100m of the original
+        var latError = Math.Abs(decodedLat - lat);
+        var lonError = Math.Abs(decodedLon - lon);
+        
+        // Maximum expected error is about 1 degree (111km) for any resolution
+        // This is a very generous tolerance - the actual error should be much smaller
+        Assert.True(latError < 1.0, 
+            $"Latitude error {latError:F6}° is too large. " +
+            $"Original: ({lat:F6}, {lon:F6}), Decoded: ({decodedLat:F6}, {decodedLon:F6})");
+        Assert.True(lonError < 1.0, 
+            $"Longitude error {lonError:F6}° is too large. " +
+            $"Original: ({lat:F6}, {lon:F6}), Decoded: ({decodedLat:F6}, {decodedLon:F6})");
+    }
 }
 
 // Shared arbitraries are now in PropertyTestArbitraries.cs

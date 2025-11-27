@@ -99,7 +99,7 @@ var store = new Store
     Name = "Downtown Store"
 };
 
-await storeTable.Put.Item(store).ExecuteAsync();
+await storeTable.PutAsync(store);
 ```
 
 ### 3. Query by Proximity
@@ -120,7 +120,7 @@ var sortedStores = nearbyStores
     .ToList();
 ```
 
-**S2 and H3 (New SpatialQueryAsync API):**
+**S2 and H3 (New SpatialQueryAsync API with Lambda Expressions):**
 ```csharp
 using Oproto.FluentDynamoDb.Geospatial;
 
@@ -131,6 +131,8 @@ var result = await storeTable.SpatialQueryAsync(
     center: center,
     radiusKilometers: 5,
     queryBuilder: (query, cell, pagination) => query
+        // Lambda expression: x.Location == cell works due to implicit cast
+        // The GeoLocation.SpatialIndex property is compared to the cell token
         .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
         .Paginate(pagination),
     pageSize: null  // No pagination - queries all cells in parallel
@@ -144,12 +146,39 @@ foreach (var store in result.Items)
 }
 ```
 
+**Understanding the Lambda Expression Syntax:**
+
+The `x.Location == cell` syntax works because:
+1. When a `GeoLocation` is deserialized from DynamoDB, it stores the original spatial index value (GeoHash/S2 token/H3 index) in the `SpatialIndex` property
+2. `GeoLocation` has an implicit cast to `string?` that returns the `SpatialIndex` value
+3. This enables natural comparison syntax in lambda expressions without explicitly accessing `.SpatialIndex`
+
+**Alternative Query Expression Styles:**
+
+```csharp
+// 1. Implicit cast (recommended - most concise)
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+
+// 2. Explicit property access (also works)
+.Where<Store>(x => x.PartitionKey == "STORE" && x.Location.SpatialIndex == cell)
+
+// 3. Format string (works without lambda expressions)
+.Where("pk = {0} AND location = {1}", "STORE", cell)
+
+// 4. Plain text with parameters (works without lambda expressions)
+.Where("pk = :pk AND location = :loc")
+    .WithValue(":pk", "STORE")
+    .WithValue(":loc", cell)
+```
+
+All four approaches produce the same DynamoDB query, but lambda expressions provide compile-time type safety.
+
 ## Basic Usage Examples
 
 ### Working with GeoLocation
 
 ```csharp
-// Create a location
+// Create a location from coordinates
 var sanFrancisco = new GeoLocation(37.7749, -122.4194);
 var newYork = new GeoLocation(40.7128, -74.0060);
 
@@ -163,6 +192,21 @@ string hash = sanFrancisco.ToGeoHash(7); // "9q8yy9r"
 
 // Decode from GeoHash
 var location = GeoLocation.FromGeoHash("9q8yy9r");
+
+// Understanding the SpatialIndex Property
+// When created from coordinates, SpatialIndex is null
+Console.WriteLine(sanFrancisco.SpatialIndex); // null
+
+// When deserialized from DynamoDB, SpatialIndex contains the stored value
+// This enables efficient query comparisons without recalculation
+var store = await storeTable.GetAsync("STORE#123");
+Console.WriteLine(store.Location.SpatialIndex); // "9q8yy9r" (or S2 token/H3 index)
+
+// The implicit cast enables natural comparison syntax
+if (store.Location == "9q8yy9r")
+{
+    Console.WriteLine("Location matches the expected cell");
+}
 ```
 
 ### Proximity Queries (All Distance Units)
@@ -308,6 +352,117 @@ var stores = await storeTable.Query
 - **Query Efficiency**: Lower precision = fewer items scanned but less accurate
 - **Memory**: All types are readonly structs with minimal heap allocations
 - **Caching**: Consider caching frequently used GeoHash values for hot paths
+
+## Understanding the SpatialIndex Property
+
+The `GeoLocation` struct includes a `SpatialIndex` property that stores the original spatial index value (GeoHash/S2 token/H3 index) when deserialized from DynamoDB. This enables efficient spatial queries using natural lambda expression syntax.
+
+### When is SpatialIndex Populated?
+
+**SpatialIndex is NULL when:**
+- Creating a location directly from coordinates: `new GeoLocation(37.7749, -122.4194)`
+- Using extension methods: `location.ToGeoHash(7)` returns a string, not a GeoLocation with SpatialIndex
+
+**SpatialIndex is POPULATED when:**
+- Deserializing from DynamoDB (source generator automatically includes it)
+- Using `FromGeoHash()`, `FromS2Token()`, or `FromH3Index()` methods
+- The value matches what's stored in the DynamoDB attribute
+
+### Implicit Cast Behavior
+
+`GeoLocation` has an implicit cast to `string?` that returns the `SpatialIndex` value:
+
+```csharp
+GeoLocation location = await GetLocationFromDynamoDB();
+
+// These are equivalent:
+string? index1 = location.SpatialIndex;  // Explicit property access
+string? index2 = location;               // Implicit cast
+
+// Both return the same value (e.g., "9q8yy9r" for GeoHash)
+```
+
+### Using in Lambda Expressions
+
+The implicit cast enables natural comparison syntax in spatial queries:
+
+```csharp
+// ✅ Recommended: Implicit cast (most concise)
+.Where<Store>(x => x.Location == cell)
+
+// ✅ Also works: Explicit property access
+.Where<Store>(x => x.Location.SpatialIndex == cell)
+
+// Both compile to the same DynamoDB expression: location = :cell
+```
+
+### Equality Operators
+
+`GeoLocation` provides equality operators for comparing with spatial index strings:
+
+```csharp
+var location = await GetLocationFromDynamoDB();
+string cell = "9q8yy9r";
+
+// All of these work:
+if (location == cell) { }                    // Implicit cast
+if (cell == location) { }                    // Reverse order
+if (location.SpatialIndex == cell) { }       // Explicit property
+if (location != cell) { }                    // Inequality
+```
+
+### Why This Matters
+
+Without the `SpatialIndex` property, spatial queries would need to:
+1. Recalculate the spatial index for every comparison (slow)
+2. Use string-based expressions instead of lambda expressions (no type safety)
+
+With the `SpatialIndex` property:
+1. ✅ No recalculation needed - value is preserved from DynamoDB
+2. ✅ Type-safe lambda expressions work naturally
+3. ✅ Compile-time checking of property names
+4. ✅ IntelliSense support in IDEs
+
+### Example: Complete Flow
+
+```csharp
+// 1. Create and store a location
+var newStore = new Store
+{
+    StoreId = "STORE#123",
+    Location = new GeoLocation(37.7749, -122.4194), // SpatialIndex is null
+    Name = "Downtown Store"
+};
+await storeTable.PutAsync(newStore);
+// DynamoDB now contains: { "location": "9q8yy9r", ... }
+
+// 2. Query using spatial index
+var center = new GeoLocation(37.7749, -122.4194);
+var result = await storeTable.SpatialQueryAsync(
+    spatialAttributeName: "location",
+    center: center,
+    radiusKilometers: 5,
+    queryBuilder: (query, cell, pagination) => query
+        // cell = "9q8yy9r" (or similar)
+        // x.Location == cell works because SpatialIndex is populated during deserialization
+        .Where<Store>(x => x.PartitionKey == "STORE" && x.Location == cell)
+        .Paginate(pagination)
+);
+
+// 3. Retrieved locations have SpatialIndex populated
+foreach (var store in result.Items)
+{
+    Console.WriteLine($"Store: {store.Name}");
+    Console.WriteLine($"Coordinates: {store.Location.Latitude}, {store.Location.Longitude}");
+    Console.WriteLine($"Spatial Index: {store.Location.SpatialIndex}"); // "9q8yy9r"
+    
+    // Can compare directly
+    if (store.Location == "9q8yy9r")
+    {
+        Console.WriteLine("This is the exact cell we queried!");
+    }
+}
+```
 
 ## Advanced Features
 
