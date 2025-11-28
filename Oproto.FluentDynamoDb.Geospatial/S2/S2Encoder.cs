@@ -246,10 +246,11 @@ internal static class S2Encoder
     }
 
     /// <summary>
-    /// Gets the 8 neighboring S2 cells for a given S2 token.
+    /// Gets the neighboring S2 cells for a given S2 token.
+    /// Returns up to 8 unique neighbors (may be fewer at face boundaries where neighbors overlap).
     /// </summary>
     /// <param name="s2Token">The S2 cell token.</param>
-    /// <returns>An array of 8 S2 cell tokens representing the neighboring cells.</returns>
+    /// <returns>An array of unique S2 cell tokens representing the neighboring cells.</returns>
     /// <exception cref="ArgumentException">
     /// Thrown when the S2 token is null, empty, or invalid.
     /// </exception>
@@ -274,7 +275,9 @@ internal static class S2Encoder
         
         var size = 1 << (MaxLevel - level);  // Size of cell in leaf cell units
         
-        var neighbors = new List<string>();
+        // Use HashSet to automatically deduplicate neighbors
+        // At face boundaries, multiple offsets may map to the same cell on the adjacent face
+        var neighbors = new HashSet<string>();
         
         // The 8 neighbors are: SW, S, SE, W, E, NW, N, NE
         // We compute them by offsetting by ±size in i and j directions

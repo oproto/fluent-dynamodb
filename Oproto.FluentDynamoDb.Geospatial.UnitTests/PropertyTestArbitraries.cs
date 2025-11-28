@@ -49,14 +49,20 @@ public static class ValidGeoArbitraries
 
     public static Arbitrary<ValidS2Level> S2Level()
     {
-        return Gen.Choose(0, 30)
+        // Constrain to levels 0-12 to avoid exceeding the 500 cell limit
+        // At level 12, cells are ~80m, so 5km radius needs ~160 cells (within limit)
+        // At level 14+, cells are smaller and typical test radii would exceed the limit
+        return Gen.Choose(0, 12)
             .Select(i => new ValidS2Level(i))
             .ToArbitrary();
     }
 
     public static Arbitrary<ValidH3Resolution> H3Resolution()
     {
-        return Gen.Choose(0, 15)
+        // Constrain to resolutions 0-8 to avoid exceeding the 500 cell limit
+        // At resolution 8, cells are ~461m, so 5km radius needs ~370 cells (within limit)
+        // At resolution 9+, cells are smaller and typical test radii would exceed the limit
+        return Gen.Choose(0, 8)
             .Select(i => new ValidH3Resolution(i))
             .ToArbitrary();
     }

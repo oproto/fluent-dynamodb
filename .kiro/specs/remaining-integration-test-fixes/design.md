@@ -2,382 +2,168 @@
 
 ## Overview
 
-This design addresses the 170 remaining build errors in the integration test project. The errors fall into four main categories:
+This design addresses the 68 failing integration tests in the Oproto.FluentDynamoDb.Geospatial library. After investigation, the failures fall into three categories:
 
-1. **Missing Table Accessors** (132 errors): Generated table classes lack accessor properties for entity types
-2. **Missing Entity Types** (18 errors): Test entities referenced but not defined
-3. **Missing API Methods** (18 errors): Request builder methods not implemented
-4. **Missing Test Infrastructure** (2 errors): Test helper types not defined
+1. **Reserved Keyword Issues (~10 tests)**: Test entities use DynamoDB reserved keywords (`location`, `status`) as attribute names in format string expressions, which don't auto-escape like lambda expressions do.
 
-The solution involves creating missing test entities, ensuring the source generator produces required table accessors, implementing missing API methods, and adding test infrastructure.
+2. **Test Code Bugs (~5 tests)**: Some tests have bugs in their setup code (e.g., generating invalid longitude values like 225° instead of -135°).
+
+3. **Date Line/Polar Region Issues (~53 tests)**: The cell covering algorithms and spatial query logic have issues handling edge cases near the International Date Line and polar regions.
+
+The fix strategy is:
+- Rename test entity attributes to avoid reserved keywords
+- Fix test code bugs
+- Investigate and fix the cell covering algorithms for edge cases
 
 ## Architecture
 
-### Component Overview
+### Test Entity Attribute Renaming
 
-```
-Integration Test Project
-├── TestEntities/
-│   ├── MultiEntityOrderTestEntity.cs (NEW)
-│   ├── MultiEntityOrderLineEntity.cs (NEW)
-│   ├── TransactionOrderEntity.cs (NEW)
-│   ├── TransactionOrderLineEntity.cs (NEW)
-│   └── TransactionPaymentTestEntity.cs (NEW)
-├── TableGeneration/
-│   ├── MultiEntityTableTests.cs (EXISTING - expects generated table)
-│   └── TransactionOperationTests.cs (EXISTING - expects generated table)
-└── RealWorld/
-    └── OperationContextIntegrationTests.cs (EXISTING - needs API methods)
+The following test entities need attribute name changes:
 
-Source Generator
-├── Generators/
-│   └── TableGenerator.cs (VERIFY - should generate accessors)
-└── Analysis/
-    └── EntityAnalyzer.cs (VERIFY - should detect all entities)
+| Entity | Current Attribute | New Attribute |
+|--------|------------------|---------------|
+| `S2StoreWithSortKeyEntity` | `location` | `loc` |
+| `S2StoreWithSortKeyEntity` | `status` | `store_status` |
+| `H3StoreLocationSortKeyEntity` | (uses `sk` - OK) | No change |
 
-Main Library
-└── Requests/
-    ├── UpdateItemRequestBuilder.cs (ADD - ReturnValues method)
-    ├── PutItemRequestBuilder.cs (ADD - ReturnValues method)
-    ├── TransactGetItemsRequestBuilder.cs (ADD - ToDynamoDbResponseAsync)
-    └── TransactWriteItemsRequestBuilder.cs (ADD - ToDynamoDbResponseAsync)
-```
+### Test Code Bug Fixes
 
-### Error Category Breakdown
+The following tests have bugs in their setup code:
 
-**CS1061 Errors (132 total):**
-- 46: `MultiEntityTestTable.Orders` accessor missing
-- 40: `TransactionTestTable.Orders` accessor missing
-- 16: `TransactionTestTable.OrderLines` accessor missing
-- 10: `MultiEntityTestTable.OrderLines` accessor missing
-- 8: `MultiEntityOrderTestEntity.Item` property missing
-- 4: `UpdateItemRequestBuilder<T>.ReturnValues()` method missing
-- 2: `TransactionTestTable.Payments` accessor missing
-- 2: `TransactWriteItemsRequestBuilder.ToDynamoDbResponseAsync()` missing
-- 2: `TransactGetItemsRequestBuilder.ToDynamoDbResponseAsync()` missing
-- 2: `PutItemRequestBuilder<T>.ReturnValues()` method missing
+1. **`H3EdgeCaseIntegrationTests.SpatialQueryAsync_H3ProximityPaginated_NearSouthPole_ReturnsStoresWithinRadius`**
+   - Bug: Generates longitude values 0, 45, 90, 135, 180, 225, 270, 315
+   - Fix: Wrap longitude values to [-180, 180] range: `lon = lonIdx * 45.0; if (lon > 180) lon -= 360;`
 
-**CS1501 Errors (18 total):**
-- Generic method type inference failures (likely related to missing entity types)
+### Cell Covering Algorithm Investigation
 
-**CS0411 Errors (18 total):**
-- Cannot infer type arguments (likely related to missing entity types)
+The date line crossing and polar region tests are failing because:
+1. Cell coverings near the date line may not include cells on both sides
+2. Cell coverings near poles may generate invalid coordinates
 
-**CS0103 Errors (2 total):**
-- `TransactionPaymentTestEntity` type not defined
+This requires investigation of:
+- `S2CellCovering.GetCellsForRadius()` and `GetCellsForBoundingBox()`
+- `H3CellCovering.GetCellsForRadius()` and `GetCellsForBoundingBox()`
+- `GeoBoundingBox.FromCenterAndDistanceMeters()` for polar handling
 
 ## Components and Interfaces
 
-### 1. Test Entity Definitions
+### Test Entity Changes
 
-#### MultiEntityOrderTestEntity
 ```csharp
-[DynamoDbEntity]
-[DynamoDbTable("MultiEntityTestTable")]
-public partial class MultiEntityOrderTestEntity
-{
-    [PartitionKey]
-    public string Id { get; set; } = string.Empty;
-    
-    public string CustomerName { get; set; } = string.Empty;
-    public decimal TotalAmount { get; set; }
-    public string Item { get; set; } = string.Empty; // Referenced in tests
-}
+// S2StoreWithSortKeyEntity - BEFORE
+[DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+public GeoLocation Location { get; set; }
+
+[DynamoDbAttribute("status")]
+public string Status { get; set; } = "OPEN";
+
+// S2StoreWithSortKeyEntity - AFTER
+[DynamoDbAttribute("loc", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+public GeoLocation Location { get; set; }
+
+[DynamoDbAttribute("store_status")]
+public string Status { get; set; } = "OPEN";
 ```
 
-#### MultiEntityOrderLineEntity
+### Test Code Fixes
+
 ```csharp
-[DynamoDbEntity]
-[DynamoDbTable("MultiEntityTestTable")]
-public partial class MultiEntityOrderLineEntity
+// H3EdgeCaseIntegrationTests - BEFORE
+for (int lonIdx = 0; lonIdx < 8; lonIdx++)
 {
-    [PartitionKey]
-    public string Id { get; set; } = string.Empty;
-    
-    public string ProductName { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    var lon = lonIdx * 45.0; // Produces 0, 45, 90, 135, 180, 225, 270, 315 (225+ are invalid!)
+    // ...
 }
-```
 
-#### TransactionOrderEntity
-```csharp
-[DynamoDbEntity]
-[DynamoDbTable("TransactionTestTable")]
-public partial class TransactionOrderEntity
+// H3EdgeCaseIntegrationTests - AFTER
+for (int lonIdx = 0; lonIdx < 8; lonIdx++)
 {
-    [PartitionKey]
-    public string Id { get; set; } = string.Empty;
-    
-    public string CustomerName { get; set; } = string.Empty;
-    public decimal TotalAmount { get; set; }
-}
-```
-
-#### TransactionOrderLineEntity
-```csharp
-[DynamoDbEntity]
-[DynamoDbTable("TransactionTestTable")]
-public partial class TransactionOrderLineEntity
-{
-    [PartitionKey]
-    public string Id { get; set; } = string.Empty;
-    
-    public string ProductName { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-}
-```
-
-#### TransactionPaymentTestEntity
-```csharp
-[DynamoDbEntity]
-[DynamoDbTable("TransactionTestTable")]
-public partial class TransactionPaymentTestEntity
-{
-    [PartitionKey]
-    public string Id { get; set; } = string.Empty;
-    
-    public decimal Amount { get; set; }
-    public string PaymentMethod { get; set; } = string.Empty;
-}
-```
-
-### 2. Generated Table Classes (Source Generator Output)
-
-The source generator should produce:
-
-#### MultiEntityTestTable (Generated)
-```csharp
-public partial class MultiEntityTestTable : DynamoDbTableBase
-{
-    public MultiEntityTestTable(IAmazonDynamoDB client, string tableName) 
-        : base(client, tableName) { }
-    
-    // Generated accessor properties
-    public EntityAccessor<MultiEntityOrderTestEntity> Orders => 
-        new EntityAccessor<MultiEntityOrderTestEntity>(this);
-    
-    public EntityAccessor<MultiEntityOrderLineEntity> OrderLines => 
-        new EntityAccessor<MultiEntityOrderLineEntity>(this);
-}
-```
-
-#### TransactionTestTable (Generated)
-```csharp
-public partial class TransactionTestTable : DynamoDbTableBase
-{
-    public TransactionTestTable(IAmazonDynamoDB client, string tableName) 
-        : base(client, tableName) { }
-    
-    // Generated accessor properties
-    public EntityAccessor<TransactionOrderEntity> Orders => 
-        new EntityAccessor<TransactionOrderEntity>(this);
-    
-    public EntityAccessor<TransactionOrderLineEntity> OrderLines => 
-        new EntityAccessor<TransactionOrderLineEntity>(this);
-    
-    public EntityAccessor<TransactionPaymentTestEntity> Payments => 
-        new EntityAccessor<TransactionPaymentTestEntity>(this);
-}
-```
-
-### 3. Request Builder API Extensions
-
-#### UpdateItemRequestBuilder<T>
-```csharp
-public class UpdateItemRequestBuilder<T> where T : class
-{
-    // Existing methods...
-    
-    /// <summary>
-    /// Specifies which values to return in the response.
-    /// </summary>
-    public UpdateItemRequestBuilder<T> ReturnValues(ReturnValue returnValue)
-    {
-        _request.ReturnValues = returnValue;
-        return this;
-    }
-}
-```
-
-#### PutItemRequestBuilder<T>
-```csharp
-public class PutItemRequestBuilder<T> where T : class
-{
-    // Existing methods...
-    
-    /// <summary>
-    /// Specifies which values to return in the response.
-    /// </summary>
-    public PutItemRequestBuilder<T> ReturnValues(ReturnValue returnValue)
-    {
-        _request.ReturnValues = returnValue;
-        return this;
-    }
-}
-```
-
-#### TransactGetItemsRequestBuilder
-```csharp
-public class TransactGetItemsRequestBuilder
-{
-    // Existing methods...
-    
-    /// <summary>
-    /// Executes the transactional get operation and returns the DynamoDB response.
-    /// </summary>
-    public async Task<TransactGetItemsResponse> ToDynamoDbResponseAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var request = ToRequest();
-        return await _client.TransactGetItemsAsync(request, cancellationToken);
-    }
-}
-```
-
-#### TransactWriteItemsRequestBuilder
-```csharp
-public class TransactWriteItemsRequestBuilder
-{
-    // Existing methods...
-    
-    /// <summary>
-    /// Executes the transactional write operation and returns the DynamoDB response.
-    /// </summary>
-    public async Task<TransactWriteItemsResponse> ToDynamoDbResponseAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var request = ToRequest();
-        return await _client.TransactWriteItemsAsync(request, cancellationToken);
-    }
+    var lon = lonIdx * 45.0;
+    if (lon > 180) lon -= 360; // Wrap to valid range: 0, 45, 90, 135, 180, -135, -90, -45
+    // ...
 }
 ```
 
 ## Data Models
 
-### Entity Naming Conventions
+No changes to data models are required. The changes are limited to:
+1. Test entity attribute names (test code only)
+2. Test setup code (test code only)
+3. Potential fixes to cell covering algorithms (library code)
 
-The source generator follows these conventions for accessor properties:
+## Correctness Properties
 
-1. **Entity Name Pattern**: `{Prefix}{EntityType}Entity`
-2. **Accessor Name Pattern**: Pluralized `{Prefix}{EntityType}` (e.g., `Order` → `Orders`)
-3. **Table Name**: Specified via `[DynamoDbTable]` attribute
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-Examples:
-- `MultiEntityOrderTestEntity` → accessor: `Orders`
-- `TransactionOrderLineEntity` → accessor: `OrderLines`
-- `TransactionPaymentTestEntity` → accessor: `Payments`
+### Property 1: Lambda expressions generate attribute name placeholders
+*For any* lambda expression used in a spatial query, the ExpressionTranslator SHALL generate expression attribute name placeholders (e.g., `#attr0`, `#attr1`) for all property accesses, regardless of whether the attribute name is a reserved keyword.
+**Validates: Requirements 1.4**
 
-### Table Structure
+### Property 2: Date line cell coverings include both sides
+*For any* proximity query centered within 500km of the date line (longitude between 179° and 180° or between -180° and -179°), the cell covering SHALL include cells on both sides of the date line when the search radius crosses it.
+**Validates: Requirements 2.1, 2.2**
 
-Both test tables use single-table design with multiple entity types:
+### Property 3: Cell coverings have no duplicates
+*For any* cell covering computation (radius or bounding box), the returned list of cells SHALL contain no duplicate cell identifiers.
+**Validates: Requirements 2.3, 2.5**
 
-**MultiEntityTestTable:**
-- Entities: Orders, OrderLines
-- Key Schema: Partition Key only (Id)
-- Access Pattern: Direct key access per entity type
+### Property 4: Polar bounding boxes clamp latitude
+*For any* bounding box computed from a center point and radius, the resulting latitude values SHALL be clamped to the valid range [-90, 90].
+**Validates: Requirements 3.2**
 
-**TransactionTestTable:**
-- Entities: Orders, OrderLines, Payments
-- Key Schema: Partition Key only (Id)
-- Access Pattern: Transactional operations across entity types
+### Property 5: Polar bounding boxes expand longitude when appropriate
+*For any* bounding box that includes a pole (latitude ±90°), the longitude range SHALL be expanded to the full range [-180, 180].
+**Validates: Requirements 3.3**
+
+### Property 6: Cell coverings produce valid coordinates
+*For any* cell covering computation, all generated coordinates SHALL have latitude in [-90, 90] and longitude in [-180, 180].
+**Validates: Requirements 3.5**
+
+### Property 7: Pagination returns all results exactly once
+*For any* paginated spatial query, iterating through all pages using continuation tokens SHALL return the same set of results as a non-paginated query, with no duplicates and no missing items.
+**Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5**
 
 ## Error Handling
 
-### Source Generator Diagnostics
-
-The source generator should emit diagnostics when:
-1. Multiple entities share a table but have conflicting key schemas
-2. Entity types cannot be analyzed (missing attributes, invalid types)
-3. Table names are ambiguous or missing
-
-### Build-Time Validation
-
-The build process should:
-1. Verify all entity types have required attributes
-2. Ensure table classes can be generated for all referenced tables
-3. Validate that accessor properties match entity types
-
-### Runtime Validation
-
-Tests should verify:
-1. Generated table classes have correct accessor properties
-2. Accessor properties return functional entity accessors
-3. Operations through accessors work end-to-end
+No new error handling is required. The changes are primarily:
+1. Renaming attributes to avoid reserved keyword errors
+2. Fixing test code bugs
+3. Ensuring cell covering algorithms produce valid coordinates
 
 ## Testing Strategy
 
-### Unit Tests (Source Generator)
+### Dual Testing Approach
 
-1. **Test Entity Analysis**
-   - Verify analyzer detects all entities in a table
-   - Verify analyzer extracts correct entity metadata
-   - Verify analyzer handles multiple entities per table
+This fix uses both unit tests and property-based tests:
 
-2. **Test Table Generation**
-   - Verify generator creates table classes with correct names
-   - Verify generator creates accessor properties for all entities
-   - Verify generated code compiles without errors
+**Unit Tests:**
+- Verify specific test entities have non-reserved attribute names
+- Verify specific test code generates valid coordinates
+- Verify integration tests pass after fixes
 
-3. **Test Accessor Naming**
-   - Verify pluralization logic (Order → Orders, OrderLine → OrderLines)
-   - Verify special cases (Payment → Payments, not Paymentes)
-   - Verify naming conflicts are handled
+**Property-Based Tests:**
+- Use FsCheck to verify cell covering properties across random inputs
+- Test date line crossing with random center points near ±180° longitude
+- Test polar regions with random center points near ±90° latitude
+- Test pagination with random data distributions
 
-### Integration Tests (Library)
+### Property-Based Testing Framework
 
-1. **Test Multi-Entity Tables**
-   - Verify table classes are generated correctly
-   - Verify accessor properties are accessible
-   - Verify operations through accessors work end-to-end
+The project uses **FsCheck** for property-based testing, as established in the existing test suite.
 
-2. **Test Transaction Operations**
-   - Verify TransactWrite with multiple entity types
-   - Verify TransactGet with multiple entity types
-   - Verify transaction response methods work correctly
+### Test Annotations
 
-3. **Test Request Builder APIs**
-   - Verify ReturnValues() method on Put/Update builders
-   - Verify ToDynamoDbResponseAsync() on transaction builders
-   - Verify method chaining works correctly
+Each property-based test MUST be tagged with a comment referencing the correctness property:
+```csharp
+// **Feature: remaining-integration-test-fixes, Property 2: Date line cell coverings include both sides**
+[Property]
+public Property DateLineCellCoverings_IncludeBothSides()
+{
+    // ...
+}
+```
 
-## Implementation Notes
+### Test Configuration
 
-### Source Generator Changes
-
-The source generator likely already has the logic to generate accessor properties, but may need:
-1. Verification that it detects all entities in a table
-2. Verification that it generates accessors for all detected entities
-3. Possible fixes to accessor naming logic
-
-### Request Builder Changes
-
-The request builder changes are straightforward additions:
-1. Add ReturnValues() method to builders that support it
-2. Add ToDynamoDbResponseAsync() to transaction builders
-3. Ensure methods follow existing patterns and conventions
-
-### Test Entity Creation
-
-Test entities should:
-1. Use realistic property names and types
-2. Include all properties referenced in tests
-3. Follow existing test entity patterns
-4. Use appropriate attributes for table configuration
-
-## Dependencies
-
-- **AWSSDK.DynamoDBv2**: For DynamoDB types (ReturnValue, responses)
-- **Source Generator**: Must be functioning correctly to generate table classes
-- **Test Infrastructure**: Must support table creation and cleanup
-
-## Performance Considerations
-
-- Source generator performance should not be impacted (same number of entities)
-- Test execution time should not increase significantly
-- Generated code size will increase slightly (more accessor properties)
-
-## Security Considerations
-
-- No security implications (test code only)
-- Test entities should not contain sensitive data patterns
-- Generated code should follow same security practices as existing code
+Property-based tests MUST run a minimum of 100 iterations to ensure adequate coverage of edge cases.

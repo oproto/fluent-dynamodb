@@ -121,7 +121,14 @@ public readonly struct GeoLocation : IEquatable<GeoLocation>
         var lat1Rad = DegreesToRadians(Latitude);
         var lat2Rad = DegreesToRadians(other.Latitude);
         var deltaLatRad = DegreesToRadians(other.Latitude - Latitude);
-        var deltaLonRad = DegreesToRadians(other.Longitude - Longitude);
+        
+        // Handle dateline wrapping: ensure longitude difference is in range [-180, 180]
+        var deltaLon = other.Longitude - Longitude;
+        if (deltaLon > 180.0)
+            deltaLon -= 360.0;
+        else if (deltaLon < -180.0)
+            deltaLon += 360.0;
+        var deltaLonRad = DegreesToRadians(deltaLon);
 
         var a = Math.Sin(deltaLatRad / 2) * Math.Sin(deltaLatRad / 2) +
                 Math.Cos(lat1Rad) * Math.Cos(lat2Rad) *

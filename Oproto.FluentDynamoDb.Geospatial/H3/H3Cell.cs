@@ -201,8 +201,8 @@ public readonly struct H3Cell
             {
                 var childCell = new H3Cell(childLocation, Resolution + 1);
                 
-                // Only add if it's different from center child (to handle pentagons)
-                if (childCell.Index != children[0].Index)
+                // Only add if it's different from all existing children (to handle pentagons and duplicates)
+                if (!children.Any(c => c.Index == childCell.Index))
                 {
                     children.Add(childCell);
                 }

@@ -376,16 +376,17 @@ public class S2EncoderTests
         // Act
         var neighbors = S2Encoder.GetNeighbors(token);
 
-        // Assert
-        neighbors.Should().HaveCount(8, "GetNeighbors always returns 8 neighbors");
-        
+        // Assert - GetNeighbors now returns deduplicated neighbors
         // At level 0, multiple offsets can lead to the same neighboring face
-        // The distinct count will be 4 (the 4 edge neighbors of the cube face)
-        var distinctNeighbors = neighbors.Distinct().ToList();
-        distinctNeighbors.Should().HaveCountGreaterThanOrEqualTo(4, "level 0 cells have at least 4 distinct neighbors");
+        // so we expect 4 distinct neighbors (the 4 edge neighbors of the cube face)
+        neighbors.Should().HaveCountGreaterThanOrEqualTo(4, "level 0 cells have at least 4 distinct neighbors");
+        neighbors.Should().HaveCountLessThanOrEqualTo(8, "GetNeighbors returns at most 8 neighbors");
+        
+        // Verify all neighbors are distinct (GetNeighbors now deduplicates)
+        neighbors.Should().OnlyHaveUniqueItems("GetNeighbors returns deduplicated neighbors");
         
         // Verify none of the neighbors are the original cell
-        foreach (var neighbor in distinctNeighbors)
+        foreach (var neighbor in neighbors)
         {
             neighbor.Should().NotBe(token, "neighbor should not be the original cell");
         }

@@ -18,8 +18,9 @@ public class SpatialQueryArchitectureTests
     public void CustomCellList_CanBeUsedForSpatialQueries()
     {
         // Arrange: Create a custom list of S2 cells
+        // Use level 10 (~4.5km cells) with 5km radius to stay within 500 cell limit
         var center = new GeoLocation(37.7749, -122.4194); // San Francisco
-        var cells = S2CellCovering.GetCellsForRadius(center, 5.0, 16, maxCells: 10);
+        var cells = S2CellCovering.GetCellsForRadius(center, 5.0, 10, maxCells: 10);
         
         // Assert: Cells should be generated
         Assert.NotEmpty(cells);
@@ -34,8 +35,9 @@ public class SpatialQueryArchitectureTests
     public void CustomH3CellList_CanBeGenerated()
     {
         // Arrange: Create a custom list of H3 cells
+        // Use resolution 7 (~1.2km cells) with 5km radius to stay within cell limits
         var center = new GeoLocation(37.7749, -122.4194); // San Francisco
-        var cells = H3CellCovering.GetCellsForRadius(center, 5.0, 9, maxCells: 10);
+        var cells = H3CellCovering.GetCellsForRadius(center, 5.0, 7, maxCells: 10);
         
         // Assert: Cells should be generated
         Assert.NotEmpty(cells);
@@ -47,7 +49,7 @@ public class SpatialQueryArchitectureTests
     /// Validates: Requirements 3.1, 3.3, 3.4
     /// </summary>
     [Theory]
-    [InlineData(SpatialIndexType.S2, 16)]
+    [InlineData(SpatialIndexType.S2, 10)]  // Level 10 (~4.5km cells) with 3km radius stays within 500 cell limit
     [InlineData(SpatialIndexType.H3, 9)]
     public void CellComputation_ForRadius_ReturnsValidCells(SpatialIndexType indexType, int precision)
     {
@@ -73,7 +75,7 @@ public class SpatialQueryArchitectureTests
     /// Validates: Requirements 4.1, 4.2, 4.3
     /// </summary>
     [Theory]
-    [InlineData(SpatialIndexType.S2, 16)]
+    [InlineData(SpatialIndexType.S2, 10)]  // Level 10 (~4.5km cells) with 2km bbox stays within 500 cell limit
     [InlineData(SpatialIndexType.H3, 9)]
     public void CellComputation_ForBoundingBox_ReturnsValidCells(SpatialIndexType indexType, int precision)
     {
@@ -99,10 +101,10 @@ public class SpatialQueryArchitectureTests
     /// Validates: Requirements 4.4
     /// </summary>
     [Theory]
-    [InlineData(SpatialIndexType.S2, 16, 5)]
-    [InlineData(SpatialIndexType.H3, 9, 5)]
-    [InlineData(SpatialIndexType.S2, 16, 10)]
-    [InlineData(SpatialIndexType.H3, 9, 10)]
+    [InlineData(SpatialIndexType.S2, 10, 5)]  // Level 10 (~300m cells) with 20km radius stays within 500 cell limit
+    [InlineData(SpatialIndexType.H3, 6, 5)]   // Resolution 6 (~3.2km cells) with 20km radius stays within 500 cell limit
+    [InlineData(SpatialIndexType.S2, 10, 10)]
+    [InlineData(SpatialIndexType.H3, 6, 10)]
     public void CellComputation_RespectsMaxCellsLimit(SpatialIndexType indexType, int precision, int maxCells)
     {
         // Arrange
@@ -129,11 +131,12 @@ public class SpatialQueryArchitectureTests
     public void S2CellComputation_ReturnsCellsSortedByDistance()
     {
         // Arrange
+        // Use level 10 (~4.5km cells) with 5km radius to stay within 500 cell limit
         var center = new GeoLocation(35.6762, 139.6503); // Tokyo
         var radiusKm = 5.0;
         
         // Act
-        var cells = S2CellCovering.GetCellsForRadius(center, radiusKm, 16, 20);
+        var cells = S2CellCovering.GetCellsForRadius(center, radiusKm, 10, 20);
         
         // Assert: Cells should be sorted by distance from center
         if (cells.Count > 1)
@@ -164,8 +167,8 @@ public class SpatialQueryArchitectureTests
         var center = new GeoLocation(-33.8688, 151.2093); // Sydney
         var radiusKm = 5.0;
         
-        // Act
-        var cells = H3CellCovering.GetCellsForRadius(center, radiusKm, 9, 20);
+        // Act - Use resolution 7 (~1.2km cells) to stay within cell limits
+        var cells = H3CellCovering.GetCellsForRadius(center, radiusKm, 7, 20);
         
         // Assert: Cells should be sorted by distance from center
         if (cells.Count > 1)

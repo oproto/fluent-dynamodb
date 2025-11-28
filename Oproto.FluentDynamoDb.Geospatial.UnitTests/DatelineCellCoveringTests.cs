@@ -55,9 +55,10 @@ public class DatelineCellCoveringTests
     public void S2CellCovering_WithDatelineCrossingRadius_ReturnsUniqueCells()
     {
         // Arrange - Center near dateline with radius that crosses it
+        // Use level 8 (~18km cells) with 200km radius to stay within 500 cell limit
         var center = new GeoLocation(15, 179);
         var radiusKm = 200; // Large enough to cross dateline
-        var level = 10;
+        var level = 8;
 
         // Act
         var cells = S2CellCovering.GetCellsForRadius(center, radiusKm, level, maxCells: 100);
@@ -71,9 +72,10 @@ public class DatelineCellCoveringTests
     public void S2CellCovering_WithDatelineCrossingRadius_CellsAreSortedByDistance()
     {
         // Arrange - Center near dateline with radius that crosses it
+        // Use level 8 (~18km cells) with 200km radius to stay within 500 cell limit
         var center = new GeoLocation(15, 179);
         var radiusKm = 200; // Large enough to cross dateline
-        var level = 10;
+        var level = 8;
 
         // Act
         var cells = S2CellCovering.GetCellsForRadius(center, radiusKm, level, maxCells: 100);
@@ -167,9 +169,10 @@ public class DatelineCellCoveringTests
     public void H3CellCovering_WithDatelineCrossingRadius_ReturnsUniqueCells()
     {
         // Arrange - Center near dateline with radius that crosses it
+        // Use resolution 4 (larger cells ~23km) with 100km radius to stay within limits
         var center = new GeoLocation(15, 179);
-        var radiusKm = 200; // Large enough to cross dateline
-        var resolution = 5;
+        var radiusKm = 100; // Large enough to cross dateline
+        var resolution = 4;
 
         // Act
         var cells = H3CellCovering.GetCellsForRadius(center, radiusKm, resolution, maxCells: 100);
@@ -183,9 +186,10 @@ public class DatelineCellCoveringTests
     public void H3CellCovering_WithDatelineCrossingRadius_CellsAreSortedByDistance()
     {
         // Arrange - Center near dateline with radius that crosses it
+        // Use resolution 4 (larger cells ~23km) with 100km radius to stay within limits
         var center = new GeoLocation(15, 179);
-        var radiusKm = 200; // Large enough to cross dateline
-        var resolution = 5;
+        var radiusKm = 100; // Large enough to cross dateline
+        var resolution = 4;
 
         // Act
         var cells = H3CellCovering.GetCellsForRadius(center, radiusKm, resolution, maxCells: 100);

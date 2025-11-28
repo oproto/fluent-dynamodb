@@ -6,7 +6,7 @@ using Oproto.FluentDynamoDb.Geospatial.S2;
 using Oproto.FluentDynamoDb.Pagination;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Storage; // Still needed for IDynamoDbEntity, DynamoDbTableBase, DynamoDbIndex
 
 namespace Oproto.FluentDynamoDb.Geospatial;
 
@@ -492,6 +492,10 @@ public static class SpatialQueryExtensions
             var query = createQuery();
             query = queryBuilder(query, cellValue, cellPagination);
             
+            // Apply pagination limit - request only what we need to fill the page
+            var itemsNeeded = pageSize - allItems.Count;
+            query = query.Take(itemsNeeded);
+            
             // If we have a LastEvaluatedKey from continuation token, deserialize and apply it
             if (cellIndex == startCellIndex && lastEvaluatedKeyToken != null)
             {
@@ -502,24 +506,24 @@ public static class SpatialQueryExtensions
             var entityList = await query.ToListAsync(cancellationToken);
             cellsQueried++;
             
-            // Get LastEvaluatedKey from operation context
-            var cellLastEvaluatedKey = DynamoDbOperationContext.Current?.LastEvaluatedKey;
-            var scannedCount = DynamoDbOperationContext.Current?.ScannedCount ?? entityList.Count;
+            // Get LastEvaluatedKey and ScannedCount directly from the builder instance
+            // This avoids AsyncLocal issues that can occur with DynamoDbOperationContext
+            var cellLastEvaluatedKey = query.LastEvaluatedKey;
+            var scannedCount = query.ScannedCount ?? entityList.Count;
             totalScanned += scannedCount;
 
-            foreach (var entity in entityList)
-            {
-                allItems.Add(entity);
-                if (allItems.Count >= pageSize)
-                    break;
-            }
+            // Add all items from this batch (we requested exactly what we need)
+            allItems.AddRange(entityList);
 
-            // Generate continuation token if more results exist
+            // Check if we've filled the page
             if (allItems.Count >= pageSize)
             {
-                if (cellLastEvaluatedKey != null && cellLastEvaluatedKey.Count > 0)
+                // Determine if there are more items to fetch
+                bool hasMoreInCell = cellLastEvaluatedKey != null && cellLastEvaluatedKey.Count > 0;
+                
+                if (hasMoreInCell)
                 {
-                    // Stopped mid-cell - save position within this cell
+                    // More items exist in this cell - save position to continue here
                     nextToken = new SpatialContinuationToken
                     {
                         CellIndex = cellIndex,
@@ -528,13 +532,14 @@ public static class SpatialQueryExtensions
                 }
                 else if (cellIndex + 1 < cells.Count)
                 {
-                    // Current cell is exhausted, but there are more cells
+                    // Current cell is exhausted, but there are more cells to query
                     nextToken = new SpatialContinuationToken
                     {
                         CellIndex = cellIndex + 1,
                         LastEvaluatedKey = null
                     };
                 }
+                // else: no more items anywhere, nextToken stays null
                 break;
             }
 

@@ -44,6 +44,26 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
             await DynamoDbClient.PutItemAsync(Name, item);
         }
     }
+    
+    /// <summary>
+    /// Table wrapper for testing GSI spatial queries with low precision (S2 level 10).
+    /// </summary>
+    private class S2StoreWithGsiLowPrecisionTable : DynamoDbTableBase
+    {
+        public DynamoDbIndex S2LocationIndex { get; }
+        
+        public S2StoreWithGsiLowPrecisionTable(IAmazonDynamoDB client, string tableName) 
+            : base(client, tableName)
+        {
+            S2LocationIndex = new DynamoDbIndex(this, "s2-location-index");
+        }
+        
+        public async Task PutAsync(S2StoreWithGsiLowPrecisionEntity entity)
+        {
+            var item = S2StoreWithGsiLowPrecisionEntity.ToDynamoDb(entity);
+            await DynamoDbClient.PutItemAsync(Name, item);
+        }
+    }
 
     #region 34.9 GSI Spatial Query Integration Tests
     
@@ -96,17 +116,18 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
         }
         
         // Act - Query via GSI
+        // Use 0.5km radius to stay within 500 cell limit for S2 level 16 (~71m cells)
         var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiEntity>(
             locationSelector: store => store.Location,
             spatialIndexType: SpatialIndexType.S2,
             precision: 16,
             center: baseLocation,
-            radiusKilometers: 1.0,
+            radiusKilometers: 0.5,
             queryBuilder: (query, cell, pagination) => query
                 .Where<S2StoreWithGsiEntity>(x => x.Location == cell)
         );
         
-        // Assert - All stores should be returned
+        // Assert - All stores should be returned (they're all within 0.5km)
         result.Items.Should().HaveCountGreaterThanOrEqualTo(3);
         result.Items.Select(s => s.StoreId).Should().Contain("store-001");
         result.Items.Select(s => s.StoreId).Should().Contain("store-002");
@@ -115,30 +136,31 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
 
     /// <summary>
     /// Tests pagination with GSI spatial queries across multiple cells.
+    /// Uses S2 level 10 (~10km cells) with 20km radius to stay within 500 cell limit.
     /// Validates: Requirements 3.2, 11.1, 11.2, 11.3
     /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_ViaGsi_PaginationWorksAcrossCells()
     {
-        // Arrange - Create table with GSI
-        await CreateTableWithGsiAsync<S2StoreWithGsiEntity>(
+        // Arrange - Create table with GSI using low precision entity (S2 level 10)
+        await CreateTableWithGsiAsync<S2StoreWithGsiLowPrecisionEntity>(
             gsiName: "s2-location-index",
             gsiPartitionKeyAttribute: "s2_cell",
             gsiSortKeyAttribute: "pk");
         
-        var table = new S2StoreWithGsiTable(DynamoDb, TableName);
+        var table = new S2StoreWithGsiLowPrecisionTable(DynamoDb, TableName);
         
         // Create stores spread across multiple S2 cells
         var center = new GeoLocation(37.7749, -122.4194);
-        var stores = new List<S2StoreWithGsiEntity>();
+        var stores = new List<S2StoreWithGsiLowPrecisionEntity>();
         
-        // Create 20 stores in a grid pattern
+        // Create 20 stores in a grid pattern (spread across ~4km x 4km area)
         for (int i = 0; i < 20; i++)
         {
             var latOffset = (i / 5) * 0.01; // ~1km per row
             var lonOffset = (i % 5) * 0.01; // ~1km per column
             
-            stores.Add(new S2StoreWithGsiEntity
+            stores.Add(new S2StoreWithGsiLowPrecisionEntity
             {
                 StoreId = $"store-{i:D3}",
                 Category = "RETAIL",
@@ -152,25 +174,33 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
             await table.PutAsync(store);
         }
         
+        // Debug: Check cell distribution
+        var cells = S2CellCovering.GetCellsForRadius(center, 20.0, 10, maxCells: 500);
+        Console.WriteLine($"[Pagination Test] Total cells for 20km radius at level 10: {cells.Count}");
+        Console.WriteLine($"[Pagination Test] First 5 cells: {string.Join(", ", cells.Take(5))}");
+        
         // Act - Query with pagination (page size 5)
-        var allResults = new List<S2StoreWithGsiEntity>();
+        // S2 level 10 (~10km cells) with 20km radius stays within 500 cell limit
+        var allResults = new List<S2StoreWithGsiLowPrecisionEntity>();
         SpatialContinuationToken? token = null;
         int pageCount = 0;
         
         do
         {
-            var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiEntity>(
+            var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiLowPrecisionEntity>(
                 locationSelector: store => store.Location,
                 spatialIndexType: SpatialIndexType.S2,
-                precision: 16,
+                precision: 10, // Level 10 for larger cells
                 center: center,
-                radiusKilometers: 10.0, // Large radius to include all stores
+                radiusKilometers: 20.0, // 20km radius appropriate for level 10
                 queryBuilder: (query, cell, pagination) => query
-                    .Where<S2StoreWithGsiEntity>(x => x.Location == cell)
+                    .Where<S2StoreWithGsiLowPrecisionEntity>(x => x.Location == cell)
                     .Paginate(pagination),
                 pageSize: 5,
                 continuationToken: token
             );
+            
+            Console.WriteLine($"[Pagination Test] Page {pageCount + 1}: {result.Items.Count} items, CellsQueried={result.TotalCellsQueried}, Scanned={result.TotalItemsScanned}, HasToken={result.ContinuationToken != null}");
             
             allResults.AddRange(result.Items);
             token = result.ContinuationToken;
@@ -180,6 +210,8 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
             if (pageCount > 10) break;
             
         } while (token != null);
+        
+        Console.WriteLine($"[Pagination Test] Total pages: {pageCount}, Total results: {allResults.Count}");
         
         // Assert - All stores should be retrieved across pages
         allResults.Should().HaveCountGreaterThanOrEqualTo(10); // At least half should be within radius
@@ -210,7 +242,7 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
         
         var center = new GeoLocation(37.7749, -122.4194);
         
-        // Create stores
+        // Create stores (within 0.5km to stay within cell limit)
         var stores = new[]
         {
             new S2StoreWithGsiEntity
@@ -224,7 +256,7 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
             {
                 StoreId = "store-002",
                 Category = "COFFEE",
-                Location = new GeoLocation(37.7849, -122.4094), // ~1.5km away
+                Location = new GeoLocation(37.7765, -122.4180), // ~200m away (within 0.5km)
                 Name = "North Store"
             }
         };
@@ -235,7 +267,8 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
         }
         
         // Get custom cell list using S2CellCovering
-        var customCells = S2CellCovering.GetCellsForRadius(center, 2.0, 16, maxCells: 10);
+        // Use 0.5km radius to stay within 500 cell limit for S2 level 16 (~71m cells)
+        var customCells = S2CellCovering.GetCellsForRadius(center, 0.5, 16, maxCells: 100);
         
         // Act - Query with custom cell list via GSI
         var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiEntity>(
@@ -244,7 +277,7 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
             queryBuilder: (query, cell, pagination) => query
                 .Where<S2StoreWithGsiEntity>(x => x.Location == cell),
             center: center,
-            radiusKilometers: 2.0
+            radiusKilometers: 0.5
         );
         
         // Assert
@@ -269,14 +302,14 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
         
         var center = new GeoLocation(37.7749, -122.4194);
         
-        // Create stores at different distances
+        // Create stores at different distances (within 0.5km to stay within cell limit)
         var stores = new[]
         {
             new S2StoreWithGsiEntity
             {
                 StoreId = "store-far",
                 Category = "COFFEE",
-                Location = new GeoLocation(37.7949, -122.3994), // ~3km away
+                Location = new GeoLocation(37.7785, -122.4160), // ~400m away
                 Name = "Far Store"
             },
             new S2StoreWithGsiEntity
@@ -290,7 +323,7 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
             {
                 StoreId = "store-mid",
                 Category = "COFFEE",
-                Location = new GeoLocation(37.7849, -122.4094), // ~1.5km away
+                Location = new GeoLocation(37.7765, -122.4180), // ~200m away
                 Name = "Mid Store"
             }
         };
@@ -301,7 +334,8 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
         }
         
         // Get custom cell list
-        var customCells = S2CellCovering.GetCellsForRadius(center, 5.0, 16, maxCells: 20);
+        // Use 0.5km radius to stay within 500 cell limit for S2 level 16 (~71m cells)
+        var customCells = S2CellCovering.GetCellsForRadius(center, 0.5, 16, maxCells: 100);
         
         // Act - Query with custom cell list and center for distance sorting
         var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiEntity>(
@@ -310,7 +344,7 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
             queryBuilder: (query, cell, pagination) => query
                 .Where<S2StoreWithGsiEntity>(x => x.Location == cell),
             center: center, // Providing center enables distance sorting
-            radiusKilometers: 5.0
+            radiusKilometers: 0.5
         );
         
         // Assert - Results should be sorted by distance

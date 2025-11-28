@@ -3743,6 +3743,9 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         
+        // Use property name as suffix for decoded variable to avoid conflicts with multiple GeoLocation properties
+        var decodedVarName = $"decoded{propertyName}";
+        
         // Determine spatial index type (default to GeoHash for backward compatibility)
         var spatialIndexType = property.SpatialIndexType ?? "GeoHash";
         
@@ -3808,9 +3811,9 @@ internal static class MapperGenerator
             sb.AppendLine("                try");
             sb.AppendLine("                {");
             sb.AppendLine($"                    var spatialIndexString = {propertyName.ToLowerInvariant()}Value.S;");
-            sb.AppendLine($"                    var decodedLocation = {decodingCall}(spatialIndexString);");
+            sb.AppendLine($"                    var {decodedVarName} = {decodingCall}(spatialIndexString);");
             sb.AppendLine($"                    // Preserve the spatial index by passing it to the constructor");
-            sb.AppendLine($"                    entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation(decodedLocation.Latitude, decodedLocation.Longitude, spatialIndexString);");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation({decodedVarName}.Latitude, {decodedVarName}.Longitude, spatialIndexString);");
             sb.AppendLine("                }");
             sb.AppendLine("                catch (Exception ex)");
             sb.AppendLine("                {");
@@ -3832,9 +3835,9 @@ internal static class MapperGenerator
             sb.AppendLine("                    try");
             sb.AppendLine("                    {");
             sb.AppendLine($"                        var spatialIndexString = {propertyName.ToLowerInvariant()}Value.S;");
-            sb.AppendLine($"                        var decodedLocation = {decodingCall}(spatialIndexString);");
+            sb.AppendLine($"                        var {decodedVarName} = {decodingCall}(spatialIndexString);");
             sb.AppendLine($"                        // Preserve the spatial index by passing it to the constructor");
-            sb.AppendLine($"                        entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation(decodedLocation.Latitude, decodedLocation.Longitude, spatialIndexString);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation({decodedVarName}.Latitude, {decodedVarName}.Longitude, spatialIndexString);");
             sb.AppendLine("                    }");
             sb.AppendLine("                    catch (Exception ex)");
             sb.AppendLine("                    {");

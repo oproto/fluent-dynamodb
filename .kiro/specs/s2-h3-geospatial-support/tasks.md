@@ -157,7 +157,7 @@
 - [x] 6. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 7. Implement cell covering computation for spatial queries
+- [x] 7. Implement cell covering computation for spatial queries
   - [x] 7.1 Implement S2CellCovering
     - Implement GetCellsForRadius method that returns cells sorted by distance from center (spiral order)
     - Implement GetCellsForBoundingBox method that returns cells sorted by distance from center

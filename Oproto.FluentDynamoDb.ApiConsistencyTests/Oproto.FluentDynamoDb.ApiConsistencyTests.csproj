@@ -31,6 +31,7 @@
       <ProjectReference Include="..\Oproto.FluentDynamoDb.BlobStorage.S3\Oproto.FluentDynamoDb.BlobStorage.S3.csproj" />
       <ProjectReference Include="..\Oproto.FluentDynamoDb.Encryption.Kms\Oproto.FluentDynamoDb.Encryption.Kms.csproj" />
       <ProjectReference Include="..\Oproto.FluentDynamoDb.FluentResults\Oproto.FluentDynamoDb.FluentResults.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
       <ProjectReference Include="..\Oproto.FluentDynamoDb.Logging.Extensions\Oproto.FluentDynamoDb.Logging.Extensions.csproj" />
       <ProjectReference Include="..\Oproto.FluentDynamoDb.NewtonsoftJson\Oproto.FluentDynamoDb.NewtonsoftJson.csproj" />
       <ProjectReference Include="..\Oproto.FluentDynamoDb.SystemTextJson\Oproto.FluentDynamoDb.SystemTextJson.csproj" />
@@ -45,6 +46,8 @@
                           ReferenceOutputAssembly="false" />
     </ItemGroup>
     <ItemGroup>
+      <Folder Include="GeoSpatial\H3\" />
+      <Folder Include="GeoSpatial\S2\" />
       <Folder Include="MultiEntityTables\" />
     </ItemGroup>
 </Project>

@@ -7,31 +7,48 @@ namespace Oproto.FluentDynamoDb.Geospatial.H3;
 public static class H3CellCovering
 {
     /// <summary>
+    /// The default maximum number of cells that can be returned from a cell covering query.
+    /// This limit exists because each cell typically results in a separate DynamoDB query.
+    /// If you need to search larger areas with high precision, consider storing coordinates
+    /// at multiple resolutions (e.g., resolution 5 for wide searches, resolution 9 for precise searches).
+    /// </summary>
+    public const int DefaultMaxCells = 100;
+    
+    /// <summary>
+    /// The absolute maximum number of cells allowed, even when explicitly requested.
+    /// Queries requiring more cells indicate a system design issue - consider using
+    /// lower resolution for wide-area searches or implementing a dual-resolution strategy.
+    /// </summary>
+    public const int AbsoluteMaxCells = 500;
+
+    /// <summary>
     /// Gets the list of H3 cells that cover a circular area, sorted by distance from center (spiral order).
     /// </summary>
     /// <param name="center">The center point of the circular area.</param>
     /// <param name="radiusKilometers">The radius of the circular area in kilometers.</param>
     /// <param name="resolution">The H3 resolution (0-15). Higher resolutions provide more precision.</param>
-    /// <param name="maxCells">The maximum number of cells to return. Default is 100.</param>
+    /// <param name="maxCells">The maximum number of cells to return. Default is 100, maximum is 500.</param>
     /// <returns>A list of H3 cell indices sorted by distance from the center point.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when resolution is outside the range 0-15 or maxCells is less than 1.
+    /// Thrown when resolution is outside the range 0-15, maxCells is less than 1, or maxCells exceeds AbsoluteMaxCells.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the query would require more cells than allowed. This indicates a system design issue.
     /// </exception>
     /// <remarks>
     /// The cells are returned in spiral order (closest to farthest from center).
     /// This is optimal for paginated queries where users typically only view the first page.
-    /// The algorithm:
-    /// 1. Encodes the center point to get the center cell
-    /// 2. Adds the center cell to the result
-    /// 3. Iteratively adds rings of neighbors until the radius is covered or maxCells is reached
-    /// 4. Filters cells to only include those that intersect the circular area
-    /// 5. Sorts by distance from center
+    /// 
+    /// IMPORTANT: Each cell typically results in a separate DynamoDB query. If you need to search
+    /// large areas with high precision, consider storing coordinates at multiple resolutions:
+    /// - Use lower resolution (e.g., 5) for wide-area searches
+    /// - Use higher resolution (e.g., 9) for precise, nearby searches
     /// </remarks>
     public static List<string> GetCellsForRadius(
         GeoLocation center,
         double radiusKilometers,
         int resolution,
-        int maxCells = 100)
+        int maxCells = DefaultMaxCells)
     {
         if (resolution < 0 || resolution > 15)
         {
@@ -48,6 +65,29 @@ public static class H3CellCovering
                 maxCells,
                 "maxCells must be at least 1");
         }
+        
+        if (maxCells > AbsoluteMaxCells)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxCells),
+                maxCells,
+                $"maxCells cannot exceed {AbsoluteMaxCells}. Queries requiring more cells indicate a system design issue. " +
+                $"Consider using a lower resolution for wide-area searches, or implement a dual-resolution strategy " +
+                $"(store coordinates at both low and high resolution).");
+        }
+        
+        // Estimate cell count and fail fast if query is too expensive
+        var estimatedCells = EstimateCellCount(radiusKilometers, resolution);
+        if (estimatedCells > AbsoluteMaxCells)
+        {
+            var cellSizeKm = GetApproximateCellSizeKm(resolution);
+            throw new InvalidOperationException(
+                $"Query would require approximately {estimatedCells:N0} cells (radius={radiusKilometers:F1}km, resolution={resolution}, cell size≈{cellSizeKm:F2}km). " +
+                $"Maximum allowed is {AbsoluteMaxCells}. " +
+                $"Consider: (1) using a lower resolution (larger cells), (2) reducing the search radius, or " +
+                $"(3) implementing a dual-resolution strategy where you store coordinates at both low resolution " +
+                $"(for wide searches) and high resolution (for precise searches).");
+        }
 
         // Create bounding box for the radius
         var bbox = GeoBoundingBox.FromCenterAndDistanceKilometers(center, radiusKilometers);
@@ -61,21 +101,63 @@ public static class H3CellCovering
     /// </summary>
     /// <param name="boundingBox">The bounding box to cover.</param>
     /// <param name="resolution">The H3 resolution (0-15). Higher resolutions provide more precision.</param>
-    /// <param name="maxCells">The maximum number of cells to return. Default is 100.</param>
+    /// <param name="maxCells">The maximum number of cells to return. Default is 100, maximum is 500.</param>
     /// <returns>A list of H3 cell indices sorted by distance from the bounding box center.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when resolution is outside the range 0-15 or maxCells is less than 1.
+    /// Thrown when resolution is outside the range 0-15, maxCells is less than 1, or maxCells exceeds AbsoluteMaxCells.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the query would require more cells than allowed. This indicates a system design issue.
     /// </exception>
     /// <remarks>
     /// The cells are returned sorted by distance from the bounding box center.
     /// This is optimal for paginated queries where users typically only view the first page.
+    /// 
+    /// IMPORTANT: Each cell typically results in a separate DynamoDB query. If you need to search
+    /// large areas with high precision, consider storing coordinates at multiple resolutions.
     /// </remarks>
     public static List<string> GetCellsForBoundingBox(
         GeoBoundingBox boundingBox,
         int resolution,
-        int maxCells = 100)
+        int maxCells = DefaultMaxCells)
     {
         return GetCellsForBoundingBox(boundingBox, boundingBox.Center, resolution, maxCells);
+    }
+    
+    /// <summary>
+    /// Estimates the number of cells required to cover a circular area.
+    /// Use this to validate query parameters before executing expensive operations.
+    /// </summary>
+    /// <param name="radiusKilometers">The radius of the circular area in kilometers.</param>
+    /// <param name="resolution">The H3 resolution (0-15).</param>
+    /// <returns>The estimated number of cells required.</returns>
+    public static int EstimateCellCount(double radiusKilometers, int resolution)
+    {
+        var cellSizeKm = GetApproximateCellSizeKm(resolution);
+        // Area of circle / area of hexagon cell
+        // Hexagon area ≈ 2.598 * (edge length)^2
+        var circleAreaKm2 = Math.PI * radiusKilometers * radiusKilometers;
+        var cellAreaKm2 = 2.598 * cellSizeKm * cellSizeKm;
+        return Math.Max(1, (int)Math.Ceiling(circleAreaKm2 / cellAreaKm2));
+    }
+    
+    /// <summary>
+    /// Estimates the number of cells required to cover a bounding box.
+    /// Use this to validate query parameters before executing expensive operations.
+    /// </summary>
+    /// <param name="boundingBox">The bounding box to cover.</param>
+    /// <param name="resolution">The H3 resolution (0-15).</param>
+    /// <returns>The estimated number of cells required.</returns>
+    public static int EstimateCellCount(GeoBoundingBox boundingBox, int resolution)
+    {
+        var cellSizeKm = GetApproximateCellSizeKm(resolution);
+        // Calculate bounding box area in km²
+        var latRangeKm = (boundingBox.Northeast.Latitude - boundingBox.Southwest.Latitude) * 111.0;
+        var avgLat = (boundingBox.Northeast.Latitude + boundingBox.Southwest.Latitude) / 2.0;
+        var lonRangeKm = (boundingBox.Northeast.Longitude - boundingBox.Southwest.Longitude) * 111.0 * Math.Cos(avgLat * Math.PI / 180.0);
+        var bboxAreaKm2 = latRangeKm * lonRangeKm;
+        var cellAreaKm2 = 2.598 * cellSizeKm * cellSizeKm;
+        return Math.Max(1, (int)Math.Ceiling(bboxAreaKm2 / cellAreaKm2));
     }
 
     /// <summary>
@@ -102,6 +184,28 @@ public static class H3CellCovering
                 maxCells,
                 "maxCells must be at least 1");
         }
+        
+        if (maxCells > AbsoluteMaxCells)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxCells),
+                maxCells,
+                $"maxCells cannot exceed {AbsoluteMaxCells}. Queries requiring more cells indicate a system design issue. " +
+                $"Consider using a lower resolution for wide-area searches, or implement a dual-resolution strategy.");
+        }
+        
+        // Estimate cell count and fail fast if query is too expensive
+        var estimatedCells = EstimateCellCount(boundingBox, resolution);
+        if (estimatedCells > AbsoluteMaxCells)
+        {
+            var cellSizeKm = GetApproximateCellSizeKm(resolution);
+            throw new InvalidOperationException(
+                $"Query would require approximately {estimatedCells:N0} cells (resolution={resolution}, cell size≈{cellSizeKm:F2}km). " +
+                $"Maximum allowed is {AbsoluteMaxCells}. " +
+                $"Consider: (1) using a lower resolution (larger cells), (2) reducing the bounding box size, or " +
+                $"(3) implementing a dual-resolution strategy where you store coordinates at both low resolution " +
+                $"(for wide searches) and high resolution (for precise searches).");
+        }
 
         // Check if the bounding box crosses the International Date Line
         if (boundingBox.CrossesDateLine())
@@ -110,22 +214,42 @@ public static class H3CellCovering
             var (western, eastern) = boundingBox.SplitAtDateLine();
 
             // Compute cell coverings for both boxes
-            var westernCells = GetCellsForBoundingBoxInternal(western, center, resolution, maxCells);
-            var easternCells = GetCellsForBoundingBoxInternal(eastern, center, resolution, maxCells);
+            // Use each box's center for the ring expansion
+            // Each side gets half the maxCells allocation to ensure coverage on both sides
+            var cellsPerSide = Math.Max(maxCells / 2, 10);
+            var westernCells = GetCellsForBoundingBoxInternal(western, western.Center, resolution, cellsPerSide);
+            var easternCells = GetCellsForBoundingBoxInternal(eastern, eastern.Center, resolution, cellsPerSide);
 
-            // Merge and deduplicate cells using HashSet
-            var cellSet = new HashSet<string>(westernCells.Select(x => x.Index));
-            var allCells = new List<(string Index, double Distance)>(westernCells);
+            // Merge cells from both sides
+            var cellSet = new HashSet<string>();
+            var allCells = new List<(string Index, double Distance)>();
+            
+            // Add cells from western box (recalculate distances from original center)
+            foreach (var cell in westernCells)
+            {
+                if (cellSet.Add(cell.Index))
+                {
+                    var (lat, lon) = H3Encoder.Decode(cell.Index);
+                    var cellLocation = new GeoLocation(lat, lon);
+                    var distance = center.DistanceToKilometers(cellLocation);
+                    allCells.Add((cell.Index, distance));
+                }
+            }
 
+            // Add cells from eastern box (recalculate distances from original center)
             foreach (var cell in easternCells)
             {
                 if (cellSet.Add(cell.Index))
                 {
-                    allCells.Add(cell);
+                    var (lat, lon) = H3Encoder.Decode(cell.Index);
+                    var cellLocation = new GeoLocation(lat, lon);
+                    var distance = center.DistanceToKilometers(cellLocation);
+                    allCells.Add((cell.Index, distance));
                 }
             }
 
             // Sort by distance from original center and limit to maxCells
+            // This ensures cells from both sides are included (since each side contributed up to cellsPerSide)
             return allCells
                 .OrderBy(x => x.Distance)
                 .Take(maxCells)
@@ -141,8 +265,8 @@ public static class H3CellCovering
 
     /// <summary>
     /// Internal method that computes cell covering for a single bounding box (no dateline crossing).
-    /// Uses a ring expansion algorithm starting from the center cell and expanding outward
-    /// until the bounding box is covered or maxCells is reached.
+    /// Uses a hybrid approach: grid sampling to find initial cells, then neighbor expansion
+    /// to ensure complete coverage of the bounding box.
     /// </summary>
     private static List<(string Index, double Distance)> GetCellsForBoundingBoxInternal(
         GeoBoundingBox boundingBox,
@@ -155,8 +279,6 @@ public static class H3CellCovering
         var nearPole = center.IsNearPole(85.0);
 
         // If near pole (>85° or <-85°), consider using lower resolution to avoid excessive cells
-        // At high latitudes with high resolution, cell counts can explode due to longitude convergence
-        // Resolution 5 (~8.5km cells) is generally safe even near poles
         if (nearPole && resolution > 5)
         {
             System.Diagnostics.Debug.WriteLine(
@@ -164,8 +286,6 @@ public static class H3CellCovering
                 $"may produce excessive cells. Consider using resolution 5 or lower for polar queries.");
         }
 
-        // If pole is included, ensure we're working with full longitude range
-        // At the pole, longitude is meaningless - we should cover all longitudes
         if (includesPole)
         {
             System.Diagnostics.Debug.WriteLine(
@@ -176,69 +296,125 @@ public static class H3CellCovering
         var cellSet = new HashSet<string>();
         var cellsWithDistance = new List<(string Index, double Distance)>();
 
-        // Start with the center cell
-        var centerIndex = H3Encoder.Encode(center.Latitude, center.Longitude, resolution);
-        cellSet.Add(centerIndex);
-        cellsWithDistance.Add((centerIndex, 0.0));
-
-        // Calculate cell size and expanded bbox once
+        // Calculate approximate cell size in degrees for grid sampling
         var cellSizeKm = GetApproximateCellSizeKm(resolution);
-        var bboxRadiusKm = GetBoundingBoxRadiusKm(boundingBox);
-        var expandedBbox = GeoBoundingBox.FromCenterAndDistanceKilometers(
-            boundingBox.Center,
-            bboxRadiusKm + cellSizeKm);
-
-        // Get cells in expanding rings until we cover the bounding box or hit maxCells
-        // Ring expansion: start with center cell, then add neighbors of current ring,
-        // filtering to only include cells that intersect the expanded bounding box
-        var currentRing = new HashSet<string> { centerIndex };
-        var visited = new HashSet<string> { centerIndex };
-
-        while (cellSet.Count < maxCells)
+        var cellSizeDegrees = cellSizeKm / 111.0; // Approximate conversion (1 degree ≈ 111 km)
+        
+        // Sample at 1/4 the cell size to ensure we hit every cell
+        var sampleInterval = cellSizeDegrees / 4.0;
+        
+        // Calculate the bounding box dimensions
+        var latRange = boundingBox.Northeast.Latitude - boundingBox.Southwest.Latitude;
+        var lonRange = boundingBox.Northeast.Longitude - boundingBox.Southwest.Longitude;
+        
+        // Calculate number of samples needed in each dimension
+        var latSamples = Math.Max(2, (int)Math.Ceiling(latRange / sampleInterval) + 1);
+        var lonSamples = Math.Max(2, (int)Math.Ceiling(lonRange / sampleInterval) + 1);
+        
+        // Limit total samples to prevent excessive computation
+        // We need enough samples to ensure we hit every cell, so we use a higher limit
+        // and rely on the HashSet to deduplicate cells
+        var maxSamples = 100000;
+        if (latSamples * lonSamples > maxSamples)
         {
-            var nextRing = new HashSet<string>();
-
-            foreach (var cellIndex in currentRing)
+            var scale = Math.Sqrt((double)maxSamples / (latSamples * lonSamples));
+            latSamples = Math.Max(2, (int)(latSamples * scale));
+            lonSamples = Math.Max(2, (int)(lonSamples * scale));
+        }
+        
+        // Calculate actual step sizes
+        var latStep = latRange / (latSamples - 1);
+        var lonStep = lonRange / (lonSamples - 1);
+        
+        // Expand the bounding box slightly to ensure we catch edge cells
+        // We expand by the cell size in degrees, not by creating a new bounding box from center
+        // This avoids accidentally creating a date-line-crossing box when expanding a non-crossing box
+        var expansionDegrees = cellSizeDegrees * 2; // Expand by 2 cell sizes to be safe
+        var expandedSwLat = Math.Max(-90, boundingBox.Southwest.Latitude - expansionDegrees);
+        var expandedSwLon = Math.Max(-180, boundingBox.Southwest.Longitude - expansionDegrees);
+        var expandedNeLat = Math.Min(90, boundingBox.Northeast.Latitude + expansionDegrees);
+        var expandedNeLon = Math.Min(180, boundingBox.Northeast.Longitude + expansionDegrees);
+        
+        var expandedBbox = new GeoBoundingBox(
+            new GeoLocation(expandedSwLat, expandedSwLon),
+            new GeoLocation(expandedNeLat, expandedNeLon));
+        
+        // Phase 1: Grid sampling to get initial cells
+        var initialCells = new HashSet<string>();
+        for (int i = 0; i < latSamples; i++)
+        {
+            var lat = boundingBox.Southwest.Latitude + i * latStep;
+            lat = Math.Max(-90, Math.Min(90, lat));
+            
+            for (int j = 0; j < lonSamples; j++)
             {
-                // Get neighbors of this cell (6 for hexagons, 5 for pentagons)
+                var lon = boundingBox.Southwest.Longitude + j * lonStep;
+                lon = Math.Max(-180, Math.Min(180, lon));
+                
+                var cellIndex = H3Encoder.Encode(lat, lon, resolution);
+                initialCells.Add(cellIndex);
+            }
+        }
+        
+        // Also add the center cell - this MUST always be included in the result
+        var centerCellIndex = H3Encoder.Encode(center.Latitude, center.Longitude, resolution);
+        initialCells.Add(centerCellIndex);
+        
+        // Always include the center cell in the result, regardless of bounding box checks
+        // This ensures we never return an empty result for valid inputs
+        if (cellSet.Add(centerCellIndex))
+        {
+            var (centerCellLat, centerCellLon) = H3Encoder.Decode(centerCellIndex);
+            var centerCellLocation = new GeoLocation(centerCellLat, centerCellLon);
+            var centerDistance = center.DistanceToKilometers(centerCellLocation);
+            cellsWithDistance.Add((centerCellIndex, centerDistance));
+        }
+        
+        // Phase 2: Add initial cells and expand neighbors iteratively
+        // We do multiple rounds of neighbor expansion to fill gaps
+        var currentRound = new HashSet<string>(initialCells);
+        var visited = new HashSet<string>();
+        
+        // Limit total cells to process to prevent excessive computation
+        // Use a smaller limit to ensure fast execution
+        var maxCellsToProcess = Math.Min(maxCells * 5, 1000);
+        
+        // Do up to 3 rounds of neighbor expansion to ensure we catch cells that are
+        // a few hops away from the sampled points
+        for (int round = 0; round < 3 && visited.Count < maxCellsToProcess; round++)
+        {
+            var nextRound = new HashSet<string>();
+            
+            foreach (var cellIndex in currentRound)
+            {
+                if (visited.Count >= maxCellsToProcess)
+                    break;
+                    
+                if (visited.Contains(cellIndex))
+                    continue;
+                visited.Add(cellIndex);
+                
+                // Add the cell itself if it's in the bounding box
+                var (cellLat, cellLon) = H3Encoder.Decode(cellIndex);
+                var cellLocation = new GeoLocation(cellLat, cellLon);
+                if (expandedBbox.Contains(cellLocation) && cellSet.Add(cellIndex))
+                {
+                    var distance = center.DistanceToKilometers(cellLocation);
+                    cellsWithDistance.Add((cellIndex, distance));
+                }
+                
+                // Add neighbors to next round
                 var neighbors = H3Encoder.GetNeighbors(cellIndex);
-
                 foreach (var neighbor in neighbors)
                 {
-                    // Skip if already visited
-                    if (visited.Contains(neighbor))
-                        continue;
-
-                    visited.Add(neighbor);
-
-                    // Decode neighbor to get its center point
-                    var (lat, lon) = H3Encoder.Decode(neighbor);
-                    var neighborLocation = new GeoLocation(lat, lon);
-
-                    // Check if this cell intersects the bounding box
-                    // A cell intersects if its center is within the expanded bounding box
-                    if (expandedBbox.Contains(neighborLocation))
+                    if (!visited.Contains(neighbor))
                     {
-                        var distance = center.DistanceToKilometers(neighborLocation);
-                        cellSet.Add(neighbor);
-                        cellsWithDistance.Add((neighbor, distance));
-                        nextRing.Add(neighbor);
-
-                        // Stop if we've reached maxCells
-                        if (cellSet.Count >= maxCells)
-                            break;
+                        nextRound.Add(neighbor);
                     }
                 }
-
-                if (cellSet.Count >= maxCells)
-                    break;
             }
-
-            // If no new cells were added, we've covered the area
-            if (nextRing.Count == 0)
-                break;
-
-            currentRing = nextRing;
+            
+            currentRound = nextRound;
         }
 
         // Sort by distance from center and return

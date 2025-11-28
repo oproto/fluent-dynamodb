@@ -53,6 +53,23 @@ public class QueryRequestBuilder<TEntity> :
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
+    // === Response Metadata (populated after execution) ===
+    
+    /// <summary>
+    /// Gets the last evaluated key from the most recent query execution.
+    /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
+    /// Use this for pagination to continue from where the previous query left off.
+    /// Null if there are no more pages or if the query hasn't been executed yet.
+    /// </summary>
+    public Dictionary<string, AttributeValue>? LastEvaluatedKey { get; internal set; }
+
+    /// <summary>
+    /// Gets the number of items evaluated (before filtering) from the most recent query execution.
+    /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
+    /// Null if the query hasn't been executed yet.
+    /// </summary>
+    public int? ScannedCount { get; internal set; }
+
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
     /// </summary>

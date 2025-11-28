@@ -12,6 +12,9 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 /// <summary>
 /// Performance integration tests for S2 spatial queries with DynamoDB.
 /// Tests verify that SpatialQueryAsync performs efficiently with large datasets.
+/// 
+/// Note: Tests use S2 level 10 (~4.5km cells) with large radii (25-30km) to stay within
+/// the 500 cell limit. For level 16 (~71m cells), radius must be ≤0.5km.
 /// </summary>
 [Collection("DynamoDB Local")]
 [Trait("Category", "Integration")]
@@ -28,7 +31,7 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
     }
     
     /// <summary>
-    /// Simple table wrapper for testing spatial queries.
+    /// Simple table wrapper for testing spatial queries (used in skipped tests).
     /// </summary>
     private class S2StoreTable : DynamoDbTableBase
     {
@@ -40,6 +43,27 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         public async Task PutAsync(S2StoreEntity entity)
         {
             var item = S2StoreEntity.ToDynamoDb(entity);
+            await DynamoDbClient.PutItemAsync(Name, item);
+        }
+    }
+    
+    /// <summary>
+    /// Table wrapper for GSI-based S2 spatial queries with low precision (level 10).
+    /// Supports multiple stores per S2 cell via GSI and large search radii.
+    /// </summary>
+    private class S2StoreWithGsiLowPrecisionTable : DynamoDbTableBase
+    {
+        public DynamoDbIndex S2LocationIndex { get; }
+        
+        public S2StoreWithGsiLowPrecisionTable(IAmazonDynamoDB client, string tableName) 
+            : base(client, tableName)
+        {
+            S2LocationIndex = new DynamoDbIndex(this, "s2-location-index");
+        }
+        
+        public async Task PutAsync(S2StoreWithGsiLowPrecisionEntity entity)
+        {
+            var item = S2StoreWithGsiLowPrecisionEntity.ToDynamoDb(entity);
             await DynamoDbClient.PutItemAsync(Name, item);
         }
     }
@@ -67,22 +91,30 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
     
     #region 30.1 Test S2 query with large result set (non-paginated)
     
+    /// <summary>
+    /// Tests S2 spatial query with large result set using low precision (level 10).
+    /// Uses level 10 (~4.5km cells) with 20km radius to stay within 500 cell limit.
+    /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_S2ProximityNonPaginated_LargeResultSet_CompletesEfficiently()
     {
-        // Arrange - Create table with 1000+ stores
-        await CreateTableAsync<S2StoreEntity>();
-        var table = new S2StoreTable(DynamoDb, TableName);
+        // Arrange - Create table with 1000+ stores using low precision entity
+        await CreateTableWithGsiAsync<S2StoreWithGsiLowPrecisionEntity>(
+            gsiName: "s2-location-index",
+            gsiPartitionKeyAttribute: "s2_cell",
+            gsiSortKeyAttribute: "pk");
+        var table = new S2StoreWithGsiLowPrecisionTable(DynamoDb, TableName);
         
         // San Francisco downtown area as the center
         var searchCenter = new GeoLocation(37.7749, -122.4194);
         
-        Console.WriteLine("[Performance Test] Creating 1000+ stores...");
+        Console.WriteLine("[Performance Test] Creating 1000+ stores with S2 level 10...");
         var createStopwatch = Stopwatch.StartNew();
         
         // Create 1200 stores distributed around the search center
-        // We'll create stores in a grid pattern within a 50km radius
-        var stores = GenerateStoresInRadius(searchCenter, radiusKm: 50, count: 1200);
+        // We'll create stores in a grid pattern within a 25km radius
+        // This ensures most stores are within the 20km query radius
+        var stores = GenerateLowPrecisionStoresInRadius(searchCenter, radiusKm: 25, count: 1200);
         
         // Write all stores to DynamoDB in batches for efficiency
         var batchSize = 25; // DynamoDB BatchWriteItem limit
@@ -101,19 +133,19 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         createStopwatch.Stop();
         Console.WriteLine($"[Performance Test] Created {stores.Count} stores in {createStopwatch.ElapsedMilliseconds}ms");
         
-        // Act - Execute SpatialQueryAsync with large radius (30km)
-        // This should return a significant portion of the stores
-        Console.WriteLine("[Performance Test] Executing spatial query with 30km radius...");
+        // Act - Execute SpatialQueryAsync with 20km radius
+        // Using level 10 (~4.5km cells) to stay within 500 cell limit
+        Console.WriteLine("[Performance Test] Executing spatial query with 20km radius at level 10...");
         var queryStopwatch = Stopwatch.StartNew();
         
-        var result = await table.SpatialQueryAsync<S2StoreEntity>(
+        var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiLowPrecisionEntity>(
             locationSelector: store => store.Location,
             spatialIndexType: SpatialIndexType.S2,
-            precision: 16, // S2 Level 16 (~600m cells)
+            precision: 10, // S2 Level 10 (~4.5km cells) for large radius queries
             center: searchCenter,
-            radiusKilometers: 30.0,
+            radiusKilometers: 20.0,
             queryBuilder: (query, cell, pagination) => query
-                .Where<S2StoreEntity>(x => x.StoreId == "STORE" && x.Location == cell),
+                .Where<S2StoreWithGsiLowPrecisionEntity>(x => x.Location == cell),
             pageSize: null // Non-paginated mode - query all cells in parallel
         );
         
@@ -121,7 +153,7 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         
         // Assert - Verify parallel execution completes efficiently
         result.Items.Should().NotBeNull();
-        result.Items.Should().NotBeEmpty("should return stores within 30km radius");
+        result.Items.Should().NotBeEmpty("should return stores within 20km radius");
         
         // Log performance metrics
         var queryTimeMs = queryStopwatch.ElapsedMilliseconds;
@@ -136,14 +168,14 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         foreach (var store in result.Items)
         {
             var distance = store.Location.DistanceToKilometers(searchCenter);
-            if (distance > 30.0)
+            if (distance > 20.0)
             {
                 storesOutsideRadius++;
             }
         }
         
         storesOutsideRadius.Should().Be(0, 
-            "all returned stores should be within the 30km radius");
+            "all returned stores should be within the 20km radius");
         
         // Verify results are sorted by distance
         var distances = result.Items
@@ -162,13 +194,13 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         queryTimeMs.Should().BeLessThan(10000,
             "non-paginated query with parallel execution should complete within 10 seconds");
         
-        // Verify no duplicates
-        var uniqueLocations = result.Items
-            .Select(s => $"{s.Location.Latitude:F6},{s.Location.Longitude:F6}")
+        // Verify no duplicates (check by StoreId, not location)
+        var uniqueStoreIds = result.Items
+            .Select(s => s.StoreId)
             .Distinct()
             .Count();
         
-        uniqueLocations.Should().Be(result.Items.Count,
+        uniqueStoreIds.Should().Be(result.Items.Count,
             "each store should appear exactly once (no duplicates)");
         
         // Verify continuation token is null for non-paginated queries
@@ -176,19 +208,27 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
             "non-paginated queries should return all results with null continuation token");
     }
     
+    /// <summary>
+    /// Tests that maxCells limit is respected for very large radius queries.
+    /// Uses level 10 (~4.5km cells) with 50km radius and maxCells=50.
+    /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_S2ProximityNonPaginated_VeryLargeRadius_RespectsMaxCellsLimit()
     {
-        // Arrange - Create table with stores
-        await CreateTableAsync<S2StoreEntity>();
-        var table = new S2StoreTable(DynamoDb, TableName);
+        // Arrange - Create table with stores using low precision entity
+        await CreateTableWithGsiAsync<S2StoreWithGsiLowPrecisionEntity>(
+            gsiName: "s2-location-index",
+            gsiPartitionKeyAttribute: "s2_cell",
+            gsiSortKeyAttribute: "pk");
+        var table = new S2StoreWithGsiLowPrecisionTable(DynamoDb, TableName);
         
         var searchCenter = new GeoLocation(37.7749, -122.4194);
         
-        Console.WriteLine("[Performance Test] Creating 500 stores...");
+        Console.WriteLine("[Performance Test] Creating 500 stores with S2 level 10...");
         
         // Create 500 stores distributed around the search center
-        var stores = GenerateStoresInRadius(searchCenter, radiusKm: 100, count: 500);
+        // Using 50km radius to stay within reasonable cell count for level 10
+        var stores = GenerateLowPrecisionStoresInRadius(searchCenter, radiusKm: 50, count: 500);
         
         // Write all stores to DynamoDB
         var batchSize = 25;
@@ -201,18 +241,19 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         
         Console.WriteLine($"[Performance Test] Created {stores.Count} stores");
         
-        // Act - Execute SpatialQueryAsync with very large radius (100km) and maxCells limit
-        Console.WriteLine("[Performance Test] Executing spatial query with 100km radius and maxCells=50...");
+        // Act - Execute SpatialQueryAsync with large radius (50km) and maxCells limit
+        // Using level 10 (~4.5km cells) to stay within reasonable cell count
+        Console.WriteLine("[Performance Test] Executing spatial query with 50km radius and maxCells=50...");
         var queryStopwatch = Stopwatch.StartNew();
         
-        var result = await table.SpatialQueryAsync<S2StoreEntity>(
+        var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiLowPrecisionEntity>(
             locationSelector: store => store.Location,
             spatialIndexType: SpatialIndexType.S2,
-            precision: 16,
+            precision: 10, // S2 Level 10 (~4.5km cells) for large radius queries
             center: searchCenter,
-            radiusKilometers: 100.0,
+            radiusKilometers: 50.0,
             queryBuilder: (query, cell, pagination) => query
-                .Where<S2StoreEntity>(x => x.StoreId == "STORE" && x.Location == cell),
+                .Where<S2StoreWithGsiLowPrecisionEntity>(x => x.Location == cell),
             pageSize: null,
             maxCells: 50 // Limit to 50 cells to prevent excessive queries
         );
@@ -235,24 +276,31 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         foreach (var store in result.Items)
         {
             var distance = store.Location.DistanceToKilometers(searchCenter);
-            distance.Should().BeLessThanOrEqualTo(100.0,
-                $"Store {store.Name} should be within 100km radius");
+            distance.Should().BeLessThanOrEqualTo(50.0,
+                $"Store {store.Name} should be within 50km radius");
         }
     }
     
+    /// <summary>
+    /// Tests that multiple queries return consistent results and performance.
+    /// Uses level 10 (~4.5km cells) with 15km radius to stay within 500 cell limit.
+    /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_S2ProximityNonPaginated_MultipleQueries_ConsistentPerformance()
     {
-        // Arrange - Create table with stores
-        await CreateTableAsync<S2StoreEntity>();
-        var table = new S2StoreTable(DynamoDb, TableName);
+        // Arrange - Create table with stores using low precision entity
+        await CreateTableWithGsiAsync<S2StoreWithGsiLowPrecisionEntity>(
+            gsiName: "s2-location-index",
+            gsiPartitionKeyAttribute: "s2_cell",
+            gsiSortKeyAttribute: "pk");
+        var table = new S2StoreWithGsiLowPrecisionTable(DynamoDb, TableName);
         
         var searchCenter = new GeoLocation(37.7749, -122.4194);
         
-        Console.WriteLine("[Performance Test] Creating 800 stores...");
+        Console.WriteLine("[Performance Test] Creating 800 stores with S2 level 10...");
         
         // Create 800 stores
-        var stores = GenerateStoresInRadius(searchCenter, radiusKm: 40, count: 800);
+        var stores = GenerateLowPrecisionStoresInRadius(searchCenter, radiusKm: 20, count: 800);
         
         // Write all stores to DynamoDB
         var batchSize = 25;
@@ -274,14 +322,14 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
             Console.WriteLine($"[Performance Test] Executing query iteration {iteration}...");
             var queryStopwatch = Stopwatch.StartNew();
             
-            var result = await table.SpatialQueryAsync<S2StoreEntity>(
+            var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiLowPrecisionEntity>(
                 locationSelector: store => store.Location,
                 spatialIndexType: SpatialIndexType.S2,
-                precision: 16,
+                precision: 10, // S2 Level 10 (~4.5km cells) for large radius queries
                 center: searchCenter,
-                radiusKilometers: 25.0,
+                radiusKilometers: 15.0,
                 queryBuilder: (query, cell, pagination) => query
-                    .Where<S2StoreEntity>(x => x.StoreId == "STORE" && x.Location == cell),
+                    .Where<S2StoreWithGsiLowPrecisionEntity>(x => x.Location == cell),
                 pageSize: null
             );
             
@@ -317,30 +365,31 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Task 30.3: Test S2 paginated query with many pages.
     /// 
-    /// Uses GSI-based entity (S2StoreWithGsiEntity) to support multiple stores per S2 cell.
+    /// Uses GSI-based entity (S2StoreWithGsiLowPrecisionEntity) with level 10 (~4.5km cells)
+    /// to support multiple stores per S2 cell and large search radii.
     /// The GSI has S2 cell as partition key and StoreId as sort key, allowing efficient
     /// spatial queries with proper pagination.
     /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_S2ProximityPaginated_ManyPages_SequentialExecutionWorksCorrectly()
     {
-        // Arrange - Create table with GSI for spatial queries
-        await CreateTableWithGsiAsync<S2StoreWithGsiEntity>(
+        // Arrange - Create table with GSI for spatial queries using low precision entity
+        await CreateTableWithGsiAsync<S2StoreWithGsiLowPrecisionEntity>(
             gsiName: "s2-location-index",
             gsiPartitionKeyAttribute: "s2_cell",
             gsiSortKeyAttribute: "pk");
-        var table = new S2StoreWithGsiTable(DynamoDb, TableName);
+        var table = new S2StoreWithGsiLowPrecisionTable(DynamoDb, TableName);
         
         // San Francisco downtown area as the center
         var searchCenter = new GeoLocation(37.7749, -122.4194);
         
-        Console.WriteLine("[Performance Test 30.3] Creating 1000+ stores with GSI support...");
+        Console.WriteLine("[Performance Test 30.3] Creating 1000+ stores with GSI support (level 10)...");
         var createStopwatch = Stopwatch.StartNew();
         
         // Create 1100 stores distributed around the search center
         // Using a radius that ensures most stores are within the search radius
-        // The search radius will be 30km, so we generate stores within 28km to ensure most are found
-        var stores = GenerateGsiStoresInRadius(searchCenter, radiusKm: 28, count: 1100);
+        // The search radius will be 20km, so we generate stores within 18km to ensure most are found
+        var stores = GenerateLowPrecisionStoresInRadius(searchCenter, radiusKm: 18, count: 1100);
         
         // Write all stores to DynamoDB in batches for efficiency
         var batchSize = 25; // DynamoDB BatchWriteItem limit
@@ -363,7 +412,7 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         Console.WriteLine("[Performance Test 30.3] Executing paginated spatial query via GSI with pageSize=10...");
         var queryStopwatch = Stopwatch.StartNew();
         
-        var allResults = new List<S2StoreWithGsiEntity>();
+        var allResults = new List<S2StoreWithGsiLowPrecisionEntity>();
         var pageCount = 0;
         var pageSizes = new List<int>();
         SpatialContinuationToken? continuationToken = null;
@@ -374,14 +423,14 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         
         do
         {
-            var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiEntity>(
+            var result = await table.S2LocationIndex.SpatialQueryAsync<S2StoreWithGsiLowPrecisionEntity>(
                 locationSelector: store => store.Location,
                 spatialIndexType: SpatialIndexType.S2,
-                precision: 16, // S2 Level 16 (~600m cells)
+                precision: 10, // S2 Level 10 (~4.5km cells) for large radius queries
                 center: searchCenter,
-                radiusKilometers: 30.0, // 30km radius to get most stores
+                radiusKilometers: 20.0, // 20km radius to get most stores
                 queryBuilder: (query, cell, pagination) => query
-                    .Where<S2StoreWithGsiEntity>(x => x.Location == cell)
+                    .Where<S2StoreWithGsiLowPrecisionEntity>(x => x.Location == cell)
                     .Paginate(pagination),
                 pageSize: 10, // Small page size to ensure many pages
                 continuationToken: continuationToken
@@ -445,31 +494,31 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
         }
         
         // Verify we got a reasonable number of results
-        allResults.Should().NotBeEmpty("should return stores within 30km radius");
+        allResults.Should().NotBeEmpty("should return stores within 20km radius");
         allResults.Count.Should().BeGreaterThan(50,
-            "should return a significant number of stores within 30km radius");
+            "should return a significant number of stores within 20km radius");
         
         // Verify all results are within radius
         var storesOutsideRadius = 0;
         foreach (var store in allResults)
         {
             var distance = store.Location.DistanceToKilometers(searchCenter);
-            if (distance > 30.0)
+            if (distance > 20.0)
             {
                 storesOutsideRadius++;
             }
         }
         
         storesOutsideRadius.Should().Be(0,
-            "all returned stores should be within the 30km radius");
+            "all returned stores should be within the 20km radius");
         
-        // Verify no duplicates across pages
-        var uniqueLocations = allResults
-            .Select(s => $"{s.Location.Latitude:F6},{s.Location.Longitude:F6}")
+        // Verify no duplicates across pages (check by StoreId, not location)
+        var uniqueStoreIds = allResults
+            .Select(s => s.StoreId)
             .Distinct()
             .Count();
         
-        uniqueLocations.Should().Be(allResults.Count,
+        uniqueStoreIds.Should().Be(allResults.Count,
             "each store should appear exactly once across all pages (no duplicates)");
         
         // Verify final page has null continuation token (already verified by loop exit)
@@ -693,6 +742,60 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
             );
             
             stores.Add(new S2StoreWithGsiEntity
+            {
+                StoreId = $"store-{i:D4}",
+                Category = "RETAIL",
+                Location = location,
+                Name = $"Store {i + 1}",
+                Description = $"Test store at {distance:F2}km from center"
+            });
+        }
+        
+        return stores;
+    }
+    
+    /// <summary>
+    /// Generates a list of low precision GSI-based S2 stores distributed in a radius around a center point.
+    /// Uses a spiral pattern to ensure even distribution.
+    /// Uses S2 level 10 (~4.5km cells) for large radius queries.
+    /// </summary>
+    private List<S2StoreWithGsiLowPrecisionEntity> GenerateLowPrecisionStoresInRadius(
+        GeoLocation center,
+        double radiusKm,
+        int count)
+    {
+        var stores = new List<S2StoreWithGsiLowPrecisionEntity>();
+        var random = new Random(42); // Fixed seed for reproducibility
+        
+        // Generate stores in a spiral pattern
+        for (var i = 0; i < count; i++)
+        {
+            // Use golden angle spiral for even distribution
+            var angle = i * 137.508; // Golden angle in degrees
+            var distance = radiusKm * Math.Sqrt((double)i / count); // Sqrt for even area distribution
+            
+            // Add some randomness to avoid perfect grid
+            var randomOffset = random.NextDouble() * 0.5; // Up to 50% offset
+            distance = distance * (1 + randomOffset);
+            
+            // Ensure we don't exceed the radius
+            distance = Math.Min(distance, radiusKm * 0.98); // Stay within 98% of radius
+            
+            // Convert polar coordinates to lat/lon offset
+            var angleRad = angle * Math.PI / 180.0;
+            
+            // Approximate conversion (good enough for testing)
+            // 1 degree latitude ≈ 111 km
+            // 1 degree longitude ≈ 111 km * cos(latitude)
+            var latOffset = (distance * Math.Cos(angleRad)) / 111.0;
+            var lonOffset = (distance * Math.Sin(angleRad)) / (111.0 * Math.Cos(center.Latitude * Math.PI / 180.0));
+            
+            var location = new GeoLocation(
+                center.Latitude + latOffset,
+                center.Longitude + lonOffset
+            );
+            
+            stores.Add(new S2StoreWithGsiLowPrecisionEntity
             {
                 StoreId = $"store-{i:D4}",
                 Category = "RETAIL",

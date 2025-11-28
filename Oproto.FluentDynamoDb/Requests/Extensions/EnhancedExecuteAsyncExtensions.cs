@@ -128,6 +128,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Use this method when you want to work with individual items as separate entities.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
+    /// It also populates LastEvaluatedKey and ScannedCount on the builder instance for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -145,6 +146,10 @@ public static class EnhancedExecuteAsyncExtensions
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
+
+            // Populate builder with response metadata for direct access (avoids AsyncLocal issues)
+            builder.LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null;
+            builder.ScannedCount = response.ScannedCount;
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -181,6 +186,7 @@ public static class EnhancedExecuteAsyncExtensions
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
+    /// It also populates LastEvaluatedKey and ScannedCount on the builder instance for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -204,6 +210,10 @@ public static class EnhancedExecuteAsyncExtensions
             var request = builder.ToQueryRequest();
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
+
+            // Populate builder with response metadata for direct access (avoids AsyncLocal issues)
+            builder.LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null;
+            builder.ScannedCount = response.ScannedCount;
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData

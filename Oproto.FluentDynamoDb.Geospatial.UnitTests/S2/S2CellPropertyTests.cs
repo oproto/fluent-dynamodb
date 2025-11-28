@@ -38,7 +38,8 @@ public class S2CellPropertyTests
     }
 
     // Feature: s2-h3-geospatial-support, Property 19: GetNeighbors returns correct count and level
-    // For any S2Cell, calling GetNeighbors should return all adjacent cells (8 for S2) at the same precision level
+    // For any S2Cell, calling GetNeighbors should return all adjacent cells at the same precision level
+    // Note: At face boundaries, cells may have fewer than 8 unique neighbors due to cube topology
     // Validates: Requirements 8.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void GetNeighbors_ReturnsCorrectCountAndLevel(ValidLatitude lat, ValidLongitude lon, ValidS2Level lvl)
@@ -60,10 +61,9 @@ public class S2CellPropertyTests
         // Act: Get neighbors
         var neighbors = cell.GetNeighbors();
         
-        // Assert: Should return 4-8 neighbors
-        // Note: At level 0 (entire cube faces), cells at face boundaries may have fewer neighbors
-        // because some neighbors would be on the same face (duplicates that get filtered)
-        // At higher levels, cells should have 8 neighbors
+        // Assert: Should return 4-8 unique neighbors
+        // At face boundaries (especially at low levels), cells may have fewer than 8 neighbors
+        // because multiple neighbor offsets can map to the same cell on adjacent faces
         Assert.InRange(neighbors.Length, 4, 8);
         
         // Assert: All neighbors should be at the same level
@@ -72,7 +72,7 @@ public class S2CellPropertyTests
         // Assert: All neighbors should have valid tokens
         Assert.All(neighbors, neighbor => Assert.NotNull(neighbor.Token));
         
-        // Assert: All neighbors should be distinct (after filtering)
+        // Assert: All neighbors should be distinct (GetNeighbors now deduplicates)
         var uniqueTokens = neighbors.Select(n => n.Token).Distinct().Count();
         Assert.Equal(neighbors.Length, uniqueTokens);
     }

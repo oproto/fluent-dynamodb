@@ -160,10 +160,13 @@ public class S2CrossValidationTests
             // Get neighbors from reference (edge neighbors)
             var refNeighbors = refCellId.GetEdgeNeighbors();
 
-            // Our implementation returns 8 neighbors (edge + corner)
+            // Our implementation returns up to 8 neighbors (edge + corner), deduplicated
+            // At face boundaries, some neighbors may map to the same cell, so we may get fewer
             // Reference GetEdgeNeighbors returns 4 neighbors (just edges)
             // So we'll verify that the 4 edge neighbors from reference are in our set
-            ourNeighbors.Should().HaveCount(8, "Our implementation returns 8 neighbors");
+            ourNeighbors.Should().HaveCountGreaterThanOrEqualTo(4, "Our implementation returns at least 4 neighbors");
+            ourNeighbors.Should().HaveCountLessThanOrEqualTo(8, "Our implementation returns at most 8 neighbors");
+            ourNeighbors.Should().OnlyHaveUniqueItems("Our implementation returns deduplicated neighbors");
 
             foreach (var refNeighbor in refNeighbors)
             {

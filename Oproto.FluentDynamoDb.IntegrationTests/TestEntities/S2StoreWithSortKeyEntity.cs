@@ -30,7 +30,7 @@ public partial class S2StoreWithSortKeyEntity : IDynamoDbEntity
     /// Geographic location stored as S2 index (not the sort key).
     /// This allows combining spatial queries with sort key conditions.
     /// </summary>
-    [DynamoDbAttribute("location", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
+    [DynamoDbAttribute("loc", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
     public GeoLocation Location { get; set; }
     
     [DynamoDbAttribute("name")]
@@ -39,6 +39,6 @@ public partial class S2StoreWithSortKeyEntity : IDynamoDbEntity
     [DynamoDbAttribute("description")]
     public string? Description { get; set; }
     
-    [DynamoDbAttribute("status")]
+    [DynamoDbAttribute("store_status")]
     public string Status { get; set; } = "OPEN";
 }

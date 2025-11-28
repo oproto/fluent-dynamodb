@@ -18,12 +18,37 @@ public readonly struct GeoBoundingBox
     /// <summary>
     /// Gets the center point of the bounding box.
     /// </summary>
+    /// <remarks>
+    /// This property correctly handles bounding boxes that cross the International Date Line.
+    /// For date line crossing boxes, the center longitude is calculated by treating the
+    /// longitude range as continuous across the date line.
+    /// </remarks>
     public GeoLocation Center
     {
         get
         {
             var centerLat = (Southwest.Latitude + Northeast.Latitude) / 2.0;
-            var centerLon = (Southwest.Longitude + Northeast.Longitude) / 2.0;
+            
+            double centerLon;
+            if (CrossesDateLine())
+            {
+                // For date line crossing boxes, we need to calculate the center differently.
+                // The box spans from Southwest.Longitude (e.g., 177°) to Northeast.Longitude (e.g., -179°)
+                // This is equivalent to spanning from 177° to 181° (or -179° + 360°)
+                // The width is: (360 - Southwest.Longitude + Northeast.Longitude)
+                // The center is: Southwest.Longitude + width/2
+                var width = 360.0 - Southwest.Longitude + Northeast.Longitude;
+                centerLon = Southwest.Longitude + width / 2.0;
+                
+                // Normalize to [-180, 180] range
+                if (centerLon > 180.0)
+                    centerLon -= 360.0;
+            }
+            else
+            {
+                centerLon = (Southwest.Longitude + Northeast.Longitude) / 2.0;
+            }
+            
             return new GeoLocation(centerLat, centerLon);
         }
     }
@@ -111,10 +136,30 @@ public readonly struct GeoBoundingBox
         }
         else
         {
-            // Normal case: clamp longitude to valid range
-            // Note: We allow swLon > neLon to represent date line crossing
-            swLon = Math.Max(-180, swLon);
-            neLon = Math.Min(180, neLon);
+            // Handle date line crossing:
+            // If the longitude range extends past ±180°, we need to wrap it to create
+            // a date line crossing bounding box (where swLon > neLon)
+            
+            // Check if we're crossing the date line on the east side (neLon > 180)
+            if (neLon > 180)
+            {
+                // Wrap neLon to negative range: 181° becomes -179°
+                neLon = neLon - 360;
+                // swLon stays as is (positive), creating swLon > neLon (date line crossing)
+            }
+            // Check if we're crossing the date line on the west side (swLon < -180)
+            else if (swLon < -180)
+            {
+                // Wrap swLon to positive range: -181° becomes 179°
+                swLon = swLon + 360;
+                // neLon stays as is (negative), creating swLon > neLon (date line crossing)
+            }
+            // Normal case: no date line crossing, just clamp to valid range
+            else
+            {
+                swLon = Math.Max(-180, swLon);
+                neLon = Math.Min(180, neLon);
+            }
         }
         
         return new GeoBoundingBox(
@@ -151,12 +196,32 @@ public readonly struct GeoBoundingBox
     /// </summary>
     /// <param name="location">The location to check.</param>
     /// <returns>True if the location is within the bounding box; otherwise, false.</returns>
+    /// <remarks>
+    /// This method correctly handles bounding boxes that cross the International Date Line.
+    /// When a box crosses the date line (Southwest.Longitude > Northeast.Longitude),
+    /// a location is inside if its longitude is >= Southwest.Longitude OR <= Northeast.Longitude.
+    /// </remarks>
     public bool Contains(GeoLocation location)
     {
-        return location.Latitude >= Southwest.Latitude &&
-               location.Latitude <= Northeast.Latitude &&
-               location.Longitude >= Southwest.Longitude &&
-               location.Longitude <= Northeast.Longitude;
+        // Check latitude first (same for all cases)
+        if (location.Latitude < Southwest.Latitude || location.Latitude > Northeast.Latitude)
+        {
+            return false;
+        }
+        
+        // Check longitude - handle date line crossing
+        if (CrossesDateLine())
+        {
+            // For date line crossing boxes, longitude is valid if it's:
+            // - >= Southwest.Longitude (e.g., >= 170°) OR
+            // - <= Northeast.Longitude (e.g., <= -170°)
+            return location.Longitude >= Southwest.Longitude || location.Longitude <= Northeast.Longitude;
+        }
+        else
+        {
+            // Normal case: longitude must be within the range
+            return location.Longitude >= Southwest.Longitude && location.Longitude <= Northeast.Longitude;
+        }
     }
 
     /// <summary>
