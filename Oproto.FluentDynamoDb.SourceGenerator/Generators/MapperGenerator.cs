@@ -74,10 +74,12 @@ internal static class MapperGenerator
             }
         }
         
-        // Add geospatial using statement if needed
+        // Add geospatial using statements if needed
         if (entity.HasGeospatialPackage)
         {
             sb.AppendLine("using Oproto.FluentDynamoDb.Geospatial.GeoHash;");
+            sb.AppendLine("using Oproto.FluentDynamoDb.Geospatial.S2;");
+            sb.AppendLine("using Oproto.FluentDynamoDb.Geospatial.H3;");
         }
         
         sb.AppendLine();
@@ -3641,24 +3643,73 @@ internal static class MapperGenerator
     }
 
     /// <summary>
-    /// Generates code to serialize a GeoLocation property to a GeoHash string AttributeValue.
+    /// Generates code to serialize a GeoLocation property to a spatial index string AttributeValue.
+    /// Supports GeoHash, S2, and H3 spatial indexing systems.
+    /// Optionally stores full-resolution coordinates as separate attributes.
     /// </summary>
     private static void GenerateGeoLocationPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
-        var precision = property.GeoHashPrecision ?? 6; // Default precision is 6
+        
+        // Determine spatial index type (default to GeoHash for backward compatibility)
+        var spatialIndexType = property.SpatialIndexType ?? "GeoHash";
+        
+        // Get precision/level/resolution based on index type
+        string encodingCall;
+        string indexTypeName;
+        
+        switch (spatialIndexType)
+        {
+            case "S2":
+                var s2Level = property.S2Level ?? 16; // Default S2 level is 16
+                encodingCall = $"ToS2Token({s2Level})";
+                indexTypeName = "S2";
+                break;
+            
+            case "H3":
+                var h3Resolution = property.H3Resolution ?? 9; // Default H3 resolution is 9
+                encodingCall = $"ToH3Index({h3Resolution})";
+                indexTypeName = "H3";
+                break;
+            
+            case "GeoHash":
+            default:
+                var geoHashPrecision = property.GeoHashPrecision ?? 6; // Default GeoHash precision is 6
+                encodingCall = $"ToGeoHash({geoHashPrecision})";
+                indexTypeName = "GeoHash";
+                break;
+        }
 
-        sb.AppendLine($"            // Serialize GeoLocation property {propertyName} to GeoHash");
+        // Check if coordinate storage is configured
+        var hasCoordinateStorage = property.HasCoordinateStorage;
+        
+        if (hasCoordinateStorage)
+        {
+            sb.AppendLine($"            // Serialize GeoLocation property {propertyName} to {indexTypeName} with coordinate storage");
+        }
+        else
+        {
+            sb.AppendLine($"            // Serialize GeoLocation property {propertyName} to {indexTypeName}");
+        }
         
         // Handle nullable GeoLocation
         if (property.IsNullable)
         {
             sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("            {");
-            sb.AppendLine($"                var {propertyName.ToLowerInvariant()}Hash = typedEntity.{escapedPropertyName}.Value.ToGeoHash({precision});");
-            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = {propertyName.ToLowerInvariant()}Hash }};");
+            sb.AppendLine($"                var {propertyName.ToLowerInvariant()}Index = typedEntity.{escapedPropertyName}.Value.{encodingCall};");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = {propertyName.ToLowerInvariant()}Index }};");
+            
+            // Add coordinate storage if configured
+            if (hasCoordinateStorage)
+            {
+                sb.AppendLine($"                // Store full-resolution coordinates");
+                sb.AppendLine($"                item[\"{property.LatitudeAttributeName}\"] = new AttributeValue {{ N = typedEntity.{escapedPropertyName}.Value.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture) }};");
+                sb.AppendLine($"                item[\"{property.LongitudeAttributeName}\"] = new AttributeValue {{ N = typedEntity.{escapedPropertyName}.Value.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture) }};");
+            }
+            
             sb.AppendLine("            }");
         }
         else
@@ -3666,40 +3717,139 @@ internal static class MapperGenerator
             // Check for default value (latitude and longitude both 0)
             sb.AppendLine($"            if (typedEntity.{escapedPropertyName}.Latitude != 0 || typedEntity.{escapedPropertyName}.Longitude != 0)");
             sb.AppendLine("            {");
-            sb.AppendLine($"                var {propertyName.ToLowerInvariant()}Hash = typedEntity.{escapedPropertyName}.ToGeoHash({precision});");
-            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = {propertyName.ToLowerInvariant()}Hash }};");
+            sb.AppendLine($"                var {propertyName.ToLowerInvariant()}Index = typedEntity.{escapedPropertyName}.{encodingCall};");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = {propertyName.ToLowerInvariant()}Index }};");
+            
+            // Add coordinate storage if configured
+            if (hasCoordinateStorage)
+            {
+                sb.AppendLine($"                // Store full-resolution coordinates");
+                sb.AppendLine($"                item[\"{property.LatitudeAttributeName}\"] = new AttributeValue {{ N = typedEntity.{escapedPropertyName}.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture) }};");
+                sb.AppendLine($"                item[\"{property.LongitudeAttributeName}\"] = new AttributeValue {{ N = typedEntity.{escapedPropertyName}.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture) }};");
+            }
+            
             sb.AppendLine("            }");
         }
     }
 
     /// <summary>
-    /// Generates code to deserialize a GeoLocation property from a GeoHash string AttributeValue.
+    /// Generates code to deserialize a GeoLocation property from a spatial index string AttributeValue.
+    /// Supports GeoHash, S2, and H3 spatial indexing systems.
+    /// When coordinate storage is configured, prefers exact coordinates over spatial index decoding.
     /// </summary>
     private static void GenerateGeoLocationPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
+        
+        // Use property name as suffix for decoded variable to avoid conflicts with multiple GeoLocation properties
+        var decodedVarName = $"decoded{propertyName}";
+        
+        // Determine spatial index type (default to GeoHash for backward compatibility)
+        var spatialIndexType = property.SpatialIndexType ?? "GeoHash";
+        
+        // Get decoding method and index type name based on index type
+        string decodingCall;
+        string indexTypeName;
+        
+        switch (spatialIndexType)
+        {
+            case "S2":
+                decodingCall = "S2Extensions.FromS2Token";
+                indexTypeName = "S2 token";
+                break;
+            
+            case "H3":
+                decodingCall = "H3Extensions.FromH3Index";
+                indexTypeName = "H3 index";
+                break;
+            
+            case "GeoHash":
+            default:
+                decodingCall = "GeoHashExtensions.FromGeoHash";
+                indexTypeName = "GeoHash";
+                break;
+        }
 
-        sb.AppendLine($"            // Deserialize GeoLocation property {propertyName} from GeoHash");
-        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
-        sb.AppendLine("            {");
-        sb.AppendLine($"                if ({propertyName.ToLowerInvariant()}Value.S != null)");
-        sb.AppendLine("                {");
-        sb.AppendLine("                    try");
-        sb.AppendLine("                    {");
-        sb.AppendLine($"                        entity.{escapedPropertyName} = GeoHashExtensions.FromGeoHash({propertyName.ToLowerInvariant()}Value.S);");
-        sb.AppendLine("                    }");
-        sb.AppendLine("                    catch (Exception ex)");
-        sb.AppendLine("                    {");
-        sb.AppendLine($"                        throw new DynamoDbMappingException(");
-        sb.AppendLine($"                            $\"Failed to deserialize GeoLocation property '{propertyName}' (DynamoDB attribute: '{attributeName}') from GeoHash string '{{{propertyName.ToLowerInvariant()}Value.S}}'. \" +");
-        sb.AppendLine($"                            $\"Error: {{ex.Message}}. \" +");
-        sb.AppendLine($"                            $\"Ensure the stored value is a valid GeoHash string.\",");
-        sb.AppendLine("                            ex);");
-        sb.AppendLine("                    }");
-        sb.AppendLine("                }");
-        sb.AppendLine("            }");
+        // Check if coordinate storage is configured
+        var hasCoordinateStorage = property.HasCoordinateStorage;
+        
+        if (hasCoordinateStorage)
+        {
+            sb.AppendLine($"            // Deserialize GeoLocation property {propertyName} from coordinates (if available) or {indexTypeName}");
+            sb.AppendLine($"            // Priority: 1) Exact coordinates, 2) Spatial index decoding");
+            sb.AppendLine($"            if (item.TryGetValue(\"{property.LatitudeAttributeName}\", out var {propertyName.ToLowerInvariant()}LatValue) && ");
+            sb.AppendLine($"                item.TryGetValue(\"{property.LongitudeAttributeName}\", out var {propertyName.ToLowerInvariant()}LonValue) &&");
+            sb.AppendLine($"                {propertyName.ToLowerInvariant()}LatValue.N != null && {propertyName.ToLowerInvariant()}LonValue.N != null)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                // Reconstruct from exact coordinates");
+            sb.AppendLine("                try");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    var latitude = double.Parse({propertyName.ToLowerInvariant()}LatValue.N, System.Globalization.CultureInfo.InvariantCulture);");
+            sb.AppendLine($"                    var longitude = double.Parse({propertyName.ToLowerInvariant()}LonValue.N, System.Globalization.CultureInfo.InvariantCulture);");
+            sb.AppendLine($"                    // Also read the spatial index if available to preserve it");
+            sb.AppendLine($"                    string? spatialIndexValue = null;");
+            sb.AppendLine($"                    if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}IndexValue) && {propertyName.ToLowerInvariant()}IndexValue.S != null)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        spatialIndexValue = {propertyName.ToLowerInvariant()}IndexValue.S;");
+            sb.AppendLine("                    }");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation(latitude, longitude, spatialIndexValue);");
+            sb.AppendLine("                }");
+            sb.AppendLine("                catch (Exception ex)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    throw new DynamoDbMappingException(");
+            sb.AppendLine($"                        $\"Failed to deserialize GeoLocation property '{propertyName}' from coordinate attributes ('{property.LatitudeAttributeName}', '{property.LongitudeAttributeName}'). \" +");
+            sb.AppendLine($"                        $\"Latitude: '{{{propertyName.ToLowerInvariant()}LatValue.N}}', Longitude: '{{{propertyName.ToLowerInvariant()}LonValue.N}}'. \" +");
+            sb.AppendLine($"                        $\"Error: {{ex.Message}}\",");
+            sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+            sb.AppendLine($"            else if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value) && {propertyName.ToLowerInvariant()}Value.S != null)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                // Fallback to spatial index decoding (for backward compatibility or when coordinates are missing)");
+            sb.AppendLine("                try");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    var spatialIndexString = {propertyName.ToLowerInvariant()}Value.S;");
+            sb.AppendLine($"                    var {decodedVarName} = {decodingCall}(spatialIndexString);");
+            sb.AppendLine($"                    // Preserve the spatial index by passing it to the constructor");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation({decodedVarName}.Latitude, {decodedVarName}.Longitude, spatialIndexString);");
+            sb.AppendLine("                }");
+            sb.AppendLine("                catch (Exception ex)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    throw new DynamoDbMappingException(");
+            sb.AppendLine($"                        $\"Failed to deserialize GeoLocation property '{propertyName}' (DynamoDB attribute: '{attributeName}') from {indexTypeName} string '{{{propertyName.ToLowerInvariant()}Value.S}}'. \" +");
+            sb.AppendLine($"                        $\"Error: {{ex.Message}}. \" +");
+            sb.AppendLine($"                        $\"Ensure the stored value is a valid {indexTypeName} string.\",");
+            sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+        }
+        else
+        {
+            sb.AppendLine($"            // Deserialize GeoLocation property {propertyName} from {indexTypeName}");
+            sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                if ({propertyName.ToLowerInvariant()}Value.S != null)");
+            sb.AppendLine("                {");
+            sb.AppendLine("                    try");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        var spatialIndexString = {propertyName.ToLowerInvariant()}Value.S;");
+            sb.AppendLine($"                        var {decodedVarName} = {decodingCall}(spatialIndexString);");
+            sb.AppendLine($"                        // Preserve the spatial index by passing it to the constructor");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = new Oproto.FluentDynamoDb.Geospatial.GeoLocation({decodedVarName}.Latitude, {decodedVarName}.Longitude, spatialIndexString);");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    catch (Exception ex)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to deserialize GeoLocation property '{propertyName}' (DynamoDB attribute: '{attributeName}') from {indexTypeName} string '{{{propertyName.ToLowerInvariant()}Value.S}}'. \" +");
+            sb.AppendLine($"                            $\"Error: {{ex.Message}}. \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value is a valid {indexTypeName} string.\",");
+            sb.AppendLine("                            ex);");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+        }
     }
 
     /// <summary>

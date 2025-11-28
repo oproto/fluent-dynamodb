@@ -16,6 +16,8 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
+        <PackageReference Include="FsCheck" Version="2.16.6" />
+        <PackageReference Include="FsCheck.Xunit" Version="2.16.6" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
         <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
           <PrivateAssets>all</PrivateAssets>

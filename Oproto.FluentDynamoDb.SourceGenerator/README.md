@@ -342,6 +342,14 @@ The `GetEntityMetadata()` method provides the foundation for this by capturing:
 - Queryable operations per property
 - Relationship metadata
 
+## Known Limitations
+
+The source generator has some known limitations. See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) for details, including:
+
+- **Computed Properties**: Read-only properties cannot be assigned during deserialization
+- **Multi-Item Entities with Blob References**: Not fully supported
+- **Circular Dependencies in Computed Keys**: Detected but not resolved
+
 ## Contributing
 
 When modifying the source generator:
@@ -352,6 +360,7 @@ When modifying the source generator:
 4. **Add Tests**: Cover new functionality with unit and integration tests
 5. **Consider AOT**: Ensure generated code remains AOT-compatible
 6. **Nested Structure**: Generate support classes as nested classes within entities
+7. **Update Limitations**: Document any new limitations in KNOWN_LIMITATIONS.md
 
 ## References
 

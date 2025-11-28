@@ -2,75 +2,88 @@
 
 ## Introduction
 
-This specification addresses the remaining 170 build errors in the integration test project after completing the initial integration-test-build-fixes tasks. The errors fall into several categories: missing generated table accessors, missing entity types, missing API methods, and test infrastructure issues.
+This document specifies requirements for fixing the 68 failing integration tests in the Oproto.FluentDynamoDb.Geospatial library. The failures are related to S2 and H3 spatial query functionality, primarily caused by test entities using DynamoDB reserved keywords as attribute names (e.g., "location", "status") in format string expressions that don't automatically escape them.
 
 ## Glossary
 
-- **Integration Test Project**: The Oproto.FluentDynamoDb.IntegrationTests project containing tests that verify library functionality against DynamoDB Local
-- **Source Generator**: The Roslyn source generator that creates table classes, entity accessors, and mapping code
-- **Table Accessor**: Generated properties on table classes that provide typed access to entities (e.g., `table.Orders`, `table.Users`)
-- **Test Entity**: Entity classes used in integration tests, decorated with DynamoDB attributes
-- **Request Builder**: Fluent API classes for building DynamoDB operation requests
-- **Operation Context**: The DynamoDbOperationContext that tracks metadata about DynamoDB operations
+- **Reserved Keyword**: A word that DynamoDB reserves for internal use (e.g., "location", "status", "name") that cannot be used directly in expressions without escaping via expression attribute names
+- **Expression Attribute Name**: A placeholder (e.g., "#location") used in DynamoDB expressions to reference attributes with reserved keyword names
+- **Cell Covering**: The set of spatial index cells (S2 or H3) that cover a geographic area for querying
+- **Date Line**: The International Date Line at longitude ±180° where longitude values wrap from positive to negative
+- **Polar Region**: Geographic areas near the North Pole (latitude ~90°) or South Pole (latitude ~-90°) where longitude convergence occurs
+- **Longitude Convergence**: The phenomenon where meridians converge at the poles, making longitude less meaningful at extreme latitudes
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As a developer, I want all integration tests to compile successfully, so that I can run the test suite to verify library functionality
+**User Story:** As a developer, I want test entities to use non-reserved attribute names, so that format string and plain text expressions work without manual escaping.
 
 #### Acceptance Criteria
 
-1. WHEN THE Integration Test Project is built, THE Build System SHALL complete without compilation errors
-2. WHEN missing table accessors are identified, THE Source Generator SHALL generate the required accessor properties for all test entities
-3. WHEN missing entity types are referenced in tests, THE Test Project SHALL define all required entity classes with appropriate attributes
-4. WHEN missing API methods are called in tests, THE Request Builder Classes SHALL provide all required fluent API methods
-5. WHERE test infrastructure issues exist, THE Test Infrastructure SHALL be updated to support all test scenarios
+1. WHEN a test entity defines a GeoLocation property THEN the system SHALL use a non-reserved attribute name (e.g., "loc" instead of "location")
+2. WHEN a test entity defines a status property THEN the system SHALL use a non-reserved attribute name (e.g., "store_status" instead of "status")
+3. WHEN test entities are updated THEN the integration tests SHALL pass without requiring expression attribute name escaping
+4. WHEN lambda expressions are used THEN the ExpressionTranslator SHALL continue to automatically generate expression attribute name placeholders (existing behavior)
+5. WHEN format string or plain text expressions are used THEN the developer SHALL be responsible for using non-reserved attribute names or manual escaping
 
 ### Requirement 2
 
-**User Story:** As a developer, I want the source generator to create all necessary table accessors, so that tests can access entities through strongly-typed properties
+**User Story:** As a developer, I want spatial queries near the International Date Line to return correct results, so that my location-based features work correctly for users in the Pacific region.
 
 #### Acceptance Criteria
 
-1. WHEN a table class is defined with multiple entity types, THE Source Generator SHALL generate accessor properties for each entity type
-2. WHEN an entity is marked with `[DynamoDbEntity]`, THE Source Generator SHALL create a corresponding table accessor property
-3. WHEN table accessors are generated, THE Generated Code SHALL follow naming conventions (e.g., entity `OrderEntity` creates accessor `Orders`)
-4. WHERE entity types share a table, THE Source Generator SHALL generate accessors for all entity types in that table
-5. WHEN accessor generation fails, THE Source Generator SHALL emit diagnostic messages indicating the issue
+1. WHEN a proximity query is centered near the date line (longitude ~±179°) THEN the system SHALL compute cell coverings on both sides of the date line
+2. WHEN a bounding box crosses the date line THEN the system SHALL split the query into two regions and merge results
+3. WHEN computing cell coverings near the date line THEN the system SHALL deduplicate cells that may appear in both regions
+4. WHEN stores exist on both sides of the date line within the search radius THEN the system SHALL return all matching stores
+5. WHEN the search area crosses the date line THEN the system SHALL NOT return duplicate results
 
 ### Requirement 3
 
-**User Story:** As a developer, I want all test entity types to be properly defined, so that tests can instantiate and manipulate test data
+**User Story:** As a developer, I want spatial queries near the poles to return correct results, so that my location-based features work correctly for users in Arctic and Antarctic regions.
 
 #### Acceptance Criteria
 
-1. WHEN a test references an undefined entity type, THE Test Project SHALL define the entity class with required properties
-2. WHEN entity types are defined, THE Entity Classes SHALL include all properties referenced in tests
-3. WHEN entities are used in multi-entity tables, THE Entity Classes SHALL include appropriate discriminator attributes
-4. WHERE entities have relationships, THE Entity Classes SHALL define relationship properties with correct attributes
-5. WHEN entity definitions are incomplete, THE Build System SHALL report clear error messages
+1. WHEN a proximity query is centered near a pole (latitude ~±89°) THEN the system SHALL handle longitude convergence correctly
+2. WHEN computing bounding boxes near poles THEN the system SHALL clamp latitude to valid ranges (±90°)
+3. WHEN computing bounding boxes near poles THEN the system SHALL expand longitude to full range (-180 to 180) when appropriate
+4. WHEN stores exist at various longitudes near a pole THEN the system SHALL return all stores within the search radius
+5. WHEN computing cell coverings near poles THEN the system SHALL NOT produce invalid longitude values (must be between -180 and 180)
 
 ### Requirement 4
 
-**User Story:** As a developer, I want request builders to provide all necessary API methods, so that tests can configure DynamoDB operations correctly
+**User Story:** As a developer, I want spatial query pagination to work correctly, so that I can efficiently retrieve large result sets without missing data.
 
 #### Acceptance Criteria
 
-1. WHEN tests call `ReturnValues()` on request builders, THE Request Builder Classes SHALL provide this method
-2. WHEN tests call `ToDynamoDbResponseAsync()` on transaction builders, THE Transaction Builder Classes SHALL provide this method
-3. WHEN API methods are added, THE Method Signatures SHALL match the usage patterns in tests
-4. WHERE methods return builders for chaining, THE Return Types SHALL support fluent API patterns
-5. WHEN API methods are missing, THE Compiler SHALL report clear error messages with method names
+1. WHEN a paginated spatial query has more results than the page size THEN the system SHALL return a valid continuation token
+2. WHEN resuming from a continuation token THEN the system SHALL retrieve the next page of results without duplicates
+3. WHEN iterating through all pages THEN the system SHALL return all matching results exactly once
+4. WHEN the final page is reached THEN the system SHALL return a null continuation token
+5. WHEN multiple cells contain results THEN the system SHALL correctly track pagination state across cells
 
 ### Requirement 5
 
-**User Story:** As a developer, I want test infrastructure to support all test scenarios, so that integration tests can verify complex library features
+**User Story:** As a developer, I want spatial queries with additional filter conditions to work correctly, so that I can combine spatial and non-spatial filtering.
 
 #### Acceptance Criteria
 
-1. WHEN tests use operation context features, THE Test Infrastructure SHALL provide necessary context setup methods
-2. WHEN tests verify generated code, THE Test Infrastructure SHALL provide access to generated table classes
-3. WHEN tests need mock dependencies, THE Test Infrastructure SHALL provide appropriate mock implementations
-4. WHERE tests require specific DynamoDB configurations, THE Test Infrastructure SHALL support configuration options
-5. WHEN infrastructure is insufficient, THE Test Failures SHALL clearly indicate missing infrastructure components
+1. WHEN a spatial query includes a filter expression (e.g., status filter) THEN the system SHALL apply both spatial and filter conditions
+2. WHEN a spatial query includes a sort key condition THEN the system SHALL apply both spatial and sort key conditions
+3. WHEN combining multiple filter conditions THEN the system SHALL return only results matching all conditions
+
+### Requirement 6
+
+**User Story:** As a developer, I want unit tests to use appropriate radius/level combinations, so that tests pass with the new cell count validation.
+
+#### Acceptance Criteria
+
+1. WHEN a unit test uses S2 level 16 (~71m cells) THEN the test SHALL use a radius of 0.5km or less to stay within the 500 cell limit
+2. WHEN a unit test uses S2 level 10 (~4.5km cells) THEN the test SHALL use a radius of 20km or less to stay within the 500 cell limit
+3. WHEN a unit test uses S2 level 8 (~18km cells) THEN the test SHALL use a radius of 100km or less to stay within the 500 cell limit
+4. WHEN a unit test uses H3 resolution 9 (~175m cells) THEN the test SHALL use a radius of 1km or less to stay within the 500 cell limit
+5. WHEN a unit test uses H3 resolution 7 (~1.2km cells) THEN the test SHALL use a radius of 5km or less to stay within the 500 cell limit
+6. WHEN a unit test uses H3 resolution 5 (~8.5km cells) THEN the test SHALL use a radius of 50km or less to stay within the 500 cell limit
+7. WHEN a unit test expects many cells THEN the test SHALL use lower precision levels (larger cells) appropriate for the search radius
+

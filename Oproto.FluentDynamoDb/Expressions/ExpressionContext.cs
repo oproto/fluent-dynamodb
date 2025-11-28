@@ -77,6 +77,12 @@ public class ExpressionContext
     public ExpressionValidationMode ValidationMode { get; }
     
     /// <summary>
+    /// The name of the Global Secondary Index being queried, if any.
+    /// When set, key validation uses the GSI's key schema instead of the main table's keys.
+    /// </summary>
+    public string? IndexName { get; }
+    
+    /// <summary>
     /// Parameter generator for unique parameter names.
     /// Shared with AttributeValues to ensure uniqueness across all parameter generation methods.
     /// </summary>
@@ -110,15 +116,18 @@ public class ExpressionContext
     /// <param name="attributeNames">The attribute name helper for reserved word handling.</param>
     /// <param name="entityMetadata">Entity metadata for property validation.</param>
     /// <param name="validationMode">Validation mode for the expression context.</param>
+    /// <param name="indexName">Optional GSI name for GSI key validation.</param>
     public ExpressionContext(
         AttributeValueInternal attributeValues,
         AttributeNameInternal attributeNames,
         EntityMetadata? entityMetadata,
-        ExpressionValidationMode validationMode)
+        ExpressionValidationMode validationMode,
+        string? indexName = null)
     {
         AttributeValues = attributeValues ?? throw new ArgumentNullException(nameof(attributeValues));
         AttributeNames = attributeNames ?? throw new ArgumentNullException(nameof(attributeNames));
         EntityMetadata = entityMetadata;
         ValidationMode = validationMode;
+        IndexName = indexName;
     }
 }

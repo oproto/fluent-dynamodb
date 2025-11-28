@@ -31,16 +31,19 @@ public class GeoBoundingBoxTests
     }
 
     [Fact]
-    public void Constructor_WithWestEastOfEast_ThrowsArgumentException()
+    public void Constructor_WithDatelineCrossing_AllowsConstruction()
     {
-        // Arrange
-        var southwest = new GeoLocation(37.7, -122.4); // Longitude too high
-        var northeast = new GeoLocation(37.8, -122.5);
+        // Arrange - Box from 170°E to -170°E (crosses dateline)
+        var southwest = new GeoLocation(10, 170);
+        var northeast = new GeoLocation(20, -170);
 
-        // Act & Assert
-        var exception = Assert.Throws<ArgumentException>(() => new GeoBoundingBox(southwest, northeast));
-        exception.ParamName.Should().Be("southwest");
-        exception.Message.Should().Contain("Southwest corner longitude must be less than or equal to northeast corner longitude");
+        // Act - Should not throw
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Assert
+        bbox.Southwest.Should().Be(southwest);
+        bbox.Northeast.Should().Be(northeast);
+        bbox.CrossesDateLine().Should().BeTrue();
     }
 
     [Fact]
@@ -288,4 +291,163 @@ public class GeoBoundingBoxTests
         // Assert
         result.Should().Be("SW: 37.7,-122.5, NE: 37.9,-122.3");
     }
+
+    #region Dateline Crossing Tests
+
+    [Fact]
+    public void CrossesDateLine_WithNormalBox_ReturnsFalse()
+    {
+        // Arrange - Normal box that doesn't cross dateline
+        var southwest = new GeoLocation(10, -122.5);
+        var northeast = new GeoLocation(20, -122.3);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act
+        var crosses = bbox.CrossesDateLine();
+
+        // Assert
+        crosses.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CrossesDateLine_WithDatelineCrossingBox_ReturnsTrue()
+    {
+        // Arrange - Box from 170°E to -170°E (crosses dateline)
+        var southwest = new GeoLocation(10, 170);
+        var northeast = new GeoLocation(20, -170);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act
+        var crosses = bbox.CrossesDateLine();
+
+        // Assert
+        crosses.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(170, -170)]  // 170°E to -170°E
+    [InlineData(179, -179)]  // 179°E to -179°E
+    [InlineData(175, -175)]  // 175°E to -175°E
+    [InlineData(160, -160)]  // 160°E to -160°E
+    public void CrossesDateLine_WithVariousDatelineCrossings_ReturnsTrue(double swLon, double neLon)
+    {
+        // Arrange
+        var southwest = new GeoLocation(10, swLon);
+        var northeast = new GeoLocation(20, neLon);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act
+        var crosses = bbox.CrossesDateLine();
+
+        // Assert
+        crosses.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SplitAtDateLine_WithDatelineCrossingBox_ProducesCorrectWesternBox()
+    {
+        // Arrange - Box from (10°, 170°) to (20°, -170°)
+        var southwest = new GeoLocation(10, 170);
+        var northeast = new GeoLocation(20, -170);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act
+        var (western, eastern) = bbox.SplitAtDateLine();
+
+        // Assert - Western box should go from 170° to 180°
+        western.Southwest.Latitude.Should().Be(10);
+        western.Southwest.Longitude.Should().Be(170);
+        western.Northeast.Latitude.Should().Be(20);
+        western.Northeast.Longitude.Should().Be(180);
+    }
+
+    [Fact]
+    public void SplitAtDateLine_WithDatelineCrossingBox_ProducesCorrectEasternBox()
+    {
+        // Arrange - Box from (10°, 170°) to (20°, -170°)
+        var southwest = new GeoLocation(10, 170);
+        var northeast = new GeoLocation(20, -170);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act
+        var (western, eastern) = bbox.SplitAtDateLine();
+
+        // Assert - Eastern box should go from -180° to -170°
+        eastern.Southwest.Latitude.Should().Be(10);
+        eastern.Southwest.Longitude.Should().Be(-180);
+        eastern.Northeast.Latitude.Should().Be(20);
+        eastern.Northeast.Longitude.Should().Be(-170);
+    }
+
+    [Fact]
+    public void SplitAtDateLine_WithDatelineCrossingBox_SplitBoxesCoverSameArea()
+    {
+        // Arrange - Box from (10°, 170°) to (20°, -170°)
+        var southwest = new GeoLocation(10, 170);
+        var northeast = new GeoLocation(20, -170);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act
+        var (western, eastern) = bbox.SplitAtDateLine();
+
+        // Assert - Points in the original area should be in one of the split boxes
+        var pointInWestern = new GeoLocation(15, 175);  // Between 170° and 180°
+        var pointInEastern = new GeoLocation(15, -175); // Between -180° and -170°
+
+        western.Contains(pointInWestern).Should().BeTrue();
+        eastern.Contains(pointInEastern).Should().BeTrue();
+
+        // Points outside the original area should not be in either box
+        var pointOutside = new GeoLocation(15, 0);
+        western.Contains(pointOutside).Should().BeFalse();
+        eastern.Contains(pointOutside).Should().BeFalse();
+    }
+
+    [Fact]
+    public void SplitAtDateLine_WithNonCrossingBox_ThrowsInvalidOperationException()
+    {
+        // Arrange - Normal box that doesn't cross dateline
+        var southwest = new GeoLocation(10, -122.5);
+        var northeast = new GeoLocation(20, -122.3);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidOperationException>(() => bbox.SplitAtDateLine());
+        exception.Message.Should().Contain("does not cross the date line");
+        exception.Message.Should().Contain("Check CrossesDateLine()");
+    }
+
+    [Theory]
+    [InlineData(170, -170, 10, 20)]  // Standard dateline crossing
+    [InlineData(179.5, -179.5, 0, 10)]  // Very close to dateline
+    [InlineData(160, -150, -10, 10)]  // Wider crossing
+    public void SplitAtDateLine_WithVariousCrossings_ProducesValidBoxes(
+        double swLon, double neLon, double swLat, double neLat)
+    {
+        // Arrange
+        var southwest = new GeoLocation(swLat, swLon);
+        var northeast = new GeoLocation(neLat, neLon);
+        var bbox = new GeoBoundingBox(southwest, northeast);
+
+        // Act
+        var (western, eastern) = bbox.SplitAtDateLine();
+
+        // Assert - Both boxes should be valid (not cross dateline themselves)
+        western.CrossesDateLine().Should().BeFalse();
+        eastern.CrossesDateLine().Should().BeFalse();
+
+        // Western box should end at 180°
+        western.Northeast.Longitude.Should().Be(180);
+
+        // Eastern box should start at -180°
+        eastern.Southwest.Longitude.Should().Be(-180);
+
+        // Both boxes should preserve the latitude range
+        western.Southwest.Latitude.Should().Be(swLat);
+        western.Northeast.Latitude.Should().Be(neLat);
+        eastern.Southwest.Latitude.Should().Be(swLat);
+        eastern.Northeast.Latitude.Should().Be(neLat);
+    }
+
+    #endregion
 }

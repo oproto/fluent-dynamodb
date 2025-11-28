@@ -409,7 +409,7 @@ internal class EntityAnalyzer
             }
         }
 
-        // Extract Format, DateTimeKind, and GeoHashPrecision properties from DynamoDbAttribute if present
+        // Extract Format, DateTimeKind, GeoHashPrecision, and spatial index properties from DynamoDbAttribute if present
         if (dynamoDbAttribute?.ArgumentList != null)
         {
             foreach (var arg in dynamoDbAttribute.ArgumentList.Arguments)
@@ -437,6 +437,29 @@ internal class EntityAnalyzer
                         propertyModel.GeoHashPrecision = precision;
                     }
                 }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "SpatialIndexType" &&
+                         arg.Expression is MemberAccessExpressionSyntax spatialIndexTypeExpr)
+                {
+                    // Extract the enum value (e.g., SpatialIndexType.S2 -> "S2")
+                    var indexTypeName = spatialIndexTypeExpr.Name.Identifier.ValueText;
+                    propertyModel.SpatialIndexType = indexTypeName;
+                }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "S2Level" &&
+                         arg.Expression is LiteralExpressionSyntax s2LevelLiteral)
+                {
+                    if (int.TryParse(s2LevelLiteral.Token.ValueText, out var level))
+                    {
+                        propertyModel.S2Level = level;
+                    }
+                }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "H3Resolution" &&
+                         arg.Expression is LiteralExpressionSyntax h3ResolutionLiteral)
+                {
+                    if (int.TryParse(h3ResolutionLiteral.Token.ValueText, out var resolution))
+                    {
+                        propertyModel.H3Resolution = resolution;
+                    }
+                }
             }
         }
 
@@ -454,6 +477,9 @@ internal class EntityAnalyzer
 
         // Extract extracted key attributes
         ExtractExtractedKeyAttributes(propertyDecl, semanticModel, propertyModel);
+
+        // Extract coordinate storage attributes
+        ExtractCoordinateStorageAttributes(propertyDecl, semanticModel, propertyModel);
 
         // Analyze advanced type information
         var advancedTypeAnalyzer = new AdvancedTypeAnalyzer();
@@ -674,6 +700,122 @@ internal class EntityAnalyzer
         propertyModel.ExtractedKey = extractedModel;
     }
 
+    private void ExtractCoordinateStorageAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    {
+        // Only process GeoLocation properties
+        if (!propertyModel.PropertyType.Contains("GeoLocation"))
+            return;
+
+        // Check for StoreCoordinatesAttribute
+        var storeCoordinatesAttr = GetAttribute(propertyDecl, semanticModel, "StoreCoordinatesAttribute");
+        if (storeCoordinatesAttr != null)
+        {
+            // Extract named arguments
+            if (storeCoordinatesAttr.ArgumentList != null)
+            {
+                foreach (var arg in storeCoordinatesAttr.ArgumentList.Arguments)
+                {
+                    switch (arg.NameEquals?.Name.Identifier.ValueText)
+                    {
+                        case "LatitudeAttributeName" when arg.Expression is LiteralExpressionSyntax latLiteral:
+                            propertyModel.LatitudeAttributeName = latLiteral.Token.ValueText;
+                            break;
+                        case "LongitudeAttributeName" when arg.Expression is LiteralExpressionSyntax lonLiteral:
+                            propertyModel.LongitudeAttributeName = lonLiteral.Token.ValueText;
+                            break;
+                    }
+                }
+            }
+        }
+
+        // If StoreCoordinatesAttribute is not present, check for computed properties
+        // that reference this GeoLocation property (Option 2 from design)
+        if (!propertyModel.HasCoordinateStorage)
+        {
+            DetectComputedCoordinateProperties(propertyDecl, semanticModel, propertyModel);
+        }
+    }
+
+    private void DetectComputedCoordinateProperties(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    {
+        // Get the containing class
+        var classDecl = propertyDecl.Parent as ClassDeclarationSyntax;
+        if (classDecl == null)
+            return;
+
+        // Look for properties that are computed from this GeoLocation property
+        // Pattern: public double Latitude => Location.Latitude;
+        // Pattern: public double Longitude => Location.Longitude;
+        
+        string? latitudeAttributeName = null;
+        string? longitudeAttributeName = null;
+
+        foreach (var member in classDecl.Members.OfType<PropertyDeclarationSyntax>())
+        {
+            // Skip the current property
+            if (member == propertyDecl)
+                continue;
+
+            // Check if this is a computed property (has only a getter with expression body)
+            if (member.ExpressionBody == null && member.AccessorList?.Accessors.Count != 1)
+                continue;
+
+            var propertySymbol = semanticModel.GetDeclaredSymbol(member) as IPropertySymbol;
+            if (propertySymbol == null)
+                continue;
+
+            // Check if property type is double or double?
+            var isDouble = propertySymbol.Type.SpecialType == SpecialType.System_Double ||
+                          (propertySymbol.Type is INamedTypeSymbol namedType &&
+                           namedType.IsGenericType &&
+                           namedType.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T &&
+                           namedType.TypeArguments[0].SpecialType == SpecialType.System_Double);
+
+            if (!isDouble)
+                continue;
+
+            // Check if the expression references our GeoLocation property
+            var expression = member.ExpressionBody?.Expression ??
+                           (member.AccessorList?.Accessors.FirstOrDefault()?.ExpressionBody?.Expression);
+
+            if (expression == null)
+                continue;
+
+            var expressionText = expression.ToString();
+
+            // Check if it references our property's Latitude or Longitude
+            if (expressionText.Contains($"{propertyModel.PropertyName}.Latitude"))
+            {
+                // This is a latitude property - get its DynamoDbAttribute name
+                var dynamoDbAttr = GetAttribute(member, semanticModel, "DynamoDbAttributeAttribute") ??
+                                 GetAttribute(member, semanticModel, "DynamoDbAttribute");
+                
+                if (dynamoDbAttr?.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax latAttrName)
+                {
+                    latitudeAttributeName = latAttrName.Token.ValueText;
+                }
+            }
+            else if (expressionText.Contains($"{propertyModel.PropertyName}.Longitude"))
+            {
+                // This is a longitude property - get its DynamoDbAttribute name
+                var dynamoDbAttr = GetAttribute(member, semanticModel, "DynamoDbAttributeAttribute") ??
+                                 GetAttribute(member, semanticModel, "DynamoDbAttribute");
+                
+                if (dynamoDbAttr?.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax lonAttrName)
+                {
+                    longitudeAttributeName = lonAttrName.Token.ValueText;
+                }
+            }
+        }
+
+        // If we found both latitude and longitude computed properties, set them
+        if (!string.IsNullOrEmpty(latitudeAttributeName) && !string.IsNullOrEmpty(longitudeAttributeName))
+        {
+            propertyModel.LatitudeAttributeName = latitudeAttributeName;
+            propertyModel.LongitudeAttributeName = longitudeAttributeName;
+        }
+    }
+
     private void ExtractIndexes(EntityModel entityModel)
     {
         var indexes = new Dictionary<string, IndexModel>();
@@ -856,6 +998,9 @@ internal class EntityAnalyzer
         {
             ValidateAttributeName(propertyModel);
         }
+
+        // Validate spatial index configuration
+        ValidateSpatialIndexConfiguration(propertyModel, semanticModel);
 
         // Validate key format if present
         if (propertyModel.KeyFormat != null)
@@ -1833,6 +1978,69 @@ internal class EntityAnalyzer
                     property.PropertyName,
                     entityModel.ClassName);
             }
+        }
+    }
+
+    private void ValidateSpatialIndexConfiguration(PropertyModel propertyModel, SemanticModel semanticModel)
+    {
+        // Check if any spatial index configuration is present
+        var hasSpatialConfig = propertyModel.SpatialIndexType != null ||
+                               propertyModel.S2Level.HasValue ||
+                               propertyModel.H3Resolution.HasValue ||
+                               propertyModel.GeoHashPrecision.HasValue;
+
+        if (!hasSpatialConfig)
+            return;
+
+        // Check if property is GeoLocation type
+        var isGeoLocation = propertyModel.PropertyType.Contains("GeoLocation");
+
+        if (!isGeoLocation)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.SpatialIndexOnNonGeoLocation,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName);
+            return;
+        }
+
+        // Check if geospatial package is referenced
+        var compilation = semanticModel.Compilation;
+        var hasGeospatialPackage = compilation.ReferencedAssemblyNames
+            .Any(a => a.Name.Equals("Oproto.FluentDynamoDb.Geospatial", StringComparison.OrdinalIgnoreCase));
+
+        if (!hasGeospatialPackage)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.MissingGeospatialPackage,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName);
+            return;
+        }
+
+        // Determine the spatial index type (default to GeoHash if not specified)
+        var spatialIndexType = propertyModel.SpatialIndexType ?? "GeoHash";
+
+        // Validate S2Level is only used with S2 index type
+        if (propertyModel.S2Level.HasValue && spatialIndexType != "S2")
+        {
+            ReportDiagnostic(DiagnosticDescriptors.S2LevelWithoutS2IndexType,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
+        // Validate H3Resolution is only used with H3 index type
+        if (propertyModel.H3Resolution.HasValue && spatialIndexType != "H3")
+        {
+            ReportDiagnostic(DiagnosticDescriptors.H3ResolutionWithoutH3IndexType,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
+        // Validate GeoHashPrecision is only used with GeoHash index type
+        if (propertyModel.GeoHashPrecision.HasValue && spatialIndexType != "GeoHash")
+        {
+            ReportDiagnostic(DiagnosticDescriptors.GeoHashPrecisionWithoutGeoHashIndexType,
+                propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
+                propertyModel.PropertyName);
         }
     }
 
