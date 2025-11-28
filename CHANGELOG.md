@@ -12,6 +12,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Actions** - Fixed parallel build issues causing file locking conflicts with source generator by adding `/maxcpucount:1` flag to build commands
 
 ### Added
+- **S2 and H3 Geospatial Indexing** - Advanced spatial indexing support using Google S2 and Uber H3 hierarchical cell systems
+  - S2 cell encoding/decoding with configurable precision levels (0-30)
+  - H3 hexagonal cell encoding/decoding with configurable resolutions (0-15)
+  - Cell covering algorithms for radius and bounding box queries
+  - Spiral-ordered results (closest cells first) for optimal pagination
+  - Neighbor cell calculation for comprehensive spatial coverage
+  - Parent/child cell navigation for hierarchical queries
+  - International Date Line crossing support with automatic bounding box splitting
+  - Polar region handling with latitude clamping
+  - Cell count estimation for query cost prediction
+  - Hard limits on cell counts to prevent expensive queries (default: 100, max: 500)
+  - `S2Cell` and `H3Cell` value types with bounds, neighbors, parent, and children
+  - `S2CellCovering` and `H3CellCovering` for computing cell coverings
+  - `S2Encoder` and `H3Encoder` for coordinate-to-cell conversion
+  - Extension methods: `ToS2Cell()`, `ToS2Token()`, `ToH3Cell()`, `ToH3Index()`
+  - GSI-based spatial query support for efficient DynamoDB queries
+  - Fluent query extensions: `WithinRadiusS2()`, `WithinRadiusH3()`, `WithinBoundingBoxS2()`, `WithinBoundingBoxH3()`
+  - Continuation token support for paginated spatial queries
+  - Full AOT compatibility for Native AOT deployments
+  - Comprehensive property-based tests using FsCheck
+  
+  **S2 vs H3 Comparison:**
+  - S2: Square cells, 31 precision levels, better for rectangular regions
+  - H3: Hexagonal cells, 16 resolutions, better for circular proximity queries
+  - Both support hierarchical indexing for multi-resolution queries
+  
+  **Usage Examples:**
+  ```csharp
+  // S2 cell encoding
+  var location = new GeoLocation(37.7749, -122.4194);
+  var s2Cell = location.ToS2Cell(level: 12);
+  var s2Token = location.ToS2Token(level: 12);
+  
+  // H3 cell encoding
+  var h3Cell = location.ToH3Cell(resolution: 9);
+  var h3Index = location.ToH3Index(resolution: 9);
+  
+  // S2 radius query
+  var cells = S2CellCovering.GetCellsForRadius(center, radiusKm: 5.0, level: 12);
+  
+  // H3 bounding box query
+  var bbox = GeoBoundingBox.FromCenterAndDistanceKilometers(center, 10.0);
+  var cells = H3CellCovering.GetCellsForBoundingBox(bbox, resolution: 8);
+  
+  // Fluent spatial queries with GSI
+  var nearbyStores = await storeTable.Query
+      .UsingIndex("geospatial-index")
+      .WithinRadiusS2(userLocation, radiusKm: 5.0, level: 12)
+      .ToListAsync();
+  ```
+  
+  **Key Features:**
+  - Hierarchical cell systems for efficient spatial indexing
+  - Spiral ordering ensures closest results come first
+  - Automatic handling of edge cases (poles, date line, cell boundaries)
+  - Query cost estimation to prevent expensive operations
+  - Works with DynamoDB GSIs for efficient spatial queries
+  
+  **Documentation:**
+  - [S2 Geometry Guide](docs/geospatial/s2-geometry-guide.md)
+  - [H3 Hexagonal Guide](docs/geospatial/h3-hexagonal-guide.md)
+  - [Spatial Query Patterns](docs/geospatial/spatial-query-patterns.md)
+  - [LIMITATIONS](Oproto.FluentDynamoDb.Geospatial/LIMITATIONS.md) - Known constraints and workarounds
+
 - **Geospatial Query Support** - New `Oproto.FluentDynamoDb.Geospatial` package for location-based queries using GeoHash
   - GeoHash encoding/decoding with configurable precision (1-12 characters)
   - Efficient proximity queries using GeoHash prefixes
