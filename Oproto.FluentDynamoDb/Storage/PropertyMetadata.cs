@@ -78,6 +78,16 @@ public class PropertyMetadata
     public bool IsEncrypted { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this property contains sensitive data that should be redacted in logs.
+    /// </summary>
+    /// <remarks>
+    /// When true, the property value is replaced with "[REDACTED]" in all log messages.
+    /// This applies to query parameters, filter expressions, and any other logging output.
+    /// Sensitive properties are marked with the [Sensitive] attribute in the entity class.
+    /// </remarks>
+    public bool IsSensitive { get; set; }
+
+    /// <summary>
     /// Gets or sets the DateTimeKind for DateTime properties to control timezone handling during serialization and deserialization.
     /// </summary>
     /// <remarks>

@@ -2878,6 +2878,12 @@ internal static class MapperGenerator
             sb.AppendLine($"                        IsEncrypted = true,");
         }
 
+        // Add IsSensitive flag if property is marked as sensitive
+        if (property.Security?.IsSensitive == true)
+        {
+            sb.AppendLine($"                        IsSensitive = true,");
+        }
+
         // Add DateTimeKind if specified
         if (property.DateTimeKind.HasValue)
         {

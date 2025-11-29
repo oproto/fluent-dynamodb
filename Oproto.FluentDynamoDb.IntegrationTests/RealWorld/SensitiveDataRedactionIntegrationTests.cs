@@ -213,7 +213,7 @@ public class SensitiveDataRedactionIntegrationTests : IntegrationTestBase
         var sensitiveEmail = "jane.smith@example.com";
         
         // Act - Scan with filter on sensitive property
-        var response = await new ScanRequestBuilder<SecureTestEntity>(_table.DynamoDbClient, _logger)
+        var response = await new ScanRequestBuilder<SecureTestEntity>(_table.DynamoDbClient, new FluentDynamoDbOptions().WithLogger(_logger))
             .ForTable(_table.Name)
             .WithFilter(x => x.Email == sensitiveEmail)
             .ToDynamoDbResponseAsync();
@@ -238,7 +238,7 @@ public class SensitiveDataRedactionIntegrationTests : IntegrationTestBase
         var publicData = "Another public record";
         
         // Act - Scan with filter on non-sensitive property
-        var response = await new ScanRequestBuilder<SecureTestEntity>(_table.DynamoDbClient, _logger)
+        var response = await new ScanRequestBuilder<SecureTestEntity>(_table.DynamoDbClient, new FluentDynamoDbOptions().WithLogger(_logger))
             .ForTable(_table.Name)
             .WithFilter(x => x.PublicData == publicData)
             .ToDynamoDbResponseAsync();
@@ -334,7 +334,7 @@ public class SensitiveDataRedactionIntegrationTests : IntegrationTestBase
         var sensitiveEmail = "jane.smith@example.com";
         
         // Act - Scan with comparison on sensitive property
-        var response = await new ScanRequestBuilder<SecureTestEntity>(_table.DynamoDbClient, _logger)
+        var response = await new ScanRequestBuilder<SecureTestEntity>(_table.DynamoDbClient, new FluentDynamoDbOptions().WithLogger(_logger))
             .ForTable(_table.Name)
             .WithFilter(x => x.Email.StartsWith("jane"))
             .ToDynamoDbResponseAsync();
@@ -353,7 +353,7 @@ public class SensitiveDataRedactionIntegrationTests : IntegrationTestBase
     private class TestTable : DynamoDbTableBase
     {
         public TestTable(IAmazonDynamoDB client, string tableName, TestLogger? logger) 
-            : base(client, tableName, logger)
+            : base(client, tableName, new FluentDynamoDbOptions().WithLogger(logger))
         {
         }
     }
