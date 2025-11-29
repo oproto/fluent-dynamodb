@@ -25,7 +25,8 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class ConditionCheckBuilder<TEntity> :
     IWithKey<ConditionCheckBuilder<TEntity>>,
     IWithConditionExpression<ConditionCheckBuilder<TEntity>>,
-    ITransactableConditionCheckBuilder
+    ITransactableConditionCheckBuilder,
+    IHasDynamoDbClient
     where TEntity : class
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
@@ -63,7 +64,7 @@ public class ConditionCheckBuilder<TEntity> :
     /// This is used internally by transaction builders to extract the client.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
 
     /// <summary>
     /// Sets the condition expression on the builder.

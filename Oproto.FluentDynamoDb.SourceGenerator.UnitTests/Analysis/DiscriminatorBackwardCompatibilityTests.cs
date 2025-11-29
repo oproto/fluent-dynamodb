@@ -207,17 +207,17 @@ public partial class TestEntity { }";
         diagnostics.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Parses source code and extracts the DynamoDbTable attribute with semantic model.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static (AttributeSyntax Attribute, SemanticModel SemanticModel) ParseTableAttribute(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] { syntaxTree },
-            new[]
-            {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location)
-            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var semanticModel = compilation.GetSemanticModel(syntaxTree);

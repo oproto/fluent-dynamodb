@@ -424,15 +424,25 @@ public class MapperGeneratorTests
     }
 
     [Fact]
-    public void GenerateEntityImplementation_WithEntityDiscriminator_GeneratesDiscriminatorLogic()
+    public void GenerateEntityImplementation_WithDiscriminator_GeneratesDiscriminatorLogic()
     {
         // Arrange
+        // Note: Using Discriminator property (new API) instead of EntityDiscriminator (obsolete)
+        // The generator internally still uses EntityDiscriminator for backward compatibility
         var entity = new EntityModel
         {
             ClassName = "TestEntity",
             Namespace = "TestNamespace",
             TableName = "test-table",
-            EntityDiscriminator = "TEST_ENTITY",
+            Discriminator = new DiscriminatorConfig
+            {
+                PropertyName = "entity_type",
+                ExactValue = "TEST_ENTITY",
+                Strategy = DiscriminatorStrategy.ExactMatch
+            },
+#pragma warning disable CS0618 // Type or member is obsolete - Required for backward compatibility with generator
+            EntityDiscriminator = "TEST_ENTITY", // Generator still uses this internally
+#pragma warning restore CS0618
             Properties = new[]
             {
                 new PropertyModel

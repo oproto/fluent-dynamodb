@@ -467,6 +467,10 @@ namespace TestNamespace
         result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table - Should still generate code despite warning
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(
@@ -474,28 +478,7 @@ namespace TestNamespace
             new[] {
                 CSharpSyntaxTree.ParseText(source)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Attribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Runtime.Serialization.SerializationInfo).Assembly.Location),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll")),
-                // Add AWS SDK references for generated code
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                // Add main library reference for IDynamoDbEntity and other types
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                // Add System.Linq reference
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                // Add System.IO reference  
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                // Add netstandard reference for Attribute, Enum, and other base types
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                // Add System.Collections reference for Dictionary<,> and List<>
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                // Add System.Linq.Expressions reference
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

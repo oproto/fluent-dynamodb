@@ -179,12 +179,10 @@ public static class WithConditionExpressionExtensions
         this IWithConditionExpression<T> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
+        where TEntity : IEntityMetadataProvider
     {
-        // If metadata is not provided, try to get it from the entity type's generated GetEntityMetadata() method
-        if (metadata == null)
-        {
-            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
-        }
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
         
         var context = new ExpressionContext(
             builder.GetAttributeValueHelper(),
@@ -213,13 +211,10 @@ public static class WithConditionExpressionExtensions
         this QueryRequestBuilder<TEntity> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class
+        where TEntity : class, IEntityMetadataProvider
     {
-        // If metadata is not provided, try to get it from the entity type's generated GetEntityMetadata() method
-        if (metadata == null)
-        {
-            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
-        }
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
         
         // Get the index name from the builder (set via UsingIndex())
         var indexName = builder.GetIndexName();
@@ -259,13 +254,10 @@ public static class WithConditionExpressionExtensions
         this ConditionCheckBuilder<TEntity> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class
+        where TEntity : class, IEntityMetadataProvider
     {
-        // If metadata is not provided, try to get it from the entity type's generated GetEntityMetadata() method
-        if (metadata == null)
-        {
-            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
-        }
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
         
         var context = new ExpressionContext(
             builder.GetAttributeValueHelper(),

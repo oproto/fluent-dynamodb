@@ -16,7 +16,7 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests.Extensions;
 public class WithUpdateExpressionExtensionsTests
 {
     // Test entity classes
-    private class TestEntity
+    private class TestEntity : IEntityMetadataProvider
     {
         public string Id { get; set; } = string.Empty;
         public string? Name { get; set; }
@@ -29,6 +29,28 @@ public class WithUpdateExpressionExtensionsTests
         public List<string> History { get; set; } = new();
         public string? TempData { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata
+            {
+                TableName = "TestTable",
+                Properties = new[]
+                {
+                    new PropertyMetadata { PropertyName = "Id", AttributeName = "id", PropertyType = typeof(string), IsPartitionKey = true },
+                    new PropertyMetadata { PropertyName = "Name", AttributeName = "name", PropertyType = typeof(string) },
+                    new PropertyMetadata { PropertyName = "Status", AttributeName = "status", PropertyType = typeof(string) },
+                    new PropertyMetadata { PropertyName = "Count", AttributeName = "count", PropertyType = typeof(int) },
+                    new PropertyMetadata { PropertyName = "ViewCount", AttributeName = "view_count", PropertyType = typeof(long) },
+                    new PropertyMetadata { PropertyName = "Balance", AttributeName = "balance", PropertyType = typeof(decimal) },
+                    new PropertyMetadata { PropertyName = "Score", AttributeName = "score", PropertyType = typeof(double) },
+                    new PropertyMetadata { PropertyName = "Tags", AttributeName = "tags", PropertyType = typeof(HashSet<string>), IsCollection = true },
+                    new PropertyMetadata { PropertyName = "History", AttributeName = "history", PropertyType = typeof(List<string>), IsCollection = true },
+                    new PropertyMetadata { PropertyName = "TempData", AttributeName = "temp_data", PropertyType = typeof(string) },
+                    new PropertyMetadata { PropertyName = "UpdatedAt", AttributeName = "updated_at", PropertyType = typeof(DateTime) }
+                }
+            };
+        }
     }
 
     private class TestUpdateExpressions

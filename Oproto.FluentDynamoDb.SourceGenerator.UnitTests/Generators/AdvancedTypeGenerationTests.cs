@@ -1771,12 +1771,16 @@ namespace TestNamespace
 
     #region Helper Methods
 
+    /// <summary>
+    /// Creates a mock assembly for testing optional package references.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static MetadataReference CreateMockAssembly(string assemblyName)
     {
         var compilation = CSharpCompilation.Create(
             assemblyName,
             new[] { CSharpSyntaxTree.ParseText("// Mock assembly") },
-            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) },
+            TestHelpers.DynamicCompilationHelper.GetStandardReferences().Take(1),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         using var ms = new MemoryStream();
@@ -1789,26 +1793,17 @@ namespace TestNamespace
         return MetadataReference.CreateFromStream(ms);
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(
         string source,
         bool includeSystemTextJson = false,
         bool includeNewtonsoftJson = false,
         bool includeS3BlobProvider = false)
     {
-        var references = new List<MetadataReference>
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll"))
-        };
+        var references = TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences().ToList();
 
         if (includeSystemTextJson)
         {

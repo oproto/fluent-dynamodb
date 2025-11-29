@@ -546,18 +546,17 @@ namespace TestNamespace
         nameProperty!.Format.Should().BeNull("no format specified");
     }
 
+    /// <summary>
+    /// Parses source code and returns the class declaration with semantic model.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static (ClassDeclarationSyntax ClassDecl, SemanticModel SemanticModel) ParseSource(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] { syntaxTree },
-            new[]
-            {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location)
-            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var semanticModel = compilation.GetSemanticModel(syntaxTree);

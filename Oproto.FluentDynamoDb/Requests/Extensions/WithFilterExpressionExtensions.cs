@@ -202,12 +202,10 @@ public static class WithFilterExpressionExtensions
         this IWithFilterExpression<T> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
+        where TEntity : IEntityMetadataProvider
     {
-        // If metadata is not provided, try to get it from the entity type's generated GetEntityMetadata() method
-        if (metadata == null)
-        {
-            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
-        }
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
         
         var context = new ExpressionContext(
             builder.GetAttributeValueHelper(),
@@ -260,7 +258,7 @@ public static class QueryRequestBuilderFilterExtensions
         this QueryRequestBuilder<TEntity> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class
+        where TEntity : class, IEntityMetadataProvider
     {
         return WithFilterExpressionExtensions.WithFilter<QueryRequestBuilder<TEntity>, TEntity>(
             builder, expression, metadata);
@@ -295,7 +293,7 @@ public static class ScanRequestBuilderFilterExtensions
         this ScanRequestBuilder<TEntity> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class
+        where TEntity : class, IEntityMetadataProvider
     {
         return WithFilterExpressionExtensions.WithFilter<ScanRequestBuilder<TEntity>, TEntity>(
             builder, expression, metadata);

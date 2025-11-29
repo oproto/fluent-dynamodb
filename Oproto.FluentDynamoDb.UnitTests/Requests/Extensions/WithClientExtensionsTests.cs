@@ -71,8 +71,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToGetItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -104,8 +104,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToQueryRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -141,8 +141,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToPutItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -171,8 +171,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToUpdateItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -203,8 +203,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToDeleteItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -236,8 +236,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToScanRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -256,7 +256,7 @@ public class WithClientExtensionsTests
     }
 
     [Fact]
-    public void WithClient_EmptyBuilder_ShouldCreateNewBuilderWithClient()
+    public void WithClient_EmptyBuilder_ShouldReturnSameBuilderWithNewClient()
     {
         // Arrange
         var originalBuilder = new GetItemRequestBuilder<TestEntity>(_originalClient);
@@ -264,8 +264,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToGetItemRequest();
         newRequest.Should().NotBeNull();

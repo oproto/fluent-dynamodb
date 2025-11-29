@@ -4,6 +4,7 @@ using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.SourceGenerator;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Integration;
@@ -12,7 +13,16 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Integration;
 /// Integration tests for generated logging code.
 /// Tests that the source generator produces code with proper logging calls.
 /// </summary>
+/// <remarks>
+/// This test class uses reflection to dynamically load and test generated code.
+/// IL2026/IL3000 warnings are suppressed as this is test code that requires
+/// dynamic assembly loading for verification purposes.
+/// </remarks>
 [Trait("Category", "Integration")]
+[SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+    Justification = "Integration tests require dynamic assembly loading for verification")]
+[SuppressMessage("SingleFile", "IL3000:Avoid accessing Assembly file path when publishing as a single file",
+    Justification = "Test code is not published as single-file; Assembly.Location is valid in test context")]
 public class GeneratedLoggingIntegrationTests
 {
     /// <summary>
@@ -969,35 +979,13 @@ namespace TestNamespace
         };
     }
 
+    /// <summary>
+    /// Gets metadata references for compilation.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static IEnumerable<MetadataReference> GetMetadataReferences()
     {
-        // Get unique assembly locations to avoid duplicates
-        var assemblyLocations = new HashSet<string>
-        {
-            typeof(object).Assembly.Location,
-            typeof(System.Collections.Generic.List<>).Assembly.Location,
-            typeof(System.Linq.Enumerable).Assembly.Location,
-            typeof(System.IO.Stream).Assembly.Location,
-            typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location,
-            typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location,
-            typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location,
-            typeof(Oproto.FluentDynamoDb.Logging.IDynamoDbLogger).Assembly.Location,
-            typeof(Oproto.FluentDynamoDb.Logging.LogLevel).Assembly.Location,
-            typeof(Oproto.FluentDynamoDb.Logging.LogEventIds).Assembly.Location,
-        };
-
-        var references = assemblyLocations.Select(loc => MetadataReference.CreateFromFile(loc)).ToList();
-
-        var runtimePath = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        references.AddRange(new[]
-        {
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "System.Runtime.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "netstandard.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "System.Collections.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "System.Linq.Expressions.dll"))
-        });
-
-        return references;
+        return DynamicCompilationHelper.GetLoggingIntegrationReferences();
     }
 }
 

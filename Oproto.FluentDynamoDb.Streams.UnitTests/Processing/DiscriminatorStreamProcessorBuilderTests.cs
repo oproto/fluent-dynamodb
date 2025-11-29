@@ -492,7 +492,7 @@ public class DiscriminatorStreamProcessorBuilderTests
     }
 
     [Fact]
-    public async Task For_WithNullPattern_ThrowsArgumentException()
+    public void For_WithNullPattern_ThrowsArgumentException()
     {
         // Arrange
         var record = CreateStreamRecord("INSERT");
@@ -507,7 +507,7 @@ public class DiscriminatorStreamProcessorBuilderTests
     }
 
     [Fact]
-    public async Task For_WithEmptyPattern_ThrowsArgumentException()
+    public void For_WithEmptyPattern_ThrowsArgumentException()
     {
         // Arrange
         var record = CreateStreamRecord("INSERT");
@@ -522,7 +522,7 @@ public class DiscriminatorStreamProcessorBuilderTests
     }
 
     [Fact]
-    public async Task OnUnknownType_WithNullHandler_ThrowsArgumentNullException()
+    public void OnUnknownType_WithNullHandler_ThrowsArgumentNullException()
     {
         // Arrange
         var record = CreateStreamRecord("INSERT");
@@ -589,7 +589,7 @@ public class DiscriminatorStreamProcessorBuilderTests
     // Registry lookup tests
 
     [Fact]
-    public async Task For_WithoutRegistry_ThrowsInvalidOperationException()
+    public void For_WithoutRegistry_ThrowsInvalidOperationException()
     {
         // Arrange
         var record = CreateStreamRecord(

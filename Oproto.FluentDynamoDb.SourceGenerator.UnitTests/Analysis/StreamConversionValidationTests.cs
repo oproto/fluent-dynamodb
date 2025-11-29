@@ -188,6 +188,7 @@ namespace TestNamespace
 
     /// <summary>
     /// Helper method to parse source code without Lambda package reference.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
     /// </summary>
     private (ClassDeclarationSyntax ClassDecl, SemanticModel SemanticModel) ParseSourceWithoutLambdaPackage(string source)
     {
@@ -209,6 +210,7 @@ namespace TestNamespace
 
     /// <summary>
     /// Helper method to parse source code with Lambda package reference.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
     /// </summary>
     private (ClassDeclarationSyntax ClassDecl, SemanticModel SemanticModel) ParseSourceWithLambdaPackage(string source)
     {
@@ -230,36 +232,19 @@ namespace TestNamespace
 
     /// <summary>
     /// Gets standard metadata references without Lambda package.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
     /// </summary>
-    private IEnumerable<MetadataReference> GetStandardReferences()
+    private static IEnumerable<MetadataReference> GetStandardReferences()
     {
-        var references = new List<MetadataReference>
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Attribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location)
-        };
-
-        var runtimePath = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        references.Add(MetadataReference.CreateFromFile(Path.Combine(runtimePath, "System.Runtime.dll")));
-        references.Add(MetadataReference.CreateFromFile(Path.Combine(runtimePath, "netstandard.dll")));
-
-        return references;
+        return TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences();
     }
 
     /// <summary>
     /// Gets metadata references including Lambda package.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
     /// </summary>
-    private IEnumerable<MetadataReference> GetReferencesWithLambdaPackage()
+    private static IEnumerable<MetadataReference> GetReferencesWithLambdaPackage()
     {
-        var references = GetStandardReferences().ToList();
-        
-        // Add Lambda package reference
-        references.Add(MetadataReference.CreateFromFile(
-            typeof(Amazon.Lambda.DynamoDBEvents.DynamoDBEvent).Assembly.Location));
-
-        return references;
+        return TestHelpers.DynamicCompilationHelper.GetLambdaReferences();
     }
 }
