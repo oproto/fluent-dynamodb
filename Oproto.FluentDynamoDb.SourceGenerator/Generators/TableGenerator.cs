@@ -41,6 +41,7 @@ internal static class TableGenerator
         sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
+        sb.AppendLine("using Oproto.FluentDynamoDb;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
@@ -125,6 +126,7 @@ internal static class TableGenerator
         sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
+        sb.AppendLine("using Oproto.FluentDynamoDb;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
@@ -264,13 +266,13 @@ internal static class TableGenerator
         sb.AppendLine();
         
         sb.AppendLine($"    /// <summary>");
-        sb.AppendLine($"    /// Initializes a new instance of the {className} with a logger.");
+        sb.AppendLine($"    /// Initializes a new instance of the {className} with options.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
         sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
-        sb.AppendLine($"    /// <param name=\"logger\">Logger for DynamoDB operations.</param>");
-        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, IDynamoDbLogger logger)");
-        sb.AppendLine($"        : base(client, tableName, logger)");
+        sb.AppendLine($"    /// <param name=\"options\">Configuration options including logger, hydrator registry, etc.</param>");
+        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)");
+        sb.AppendLine($"        : base(client, tableName, options)");
         sb.AppendLine($"    {{");
         
         // Initialize entity accessor properties
@@ -682,7 +684,7 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
             sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {paramName})");
             sb.AppendLine($"        {{");
-            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Logger);");
+            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
             sb.AppendLine($"            builder.ForTable(_table.Name);");
             sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {paramName});");
             sb.AppendLine($"            return builder;");
@@ -723,7 +725,7 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the composite key.</returns>");
             sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName})");
             sb.AppendLine($"        {{");
-            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Logger);");
+            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
             sb.AppendLine($"            builder.ForTable(_table.Name);");
             sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
             sb.AppendLine($"            return builder;");
@@ -1388,13 +1390,13 @@ internal static class TableGenerator
         sb.AppendLine();
         
         sb.AppendLine($"    /// <summary>");
-        sb.AppendLine($"    /// Initializes a new instance of the {className} with a logger.");
+        sb.AppendLine($"    /// Initializes a new instance of the {className} with options.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
         sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
-        sb.AppendLine($"    /// <param name=\"logger\">Logger for DynamoDB operations.</param>");
-        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, IDynamoDbLogger logger)");
-        sb.AppendLine($"        : base(client, tableName, logger)");
+        sb.AppendLine($"    /// <param name=\"options\">Configuration options including logger, hydrator registry, etc.</param>");
+        sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)");
+        sb.AppendLine($"        : base(client, tableName, options)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"    }}");
         sb.AppendLine();

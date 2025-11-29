@@ -114,6 +114,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **GetItemRequestBuilder** - Fixed bug where empty `ExpressionAttributeNames` dictionary was being set when no attribute names were used, causing DynamoDB to reject requests with "ExpressionAttributeNames can only be specified when using expressions" error
 - **GitHub Actions** - Fixed parallel build issues causing file locking conflicts with source generator by adding `/maxcpucount:1` flag to build commands
+- **Sensitive Data Redaction** - Fixed sensitive data not being redacted in log messages for properties marked with `[Sensitive]` attribute
+  - Added `IsSensitive` property to `PropertyMetadata` for runtime sensitivity detection
+  - Updated `ExpressionTranslator.CaptureValue()` to check `PropertyMetadata.IsSensitive` for redaction decisions
+  - Updated `MapperGenerator` to populate `IsSensitive = true` in generated `PropertyMetadata` for sensitive properties
+  - Sensitive property values now correctly show as `[REDACTED]` in debug logs while actual values are used in DynamoDB queries
+- **Source Generator Missing Using Directive** - Fixed compilation errors in generated code when using `FluentDynamoDbOptions`
+  - Added missing `using Oproto.FluentDynamoDb;` directive to `TableGenerator.cs` and `EntitySpecificUpdateBuilderGenerator.cs`
+  - Generated table classes and update builders now correctly resolve `FluentDynamoDbOptions` type
 
 ### Added
 - **S2 and H3 Geospatial Indexing** - Advanced spatial indexing support using Google S2 and Uber H3 hierarchical cell systems

@@ -369,7 +369,7 @@ public class ScannableTableTests
         /// Simulates the generated parameterless Scan() method.
         /// </summary>
         public new ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
-            new ScanRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+            new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
         
         /// <summary>
         /// Simulates the generated expression-based Scan() method.
@@ -404,7 +404,7 @@ public class ScannableTableTests
         /// </summary>
         /// <returns>A ScanRequestBuilder configured for this table.</returns>
         public new ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
-            new ScanRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+            new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
         
         /// <summary>
         /// Manually implemented expression-based Scan() method.

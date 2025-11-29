@@ -29,6 +29,7 @@ internal static class EntitySpecificUpdateBuilderGenerator
         sb.AppendLine("using System.Linq.Expressions;");
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
+        sb.AppendLine("using Oproto.FluentDynamoDb;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
@@ -81,9 +82,9 @@ internal static class EntitySpecificUpdateBuilderGenerator
         sb.AppendLine($"    /// Initializes a new instance of the {builderClassName}.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client to use for executing the request.</param>");
-        sb.AppendLine($"    /// <param name=\"logger\">Optional logger for operation diagnostics.</param>");
-        sb.AppendLine($"    internal {builderClassName}(IAmazonDynamoDB client, IDynamoDbLogger? logger = null)");
-        sb.AppendLine($"        : base(client, logger)");
+        sb.AppendLine($"    /// <param name=\"options\">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>");
+        sb.AppendLine($"    internal {builderClassName}(IAmazonDynamoDB client, FluentDynamoDbOptions? options = null)");
+        sb.AppendLine($"        : base(client, options)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"    }}");
         sb.AppendLine();

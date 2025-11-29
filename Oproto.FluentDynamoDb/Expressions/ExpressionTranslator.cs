@@ -963,8 +963,12 @@ public class ExpressionTranslator
         // Log parameter capture with sensitive data redaction
         if (_logger != null && _logger.IsEnabled(LogLevel.Debug))
         {
-            var attributeName = propertyMetadata?.AttributeName;
-            var isSensitive = attributeName != null && _isSensitiveField != null && _isSensitiveField(attributeName);
+            // Check if property is sensitive using PropertyMetadata.IsSensitive or the fallback function
+            var isSensitive = propertyMetadata?.IsSensitive == true;
+            if (!isSensitive && _isSensitiveField != null && propertyMetadata?.AttributeName != null)
+            {
+                isSensitive = _isSensitiveField(propertyMetadata.AttributeName);
+            }
             
             var valueToLog = isSensitive ? "[REDACTED]" : (value?.ToString() ?? "null");
             
