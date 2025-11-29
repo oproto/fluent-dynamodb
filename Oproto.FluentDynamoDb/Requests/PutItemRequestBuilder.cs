@@ -37,7 +37,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequestBuilder<TEntity>>, IWithAttributeValues<PutItemRequestBuilder<TEntity>>,
-    IWithConditionExpression<PutItemRequestBuilder<TEntity>>, ITransactablePutBuilder
+    IWithConditionExpression<PutItemRequestBuilder<TEntity>>, ITransactablePutBuilder, IHasDynamoDbClient
     where TEntity : class
 {
     /// <summary>
@@ -52,7 +52,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     }
 
     private PutItemRequest _req = new PutItemRequest();
-    private readonly IAmazonDynamoDB _dynamoDbClient;
+    private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
@@ -74,7 +74,20 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// This is used by Primary API extension methods to call AWS SDK directly.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Replaces the DynamoDB client used for executing this request.
+    /// Used for tenant-specific STS credential scenarios where different clients
+    /// are needed for different tenants or security contexts.
+    /// </summary>
+    /// <param name="client">The scoped DynamoDB client to use.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public PutItemRequestBuilder<TEntity> WithClient(IAmazonDynamoDB client)
+    {
+        _dynamoDbClient = client;
+        return this;
+    }
 
     /// <summary>
     /// Sets the condition expression on the builder.

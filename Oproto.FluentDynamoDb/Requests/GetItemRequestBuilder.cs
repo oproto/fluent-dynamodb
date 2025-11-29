@@ -28,7 +28,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>, ITransactableGetBuilder
+public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>, ITransactableGetBuilder, IHasDynamoDbClient
     where TEntity : class
 {
     /// <summary>
@@ -43,7 +43,7 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     }
 
     private GetItemRequest _req = new GetItemRequest();
-    private readonly IAmazonDynamoDB _dynamoDbClient;
+    private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -58,7 +58,20 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// This is used by Primary API extension methods to call AWS SDK directly.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Replaces the DynamoDB client used for executing this request.
+    /// Used for tenant-specific STS credential scenarios where different clients
+    /// are needed for different tenants or security contexts.
+    /// </summary>
+    /// <param name="client">The scoped DynamoDB client to use.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public GetItemRequestBuilder<TEntity> WithClient(IAmazonDynamoDB client)
+    {
+        _dynamoDbClient = client;
+        return this;
+    }
 
     /// <summary>
     /// Sets key values using a configuration action for extension method access.

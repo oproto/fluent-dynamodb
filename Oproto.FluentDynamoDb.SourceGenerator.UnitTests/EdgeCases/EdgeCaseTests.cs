@@ -588,6 +588,10 @@ namespace TestNamespace
             "should include exact match relationship in metadata");
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
         // Include attribute definitions in the compilation
@@ -650,24 +654,7 @@ namespace Oproto.FluentDynamoDb.Attributes
                 CSharpSyntaxTree.ParseText(source),
                 CSharpSyntaxTree.ParseText(attributeSource)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                // Add AWS SDK references for generated code
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                // Add main library reference for IDynamoDbEntity and other types
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                // Add System.Linq reference
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                // Add System.IO reference  
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                // Add netstandard reference for Attribute, Enum, and other base types
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                // Add System.Collections reference for Dictionary<,> and List<>
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                // Add System.Linq.Expressions reference
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

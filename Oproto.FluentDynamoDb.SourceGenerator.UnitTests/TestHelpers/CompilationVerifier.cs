@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Linq;
 
@@ -10,6 +10,12 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 /// Utility class for verifying that generated source code compiles successfully.
 /// Provides detailed error reporting with line numbers and source context.
 /// </summary>
+/// <remarks>
+/// This class uses DynamicCompilationHelper for assembly reference resolution,
+/// which handles IL3000 warnings appropriately for test scenarios.
+/// </remarks>
+[SuppressMessage("SingleFile", "IL3000:Avoid accessing Assembly file path when publishing as a single file",
+    Justification = "Test code is not published as single-file; Assembly.Location is valid in test context")]
 public static class CompilationVerifier
 {
     /// <summary>
@@ -86,44 +92,12 @@ namespace Oproto.FluentDynamoDb.Attributes
 
     /// <summary>
     /// Gets the standard set of metadata references needed for compilation.
+    /// Uses DynamicCompilationHelper to handle IL3000 warnings appropriately.
     /// </summary>
     private static IEnumerable<MetadataReference> GetMetadataReferences()
     {
-        var references = new List<MetadataReference>
-        {
-            // Core .NET references
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Attribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Threading.Tasks.Task).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Threading.CancellationToken).Assembly.Location),
-            
-            // JSON serialization references
-            MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Text.Json.Serialization.JsonSerializerContext).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Newtonsoft.Json.JsonConvert).Assembly.Location),
-            
-            // AWS SDK references
-            MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-            
-            // FluentDynamoDb library references
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location)
-        };
-
-        // Add runtime assemblies
-        var runtimePath = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        references.AddRange(new[]
-        {
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "System.Runtime.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "netstandard.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "System.Collections.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(runtimePath, "System.Linq.Expressions.dll"))
-        });
-
-        return references;
+        // Use DynamicCompilationHelper which handles IL3000 warnings with proper suppressions
+        return DynamicCompilationHelper.GetFluentDynamoDbReferences();
     }
 
     /// <summary>

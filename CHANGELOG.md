@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **WithClient Method on Request Builders** - Direct `WithClient(IAmazonDynamoDB client)` method on all request builders for AOT-compatible client swapping
+  - Available on `QueryRequestBuilder`, `GetItemRequestBuilder`, `PutItemRequestBuilder`, `UpdateItemRequestBuilder`, `DeleteItemRequestBuilder`, and `ScanRequestBuilder`
+  - Returns the same builder instance for fluent chaining
+  - Replaces reflection-based `WithClientExtensions` for AOT/trimmer compatibility
+  - _Requirements: 5.1, 5.2, 5.4_
+
+### Changed
+- **AOT/Trimmer Compatibility Improvements** - Removed all reflection usage from main library code
+  - `MetadataResolver` now uses `IEntityMetadataProvider` interface constraint instead of reflection-based method lookup
+  - `ProjectionExtensions` now uses `IProjectionModel` and `IDiscriminatedProjection` interfaces instead of reflection-based property discovery
+  - All source-generated entity classes implement the new interfaces automatically
+  - Test projects refactored to use `InternalsVisibleTo` instead of reflection for internal member access
+  - `DynamicCompilationHelper` centralizes unavoidable reflection in source generator tests with proper suppressions
+  - _Requirements: 2.1, 2.2, 2.4, 3.1, 4.1, 4.3_
+
+### Removed
+- **WithClientExtensions** - Removed `Oproto.FluentDynamoDb/Requests/Extensions/WithClientExtensions.cs`
+  - Extension methods replaced with instance methods of the same name and signature
+  - No code changes required - existing `builder.WithClient(client)` calls work unchanged
+  - _Requirements: 2.1, 2.3_
+
 ### Fixed
 - **GetItemRequestBuilder** - Fixed bug where empty `ExpressionAttributeNames` dictionary was being set when no attribute names were used, causing DynamoDB to reject requests with "ExpressionAttributeNames can only be specified when using expressions" error
 - **GitHub Actions** - Fixed parallel build issues causing file locking conflicts with source generator by adding `/maxcpucount:1` flag to build commands

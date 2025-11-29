@@ -295,7 +295,7 @@ public static class WithUpdateExpressionExtensions
         this IWithUpdateExpression<T> builder,
         Expression<Func<TUpdateExpressions, TUpdateModel>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class
+        where TEntity : class, IEntityMetadataProvider
         where TUpdateExpressions : new()
         where TUpdateModel : new()
     {
@@ -303,10 +303,7 @@ public static class WithUpdateExpressionExtensions
             throw new ArgumentNullException(nameof(expression));
 
         // Resolve metadata if not provided
-        if (metadata == null)
-        {
-            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
-        }
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
 
         // Create expression context
         var context = new ExpressionContext(
@@ -344,7 +341,7 @@ public static class WithUpdateExpressionExtensions
         this UpdateItemRequestBuilder<TEntity> builder,
         Expression<Func<TUpdateExpressions, TUpdateModel>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class
+        where TEntity : class, IEntityMetadataProvider
         where TUpdateExpressions : new()
         where TUpdateModel : new()
     {
@@ -352,10 +349,7 @@ public static class WithUpdateExpressionExtensions
             throw new ArgumentNullException(nameof(expression));
 
         // Resolve metadata if not provided
-        if (metadata == null)
-        {
-            metadata = MetadataResolver.GetEntityMetadata<TEntity>();
-        }
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
 
         // Create expression context
         var context = new ExpressionContext(

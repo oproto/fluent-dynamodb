@@ -1,6 +1,5 @@
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Storage;
-using System.Reflection;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -11,60 +10,68 @@ namespace Oproto.FluentDynamoDb.Requests.Extensions;
 public static class ProjectionExtensions
 {
     /// <summary>
-    /// Executes query and returns results as specified type.
-    /// Automatically applies projection expression if TResult is a projection model.
-    /// Can override the index's default projection type.
+    /// Executes query and returns results as specified projection type.
+    /// Automatically applies projection expression based on TResult's ProjectionExpression.
     /// </summary>
-    /// <typeparam name="TResult">
-    /// The result type - can be a projection model, full entity, or any type with FromDynamoDb method.
-    /// </typeparam>
+    /// <typeparam name="TEntity">The entity type being queried.</typeparam>
+    /// <typeparam name="TResult">The projection model type implementing IProjectionModel.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>A list of items of type TResult.</returns>
     /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
     /// <exception cref="ProjectionValidationException">Thrown when GSI projection constraint is violated.</exception>
-    /// <example>
-    /// <code>
-    /// // Using index's default projection type
-    /// var summaries = await table.StatusIndex.Query
-    ///     .Where("status = :status")
-    ///     .WithValue(":status", "ACTIVE")
-    ///     .ToListAsync&lt;TransactionSummary&gt;();
-    /// 
-    /// // Overriding to use different projection type
-    /// var minimal = await table.StatusIndex.Query
-    ///     .Where("status = :status")
-    ///     .WithValue(":status", "ACTIVE")
-    ///     .ToListAsync&lt;MinimalTransaction&gt;();
-    /// 
-    /// // Overriding to use full entity (ignores auto-projection)
-    /// var full = await table.StatusIndex.Query
-    ///     .Where("status = :status")
-    ///     .WithValue(":status", "ACTIVE")
-    ///     .ToListAsync&lt;Transaction&gt;();
-    /// </code>
-    /// </example>
     public static async Task<List<TResult>> ToListAsync<TEntity, TResult>(
         this QueryRequestBuilder<TEntity> builder,
         CancellationToken cancellationToken = default)
         where TEntity : class
-        where TResult : class, new()
+        where TResult : class, IProjectionModel<TResult>
     {
         try
         {
-            // Apply projection if TResult is a projection model and no manual projection was set
+            // Apply projection if no manual projection was set
             builder = ApplyProjectionIfNeeded<TEntity, TResult>(builder);
-
-            // Validate GSI projection constraints if applicable
-            ValidateGsiProjection<TEntity, TResult>(builder);
 
             // Execute the query
             var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
 
-            // Hydrate results using the appropriate method
+            // Hydrate results using the interface method
             return HydrateResults<TResult>(response.Items);
         }
-        catch (Exception ex) when (!(ex is OperationCanceledException) && !(ex is ProjectionValidationException))
+        catch (Exception ex) when (ex is not OperationCanceledException && ex is not ProjectionValidationException)
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to execute Query operation and map to {typeof(TResult).Name}. Error: {ex.Message}", ex);
+        }
+    }
+
+
+    /// <summary>
+    /// Executes query and returns results as specified discriminated projection type.
+    /// Automatically applies projection expression and filters by discriminator value.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being queried.</typeparam>
+    /// <typeparam name="TResult">The discriminated projection model type.</typeparam>
+    /// <param name="builder">The QueryRequestBuilder instance.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>A list of items of type TResult that match the discriminator.</returns>
+    public static async Task<List<TResult>> ToDiscriminatedListAsync<TEntity, TResult>(
+        this QueryRequestBuilder<TEntity> builder,
+        CancellationToken cancellationToken = default)
+        where TEntity : class
+        where TResult : class, IDiscriminatedProjection<TResult>
+    {
+        try
+        {
+            // Apply projection if no manual projection was set
+            builder = ApplyProjectionIfNeeded<TEntity, TResult>(builder);
+
+            // Execute the query
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
+
+            // Hydrate results with discriminator filtering
+            return HydrateDiscriminatedResults<TResult>(response.Items);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && ex is not ProjectionValidationException)
         {
             throw new DynamoDbMappingException(
                 $"Failed to execute Query operation and map to {typeof(TResult).Name}. Error: {ex.Message}", ex);
@@ -72,224 +79,102 @@ public static class ProjectionExtensions
     }
 
     /// <summary>
-    /// Applies projection expression if TResult is a projection model
-    /// and no manual projection has been set.
+    /// Applies projection expression if no manual projection has been set.
     /// </summary>
-    private static QueryRequestBuilder<TEntity> ApplyProjectionIfNeeded<TEntity, TResult>(QueryRequestBuilder<TEntity> builder)
+    private static QueryRequestBuilder<TEntity> ApplyProjectionIfNeeded<TEntity, TResult>(
+        QueryRequestBuilder<TEntity> builder)
         where TEntity : class
-        where TResult : class, new()
+        where TResult : IProjectionModel<TResult>
     {
-        // Check if a manual projection was already set by inspecting the request
+        // Check if a manual projection was already set
         var request = builder.ToQueryRequest();
         if (!string.IsNullOrEmpty(request.ProjectionExpression))
         {
-            // Manual projection already set, don't override
             return builder;
         }
 
-        // Check if TResult has projection metadata (generated by source generator)
-        var projectionMetadataProperty = typeof(TResult).GetProperty(
-            "ProjectionExpression",
-            BindingFlags.Public | BindingFlags.Static);
-
-        if (projectionMetadataProperty != null && projectionMetadataProperty.PropertyType == typeof(string))
+        // Get projection expression from the interface (no reflection!)
+        var projectionExpression = TResult.ProjectionExpression;
+        
+        if (!string.IsNullOrEmpty(projectionExpression))
         {
-            // TResult is a projection model - get the projection expression
-            var projectionExpression = projectionMetadataProperty.GetValue(null) as string;
-            
-            if (!string.IsNullOrEmpty(projectionExpression))
-            {
-                // Apply the projection expression
-                builder = builder.WithProjection(projectionExpression);
-            }
+            builder = builder.WithProjection(projectionExpression);
         }
 
         return builder;
     }
 
     /// <summary>
-    /// Validates GSI projection constraints at runtime (if configured).
-    /// Provides clear error messages with GSI name and type information.
-    /// Note: Primary validation is enforced at compile-time through source generator diagnostics.
-    /// </summary>
-    private static void ValidateGsiProjection<TEntity, TResult>(QueryRequestBuilder<TEntity> builder)
-        where TEntity : class
-        where TResult : class, new()
-    {
-        // Get the request to check if we're querying an index
-        var request = builder.ToQueryRequest();
-        
-        if (string.IsNullOrEmpty(request.IndexName))
-        {
-            // Not querying an index, no validation needed
-            return;
-        }
-
-        // Check if TResult has GSI projection constraint metadata
-        // This would be generated by the source generator for indexes with [UseProjection]
-        var gsiConstraintProperty = typeof(TResult).GetProperty(
-            "RequiredForGsi",
-            BindingFlags.Public | BindingFlags.Static);
-
-        if (gsiConstraintProperty != null && gsiConstraintProperty.PropertyType == typeof(string))
-        {
-            var requiredGsiName = gsiConstraintProperty.GetValue(null) as string;
-            
-            if (!string.IsNullOrEmpty(requiredGsiName) && requiredGsiName != request.IndexName)
-            {
-                // This projection is required for a specific GSI, but we're querying a different one
-                // Provide clear error message with GSI name and type information
-                throw new ProjectionValidationException(
-                    $"Projection type '{typeof(TResult).Name}' is configured for GSI '{requiredGsiName}' " +
-                    $"but the query is targeting GSI '{request.IndexName}'. " +
-                    $"Either use the correct projection type for '{request.IndexName}' or query '{requiredGsiName}' instead.",
-                    request.IndexName,
-                    typeof(TResult),
-                    typeof(TResult));
-            }
-        }
-
-        // Note: The primary validation is enforced at compile-time through
-        // the source generator diagnostics (PROJ005, PROJ006).
-        // This runtime validation provides an additional safety check for cases
-        // where projection constraints are defined through generated metadata.
-        // 
-        // Validation failures are handled gracefully by throwing ProjectionValidationException
-        // with detailed context about the GSI name, expected type, and actual type.
-    }
-
-    /// <summary>
-    /// Hydrates a list of projection models or entities from DynamoDB response items.
-    /// Handles discriminator-based routing for multi-entity queries.
+    /// Hydrates a list of projection models from DynamoDB response items.
     /// </summary>
     private static List<TResult> HydrateResults<TResult>(List<Dictionary<string, AttributeValue>> items)
-        where TResult : class, new()
+        where TResult : IProjectionModel<TResult>
     {
         var results = new List<TResult>();
 
-        // Check if TResult has a FromDynamoDb method (generated by source generator for projections)
-        var fromDynamoDbMethod = typeof(TResult).GetMethod(
-            "FromDynamoDb",
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[] { typeof(Dictionary<string, AttributeValue>) },
-            null);
-
-        if (fromDynamoDbMethod != null && fromDynamoDbMethod.ReturnType == typeof(TResult))
+        foreach (var item in items)
         {
-            // TResult has a FromDynamoDb method - use it for hydration
-            foreach (var item in items)
+            try
             {
-                try
-                {
-                    // Check if discriminator-based routing is needed
-                    if (ShouldSkipItemByDiscriminator<TResult>(item))
-                    {
-                        // Item doesn't match the expected discriminator, skip it
-                        continue;
-                    }
-
-                    var result = fromDynamoDbMethod.Invoke(null, new object[] { item }) as TResult;
-                    if (result != null)
-                    {
-                        results.Add(result);
-                    }
-                }
-                catch (TargetInvocationException ex)
-                {
-                    // Unwrap the inner exception from reflection invocation
-                    var innerException = ex.InnerException ?? ex;
-                    
-                    // Check if this is a missing attribute error that should be handled gracefully
-                    if (innerException is KeyNotFoundException || innerException is ArgumentNullException)
-                    {
-                        // Missing attribute - this could be expected for nullable properties
-                        // Log and continue, or rethrow based on configuration
-                        // For now, we'll rethrow to maintain strict validation
-                        throw new DynamoDbMappingException(
-                            $"Failed to hydrate projection {typeof(TResult).Name} from DynamoDB item. " +
-                            $"A required attribute may be missing. Error: {innerException.Message}",
-                            typeof(TResult),
-                            MappingOperation.FromDynamoDb,
-                            item,
-                            innerException: innerException);
-                    }
-                    
-                    throw new DynamoDbMappingException(
-                        $"Failed to hydrate projection {typeof(TResult).Name} from DynamoDB item.",
-                        typeof(TResult),
-                        MappingOperation.FromDynamoDb,
-                        item,
-                        innerException: innerException);
-                }
+                // Use the interface method directly (no reflection!)
+                var result = TResult.FromDynamoDb(item);
+                results.Add(result);
             }
-        }
-        else
-        {
-            // TResult doesn't have a FromDynamoDb method
-            // This could be a full entity type or a manually defined type
-            // For now, we'll throw an exception as we need a way to hydrate the results
-            throw new DynamoDbMappingException(
-                $"Type {typeof(TResult).Name} does not have a FromDynamoDb method. " +
-                $"Projection models must be generated by the source generator, or entities must implement IDynamoDbEntity.",
-                typeof(TResult),
-                MappingOperation.FromDynamoDb);
+            catch (Exception ex) when (ex is KeyNotFoundException or ArgumentNullException)
+            {
+                throw new DynamoDbMappingException(
+                    $"Failed to hydrate projection {typeof(TResult).Name} from DynamoDB item. " +
+                    $"A required attribute may be missing. Error: {ex.Message}",
+                    typeof(TResult),
+                    MappingOperation.FromDynamoDb,
+                    item,
+                    innerException: ex);
+            }
         }
 
         return results;
     }
 
     /// <summary>
-    /// Checks if an item should be skipped based on discriminator value.
-    /// Returns true if the item has a discriminator that doesn't match the expected value.
+    /// Hydrates a list of discriminated projection models, filtering by discriminator value.
     /// </summary>
-    private static bool ShouldSkipItemByDiscriminator<TResult>(Dictionary<string, AttributeValue> item)
-        where TResult : class, new()
+    private static List<TResult> HydrateDiscriminatedResults<TResult>(List<Dictionary<string, AttributeValue>> items)
+        where TResult : IDiscriminatedProjection<TResult>
     {
-        // Check if TResult has discriminator metadata
-        var discriminatorPropertyInfo = typeof(TResult).GetProperty(
-            "DiscriminatorProperty",
-            BindingFlags.Public | BindingFlags.Static);
+        var results = new List<TResult>();
+        
+        var discriminatorProperty = TResult.DiscriminatorProperty;
+        var expectedValue = TResult.DiscriminatorValue;
 
-        var discriminatorValueInfo = typeof(TResult).GetProperty(
-            "DiscriminatorValue",
-            BindingFlags.Public | BindingFlags.Static);
-
-        if (discriminatorPropertyInfo == null || discriminatorValueInfo == null)
+        foreach (var item in items)
         {
-            // No discriminator metadata, don't skip
-            return false;
+            // Skip items that don't match the discriminator
+            if (!string.IsNullOrEmpty(discriminatorProperty) && !string.IsNullOrEmpty(expectedValue))
+            {
+                if (!item.TryGetValue(discriminatorProperty, out var discriminatorAttr) ||
+                    discriminatorAttr.S != expectedValue)
+                {
+                    continue;
+                }
+            }
+
+            try
+            {
+                var result = TResult.FromDynamoDb(item);
+                results.Add(result);
+            }
+            catch (Exception ex) when (ex is KeyNotFoundException or ArgumentNullException)
+            {
+                throw new DynamoDbMappingException(
+                    $"Failed to hydrate projection {typeof(TResult).Name} from DynamoDB item. " +
+                    $"A required attribute may be missing. Error: {ex.Message}",
+                    typeof(TResult),
+                    MappingOperation.FromDynamoDb,
+                    item,
+                    innerException: ex);
+            }
         }
 
-        var discriminatorProperty = discriminatorPropertyInfo.GetValue(null) as string;
-        var expectedDiscriminatorValue = discriminatorValueInfo.GetValue(null) as string;
-
-        if (string.IsNullOrEmpty(discriminatorProperty) || string.IsNullOrEmpty(expectedDiscriminatorValue))
-        {
-            // No discriminator configured, don't skip
-            return false;
-        }
-
-        // Check if the item has the discriminator property
-        if (!item.TryGetValue(discriminatorProperty, out var discriminatorAttr))
-        {
-            // Item doesn't have discriminator property
-            // This could mean it's a different entity type or the discriminator is missing
-            // Skip it to be safe
-            return true;
-        }
-
-        // Get the discriminator value from the item
-        var actualDiscriminatorValue = discriminatorAttr.S;
-
-        if (actualDiscriminatorValue != expectedDiscriminatorValue)
-        {
-            // Discriminator doesn't match, skip this item
-            return true;
-        }
-
-        // Discriminator matches, don't skip
-        return false;
+        return results;
     }
-
 }

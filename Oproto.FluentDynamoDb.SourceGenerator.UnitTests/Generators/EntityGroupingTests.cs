@@ -400,6 +400,10 @@ namespace TestNamespace
             "should inherit from DynamoDbTableBase");
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(
@@ -407,18 +411,7 @@ namespace TestNamespace
             new[] {
                 CSharpSyntaxTree.ParseText(source)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

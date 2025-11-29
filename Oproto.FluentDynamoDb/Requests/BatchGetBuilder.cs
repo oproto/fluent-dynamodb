@@ -148,20 +148,14 @@ public class BatchGetBuilder
 
     private IAmazonDynamoDB? ExtractClientFromBuilder(object builder)
     {
-        // Use internal GetDynamoDbClient() method via reflection
-        var method = builder.GetType().GetMethod("GetDynamoDbClient", 
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        
-        if (method == null)
+        // Use IHasDynamoDbClient interface to get the client without reflection
+        if (builder is IHasDynamoDbClient clientProvider)
         {
-            throw new InvalidOperationException(
-                $"Unable to extract DynamoDB client from builder type {builder.GetType().Name}");
+            return clientProvider.GetDynamoDbClient();
         }
-
-        var client = method.Invoke(builder, null) as IAmazonDynamoDB;
         
-        // Return null if client is null - let ExecuteAsync validation handle it
-        return client;
+        throw new InvalidOperationException(
+            $"Builder type {builder.GetType().Name} does not implement IHasDynamoDbClient");
     }
 
     /// <summary>

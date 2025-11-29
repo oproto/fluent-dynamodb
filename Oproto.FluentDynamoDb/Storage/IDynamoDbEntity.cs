@@ -7,7 +7,7 @@ namespace Oproto.FluentDynamoDb.Storage;
 /// Interface that DynamoDB entities must implement to support automatic mapping.
 /// Uses static abstract interface methods for compile-time type safety and AOT compatibility.
 /// </summary>
-public interface IDynamoDbEntity
+public interface IDynamoDbEntity : IEntityMetadataProvider
 {
     /// <summary>
     /// Converts an entity instance to a DynamoDB AttributeValue dictionary.
@@ -57,9 +57,5 @@ public interface IDynamoDbEntity
     /// <returns>True if the item matches this entity type, false otherwise.</returns>
     static abstract bool MatchesEntity(Dictionary<string, AttributeValue> item);
 
-    /// <summary>
-    /// Gets metadata about the entity structure for future LINQ support.
-    /// </summary>
-    /// <returns>Comprehensive metadata about the entity.</returns>
-    static abstract EntityMetadata GetEntityMetadata();
+    // GetEntityMetadata() is inherited from IEntityMetadataProvider
 }

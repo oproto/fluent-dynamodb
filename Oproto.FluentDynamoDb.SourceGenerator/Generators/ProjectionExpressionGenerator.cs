@@ -175,13 +175,54 @@ internal static class ProjectionExpressionGenerator
         sb.AppendLine($"namespace {projection.Namespace}");
         sb.AppendLine("{");
         
-        // Partial class
+        // Partial class - implement IProjectionModel or IDiscriminatedProjection
         sb.AppendLine($"    /// <summary>");
         sb.AppendLine($"    /// Generated implementation for projection model {projection.ClassName}.");
         sb.AppendLine($"    /// Provides automatic mapping from DynamoDB AttributeValue dictionaries.");
         sb.AppendLine($"    /// </summary>");
-        sb.AppendLine($"    public partial class {projection.ClassName}");
+        
+        // Determine which interface to implement based on discriminator presence
+        var hasDiscriminator = projection.Discriminator != null && projection.Discriminator.IsValid;
+        var interfaceType = hasDiscriminator 
+            ? $"IDiscriminatedProjection<{projection.ClassName}>"
+            : $"IProjectionModel<{projection.ClassName}>";
+        
+        sb.AppendLine($"    public partial class {projection.ClassName} : {interfaceType}");
         sb.AppendLine("    {");
+        
+        // Static ProjectionExpression property (required by IProjectionModel)
+        var projectionExpr = GenerateProjectionExpression(projection);
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Gets the DynamoDB projection expression for this model.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static string ProjectionExpression => \"{projectionExpr}\";");
+        sb.AppendLine();
+        
+        // Add discriminator properties if applicable (required by IDiscriminatedProjection)
+        if (hasDiscriminator)
+        {
+            sb.AppendLine("        /// <summary>");
+            sb.AppendLine("        /// Gets the discriminator property name in DynamoDB.");
+            sb.AppendLine("        /// </summary>");
+            sb.AppendLine($"        public static string? DiscriminatorProperty => \"{projection.Discriminator!.PropertyName}\";");
+            sb.AppendLine();
+            
+            var discriminatorValue = projection.Discriminator.Strategy == DiscriminatorStrategy.ExactMatch 
+                ? projection.Discriminator.ExactValue 
+                : null;
+            sb.AppendLine("        /// <summary>");
+            sb.AppendLine("        /// Gets the expected discriminator value for this projection type.");
+            sb.AppendLine("        /// </summary>");
+            if (!string.IsNullOrEmpty(discriminatorValue))
+            {
+                sb.AppendLine($"        public static string? DiscriminatorValue => \"{discriminatorValue}\";");
+            }
+            else
+            {
+                sb.AppendLine($"        public static string? DiscriminatorValue => null;");
+            }
+            sb.AppendLine();
+        }
         
         // FromDynamoDb method
         sb.AppendLine("        /// <summary>");
