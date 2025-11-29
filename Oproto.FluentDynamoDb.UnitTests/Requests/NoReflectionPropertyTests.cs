@@ -59,40 +59,21 @@ public class NoReflectionPropertyTests
     
     // Files with AOT-UNSAFE reflection that need architectural changes to fix
     // 
-    // GEOSPATIAL INTEGRATION ISSUE:
-    // ExpressionTranslator.cs uses Assembly.GetType() and GetMethod() to call geospatial
-    // methods dynamically. This is because the main library cannot have a direct reference
-    // to the optional Geospatial package. To fix this properly, we need to:
-    // 1. Define interfaces in the main library (e.g., IGeospatialProvider)
-    // 2. Have the Geospatial package implement these interfaces
-    // 3. Use dependency injection or service location with compile-time known types
-    // This is tracked as a future improvement.
+    // NOTE: The following files have been refactored and no longer contain AOT-unsafe reflection:
+    // - UpdateExpressionTranslator.cs: Now uses ICollectionFormatterRegistry instead of Activator.CreateInstance
+    // - DynamoDbResponseExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
+    // - MappingErrorHandler.cs: Removed unused ValidateRequiredProperties method that used GetProperty()
+    // - EnhancedExecuteAsyncExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
+    // - ExpressionTranslator.cs: Now uses MemberExpression.Member directly (AOT-safe) and IGeospatialProvider
     //
-    // BLOB STORAGE INTEGRATION:
-    // DynamoDbResponseExtensions.cs and EnhancedExecuteAsyncExtensions.cs use GetMethod()
-    // to find FromDynamoDbAsync methods for blob storage support. This could be fixed by:
-    // 1. Adding an interface like IAsyncDynamoDbEntity with the async methods
-    // 2. Using generic constraints instead of reflection
-    private static readonly string[] FilesWithAotUnsafeReflection = new[]
-    {
-        // Geospatial integration - uses Assembly.GetType(), GetMethod(), Invoke()
-        "ExpressionTranslator.cs",
-        
-        // Update expression handling - uses Activator.CreateInstance for HashSet<T>
-        // Also uses expression tree member access (AOT-safe) but the Activator usage makes it AOT-unsafe
-        "UpdateExpressionTranslator.cs",
-        
-        // Blob storage async method discovery - uses GetMethod() for FromDynamoDbAsync
-        "DynamoDbResponseExtensions.cs",
-        "EnhancedExecuteAsyncExtensions.cs",
-        
-        // Property validation - uses GetProperty() for required property checks
-        "MappingErrorHandler.cs",
-    };
+    // ALL MAIN LIBRARY FILES ARE NOW AOT-SAFE!
+    // The array below should remain empty. Any new AOT-unsafe reflection should be added here
+    // and tracked for refactoring.
+    private static readonly string[] FilesWithAotUnsafeReflection = Array.Empty<string>();
     
     // Files with AOT-SAFE reflection only (expression tree member access)
     // These files use FieldInfo/PropertyInfo from MemberExpression.Member which is AOT-safe
-    // because the member info was captured at compile time when the expression was created
+    // because the member info was captured at compile time when the expression was created.
     private static readonly string[] FilesWithAotSafeReflectionOnly = new[]
     {
         // Event invocation pattern - _contextAssigned?.Invoke() is delegate invocation, not reflection

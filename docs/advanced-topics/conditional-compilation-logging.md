@@ -136,8 +136,9 @@ To verify that logging is working in Debug builds:
        builder.SetMinimumLevel(LogLevel.Trace);
    });
    
-   var logger = loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger();
-   var table = new ProductsTable(dynamoDbClient, "products", logger);
+   var options = new FluentDynamoDbOptions()
+       .WithLogger(loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger());
+   var table = new ProductsTable(dynamoDbClient, "products", options);
    
    // You should see logging output
    await table.GetProductAsync(productId);

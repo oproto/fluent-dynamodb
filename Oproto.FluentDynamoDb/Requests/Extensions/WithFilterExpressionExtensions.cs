@@ -213,7 +213,9 @@ public static class WithFilterExpressionExtensions
             metadata,
             ExpressionValidationMode.None);
 
-        var translator = new ExpressionTranslator();
+        // Get options from the builder if it implements IHasDynamoDbClient
+        var options = (builder as IHasDynamoDbClient)?.GetOptions();
+        var translator = new ExpressionTranslator(options);
         var expressionString = translator.Translate(expression, context);
 
         return builder.SetFilterExpression(expressionString);

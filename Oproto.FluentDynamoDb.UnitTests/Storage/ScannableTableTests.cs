@@ -276,7 +276,8 @@ public class ScannableTableTests
         // Arrange
         var client = Substitute.For<IAmazonDynamoDB>();
         var logger = Substitute.For<IDynamoDbLogger>();
-        var table = new ManualScannableTable(client, logger);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
+        var table = new ManualScannableTable(client, options);
         
         // Act
         var builder = table.Scan<TestEntity>("price > {0}", 100m);
@@ -359,15 +360,15 @@ public class ScannableTableTests
         {
         }
         
-        public TestScannableTable(IAmazonDynamoDB client, IDynamoDbLogger logger) 
-            : base(client, "TestScannableTable", logger)
+        public TestScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options) 
+            : base(client, "TestScannableTable", options)
         {
         }
         
         /// <summary>
         /// Simulates the generated parameterless Scan() method.
         /// </summary>
-        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
+        public new ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
             new ScanRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
         
         /// <summary>
@@ -392,8 +393,8 @@ public class ScannableTableTests
         {
         }
         
-        public ManualScannableTable(IAmazonDynamoDB client, IDynamoDbLogger logger) 
-            : base(client, "ManualScannableTable", logger)
+        public ManualScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options) 
+            : base(client, "ManualScannableTable", options)
         {
         }
         
@@ -402,7 +403,7 @@ public class ScannableTableTests
         /// Creates a new Scan operation builder for this table.
         /// </summary>
         /// <returns>A ScanRequestBuilder configured for this table.</returns>
-        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
+        public new ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
             new ScanRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
         
         /// <summary>

@@ -8,6 +8,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **FluentDynamoDbOptions Configuration Pattern** - New centralized configuration object for AOT-compatible service registration
+  - `FluentDynamoDbOptions` class with immutable `With*` methods for fluent configuration
+  - `WithLogger(IDynamoDbLogger)` for logging configuration
+  - `WithBlobStorage(IBlobStorageProvider)` for blob storage integration
+  - `WithEncryption(IFieldEncryptor)` for field-level encryption
+  - `AddGeospatial()` extension method in Geospatial package for spatial query support
+  - Internal `IEntityHydratorRegistry` for async entity hydration without reflection
+  - Internal `ICollectionFormatterRegistry` for type-safe collection formatting
+  - All services registered at startup, eliminating runtime reflection
+  - Thread-safe and immutable - safe for concurrent use across multiple tables
+  - Configuration isolation - each table instance maintains independent configuration
+  - Default options work for core operations without optional packages
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.1, 5.2, 5.3, 7.2, 7.3, 7.4, 8.1, 8.2, 8.3, 8.5_
+  
+  **Usage Examples:**
+  ```csharp
+  // Configure options with all services
+  var options = new FluentDynamoDbOptions()
+      .WithLogger(new ConsoleLogger())
+      .WithBlobStorage(new S3BlobStorageProvider(s3Client))
+      .WithEncryption(new KmsFieldEncryptor(kmsClient))
+      .AddGeospatial();  // Extension from Geospatial package
+  
+  // Create table with options
+  var table = new UserTable(dynamoDbClient, "users", options);
+  
+  // Or use default options for basic operations
+  var simpleTable = new UserTable(dynamoDbClient, "users", new FluentDynamoDbOptions());
+  ```
+  
+  **Migration Notes:**
+  - Old constructors accepting individual parameters are deprecated but still work
+  - Migrate to `FluentDynamoDbOptions` pattern for AOT compatibility
+  - See [Configuration Guide](docs/core-features/configuration-guide.md) for migration examples
+
+- **IGeospatialProvider Interface** - Abstraction for geospatial operations enabling AOT-compatible spatial queries
+  - `IGeospatialProvider` interface in main library for geospatial operations
+  - `CreateBoundingBox()` methods for radius and coordinate-based bounding boxes
+  - `GetGeoHashRange()`, `GetS2CellCovering()`, `GetH3CellCovering()` for cell calculations
+  - `GeoBoundingBoxResult` struct for bounding box results
+  - `DefaultGeospatialProvider` implementation in Geospatial package
+  - Eliminates reflection-based geospatial method discovery
+  - Clear exception messages when geospatial provider not configured
+  - _Requirements: 2.1, 2.2, 2.3, 2.4_
+
+- **IAsyncEntityHydrator Interface** - Type-safe async entity hydration without reflection
+  - `IAsyncEntityHydrator<T>` interface for async entity hydration
+  - `IEntityHydratorRegistry` for hydrator registration and lookup
+  - Source generator emits hydrator implementations for entities with blob references
+  - Eliminates `GetMethod()` reflection for `FromDynamoDbAsync` discovery
+  - Automatic fallback to synchronous `FromDynamoDb` when no hydrator registered
+  - _Requirements: 3.1, 3.2, 3.4_
+
+- **ICollectionFormatterRegistry Interface** - Type-safe collection formatting without Activator.CreateInstance
+  - `ICollectionFormatterRegistry` interface for collection formatter registration
+  - Source generator emits type-specific formatters for collection properties with format strings
+  - Eliminates `Activator.CreateInstance` for generic collection creation
+  - Preserves collection types (HashSet, List, etc.) during formatting
+  - _Requirements: 4.1, 4.2, 4.3, 4.4_
+
 - **WithClient Method on Request Builders** - Direct `WithClient(IAmazonDynamoDB client)` method on all request builders for AOT-compatible client swapping
   - Available on `QueryRequestBuilder`, `GetItemRequestBuilder`, `PutItemRequestBuilder`, `UpdateItemRequestBuilder`, `DeleteItemRequestBuilder`, and `ScanRequestBuilder`
   - Returns the same builder instance for fluent chaining
@@ -22,6 +82,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Test projects refactored to use `InternalsVisibleTo` instead of reflection for internal member access
   - `DynamicCompilationHelper` centralizes unavoidable reflection in source generator tests with proper suppressions
   - _Requirements: 2.1, 2.2, 2.4, 3.1, 4.1, 4.3_
+
+- **Complete Reflection Elimination in Main Library** - All AOT-unsafe reflection patterns removed
+  - `ExpressionTranslator` now uses `IGeospatialProvider` instead of `Assembly.GetType()` and `GetMethod()` for geospatial operations
+  - `ExpressionTranslator` uses `MemberExpression.Member` directly instead of `GetProperty()` for property access
+  - `UpdateExpressionTranslator` uses `ICollectionFormatterRegistry` instead of `Activator.CreateInstance` for collection formatting
+  - `DynamoDbResponseExtensions` uses `IEntityHydratorRegistry` instead of `GetMethod()` for async hydration
+  - `EnhancedExecuteAsyncExtensions` uses `IEntityHydratorRegistry` instead of `GetMethod()` for entity conversion
+  - All main library files now pass AOT-safety analysis with no reflection warnings
+  - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
+- **DynamoDbTableBase Constructor Changes** - Updated to accept FluentDynamoDbOptions
+  - Old constructors accepting individual logger/encryptor parameters are deprecated
+  - New constructor accepts `FluentDynamoDbOptions` for centralized configuration
+  - Request builders receive options for proper service access
+  - Logger and encryptor extracted from options internally
+  - _Requirements: 7.2, 5.3_
+
+- **IWithDynamoDbClient Interface Extended** - Now exposes FluentDynamoDbOptions
+  - Added `Options` property to `IWithDynamoDbClient` interface
+  - All request builders (`QueryRequestBuilder`, `ScanRequestBuilder`, `UpdateItemRequestBuilder`) implement the new property
+  - Extension methods can access options for proper service configuration
+  - _Requirements: 5.3_
 
 ### Removed
 - **WithClientExtensions** - Removed `Oproto.FluentDynamoDb/Requests/Extensions/WithClientExtensions.cs`

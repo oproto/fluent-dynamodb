@@ -57,11 +57,18 @@ All support classes are generated as nested classes within your entity for bette
 
 ```csharp
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
 var client = new AmazonDynamoDBClient();
+
+// Basic usage - no configuration needed
 var table = new UsersTable(client, "users");
+
+// Or with configuration options (for logging, encryption, etc.)
+var options = new FluentDynamoDbOptions();
+var tableWithOptions = new UsersTable(client, "users", options);
 
 // Create a user
 var user = new User 
@@ -276,9 +283,11 @@ By default, the library uses a no-op logger with zero overhead:
 
 ```csharp
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "products");
 
-// No logging - works exactly as before
+// No logging - uses NoOpLogger by default
+var table = new ProductsTable(client, "products");
+
+// Operations work without any logging configuration
 await table.Get.WithKey("pk", "product-123").ExecuteAsync();
 ```
 
@@ -290,18 +299,22 @@ Install the adapter package:
 dotnet add package Oproto.FluentDynamoDb.Logging.Extensions
 ```
 
-Configure logging:
+Configure logging using `FluentDynamoDbOptions`:
 
 ```csharp
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging.Extensions;
 using Microsoft.Extensions.Logging;
 
 // Create logger from ILoggerFactory
 var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
-var logger = loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger();
 
-// Pass logger to table
-var table = new ProductsTable(client, "products", logger);
+// Configure options with logging
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger());
+
+// Pass options to table constructor
+var table = new ProductsTable(client, "products", options);
 
 // All operations are now logged with detailed context
 await table.GetProductAsync("product-123");
@@ -321,6 +334,7 @@ await table.GetProductAsync("product-123");
 Implement the `IDynamoDbLogger` interface:
 
 ```csharp
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging;
 
 public class ConsoleLogger : IDynamoDbLogger
@@ -341,9 +355,11 @@ public class ConsoleLogger : IDynamoDbLogger
     // Implement other methods...
 }
 
-// Use custom logger
-var logger = new ConsoleLogger();
-var table = new ProductsTable(client, "products", logger);
+// Configure options with custom logger
+var options = new FluentDynamoDbOptions()
+    .WithLogger(new ConsoleLogger());
+
+var table = new ProductsTable(client, "products", options);
 ```
 
 ### Conditional Compilation (Zero Overhead in Production)
@@ -380,6 +396,7 @@ New to Oproto.FluentDynamoDb? Start here to learn the basics.
 
 ### 🎯 [Core Features](docs/core-features/README.md)
 Master the essential operations and patterns.
+- [Configuration](docs/core-features/Configuration.md) - FluentDynamoDbOptions and service configuration
 - [Entity Definition](docs/core-features/EntityDefinition.md) - Attributes, keys, and indexes
 - [Basic Operations](docs/core-features/BasicOperations.md) - CRUD operations
 - [Querying Data](docs/core-features/QueryingData.md) - Query and scan operations

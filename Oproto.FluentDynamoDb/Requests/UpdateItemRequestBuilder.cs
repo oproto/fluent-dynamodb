@@ -46,11 +46,25 @@ public class UpdateItemRequestBuilder<TEntity> :
     {
         _dynamoDbClient = dynamoDbClient;
         _logger = logger ?? NoOpLogger.Instance;
+        _options = new FluentDynamoDbOptions().WithLogger(_logger);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the UpdateItemRequestBuilder with FluentDynamoDbOptions.
+    /// </summary>
+    /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
+    /// <param name="options">Configuration options including logger, hydrator registry, etc.</param>
+    public UpdateItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions options)
+    {
+        _dynamoDbClient = dynamoDbClient;
+        _options = options ?? new FluentDynamoDbOptions();
+        _logger = _options.Logger;
     }
 
     private UpdateItemRequest _req = new();
     private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
+    private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     private UpdateExpressionSource? _updateExpressionSource;
@@ -75,6 +89,13 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
     public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// This is used by Primary API extension methods to access the hydrator registry.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
 
     /// <summary>
     /// Replaces the DynamoDB client used for executing this request.

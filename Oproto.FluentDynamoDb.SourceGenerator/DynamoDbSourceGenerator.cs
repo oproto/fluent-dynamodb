@@ -169,6 +169,16 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             // Generate entity-specific update builder with extension method wrappers
             var updateBuilderCode = EntitySpecificUpdateBuilderGenerator.GenerateUpdateBuilder(entity, extensionMethods);
             context.AddSource($"{entity.ClassName}UpdateBuilder.g.cs", updateBuilderCode);
+
+            // Generate IAsyncEntityHydrator implementation for entities with blob references
+            if (HydratorGenerator.RequiresHydrator(entity))
+            {
+                var hydratorCode = HydratorGenerator.GenerateHydrator(entity);
+                if (hydratorCode != null)
+                {
+                    context.AddSource($"{entity.ClassName}Hydrator.g.cs", hydratorCode);
+                }
+            }
         }
 
         // Group entities by table name for table class generation

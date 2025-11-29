@@ -16,8 +16,24 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <param name="client">The DynamoDB client.</param>
     /// <param name="tableName">The name of the table.</param>
     public DynamoDbTableBase(IAmazonDynamoDB client, string tableName)
-        : this(client, tableName, null)
+        : this(client, tableName, (FluentDynamoDbOptions?)null)
     {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the DynamoDbTableBase class with configuration options.
+    /// This is the preferred constructor for configuring optional features like logging, encryption, and geospatial support.
+    /// </summary>
+    /// <param name="client">The DynamoDB client.</param>
+    /// <param name="tableName">The name of the table.</param>
+    /// <param name="options">Configuration options. If null, uses sensible defaults (NoOpLogger, no optional features).</param>
+    public DynamoDbTableBase(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)
+    {
+        DynamoDbClient = client;
+        Name = tableName;
+        Options = options ?? new FluentDynamoDbOptions();
+        Logger = Options.Logger;
+        FieldEncryptor = Options.FieldEncryptor;
     }
 
     /// <summary>
@@ -26,6 +42,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <param name="client">The DynamoDB client.</param>
     /// <param name="tableName">The name of the table.</param>
     /// <param name="logger">Optional logger for DynamoDB operations. If null, uses a no-op logger.</param>
+    [Obsolete("Use the constructor that accepts FluentDynamoDbOptions instead. This constructor will be removed in a future version.")]
     public DynamoDbTableBase(IAmazonDynamoDB client, string tableName, IDynamoDbLogger? logger)
         : this(client, tableName, logger, null)
     {
@@ -38,16 +55,26 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <param name="tableName">The name of the table.</param>
     /// <param name="logger">Optional logger for DynamoDB operations. If null, uses a no-op logger.</param>
     /// <param name="fieldEncryptor">Optional field encryptor for encrypting sensitive properties. If null, encryption is disabled.</param>
+    [Obsolete("Use the constructor that accepts FluentDynamoDbOptions instead. This constructor will be removed in a future version.")]
     public DynamoDbTableBase(IAmazonDynamoDB client, string tableName, IDynamoDbLogger? logger, IFieldEncryptor? fieldEncryptor)
     {
         DynamoDbClient = client;
         Name = tableName;
         Logger = logger ?? NoOpLogger.Instance;
         FieldEncryptor = fieldEncryptor;
+        // Create options from individual parameters for backward compatibility
+        Options = new FluentDynamoDbOptions()
+            .WithLogger(Logger)
+            .WithEncryption(fieldEncryptor);
     }
 
     public IAmazonDynamoDB DynamoDbClient { get; private init; }
     public string Name { get; private init; }
+    
+    /// <summary>
+    /// Gets the configuration options for this table.
+    /// </summary>
+    protected FluentDynamoDbOptions Options { get; private init; }
     
     /// <summary>
     /// Gets the logger for DynamoDB operations.
@@ -107,7 +134,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </code>
     /// </example>
     public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class => 
-        new QueryRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new Query operation builder with a key condition expression.
@@ -153,7 +180,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </code>
     /// </example>
     public virtual GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class => 
-        new GetItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new UpdateItem operation builder for this table.
@@ -162,7 +189,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </summary>
     /// <returns>An UpdateItemRequestBuilder configured for this table.</returns>
     public virtual UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class => 
-        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Logger)
+        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options)
             .ForTable(Name)
             .SetFieldEncryptor(FieldEncryptor);
     
@@ -173,7 +200,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </summary>
     /// <returns>A DeleteItemRequestBuilder configured for this table.</returns>
     public virtual DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class => 
-        new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new PutItem operation builder for this table.
@@ -195,7 +222,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </code>
     /// </example>
     public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class => 
-        new PutItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new ConditionCheck operation builder for this table.
@@ -236,7 +263,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </code>
     /// </example>
     public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
-        new ScanRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
 
 

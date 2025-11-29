@@ -12,7 +12,7 @@ related: ["EntityDefinition.md", "BasicOperations.md", "QueryingData.md"]
 
 Comprehensive guide to using Oproto.FluentDynamoDb with source generation and expression formatting.
 
-> **Quick Links**: [Getting Started](getting-started/QuickStart.md) | [Entity Definition](core-features/EntityDefinition.md) | [Basic Operations](core-features/BasicOperations.md) | [Querying Data](core-features/QueryingData.md)
+> **Quick Links**: [Getting Started](getting-started/QuickStart.md) | [Configuration](core-features/Configuration.md) | [Entity Definition](core-features/EntityDefinition.md) | [Basic Operations](core-features/BasicOperations.md) | [Querying Data](core-features/QueryingData.md)
 
 ## Table of Contents
 - [Overview](#overview)
@@ -21,6 +21,7 @@ Comprehensive guide to using Oproto.FluentDynamoDb with source generation and ex
 - [Generated Code](#generated-code)
 - [Expression Formatting](#expression-formatting)
 - [Usage Patterns](#usage-patterns)
+- [Configuration](#configuration)
 - [Advanced Features](#advanced-features)
 - [Best Practices](#best-practices)
 - [Performance Considerations](#performance-considerations)
@@ -293,7 +294,15 @@ See [Expression Formatting](core-features/ExpressionFormatting.md) for supported
 ### Basic CRUD Operations
 
 ```csharp
-var table = new DynamoDbTableBase(dynamoDbClient, "users");
+var client = new AmazonDynamoDBClient();
+
+// Create table without options (uses defaults)
+var table = new UsersTable(client, "users");
+
+// Or with configuration options
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<UsersTable>());
+var tableWithLogging = new UsersTable(client, "users", options);
 
 // Create
 var user = new User
@@ -389,6 +398,39 @@ await table.BatchWrite
     .ExecuteAsync();
 ```
 
+## Configuration
+
+FluentDynamoDb uses `FluentDynamoDbOptions` as the central configuration object for optional features like logging, encryption, blob storage, and geospatial support.
+
+> **Detailed Guide**: See [Configuration Guide](core-features/Configuration.md) for complete documentation.
+
+### Quick Configuration Examples
+
+```csharp
+// Basic usage - no optional features
+var table = new UsersTable(client, "users");
+
+// With logging
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<UsersTable>());
+var table = new UsersTable(client, "users", options);
+
+// With geospatial support
+var options = new FluentDynamoDbOptions()
+    .AddGeospatial();
+var table = new LocationsTable(client, "locations", options);
+
+// Combining multiple features
+var options = new FluentDynamoDbOptions()
+    .WithLogger(logger.ToDynamoDbLogger())
+    .AddGeospatial()
+    .WithBlobStorage(blobProvider)
+    .WithEncryption(encryptor);
+var table = new MyTable(client, "my-table", options);
+```
+
+Each table instance has its own configuration, providing excellent test isolation and parallel test support.
+
 ## Advanced Features
 
 > **Detailed Guides**: 
@@ -396,6 +438,7 @@ await table.BatchWrite
 > - [Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md) - GSI patterns
 > - [STS Integration](advanced-topics/STSIntegration.md) - Multi-tenant patterns
 > - [Performance Optimization](advanced-topics/PerformanceOptimization.md) - Performance tuning
+> - [Configuration Guide](core-features/Configuration.md) - FluentDynamoDbOptions configuration
 
 ### Multi-Item Entities
 
@@ -631,6 +674,7 @@ Console.WriteLine($"Consumed RCU: {response.ConsumedCapacity?.ReadCapacityUnits}
 ## See Also
 
 - [Getting Started](getting-started/QuickStart.md) - Quick start guide
+- [Configuration Guide](core-features/Configuration.md) - FluentDynamoDbOptions configuration
 - [Entity Definition](core-features/EntityDefinition.md) - Complete entity definition guide
 - [Basic Operations](core-features/BasicOperations.md) - CRUD operations
 - [Querying Data](core-features/QueryingData.md) - Query and scan operations

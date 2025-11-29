@@ -64,6 +64,15 @@ Protect sensitive data with logging redaction and optional KMS-based encryption.
 - Integration with external blob storage
 - Best practices and troubleshooting
 
+### [Geospatial Support](Geospatial.md)
+Enable location-based queries with GeoHash, S2, and H3 spatial indexing. Covers:
+- Package installation and configuration with `AddGeospatial()`
+- Defining entities with `GeoLocation` properties
+- Proximity queries and bounding box queries
+- Choosing between GeoHash, S2, and H3 index types
+- Paginated spatial queries
+- Distance calculations and sorting
+
 ### [Global Secondary Indexes](GlobalSecondaryIndexes.md)
 Master GSI configuration and querying for alternative access patterns. Covers:
 - GSI attribute configuration
@@ -117,8 +126,9 @@ If you're new to advanced topics, we recommend starting with:
 4. **[Composite Entities](CompositeEntities.md)** - Essential for modeling complex data
 5. **[Discriminators](Discriminators.md)** - Configure entity type identification for single-table design
 6. **[Field-Level Security](FieldLevelSecurity.md)** - Protect sensitive data with encryption and redaction
-7. **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - Enable alternative query patterns
-8. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
+7. **[Geospatial Support](Geospatial.md)** - Enable location-based queries with spatial indexing
+8. **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - Enable alternative query patterns
+9. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
 
 ## Prerequisites
 

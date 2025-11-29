@@ -125,6 +125,7 @@ public class ExpressionTranslator
     private static readonly ExpressionCache _cache = new();
     private readonly IDynamoDbLogger? _logger;
     private readonly Func<string, bool>? _isSensitiveField;
+    private readonly FluentDynamoDbOptions? _options;
 
     /// <summary>
     /// Gets the global expression cache instance.
@@ -146,6 +147,18 @@ public class ExpressionTranslator
     public ExpressionTranslator(IDynamoDbLogger? logger, Func<string, bool>? isSensitiveField = null)
     {
         _logger = logger;
+        _isSensitiveField = isSensitiveField;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExpressionTranslator"/> class with FluentDynamoDbOptions.
+    /// </summary>
+    /// <param name="options">The FluentDynamoDb configuration options. If null, uses default options.</param>
+    /// <param name="isSensitiveField">Optional function to check if a field is sensitive (typically from generated SecurityMetadata).</param>
+    public ExpressionTranslator(FluentDynamoDbOptions? options, Func<string, bool>? isSensitiveField = null)
+    {
+        _options = options;
+        _logger = options?.Logger;
         _isSensitiveField = isSensitiveField;
     }
 
@@ -398,14 +411,20 @@ public class ExpressionTranslator
             parentMember.Expression == entityParameter)
         {
             // Check if the parent property is of type GeoLocation
-            var propertyType = parentMember.Member.DeclaringType?.GetProperty(parentMember.Member.Name)?.PropertyType;
+            // Use MemberExpression.Member directly - it's already captured at compile time (AOT-safe)
+            var propertyType = parentMember.Member is System.Reflection.PropertyInfo parentPropInfo 
+                ? parentPropInfo.PropertyType 
+                : null;
             return IsGeoLocationType(propertyType);
         }
 
         // Check for x.Location pattern (direct GeoLocation property access)
         if (member.Expression == entityParameter)
         {
-            var propertyType = member.Member.DeclaringType?.GetProperty(member.Member.Name)?.PropertyType;
+            // Use MemberExpression.Member directly - it's already captured at compile time (AOT-safe)
+            var propertyType = member.Member is System.Reflection.PropertyInfo propInfo 
+                ? propInfo.PropertyType 
+                : null;
             return IsGeoLocationType(propertyType);
         }
 
@@ -1043,16 +1062,16 @@ public class ExpressionTranslator
             }
 
             // Handle member access on constants (e.g., variable references)
+            // Use MemberExpression.Member directly - it's already captured at compile time (AOT-safe)
             if (expression is MemberExpression member && member.Expression is ConstantExpression memberConstant)
             {
-                var field = memberConstant.Value?.GetType().GetField(member.Member.Name);
-                if (field != null)
+                // member.Member is already the FieldInfo/PropertyInfo from the expression tree
+                if (member.Member is System.Reflection.FieldInfo field)
                 {
                     return (T)field.GetValue(memberConstant.Value)!;
                 }
 
-                var property = memberConstant.Value?.GetType().GetProperty(member.Member.Name);
-                if (property != null)
+                if (member.Member is System.Reflection.PropertyInfo property)
                 {
                     return (T)property.GetValue(memberConstant.Value)!;
                 }
@@ -1140,6 +1159,17 @@ public class ExpressionTranslator
                 node);
         }
 
+        // Ensure geospatial provider is configured
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider == null)
+        {
+            throw new InvalidOperationException(
+                "Geospatial features require configuration. " +
+                "Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+                "options.AddGeospatial() when creating your ExpressionTranslator. " +
+                "Example: new ExpressionTranslator(new FluentDynamoDbOptions().AddGeospatial())");
+        }
+
         // Evaluate center and distance - these must be constants or simple expressions
         var center = EvaluateConstantExpression<object>(centerExpr);
         var distance = EvaluateConstantExpression<double>(distanceExpr);
@@ -1156,73 +1186,14 @@ public class ExpressionTranslator
         // Get the precision for this property
         var precision = GetPrecisionForProperty(locationExpr, entityParameter, context);
 
-        // Create bounding box and get GeoHash range
-        // We need to use reflection to call the GeoBoundingBox methods since we can't reference the geospatial package directly
-        var geoBoundingBoxType = center.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoBoundingBox");
-        if (geoBoundingBoxType == null)
-        {
-            throw new ExpressionTranslationException(
-                "GeoBoundingBox type not found. Ensure Oproto.FluentDynamoDb.Geospatial package is referenced.",
-                node);
-        }
+        // Extract latitude and longitude from the center GeoLocation
+        var (centerLatitude, centerLongitude) = ExtractGeoLocationCoordinates(center, node);
 
-        var fromCenterMethod = geoBoundingBoxType.GetMethod("FromCenterAndDistanceMeters");
-        if (fromCenterMethod == null)
-        {
-            throw new ExpressionTranslationException(
-                "GeoBoundingBox.FromCenterAndDistanceMeters method not found.",
-                node);
-        }
+        // Create bounding box using the provider (no reflection)
+        var bbox = geospatialProvider.CreateBoundingBox(centerLatitude, centerLongitude, distanceMeters);
 
-        var bbox = fromCenterMethod.Invoke(null, new[] { center, distanceMeters });
-        if (bbox == null)
-        {
-            throw new ExpressionTranslationException(
-                "Failed to create bounding box from center and distance.",
-                node);
-        }
-
-        // Get GeoHash range from bounding box
-        var geoHashBoundingBoxExtensionsType = center.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoHash.GeoHashBoundingBoxExtensions");
-        if (geoHashBoundingBoxExtensionsType == null)
-        {
-            throw new ExpressionTranslationException(
-                "GeoHashBoundingBoxExtensions type not found.",
-                node);
-        }
-
-        var getGeoHashRangeMethod = geoHashBoundingBoxExtensionsType.GetMethod("GetGeoHashRange");
-        if (getGeoHashRangeMethod == null)
-        {
-            throw new ExpressionTranslationException(
-                "GetGeoHashRange method not found.",
-                node);
-        }
-
-        var rangeResult = getGeoHashRangeMethod.Invoke(null, new[] { bbox, precision });
-        if (rangeResult == null)
-        {
-            throw new ExpressionTranslationException(
-                "Failed to get GeoHash range from bounding box.",
-                node);
-        }
-
-        // Extract minHash and maxHash from the tuple
-        var rangeType = rangeResult.GetType();
-        var minHashProperty = rangeType.GetProperty("Item1");
-        var minHashField = rangeType.GetField("Item1");
-        var maxHashProperty = rangeType.GetProperty("Item2");
-        var maxHashField = rangeType.GetField("Item2");
-
-        var minHash = (minHashProperty?.GetValue(rangeResult) ?? minHashField?.GetValue(rangeResult)) as string;
-        var maxHash = (maxHashProperty?.GetValue(rangeResult) ?? maxHashField?.GetValue(rangeResult)) as string;
-
-        if (minHash == null || maxHash == null)
-        {
-            throw new ExpressionTranslationException(
-                "Failed to extract GeoHash range values.",
-                node);
-        }
+        // Get GeoHash range from bounding box using the provider (no reflection)
+        var (minHash, maxHash) = geospatialProvider.GetGeoHashRange(bbox, precision);
 
         // Translate location property to attribute name
         var locationField = Visit(locationExpr, entityParameter, context);
@@ -1239,6 +1210,38 @@ public class ExpressionTranslator
         var sb = new StringBuilder(locationField.Length + minParam.Length + maxParam.Length + 17);
         sb.Append(locationField).Append(" BETWEEN ").Append(minParam).Append(" AND ").Append(maxParam);
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Extracts latitude and longitude from a GeoLocation object using the configured geospatial provider.
+    /// This method is AOT-safe as it delegates to the provider instead of using reflection.
+    /// </summary>
+    /// <param name="geoLocation">The GeoLocation object.</param>
+    /// <param name="node">The expression node for error reporting.</param>
+    /// <returns>A tuple containing latitude and longitude.</returns>
+    private (double Latitude, double Longitude) ExtractGeoLocationCoordinates(object geoLocation, Expression node)
+    {
+        // Use the geospatial provider for AOT-safe coordinate extraction
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider != null)
+        {
+            try
+            {
+                return geospatialProvider.ExtractGeoLocationCoordinates(geoLocation);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new ExpressionTranslationException(
+                    $"Unable to extract coordinates from GeoLocation object: {ex.Message}",
+                    node);
+            }
+        }
+        
+        throw new ExpressionTranslationException(
+            $"Unable to extract coordinates from GeoLocation object of type {geoLocation.GetType().FullName}. " +
+            "Geospatial provider is not configured. Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+            "options.AddGeospatial() when creating your ExpressionTranslator.",
+            node);
     }
 
     /// <summary>
@@ -1268,13 +1271,28 @@ public class ExpressionTranslator
                 node);
         }
 
-        object bbox;
+        // Ensure geospatial provider is configured
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider == null)
+        {
+            throw new InvalidOperationException(
+                "Geospatial features require configuration. " +
+                "Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+                "options.AddGeospatial() when creating your ExpressionTranslator. " +
+                "Example: new ExpressionTranslator(new FluentDynamoDbOptions().AddGeospatial())");
+        }
+
+        GeoBoundingBoxResult bbox;
 
         if (node.Arguments.Count == 2)
         {
             // Single GeoBoundingBox parameter
             var bboxExpr = node.Arguments[1];
-            bbox = EvaluateConstantExpression<object>(bboxExpr);
+            var bboxObj = EvaluateConstantExpression<object>(bboxExpr);
+            
+            // Extract coordinates from the bounding box object
+            var (swLat, swLon, neLat, neLon) = ExtractBoundingBoxCoordinates(bboxObj, node);
+            bbox = geospatialProvider.CreateBoundingBox(swLat, swLon, neLat, neLon);
         }
         else
         {
@@ -1285,76 +1303,19 @@ public class ExpressionTranslator
             var southwest = EvaluateConstantExpression<object>(southwestExpr);
             var northeast = EvaluateConstantExpression<object>(northeastExpr);
 
-            // Create GeoBoundingBox from the two corners
-            var geoBoundingBoxType = southwest.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoBoundingBox");
-            if (geoBoundingBoxType == null)
-            {
-                throw new ExpressionTranslationException(
-                    "GeoBoundingBox type not found. Ensure Oproto.FluentDynamoDb.Geospatial package is referenced.",
-                    node);
-            }
+            // Extract coordinates from GeoLocation objects
+            var (swLat, swLon) = ExtractGeoLocationCoordinates(southwest, node);
+            var (neLat, neLon) = ExtractGeoLocationCoordinates(northeast, node);
 
-            var constructor = geoBoundingBoxType.GetConstructor(new[] { southwest.GetType(), northeast.GetType() });
-            if (constructor == null)
-            {
-                throw new ExpressionTranslationException(
-                    "GeoBoundingBox constructor not found.",
-                    node);
-            }
-
-            bbox = constructor.Invoke(new[] { southwest, northeast });
-            if (bbox == null)
-            {
-                throw new ExpressionTranslationException(
-                    "Failed to create bounding box from southwest and northeast corners.",
-                    node);
-            }
+            // Create bounding box using the provider (no reflection)
+            bbox = geospatialProvider.CreateBoundingBox(swLat, swLon, neLat, neLon);
         }
 
         // Get the precision for this property
         var precision = GetPrecisionForProperty(locationExpr, entityParameter, context);
 
-        // Get GeoHash range from bounding box
-        var geoHashBoundingBoxExtensionsType = bbox.GetType().Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.GeoHash.GeoHashBoundingBoxExtensions");
-        if (geoHashBoundingBoxExtensionsType == null)
-        {
-            throw new ExpressionTranslationException(
-                "GeoHashBoundingBoxExtensions type not found.",
-                node);
-        }
-
-        var getGeoHashRangeMethod = geoHashBoundingBoxExtensionsType.GetMethod("GetGeoHashRange");
-        if (getGeoHashRangeMethod == null)
-        {
-            throw new ExpressionTranslationException(
-                "GetGeoHashRange method not found.",
-                node);
-        }
-
-        var rangeResult = getGeoHashRangeMethod.Invoke(null, new[] { bbox, precision });
-        if (rangeResult == null)
-        {
-            throw new ExpressionTranslationException(
-                "Failed to get GeoHash range from bounding box.",
-                node);
-        }
-
-        // Extract minHash and maxHash from the tuple
-        var rangeType = rangeResult.GetType();
-        var minHashProperty = rangeType.GetProperty("Item1");
-        var minHashField = rangeType.GetField("Item1");
-        var maxHashProperty = rangeType.GetProperty("Item2");
-        var maxHashField = rangeType.GetField("Item2");
-
-        var minHash = (minHashProperty?.GetValue(rangeResult) ?? minHashField?.GetValue(rangeResult)) as string;
-        var maxHash = (maxHashProperty?.GetValue(rangeResult) ?? maxHashField?.GetValue(rangeResult)) as string;
-
-        if (minHash == null || maxHash == null)
-        {
-            throw new ExpressionTranslationException(
-                "Failed to extract GeoHash range values.",
-                node);
-        }
+        // Get GeoHash range from bounding box using the provider (no reflection)
+        var (minHash, maxHash) = geospatialProvider.GetGeoHashRange(bbox, precision);
 
         // Translate location property to attribute name
         var locationField = Visit(locationExpr, entityParameter, context);
@@ -1371,5 +1332,37 @@ public class ExpressionTranslator
         var sb = new StringBuilder(locationField.Length + minParam.Length + maxParam.Length + 17);
         sb.Append(locationField).Append(" BETWEEN ").Append(minParam).Append(" AND ").Append(maxParam);
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Extracts coordinates from a GeoBoundingBox object using the configured geospatial provider.
+    /// This method is AOT-safe as it delegates to the provider instead of using reflection.
+    /// </summary>
+    /// <param name="boundingBox">The bounding box object.</param>
+    /// <param name="node">The expression node for error reporting.</param>
+    /// <returns>A tuple containing southwest and northeast coordinates.</returns>
+    private (double SwLatitude, double SwLongitude, double NeLatitude, double NeLongitude) ExtractBoundingBoxCoordinates(object boundingBox, Expression node)
+    {
+        // Use the geospatial provider for AOT-safe coordinate extraction
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider != null)
+        {
+            try
+            {
+                return geospatialProvider.ExtractBoundingBoxCoordinates(boundingBox);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new ExpressionTranslationException(
+                    $"Unable to extract coordinates from bounding box object: {ex.Message}",
+                    node);
+            }
+        }
+        
+        throw new ExpressionTranslationException(
+            $"Unable to extract coordinates from bounding box object of type {boundingBox.GetType().FullName}. " +
+            "Geospatial provider is not configured. Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+            "options.AddGeospatial() when creating your ExpressionTranslator.",
+            node);
     }
 }

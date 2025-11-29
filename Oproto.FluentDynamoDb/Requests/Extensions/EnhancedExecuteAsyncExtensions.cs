@@ -96,19 +96,12 @@ public static class EnhancedExecuteAsyncExtensions
             if (response.Item == null || !T.MatchesEntity(response.Item))
                 return null;
 
-            // Use reflection to check if the entity has async FromDynamoDb method
-            var fromDynamoDbAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(Dictionary<string, AttributeValue>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
-            if (fromDynamoDbAsyncMethod != null)
+            // Check if a hydrator is registered for this entity type (AOT-safe)
+            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
             {
-                // Entity has blob references - use async method
-                var task = (Task<T>)fromDynamoDbAsyncMethod.Invoke(null, new object[] { response.Item, blobProvider, cancellationToken })!;
-                return await task;
+                // Entity has blob references - use registered hydrator (no reflection)
+                return await hydrator.HydrateAsync(response.Item, blobProvider, cancellationToken);
             }
             else
             {
@@ -233,23 +226,12 @@ public static class EnhancedExecuteAsyncExtensions
             // Filter matching items
             var matchingItems = items.Where(T.MatchesEntity).ToList();
 
-            // Check if entity has async FromDynamoDb method
-            var fromDynamoDbAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(Dictionary<string, AttributeValue>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
-            if (fromDynamoDbAsyncMethod != null)
+            // Check if a hydrator is registered for this entity type (AOT-safe)
+            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
             {
-                // Entity has blob references - use async method for each item
-                var tasks = matchingItems.Select(async item =>
-                {
-                    var task = (Task<T>)fromDynamoDbAsyncMethod.Invoke(null, new object[] { item, blobProvider, cancellationToken })!;
-                    return await task;
-                });
-
+                // Entity has blob references - use registered hydrator (no reflection)
+                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, cancellationToken));
                 return (await Task.WhenAll(tasks)).ToList();
             }
             else
@@ -371,39 +353,23 @@ public static class EnhancedExecuteAsyncExtensions
             // Filter items that match the entity type
             var matchingItems = items.Where(T.MatchesEntity).ToList();
 
-            // Check if entity has async FromDynamoDb method for multi-item
-            var fromDynamoDbMultiAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(IList<Dictionary<string, AttributeValue>>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
-            // Check if entity has async FromDynamoDb method for single-item
-            var fromDynamoDbSingleAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(Dictionary<string, AttributeValue>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
             // Group items by partition key for multi-item entities
             var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
 
-            if (fromDynamoDbMultiAsyncMethod != null && fromDynamoDbSingleAsyncMethod != null)
+            // Check if a hydrator is registered for this entity type (AOT-safe)
+            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
             {
-                // Entity has blob references - use async methods
+                // Entity has blob references - use registered hydrator (no reflection)
                 var tasks = groups.Select(async group =>
                 {
                     if (group.Count() == 1)
                     {
-                        var task = (Task<T>)fromDynamoDbSingleAsyncMethod.Invoke(null, new object[] { group.First(), blobProvider, cancellationToken })!;
-                        return await task;
+                        return await hydrator.HydrateAsync(group.First(), blobProvider, cancellationToken);
                     }
                     else
                     {
-                        var task = (Task<T>)fromDynamoDbMultiAsyncMethod.Invoke(null, new object[] { group.ToList(), blobProvider, cancellationToken })!;
-                        return await task;
+                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, cancellationToken);
                     }
                 });
 
@@ -528,19 +494,12 @@ public static class EnhancedExecuteAsyncExtensions
             if (matchingItems.Count == 0)
                 return null;
 
-            // Check if entity has async FromDynamoDb method for multi-item
-            var fromDynamoDbMultiAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(IList<Dictionary<string, AttributeValue>>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
-            if (fromDynamoDbMultiAsyncMethod != null)
+            // Check if a hydrator is registered for this entity type (AOT-safe)
+            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
             {
-                // Entity has blob references - use async method
-                var task = (Task<T>)fromDynamoDbMultiAsyncMethod.Invoke(null, new object[] { matchingItems, blobProvider, cancellationToken })!;
-                return await task;
+                // Entity has blob references - use registered hydrator (no reflection)
+                return await hydrator.HydrateAsync(matchingItems, blobProvider, cancellationToken);
             }
             else
             {
@@ -608,21 +567,14 @@ public static class EnhancedExecuteAsyncExtensions
 
         try
         {
-            // Check if entity has async ToDynamoDb method
-            var toDynamoDbAsyncMethod = typeof(T).GetMethod(
-                "ToDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(T), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
             Dictionary<string, AttributeValue> attributeDict;
 
-            if (toDynamoDbAsyncMethod != null)
+            // Check if a hydrator is registered for this entity type (AOT-safe)
+            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
             {
-                // Entity has blob references - use async method
-                var task = (Task<Dictionary<string, AttributeValue>>)toDynamoDbAsyncMethod.Invoke(null, new object[] { item, blobProvider, cancellationToken })!;
-                attributeDict = await task;
+                // Entity has blob references - use registered hydrator's serialize method (no reflection)
+                attributeDict = await hydrator.SerializeAsync(item, blobProvider, cancellationToken);
             }
             else
             {
@@ -740,23 +692,12 @@ public static class EnhancedExecuteAsyncExtensions
             // Filter matching items
             var matchingItems = items.Where(T.MatchesEntity).ToList();
 
-            // Check if entity has async FromDynamoDb method
-            var fromDynamoDbAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(Dictionary<string, AttributeValue>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
-            if (fromDynamoDbAsyncMethod != null)
+            // Check if a hydrator is registered for this entity type (AOT-safe)
+            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
             {
-                // Entity has blob references - use async method for each item
-                var tasks = matchingItems.Select(async item =>
-                {
-                    var task = (Task<T>)fromDynamoDbAsyncMethod.Invoke(null, new object[] { item, blobProvider, cancellationToken })!;
-                    return await task;
-                });
-
+                // Entity has blob references - use registered hydrator (no reflection)
+                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, cancellationToken));
                 return (await Task.WhenAll(tasks)).ToList();
             }
             else
@@ -877,39 +818,23 @@ public static class EnhancedExecuteAsyncExtensions
             // Filter items that match the entity type
             var matchingItems = items.Where(T.MatchesEntity).ToList();
 
-            // Check if entity has async FromDynamoDb method for multi-item
-            var fromDynamoDbMultiAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(IList<Dictionary<string, AttributeValue>>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
-            // Check if entity has async FromDynamoDb method for single-item
-            var fromDynamoDbSingleAsyncMethod = typeof(T).GetMethod(
-                "FromDynamoDbAsync",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                null,
-                new[] { typeof(Dictionary<string, AttributeValue>), typeof(IBlobStorageProvider), typeof(CancellationToken) },
-                null);
-
             // Group items by partition key for multi-item entities
             var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
 
-            if (fromDynamoDbMultiAsyncMethod != null && fromDynamoDbSingleAsyncMethod != null)
+            // Check if a hydrator is registered for this entity type (AOT-safe)
+            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
             {
-                // Entity has blob references - use async methods
+                // Entity has blob references - use registered hydrator (no reflection)
                 var tasks = groups.Select(async group =>
                 {
                     if (group.Count() == 1)
                     {
-                        var task = (Task<T>)fromDynamoDbSingleAsyncMethod.Invoke(null, new object[] { group.First(), blobProvider, cancellationToken })!;
-                        return await task;
+                        return await hydrator.HydrateAsync(group.First(), blobProvider, cancellationToken);
                     }
                     else
                     {
-                        var task = (Task<T>)fromDynamoDbMultiAsyncMethod.Invoke(null, new object[] { group.ToList(), blobProvider, cancellationToken })!;
-                        return await task;
+                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, cancellationToken);
                     }
                 });
 

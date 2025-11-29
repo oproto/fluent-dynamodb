@@ -17,10 +17,11 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
-    <!-- Make internal types visible to test projects -->
+    <!-- Make internal types visible to test projects and extension packages -->
     <ItemGroup>
         <InternalsVisibleTo Include="Oproto.FluentDynamoDb.UnitTests" />
         <InternalsVisibleTo Include="Oproto.FluentDynamoDb.IntegrationTests" />
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.Geospatial" />
     </ItemGroup>
 
     <PropertyGroup>

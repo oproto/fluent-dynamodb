@@ -1273,50 +1273,105 @@ public class UpdateExpressionTranslator
     private object ApplyFormatToSetElements(object value, string format, string propertyName)
     {
         // Apply format to each element in a set or array
-        if (value is Array array)
+        // DynamoDB only supports: HashSet<string> (SS), HashSet<numeric> (NS), HashSet<byte[]> (BS)
+        // Format strings only make sense for numeric types
+        
+        // Handle string arrays (params string[])
+        if (value is string[] stringArray)
         {
-            var elementType = array.GetType().GetElementType()!;
-            var formattedArray = Array.CreateInstance(elementType, array.Length);
-            for (int i = 0; i < array.Length; i++)
-            {
-                var item = array.GetValue(i);
-                if (item != null)
-                {
-                    var formatted = ApplyFormat(item, format, propertyName);
-                    formattedArray.SetValue(formatted, i);
-                }
-                else
-                {
-                    formattedArray.SetValue(item, i);
-                }
-            }
-            return formattedArray;
+            // Strings don't need formatting, return as-is
+            return stringArray;
         }
         
-        // Handle HashSet<T> using dynamic to work with generic types
-        var valueType = value.GetType();
-        if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof(HashSet<>))
+        // Handle numeric arrays with formatting
+        if (value is int[] intArray)
         {
-            var elementType = valueType.GetGenericArguments()[0];
-            var formattedSetType = typeof(HashSet<>).MakeGenericType(elementType);
-            var formattedSet = Activator.CreateInstance(formattedSetType);
-            
-            foreach (var item in (dynamic)value)
-            {
-                if (item != null)
-                {
-                    var formatted = ApplyFormat(item, format, propertyName);
-                    ((dynamic)formattedSet).Add(formatted);
-                }
-                else
-                {
-                    ((dynamic)formattedSet).Add(item);
-                }
-            }
-            return formattedSet!;
+            var result = new string[intArray.Length];
+            for (int i = 0; i < intArray.Length; i++)
+                result[i] = intArray[i].ToString(format, CultureInfo.InvariantCulture);
+            return result;
         }
         
-        // If it's not a set or array, return as-is
+        if (value is long[] longArray)
+        {
+            var result = new string[longArray.Length];
+            for (int i = 0; i < longArray.Length; i++)
+                result[i] = longArray[i].ToString(format, CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (value is decimal[] decimalArray)
+        {
+            var result = new string[decimalArray.Length];
+            for (int i = 0; i < decimalArray.Length; i++)
+                result[i] = decimalArray[i].ToString(format, CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (value is double[] doubleArray)
+        {
+            var result = new string[doubleArray.Length];
+            for (int i = 0; i < doubleArray.Length; i++)
+                result[i] = doubleArray[i].ToString(format, CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (value is float[] floatArray)
+        {
+            var result = new string[floatArray.Length];
+            for (int i = 0; i < floatArray.Length; i++)
+                result[i] = floatArray[i].ToString(format, CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        // Handle HashSet types - DynamoDB only supports string, numeric, and binary sets
+        if (value is HashSet<string> stringSet)
+        {
+            // Strings don't need formatting, return as-is
+            return stringSet;
+        }
+        
+        if (value is HashSet<int> intSet)
+        {
+            var result = new HashSet<string>();
+            foreach (var item in intSet)
+                result.Add(item.ToString(format, CultureInfo.InvariantCulture));
+            return result;
+        }
+        
+        if (value is HashSet<long> longSet)
+        {
+            var result = new HashSet<string>();
+            foreach (var item in longSet)
+                result.Add(item.ToString(format, CultureInfo.InvariantCulture));
+            return result;
+        }
+        
+        if (value is HashSet<decimal> decimalSet)
+        {
+            var result = new HashSet<string>();
+            foreach (var item in decimalSet)
+                result.Add(item.ToString(format, CultureInfo.InvariantCulture));
+            return result;
+        }
+        
+        if (value is HashSet<double> doubleSet)
+        {
+            var result = new HashSet<string>();
+            foreach (var item in doubleSet)
+                result.Add(item.ToString(format, CultureInfo.InvariantCulture));
+            return result;
+        }
+        
+        if (value is HashSet<float> floatSet)
+        {
+            var result = new HashSet<string>();
+            foreach (var item in floatSet)
+                result.Add(item.ToString(format, CultureInfo.InvariantCulture));
+            return result;
+        }
+        
+        // If it's not a supported set type, return as-is
         return value;
     }
 
@@ -1435,38 +1490,77 @@ public class UpdateExpressionTranslator
             return new AttributeValue { L = list };
         }
 
-        // Handle HashSet
-        var valueType = value.GetType();
-        if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof(HashSet<>))
+        // Handle HashSet - DynamoDB only supports string, numeric, and binary sets
+        // Use explicit type checks for AOT compatibility (no dynamic)
+        if (value is HashSet<string> stringSet)
         {
-            var elementType = valueType.GetGenericArguments()[0];
-            
-            if (elementType == typeof(string))
-            {
-                var set = (HashSet<string>)value;
-                if (set.Count == 0)
-                    return new AttributeValue { NULL = true };
-                return new AttributeValue { SS = set.ToList() };
-            }
-            
-            if (IsNumericType(elementType))
-            {
-                var numbers = new List<string>();
-                foreach (var item in (dynamic)value)
-                {
-                    numbers.Add(Convert.ToString(item, CultureInfo.InvariantCulture)!);
-                }
-                if (numbers.Count == 0)
-                    return new AttributeValue { NULL = true };
-                return new AttributeValue { NS = numbers };
-            }
+            if (stringSet.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { SS = stringSet.ToList() };
+        }
+        
+        if (value is HashSet<int> intSet)
+        {
+            if (intSet.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { NS = intSet.Select(i => i.ToString(CultureInfo.InvariantCulture)).ToList() };
+        }
+        
+        if (value is HashSet<long> longSet)
+        {
+            if (longSet.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { NS = longSet.Select(l => l.ToString(CultureInfo.InvariantCulture)).ToList() };
+        }
+        
+        if (value is HashSet<decimal> decimalSet)
+        {
+            if (decimalSet.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { NS = decimalSet.Select(d => d.ToString(CultureInfo.InvariantCulture)).ToList() };
+        }
+        
+        if (value is HashSet<double> doubleSet)
+        {
+            if (doubleSet.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { NS = doubleSet.Select(d => d.ToString(CultureInfo.InvariantCulture)).ToList() };
+        }
+        
+        if (value is HashSet<float> floatSet)
+        {
+            if (floatSet.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { NS = floatSet.Select(f => f.ToString(CultureInfo.InvariantCulture)).ToList() };
         }
 
-        // Handle List
-        if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof(List<>))
+        // Handle List - use explicit type checks for common types, fall back for others
+        if (value is List<string> stringList)
+        {
+            if (stringList.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { L = stringList.Select(s => new AttributeValue { S = s }).ToList() };
+        }
+        
+        if (value is List<int> intList)
+        {
+            if (intList.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { L = intList.Select(i => new AttributeValue { N = i.ToString(CultureInfo.InvariantCulture) }).ToList() };
+        }
+        
+        if (value is List<object> objectList)
+        {
+            if (objectList.Count == 0)
+                return new AttributeValue { NULL = true };
+            return new AttributeValue { L = objectList.Select(ConvertToAttributeValue).ToList() };
+        }
+        
+        // For other IEnumerable types, try to enumerate
+        if (value is System.Collections.IEnumerable enumerable)
         {
             var list = new List<AttributeValue>();
-            foreach (var item in (dynamic)value)
+            foreach (var item in enumerable)
             {
                 list.Add(ConvertToAttributeValue(item));
             }

@@ -443,9 +443,13 @@ Logging may not be the primary bottleneck. Use a profiler to identify actual per
 If you want logging in development but minimal overhead in production:
 
 ```csharp
-// Production
-var logger = NoOpLogger.Instance;
-var table = new ProductsTable(client, "products", logger);
+// Production - use NoOpLogger (default when no logger configured)
+var table = new ProductsTable(client, "products");
+
+// Or explicitly use NoOpLogger
+var options = new FluentDynamoDbOptions()
+    .WithLogger(NoOpLogger.Instance);
+var table = new ProductsTable(client, "products", options);
 
 // ~1% overhead, no conditional compilation needed
 ```
