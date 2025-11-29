@@ -42,18 +42,8 @@ public class ConditionCheckBuilder<TEntity> :
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for the operation.</param>
     /// <param name="tableName">The name of the DynamoDB table.</param>
-    public ConditionCheckBuilder(IAmazonDynamoDB dynamoDbClient, string tableName)
-        : this(dynamoDbClient, tableName, null)
-    {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the ConditionCheckBuilder with options.
-    /// </summary>
-    /// <param name="dynamoDbClient">The DynamoDB client to use for the operation.</param>
-    /// <param name="tableName">The name of the DynamoDB table.</param>
-    /// <param name="options">Configuration options. If null, uses sensible defaults.</param>
-    public ConditionCheckBuilder(IAmazonDynamoDB dynamoDbClient, string tableName, FluentDynamoDbOptions? options)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public ConditionCheckBuilder(IAmazonDynamoDB dynamoDbClient, string tableName, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
         _tableName = tableName;

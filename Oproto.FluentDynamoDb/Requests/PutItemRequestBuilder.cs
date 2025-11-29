@@ -44,20 +44,8 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// Initializes a new instance of the PutItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public PutItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
-    {
-        _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
-        _options = new FluentDynamoDbOptions().WithLogger(_logger);
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the PutItemRequestBuilder with FluentDynamoDbOptions.
-    /// </summary>
-    /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="options">Configuration options including logger, hydrator registry, etc.</param>
-    public PutItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions options)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public PutItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();

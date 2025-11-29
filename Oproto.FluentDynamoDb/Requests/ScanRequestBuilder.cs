@@ -45,20 +45,8 @@ public class ScanRequestBuilder<TEntity> :
     /// Initializes a new instance of the ScanRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public ScanRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
-    {
-        _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
-        _options = new FluentDynamoDbOptions().WithLogger(_logger);
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the ScanRequestBuilder with FluentDynamoDbOptions.
-    /// </summary>
-    /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="options">Configuration options including logger, hydrator registry, etc.</param>
-    public ScanRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions options)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public ScanRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
