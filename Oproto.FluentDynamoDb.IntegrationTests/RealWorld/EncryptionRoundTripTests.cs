@@ -46,7 +46,7 @@ public class EncryptionRoundTripTests : IntegrationTestBase
         await SaveAsync(entity);
 
         // Act - Update with deferred encryption
-        var builder = new UpdateItemRequestBuilder<EncryptedTestEntity>(DynamoDb, null)
+        var builder = new UpdateItemRequestBuilder<EncryptedTestEntity>(DynamoDb, (FluentDynamoDbOptions?)null)
             .ForTable(TableName)
             .SetFieldEncryptor(encryptor)
             .WithKey("pk", entity.Id, "sk", entity.Type!);
@@ -101,7 +101,7 @@ public class EncryptionRoundTripTests : IntegrationTestBase
         await SaveAsync(entity);
 
         // Act
-        var builder = new UpdateItemRequestBuilder<EncryptedTestEntity>(DynamoDb, null)
+        var builder = new UpdateItemRequestBuilder<EncryptedTestEntity>(DynamoDb, (FluentDynamoDbOptions?)null)
             .ForTable(TableName)
             .SetFieldEncryptor(encryptor)
             .WithKey("pk", entity.Id, "sk", entity.Type!);
@@ -167,7 +167,7 @@ public class EncryptionRoundTripTests : IntegrationTestBase
         await SaveAsync(entity);
 
         // Act & Assert
-        var builder = new UpdateItemRequestBuilder<EncryptedTestEntity>(DynamoDb, null)
+        var builder = new UpdateItemRequestBuilder<EncryptedTestEntity>(DynamoDb, (FluentDynamoDbOptions?)null)
             .ForTable(TableName)
             .WithKey("pk", entity.Id, "sk", entity.Type!);
         

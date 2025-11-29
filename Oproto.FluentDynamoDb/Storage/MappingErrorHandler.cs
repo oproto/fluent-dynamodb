@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Amazon.DynamoDBv2.Model;
 
 namespace Oproto.FluentDynamoDb.Storage;
@@ -114,52 +113,6 @@ public static class MappingErrorHandler
                 item)
                 .WithContext("MissingAttributes", missingAttributes)
                 .WithContext("AvailableAttributes", item.Keys.ToArray());
-        }
-    }
-
-    /// <summary>
-    /// Validates that an entity has required properties set before serialization.
-    /// </summary>
-    /// <typeparam name="T">The entity type.</typeparam>
-    /// <param name="entity">The entity instance to validate.</param>
-    /// <param name="requiredProperties">The list of required property names.</param>
-    /// <exception cref="DynamoDbMappingException">Thrown when required properties are null or empty.</exception>
-    public static void ValidateRequiredProperties<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(T entity, string[] requiredProperties)
-    {
-        if (entity == null)
-        {
-            throw new ArgumentNullException(nameof(entity));
-        }
-
-        var entityType = typeof(T);
-        var missingProperties = new List<string>();
-
-        foreach (var propertyName in requiredProperties)
-        {
-            var property = entityType.GetProperty(propertyName);
-            if (property == null)
-            {
-                missingProperties.Add($"{propertyName} (property not found)");
-                continue;
-            }
-
-            var value = property.GetValue(entity);
-            if (value == null || (value is string str && string.IsNullOrEmpty(str)))
-            {
-                missingProperties.Add(propertyName);
-            }
-        }
-
-        if (missingProperties.Count > 0)
-        {
-            var message = $"Entity {entityType.Name} has null or empty required properties: {string.Join(", ", missingProperties)}";
-
-            throw new DynamoDbMappingException(
-                message,
-                entityType,
-                MappingOperation.ToDynamoDb)
-                .WithContext("MissingProperties", missingProperties.ToArray())
-                .WithContext("EntityInstance", entity.ToString() ?? "[null]");
         }
     }
 

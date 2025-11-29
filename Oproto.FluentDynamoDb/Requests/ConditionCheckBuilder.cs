@@ -30,6 +30,7 @@ public class ConditionCheckBuilder<TEntity> :
     where TEntity : class
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
+    private readonly FluentDynamoDbOptions _options;
     private string _tableName;
     private Dictionary<string, AttributeValue> _key = new();
     private string? _conditionExpression;
@@ -41,10 +42,12 @@ public class ConditionCheckBuilder<TEntity> :
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for the operation.</param>
     /// <param name="tableName">The name of the DynamoDB table.</param>
-    public ConditionCheckBuilder(IAmazonDynamoDB dynamoDbClient, string tableName)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public ConditionCheckBuilder(IAmazonDynamoDB dynamoDbClient, string tableName, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
         _tableName = tableName;
+        _options = options ?? new FluentDynamoDbOptions();
     }
 
     /// <summary>
@@ -65,6 +68,12 @@ public class ConditionCheckBuilder<TEntity> :
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
     public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
 
     /// <summary>
     /// Sets the condition expression on the builder.

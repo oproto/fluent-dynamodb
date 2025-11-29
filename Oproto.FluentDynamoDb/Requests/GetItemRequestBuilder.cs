@@ -35,16 +35,18 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// Initializes a new instance of the GetItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public GetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public GetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
+        _options = options ?? new FluentDynamoDbOptions();
+        _logger = _options.Logger;
     }
 
     private GetItemRequest _req = new GetItemRequest();
     private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
+    private readonly FluentDynamoDbOptions _options;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
     /// <summary>
@@ -59,6 +61,13 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
     public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// This is used by Primary API extension methods to access the hydrator registry.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
 
     /// <summary>
     /// Replaces the DynamoDB client used for executing this request.

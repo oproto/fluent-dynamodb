@@ -27,6 +27,40 @@ Or add to your `.csproj` file:
 <PackageReference Include="Oproto.FluentDynamoDb.Geospatial" Version="1.0.0" />
 ```
 
+## Configuration
+
+Geospatial features require explicit configuration using `FluentDynamoDbOptions`. Use the `AddGeospatial()` extension method to enable geospatial support:
+
+```csharp
+using Oproto.FluentDynamoDb;
+
+var options = new FluentDynamoDbOptions()
+    .AddGeospatial();
+
+var table = new StoresTable(client, "stores", options);
+```
+
+### Error Without Configuration
+
+If you attempt to use geospatial features without calling `AddGeospatial()`, you'll receive an error:
+
+> "Geospatial features require configuration. Add the Oproto.FluentDynamoDb.Geospatial package and call options.AddGeospatial() when creating your table."
+
+### Combining with Other Features
+
+Chain `AddGeospatial()` with other configuration methods:
+
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Logging.Extensions;
+
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<StoresTable>())
+    .AddGeospatial();
+
+var table = new StoresTable(client, "stores", options);
+```
+
 ## Quick Start
 
 ### 1. Define Your Entity

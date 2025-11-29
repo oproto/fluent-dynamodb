@@ -19,6 +19,7 @@ New to the library? Start here to get up and running quickly.
 ### 🔧 Core Features
 Learn the essential features you'll use every day.
 
+- **[Configuration](core-features/Configuration.md)** - Configure logging, geospatial, blob storage, and encryption
 - **[Entity Definition](core-features/EntityDefinition.md)** - Define entities with attributes and keys
 - **[Basic Operations](core-features/BasicOperations.md)** - CRUD operations (Put, Get, Update, Delete)
 - **[Querying Data](core-features/QueryingData.md)** - Query and scan operations
@@ -40,6 +41,7 @@ Explore advanced patterns and optimizations.
 - **[Composite Entities](advanced-topics/CompositeEntities.md)** - Multi-item and related entities
 - **[Discriminators](advanced-topics/Discriminators.md)** - Flexible entity type identification for single-table design
 - **[Field-Level Security](advanced-topics/FieldLevelSecurity.md)** - Logging redaction and KMS-based encryption
+- **[Geospatial Support](advanced-topics/Geospatial.md)** - Location-based queries with GeoHash, S2, and H3
 - **[Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md)** - GSI configuration and querying
 - **[STS Integration](advanced-topics/STSIntegration.md)** - Custom client support for multi-tenancy
 - **[Performance Optimization](advanced-topics/PerformanceOptimization.md)** - Performance tuning guide
@@ -94,6 +96,9 @@ Practical code examples for common scenarios.
 **Use single-table design**
 → [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
 
+**Configure optional features (logging, geospatial, encryption)**
+→ [Configuration Guide](core-features/Configuration.md)
+
 **Configure logging and diagnostics**
 → [Logging Configuration](core-features/LoggingConfiguration.md)
 
@@ -114,6 +119,9 @@ Practical code examples for common scenarios.
 
 **Protect sensitive data**
 → [Field-Level Security](advanced-topics/FieldLevelSecurity.md)
+
+**Use location-based queries**
+→ [Geospatial Support](advanced-topics/Geospatial.md)
 
 **Implement multi-tenancy**
 → [STS Integration](advanced-topics/STSIntegration.md)

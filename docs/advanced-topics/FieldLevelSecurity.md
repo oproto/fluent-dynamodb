@@ -176,9 +176,8 @@ var keyResolver = new DefaultKmsKeyResolver(
 #### 2. Configure Encryption Options
 
 ```csharp
-var options = new AwsEncryptionSdkOptions
+var encryptorOptions = new AwsEncryptionSdkOptions
 {
-    DefaultKeyId = configuration["Kms:DefaultKeyArn"],
     EnableCaching = true,
     DefaultCacheTtlSeconds = 300,  // 5 minutes
     MaxMessagesPerDataKey = 100,
@@ -189,13 +188,52 @@ var options = new AwsEncryptionSdkOptions
 #### 3. Create Field Encryptor
 
 ```csharp
-var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
+var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, encryptorOptions);
 ```
 
-#### 4. Pass to Table
+#### 4. Configure FluentDynamoDbOptions and Pass to Table
 
 ```csharp
-var table = new CustomerDataTable(dynamoClient, "customers", encryptor);
+using Oproto.FluentDynamoDb;
+
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor);
+
+var table = new CustomerDataTable(dynamoClient, "customers", options);
+```
+
+#### Complete Setup Example
+
+Here's a complete example showing all the steps together:
+
+```csharp
+using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Encryption.Kms;
+
+// 1. Create DynamoDB client
+var dynamoClient = new AmazonDynamoDBClient();
+
+// 2. Configure key resolver (load from secure configuration!)
+var keyResolver = new DefaultKmsKeyResolver(
+    defaultKeyId: configuration["Kms:DefaultKeyArn"]);
+
+// 3. Configure encryption options
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true,
+    DefaultCacheTtlSeconds = 300
+};
+
+// 4. Create encryptor
+var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, encryptorOptions);
+
+// 5. Configure FluentDynamoDbOptions with encryption
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor);
+
+// 6. Create table with options
+var table = new CustomerDataTable(dynamoClient, "customers", options);
 ```
 
 ### How It Works
@@ -365,8 +403,17 @@ try
 catch (InvalidOperationException ex)
 {
     // "Cannot encrypt value: IFieldEncryptor not configured. 
-    //  Pass an IFieldEncryptor instance to the table constructor."
+    //  Call options.WithEncryption(encryptor) when creating your table."
 }
+```
+
+**Solution**: Configure encryption using `FluentDynamoDbOptions`:
+
+```csharp
+var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor);
+var table = new SecretsTable(client, "secrets", options);
 ```
 
 #### Important Notes
@@ -574,44 +621,55 @@ When encrypted data exceeds the threshold, it's automatically stored externally 
 
 ### S3 Blob Storage Setup
 
-```csharp
-using Oproto.FluentDynamoDb.BlobStorage.S3;
+When combining encryption with blob storage, configure both in `FluentDynamoDbOptions`:
 
+```csharp
+using Amazon.S3;
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.BlobStorage.S3;
+using Oproto.FluentDynamoDb.Encryption.Kms;
+
+// Create S3 blob provider
 var s3Client = new AmazonS3Client();
-var blobStorage = new S3BlobStorage(
+var blobProvider = new S3BlobProvider(
     s3Client,
     bucketName: "my-encrypted-blobs",
     keyPrefix: "documents/");
 
-var encryptor = new AwsEncryptionSdkFieldEncryptor(
-    keyResolver,
-    options,
-    blobStorage);  // Pass blob storage provider
+// Create encryptor
+var keyResolver = new DefaultKmsKeyResolver(configuration["Kms:DefaultKeyArn"]);
+var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+
+// Configure both blob storage and encryption
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(blobProvider)
+    .WithEncryption(encryptor);
+
+var table = new DocumentsTable(dynamoClient, "documents", options);
 ```
 
 ---
 
 ## Configuration Reference
 
+### FluentDynamoDbOptions
+
+The central configuration object for FluentDynamoDb. Use `WithEncryption()` to enable field-level encryption:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor);
+```
+
+See the [Configuration Guide](../core-features/Configuration.md) for complete details on `FluentDynamoDbOptions`.
+
 ### AwsEncryptionSdkOptions
 
-Complete configuration options for field encryption:
+Configuration options for the AWS Encryption SDK field encryptor:
 
 ```csharp
 public class AwsEncryptionSdkOptions
 {
-    /// <summary>
-    /// Default KMS key ARN used when no context is provided
-    /// or context doesn't match any mapped keys.
-    /// </summary>
-    public string DefaultKeyId { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// Optional mapping of context identifiers to KMS key ARNs.
-    /// Example: { "tenant-a": "arn:aws:kms:...", "tenant-b": "arn:aws:kms:..." }
-    /// </summary>
-    public Dictionary<string, string>? ContextKeyMap { get; set; }
-    
     /// <summary>
     /// Enable data key caching (default: true).
     /// Uses AWS Encryption SDK's CachingCryptoMaterialsManager.
@@ -639,28 +697,28 @@ public class AwsEncryptionSdkOptions
     /// Algorithm suite to use (default: AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384).
     /// AWS Encryption SDK 3.x uses key commitment by default.
     /// </summary>
-    public CryptoAlgorithm Algorithm { get; set; } = 
-        CryptoAlgorithm.AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384;
-    
-    /// <summary>
-    /// S3 bucket name for external blob storage.
-    /// Required if using IsExternalBlob = true on any fields.
-    /// </summary>
-    public string? ExternalBlobBucket { get; set; }
-    
-    /// <summary>
-    /// Optional S3 key prefix for external blobs.
-    /// Example: "encrypted-fields/" results in keys like "encrypted-fields/tenant-a/entity-123/FieldName/guid"
-    /// </summary>
-    public string? ExternalBlobKeyPrefix { get; set; }
-    
-    /// <summary>
-    /// Threshold size (bytes) above which fields are automatically stored as external blobs.
-    /// Default: 350KB (DynamoDB item size limit is 400KB).
-    /// Set to null to disable automatic external storage.
-    /// </summary>
-    public int? AutoExternalBlobThreshold { get; set; } = 350 * 1024;
+    public string Algorithm { get; set; } = 
+        "AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384";
 }
+```
+
+### DefaultKmsKeyResolver
+
+Resolves KMS key ARNs based on context identifiers:
+
+```csharp
+// Single key for all contexts
+var keyResolver = new DefaultKmsKeyResolver(
+    defaultKeyId: "arn:aws:kms:us-east-1:123456789012:key/my-key");
+
+// Multi-tenant with per-tenant keys
+var keyResolver = new DefaultKmsKeyResolver(
+    defaultKeyId: "arn:aws:kms:us-east-1:123456789012:key/default-key",
+    contextKeyMap: new Dictionary<string, string>
+    {
+        ["tenant-a"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key",
+        ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b-key"
+    });
 ```
 
 ### EncryptedAttribute
@@ -722,6 +780,13 @@ public string LowFrequencyField { get; set; } = string.Empty;
 1. **Always Use [Sensitive]**: Mark encrypted fields as sensitive to prevent accidental logging
 2. **Structured Logging**: Use structured logging to filter sensitive data
 3. **Production Logging**: Consider disabling detailed logging in production
+4. **Configure Both**: When using encryption with logging, configure both in `FluentDynamoDbOptions`:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithLogger(logger.ToDynamoDbLogger())
+    .WithEncryption(encryptor);
+```
 
 ---
 
@@ -808,17 +873,38 @@ dotnet add package Oproto.FluentDynamoDb.Encryption.Kms
 1. Verify `[Sensitive]` attribute is applied
 2. Rebuild project to regenerate source code
 3. Check logging is enabled
-4. Verify logger is passed to table constructor
+4. Verify `FluentDynamoDbOptions` with `WithLogger()` is passed to table constructor
+
+**Example fix**:
+```csharp
+using Oproto.FluentDynamoDb.Logging.Extensions;
+
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<UsersTable>());
+var table = new UsersTable(client, "users", options);
+```
 
 ### Encryption Not Working
 
 **Problem**: Data stored as plaintext
 
 **Solutions**:
-1. Verify `IFieldEncryptor` is passed to table constructor
-2. Check `[Encrypted]` attribute is applied
+1. Verify `FluentDynamoDbOptions` with `WithEncryption()` is passed to table constructor
+2. Check `[Encrypted]` attribute is applied to the property
 3. Rebuild project to regenerate source code
 4. Verify KMS key ARN is valid
+
+**Example fix**:
+```csharp
+// Before (encryption not configured)
+var table = new SecretsTable(client, "secrets");
+
+// After (encryption configured)
+var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor);
+var table = new SecretsTable(client, "secrets", options);
+```
 
 ### Context Not Flowing
 

@@ -24,8 +24,11 @@ Before performing operations, ensure you have:
 2. Created a DynamoDB client
 3. Instantiated a table reference
 
+### Basic Table Initialization
+
 ```csharp
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Storage;
 
 var client = new AmazonDynamoDBClient();
@@ -38,6 +41,42 @@ var table = new UsersTable(client, "users");
 var ordersTable = new OrdersTable(client, "orders");
 // Access via: ordersTable.Orders.Get(), ordersTable.OrderLines.Query(), etc.
 ```
+
+### Table Initialization with Options
+
+For advanced features like logging, encryption, blob storage, or geospatial support, use `FluentDynamoDbOptions`:
+
+```csharp
+using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Logging.Extensions;
+
+var client = new AmazonDynamoDBClient();
+
+// Without options (uses defaults)
+var table = new UsersTable(client, "users");
+
+// With explicit default options
+var options = new FluentDynamoDbOptions();
+var table = new UsersTable(client, "users", options);
+
+// With logging enabled
+var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<UsersTable>());
+
+var table = new UsersTable(client, "users", options);
+
+// With multiple features combined
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<UsersTable>())
+    .AddGeospatial()
+    .WithEncryption(encryptor);
+
+var table = new UsersTable(client, "users", options);
+```
+
+> **Note**: See the [Configuration Guide](Configuration.md) for complete details on all available configuration options.
 
 > **Note**: This guide demonstrates both **convenience methods** (simplified single-call operations) and the **builder API** (full control with fluent chaining). Use convenience methods for simple operations and the builder pattern when you need conditions, return values, or other advanced options.
 

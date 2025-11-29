@@ -19,7 +19,7 @@ public class GeoHashQueryApiSurface
 
         var results = await table.gsi1.Query<GeoHashEntity>()
             .Where(x => x.Gsi1PartitionKey == "category1"
-                        && x.Location.WithinDistanceKilometers(center, 20))
+                                      && x.Location.WithinDistanceKilometers(center, 20))
             .ToListAsync();
     }
 }

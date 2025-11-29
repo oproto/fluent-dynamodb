@@ -30,15 +30,24 @@ public class BackwardCompatibilityTests
     }
     
     /// <summary>
-    /// Test table using the new constructor with optional logger parameter.
-    /// This simulates new code that can optionally use logging.
+    /// Test table using the new constructor with FluentDynamoDbOptions.
+    /// This simulates new code that uses the recommended options pattern.
     /// </summary>
     private class ModernTestTable : DynamoDbTableBase
     {
-        public ModernTestTable(IAmazonDynamoDB client, string tableName, IDynamoDbLogger? logger = null)
-            : base(client, tableName, logger)
+        public ModernTestTable(IAmazonDynamoDB client, string tableName)
+            : base(client, tableName)
         {
         }
+        
+        public ModernTestTable(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions options)
+            : base(client, tableName, options)
+        {
+        }
+        
+        // Factory method for tests that just need a logger
+        public static ModernTestTable WithLogger(IAmazonDynamoDB client, string tableName, IDynamoDbLogger logger)
+            => new ModernTestTable(client, tableName, new FluentDynamoDbOptions().WithLogger(logger));
     }
     
     #endregion
@@ -76,13 +85,13 @@ public class BackwardCompatibilityTests
     }
     
     [Fact]
-    public void ModernConstructor_WithNullLogger_ShouldUseNoOpLogger()
+    public void ModernConstructor_WithDefaultOptions_ShouldUseNoOpLogger()
     {
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         
-        // Act - Explicitly pass null logger
-        var table = new ModernTestTable(mockClient, "TestTable", null);
+        // Act - Use default options
+        var table = new ModernTestTable(mockClient, "TestTable", new FluentDynamoDbOptions());
         
         // Assert
         table.Should().NotBeNull();
@@ -96,9 +105,10 @@ public class BackwardCompatibilityTests
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var mockLogger = Substitute.For<IDynamoDbLogger>();
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
         
-        // Act - Pass a logger
-        var table = new ModernTestTable(mockClient, "TestTable", mockLogger);
+        // Act - Pass options with logger
+        var table = new ModernTestTable(mockClient, "TestTable", options);
         
         // Assert
         table.Should().NotBeNull();
@@ -346,9 +356,10 @@ public class BackwardCompatibilityTests
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var legacyTable = new LegacyTestTable(mockClient, "TestTable");
         
-        // Act - Migrate to modern code with logger
+        // Act - Migrate to modern code with options
         var mockLogger = Substitute.For<IDynamoDbLogger>();
-        var modernTable = new ModernTestTable(mockClient, "TestTable", mockLogger);
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
+        var modernTable = new ModernTestTable(mockClient, "TestTable", options);
         
         // Assert - Both should work identically
         legacyTable.Name.Should().Be(modernTable.Name);
@@ -365,10 +376,11 @@ public class BackwardCompatibilityTests
     [Fact]
     public void MigrationScenario_RemovingLoggerFromCode_ShouldWork()
     {
-        // Arrange - Start with modern code using logger
+        // Arrange - Start with modern code using options with logger
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var mockLogger = Substitute.For<IDynamoDbLogger>();
-        var modernTable = new ModernTestTable(mockClient, "TestTable", mockLogger);
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
+        var modernTable = new ModernTestTable(mockClient, "TestTable", options);
         
         // Act - Remove logger (pass null or omit parameter)
         var tableWithoutLogger = new ModernTestTable(mockClient, "TestTable");
@@ -436,10 +448,11 @@ public class BackwardCompatibilityTests
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var mockLogger = Substitute.For<IDynamoDbLogger>();
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
         
         // Act - Create both legacy and modern tables
         var legacyTable = new LegacyTestTable(mockClient, "LegacyTable");
-        var modernTable = new ModernTestTable(mockClient, "ModernTable", mockLogger);
+        var modernTable = new ModernTestTable(mockClient, "ModernTable", options);
         
         // Assert - Both should work independently
         legacyTable.Get<TestEntity>().Should().NotBeNull();

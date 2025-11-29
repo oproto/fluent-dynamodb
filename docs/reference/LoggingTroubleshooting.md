@@ -63,14 +63,16 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 ```
 
-4. **Verify logger is passed:**
+4. **Verify logger is configured in options:**
 
 ```csharp
-// Wrong - logger not passed
+// Wrong - logger not configured
 var table = new ProductsTable(client, "products");
 
-// Correct
-var table = new ProductsTable(client, "products", logger);
+// Correct - use FluentDynamoDbOptions
+var options = new FluentDynamoDbOptions()
+    .WithLogger(logger);
+var table = new ProductsTable(client, "products", options);
 ```
 
 #### Issue: Conditional compilation disabled logging

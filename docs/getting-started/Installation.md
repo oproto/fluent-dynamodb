@@ -74,6 +74,106 @@ dotnet add package Oproto.FluentDynamoDb.FluentResults
 
 # DynamoDB Streams support for Lambda functions
 dotnet add package Amazon.Lambda.DynamoDBEvents
+
+# Geospatial support (GeoHash, S2, H3)
+dotnet add package Oproto.FluentDynamoDb.Geospatial
+
+# Blob storage support (S3)
+dotnet add package Oproto.FluentDynamoDb.BlobStorage.S3
+
+# Field-level encryption (KMS)
+dotnet add package Oproto.FluentDynamoDb.Encryption.Kms
+
+# Microsoft.Extensions.Logging integration
+dotnet add package Oproto.FluentDynamoDb.Logging.Extensions
+```
+
+### Configuring Optional Packages
+
+Optional packages require configuration using `FluentDynamoDbOptions`. Each optional feature must be explicitly enabled when creating your table. See the [Configuration Guide](../core-features/Configuration.md) for complete details.
+
+#### Geospatial Support
+
+Install the geospatial package for GeoHash, S2, and H3 spatial indexing:
+
+```bash
+dotnet add package Oproto.FluentDynamoDb.Geospatial
+```
+
+Configure geospatial support using `AddGeospatial()`:
+
+```csharp
+using Oproto.FluentDynamoDb;
+
+var options = new FluentDynamoDbOptions()
+    .AddGeospatial();
+
+var table = new LocationsTable(client, "locations", options);
+```
+
+Without this configuration, attempting to use geospatial features will result in an error:
+> "Geospatial features require configuration. Add the Oproto.FluentDynamoDb.Geospatial package and call options.AddGeospatial() when creating your table."
+
+#### Blob Storage (S3)
+
+Install the S3 blob storage package for storing large objects:
+
+```bash
+dotnet add package Oproto.FluentDynamoDb.BlobStorage.S3
+dotnet add package AWSSDK.S3
+```
+
+Configure blob storage using `WithBlobStorage()`:
+
+```csharp
+using Amazon.S3;
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.BlobStorage.S3;
+
+var s3Client = new AmazonS3Client();
+var blobProvider = new S3BlobProvider(s3Client, "my-bucket");
+
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(blobProvider);
+
+var table = new DocumentsTable(client, "documents", options);
+```
+
+#### Field-Level Encryption (KMS)
+
+Install the KMS encryption package for field-level encryption:
+
+```bash
+dotnet add package Oproto.FluentDynamoDb.Encryption.Kms
+```
+
+Configure encryption using `WithEncryption()`:
+
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Encryption.Kms;
+
+var keyResolver = new DefaultKmsKeyResolver("arn:aws:kms:us-east-1:123456789012:key/my-key");
+var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor);
+
+var table = new SecretsTable(client, "secrets", options);
+```
+
+#### Combining Multiple Features
+
+You can chain configuration methods to enable multiple features:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<MyTable>())
+    .AddGeospatial()
+    .WithBlobStorage(blobProvider)
+    .WithEncryption(encryptor);
+
+var table = new MyTable(client, "my-table", options);
 ```
 
 ### Package Manager Console (Visual Studio)

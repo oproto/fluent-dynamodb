@@ -88,29 +88,26 @@ The source generator creates:
 
 ```csharp
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Storage;
 
 // Create DynamoDB client
 var client = new AmazonDynamoDBClient();
 
-// Option 1: Manual approach - create a class that inherits from DynamoDbTableBase
-public class UsersTableManual : DynamoDbTableBase
-{
-    public UsersTableManual(IAmazonDynamoDB client, string tableName) 
-        : base(client, tableName) { }
-}
-var table = new UsersTableManual(client, "users");
-
-// Option 2: Use source-generated table class (recommended)
+// Option 1: Use source-generated table class (recommended)
 // Table name is configurable at runtime for different environments
 var usersTable = new UsersTable(client, "users");
+
+// Option 2: With configuration options (for logging, encryption, etc.)
+var options = new FluentDynamoDbOptions();
+var usersTableWithOptions = new UsersTable(client, "users", options);
 
 // For multi-entity tables, use entity accessors
 var ordersTable = new OrdersTable(client, "orders");
 // Access via: ordersTable.Orders.Get(), ordersTable.OrderLines.Query(), etc.
 ```
 
-> **Note**: This guide uses source-generated table classes. For manual usage without source generation, create a class that inherits from `DynamoDbTableBase`. The table name is passed to the constructor, allowing you to use different table names per environment (e.g., "users-dev", "users-prod"). See [Single-Entity Tables](SingleEntityTables.md) and [Multi-Entity Tables](../advanced-topics/MultiEntityTables.md) for details.
+> **Note**: This guide uses source-generated table classes. The table name is passed to the constructor, allowing you to use different table names per environment (e.g., "users-dev", "users-prod"). For advanced configuration options like logging, encryption, and geospatial support, see the [Configuration Guide](../core-features/Configuration.md).
 
 ### Put (Create/Update Item)
 
@@ -125,7 +122,7 @@ var user = new User
 };
 
 // Put item into DynamoDB
-await table.Put
+await table.Put<User>()
     .WithItem(user)
     .ExecuteAsync();
 
@@ -136,9 +133,9 @@ Console.WriteLine("User created successfully!");
 
 ```csharp
 // Get item by partition key using generated key builder
-var response = await table.Get
+var response = await table.Get<User>()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .ExecuteAsync();
 
 if (response.IsSuccess)
 {
@@ -155,10 +152,10 @@ else
 
 ```csharp
 // Query items with filter using expression formatting
-var queryResponse = await table.Query
+var queryResponse = await table.Query<User>()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+    .ExecuteAsync();
 
 foreach (var user in queryResponse.Items)
 {
@@ -175,7 +172,7 @@ foreach (var user in queryResponse.Items)
 
 ```csharp
 // Update specific attributes using expression formatting
-await table.Update
+await table.Update<User>()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
@@ -193,7 +190,7 @@ Console.WriteLine("User updated successfully!");
 
 ```csharp
 // Delete item by key
-await table.Delete
+await table.Delete<User>()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .ExecuteAsync();
 
@@ -204,7 +201,7 @@ Console.WriteLine("User deleted successfully!");
 
 ```csharp
 // Delete only if status is inactive
-await table.Delete
+await table.Delete<User>()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.Status} = {{0}}", "inactive")
     .ExecuteAsync();
@@ -216,6 +213,7 @@ Here's a complete working example:
 
 ```csharp
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Storage;
 
@@ -246,7 +244,9 @@ class Program
     static async Task Main(string[] args)
     {
         var client = new AmazonDynamoDBClient();
-        var table = new DynamoDbTableBase(client, "users");
+        
+        // Create table instance - no options needed for basic usage
+        var table = new UsersTable(client, "users");
         
         // Create user
         var user = new User
@@ -258,12 +258,12 @@ class Program
             CreatedAt = DateTime.UtcNow
         };
         
-        await table.Put.WithItem(user).ExecuteAsync();
+        await table.Put<User>().WithItem(user).ExecuteAsync();
         
         // Retrieve user
-        var getResponse = await table.Get
+        var getResponse = await table.Get<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-            .ExecuteAsync<User>();
+            .ExecuteAsync();
         
         if (getResponse.IsSuccess)
         {
@@ -271,21 +271,42 @@ class Program
         }
         
         // Update user
-        await table.Update
+        await table.Update<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
             .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
             .ExecuteAsync();
         
         // Query active users
-        var queryResponse = await table.Query
+        var queryResponse = await table.Query<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
             .Where($"{UserFields.Status} = {{0}}", "active")
-            .ExecuteAsync<User>();
+            .ExecuteAsync();
         
         Console.WriteLine($"Found {queryResponse.Items.Count} active users");
     }
 }
 ```
+
+## Adding Optional Features
+
+For advanced scenarios, use `FluentDynamoDbOptions` to configure optional features:
+
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Logging.Extensions;
+
+// With logging
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.CreateLogger<UsersTable>().ToDynamoDbLogger());
+
+var table = new UsersTable(client, "users", options);
+```
+
+See the [Configuration Guide](../core-features/Configuration.md) for complete documentation on:
+- Logging configuration
+- Geospatial support
+- Blob storage (S3)
+- Field-level encryption (KMS)
 
 ## Next Steps
 
@@ -293,6 +314,7 @@ Now that you've completed the quick start, explore these topics:
 
 - **[Installation Guide](Installation.md)** - Detailed setup and configuration
 - **[First Entity](FirstEntity.md)** - Deep dive into entity definition and generated code
+- **[Configuration Guide](../core-features/Configuration.md)** - Configure logging, encryption, and more
 - **[Entity Definition](../core-features/EntityDefinition.md)** - Advanced entity patterns (composite keys, GSIs)
 - **[Basic Operations](../core-features/BasicOperations.md)** - Complete CRUD operation reference
 - **[Querying Data](../core-features/QueryingData.md)** - Advanced query patterns and optimization
@@ -324,6 +346,7 @@ If you get authentication errors:
 [Previous: Getting Started](README.md) | [Next: Installation](Installation.md)
 
 **See Also:**
+- [Configuration Guide](../core-features/Configuration.md)
 - [Entity Definition](../core-features/EntityDefinition.md)
 - [Expression Formatting](../core-features/ExpressionFormatting.md)
 - [Attribute Reference](../reference/AttributeReference.md)

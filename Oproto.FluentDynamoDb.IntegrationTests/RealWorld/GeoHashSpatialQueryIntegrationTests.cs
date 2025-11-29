@@ -29,7 +29,7 @@ public class GeoHashSpatialQueryIntegrationTests : IntegrationTestBase
     private class GeoHashStoreTable : DynamoDbTableBase
     {
         public GeoHashStoreTable(IAmazonDynamoDB client, string tableName) 
-            : base(client, tableName)
+            : base(client, tableName, new FluentDynamoDbOptions().AddGeospatial())
         {
         }
         

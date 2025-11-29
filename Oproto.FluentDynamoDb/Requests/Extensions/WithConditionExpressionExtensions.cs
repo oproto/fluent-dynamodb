@@ -190,7 +190,9 @@ public static class WithConditionExpressionExtensions
             metadata,
             ExpressionValidationMode.KeysOnly);
 
-        var translator = new ExpressionTranslator();
+        // Get options from the builder if it implements IHasDynamoDbClient
+        var options = (builder as IHasDynamoDbClient)?.GetOptions();
+        var translator = new ExpressionTranslator(options);
         var expressionString = translator.Translate(expression, context);
 
         return builder.SetConditionExpression(expressionString);
@@ -226,7 +228,7 @@ public static class WithConditionExpressionExtensions
             ExpressionValidationMode.KeysOnly,
             indexName);
 
-        var translator = new ExpressionTranslator();
+        var translator = new ExpressionTranslator(builder.GetOptions());
         var expressionString = translator.Translate(expression, context);
 
         return builder.SetConditionExpression(expressionString);
@@ -265,7 +267,7 @@ public static class WithConditionExpressionExtensions
             metadata,
             ExpressionValidationMode.None); // Use None for condition checks - they can reference any property
 
-        var translator = new ExpressionTranslator();
+        var translator = new ExpressionTranslator(builder.GetOptions());
         var expressionString = translator.Translate(expression, context);
 
         return builder.SetConditionExpression(expressionString);
