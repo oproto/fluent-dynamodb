@@ -74,10 +74,10 @@ public class H3PentagonEncodingTests
         var h3EncoderType = typeof(H3Encoder).Assembly.GetType("Oproto.FluentDynamoDb.Geospatial.H3.H3Encoder");
         
         // Call EncodeCore to get the first encoding (before canonicalization)
-        var encodeCoreMethod = h3EncoderType.GetMethod("EncodeCore", 
+        var encodeCoreMethod = h3EncoderType?.GetMethod("EncodeCore", 
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         
-        var firstEncode = (string)encodeCoreMethod.Invoke(null, new object[] { latitude, longitude, resolution });
+        var firstEncode = (string?)encodeCoreMethod?.Invoke(null, new object[] { latitude, longitude, resolution }) ?? string.Empty;
         
         _output.WriteLine($"First encode (before canonicalization): {firstEncode}");
         
@@ -95,7 +95,7 @@ public class H3PentagonEncodingTests
         for (var i = 0; i < 5; i++)
         {
             var decoded = H3Encoder.Decode(currentIndex);
-            var nextIndex = (string)encodeCoreMethod.Invoke(null, new object[] { decoded.Latitude, decoded.Longitude, resolution });
+            var nextIndex = (string?)encodeCoreMethod?.Invoke(null, new object[] { decoded.Latitude, decoded.Longitude, resolution }) ?? string.Empty;
             
             _output.WriteLine($"  Iteration {i + 1}:");
             _output.WriteLine($"    Decode: lat={decoded.Latitude:F15}, lon={decoded.Longitude:F15}");

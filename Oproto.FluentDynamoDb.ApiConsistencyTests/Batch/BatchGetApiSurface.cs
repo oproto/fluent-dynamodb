@@ -10,7 +10,7 @@ public class BatchGetApiSurface
     public async Task AllBatchGetOperations_BasicPkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, null);
+        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
 
         // Get batch with result object
         var result = await DynamoDbBatch.Get

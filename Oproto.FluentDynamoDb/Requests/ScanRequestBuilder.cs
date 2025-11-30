@@ -314,8 +314,8 @@ public class ScanRequestBuilder<TEntity> :
             request.TableName ?? "Unknown", 
             request.IndexName ?? "None", 
             request.FilterExpression ?? "None",
-            request.Segment,
-            request.TotalSegments);
+            (object?)request.Segment ?? "N/A",
+            (object?)request.TotalSegments ?? "N/A");
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
         {
@@ -330,11 +330,11 @@ public class ScanRequestBuilder<TEntity> :
             var response = await _dynamoDbClient.ScanAsync(request, cancellationToken);
             
             #if !DISABLE_DYNAMODB_LOGGING
+#pragma warning disable CS8601 // Possible null reference assignment - boxing value types to object[]
             _logger?.LogInformation(LogEventIds.OperationComplete,
                 "Scan completed. ItemCount: {ItemCount}, ScannedCount: {ScannedCount}, ConsumedCapacity: {ConsumedCapacity}",
-                response.Count, 
-                response.ScannedCount,
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
+                new object[] { response.Count, response.ScannedCount, response.ConsumedCapacity?.CapacityUnits ?? 0 });
+#pragma warning restore CS8601
             #endif
             
             return response;

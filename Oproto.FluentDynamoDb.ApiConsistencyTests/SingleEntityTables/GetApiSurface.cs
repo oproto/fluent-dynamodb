@@ -11,7 +11,7 @@ public class GetApiSurface
     public async Task AllGetPatterns_BasicPkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, null);
+        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
 
         // Manual Get request builder and WithKey
         var result = await table.Get<BasicPkEntity>().WithKey("pk", "1234").GetItemAsync();
@@ -33,7 +33,7 @@ public class GetApiSurface
     public async Task AllGetPatterns_BasicPkSkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkSkTable table = new BasicPkSkTable(client, null);
+        BasicPkSkTable table = new BasicPkSkTable(client, "basicPkSk", options: null);
 
         // Manual Get request builder and WithKey
         var result = await table.Get<BasicPkSkEntity>().WithKey("pk", "1234", "sk", "test").GetItemAsync();

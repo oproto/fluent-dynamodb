@@ -227,10 +227,12 @@ public class BatchGetBuilder
                 var hasProjection = !string.IsNullOrEmpty(kvp.Value.ProjectionExpression);
                 var consistentRead = kvp.Value.ConsistentRead;
                 
+#pragma warning disable CS8601 // Possible null reference assignment - boxing value types to object[]
                 _logger.LogTrace(
                     LogEventIds.OperationBreakdown,
                     "Table {TableName}: {GetCount} get operations, Projection: {HasProjection}, ConsistentRead: {ConsistentRead}",
-                    kvp.Key, kvp.Value.Keys.Count, hasProjection, consistentRead);
+                    new object[] { kvp.Key, kvp.Value.Keys.Count, hasProjection, consistentRead });
+#pragma warning restore CS8601
             }
         }
 

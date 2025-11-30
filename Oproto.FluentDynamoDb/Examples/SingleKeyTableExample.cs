@@ -1,3 +1,7 @@
+// Suppress warnings for example code - these are documentation examples, not production code
+#pragma warning disable CS0618 // Obsolete API usage - examples may demonstrate deprecated patterns
+#pragma warning disable CS1998 // Async method lacks await - examples may have placeholder implementations
+
 using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;

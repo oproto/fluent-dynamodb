@@ -6,6 +6,11 @@
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        
+        <!-- Suppress AOT/trimming warnings - test code doesn't run in AOT mode -->
+        <!-- Suppress nullable warnings in test code - test assertions handle null checks -->
+        <!-- Suppress CS0618 (obsolete) - tests may use obsolete APIs for coverage -->
+        <NoWarn>$(NoWarn);IL2026;IL2060;IL2070;IL2072;IL2075;IL2090;IL3000;IL3050;CS0618;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8629;CS1998;CS0219</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

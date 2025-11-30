@@ -447,7 +447,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor InvalidTtlType = new(
         "DYNDB101",
         "Invalid TTL property type",
-        "[TimeToLive] can only be used on DateTime or DateTimeOffset properties. Property '{0}' is type '{1}'",
+        "[TimeToLive] can only be used on DateTime or DateTimeOffset properties, but property '{0}' is type '{1}'",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -495,7 +495,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor MultipleTtlFields = new(
         "DYNDB105",
         "Multiple TTL fields",
-        "Entity '{0}' has multiple [TimeToLive] properties. Only one TTL field is allowed per entity",
+        "Entity '{0}' has multiple [TimeToLive] properties, but only one TTL field is allowed per entity",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -507,7 +507,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor UnsupportedCollectionType = new(
         "DYNDB106",
         "Unsupported collection type",
-        "Property '{0}' has unsupported collection type '{1}'. Use Dictionary<string, T>, HashSet<T>, or List<T>",
+        "Property '{0}' has unsupported collection type '{1}'; use Dictionary<string, T>, HashSet<T>, or List<T> instead",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -519,7 +519,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor NestedMapTypeMissingEntity = new(
         "DYNDB107",
         "Nested map type missing [DynamoDbEntity]",
-        "Property '{0}' with [DynamoDbMap] has type '{1}' which must be marked with [DynamoDbEntity] to generate mapping code. Nested map types require source-generated ToDynamoDb/FromDynamoDb methods to maintain AOT compatibility.",
+        "Property '{0}' with [DynamoDbMap] has type '{1}' which must be marked with [DynamoDbEntity] to generate mapping code",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -695,7 +695,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor NoDefaultEntitySpecified = new(
         "FDDB001",
         "No default entity specified",
-        "Table '{0}' has multiple entities but no default specified. Mark one entity with IsDefault = true in [DynamoDbTable] attribute",
+        "Table '{0}' has multiple entities but no default specified; mark one entity with IsDefault = true in [DynamoDbTable] attribute",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -707,7 +707,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor MultipleDefaultEntities = new(
         "FDDB002",
         "Multiple default entities",
-        "Table '{0}' has multiple entities marked as default. Only one entity can be marked with IsDefault = true",
+        "Table '{0}' has multiple entities marked as default, but only one entity can be marked with IsDefault = true",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -719,7 +719,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ConflictingAccessorConfiguration = new(
         "FDDB003",
         "Conflicting accessor configuration",
-        "Entity '{0}' has multiple [GenerateAccessors] attributes targeting the same operation '{1}'. Each operation can only be configured once",
+        "Entity '{0}' has multiple [GenerateAccessors] attributes targeting the same operation '{1}', but each operation can only be configured once",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -731,7 +731,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor EmptyEntityPropertyName = new(
         "FDDB004",
         "Empty entity property name",
-        "Entity '{0}' has [GenerateEntityProperty] with empty Name. Provide a valid name or omit the Name property to use default naming",
+        "Entity '{0}' has [GenerateEntityProperty] with empty Name; provide a valid name or omit the Name property to use default naming",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -743,7 +743,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor InconsistentDiscriminatorProperties = new(
         "FDDB005",
         "Inconsistent discriminator properties",
-        "Table '{0}' has entities with stream conversion enabled that use different discriminator properties: {1}. All entities should use the same discriminator property for consistent stream processing",
+        "Table '{0}' has entities with stream conversion enabled that use different discriminator properties ({1}), but all entities should use the same discriminator property for consistent stream processing",
         "DynamoDb",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -807,7 +807,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor S2LevelWithoutS2IndexType = new(
         "DYNDB108",
         "S2Level specified without S2 index type",
-        "Property '{0}' has S2Level specified but SpatialIndexType is not S2. Set SpatialIndexType = SpatialIndexType.S2 to use S2 indexing",
+        "Property '{0}' has S2Level specified but SpatialIndexType is not S2; set SpatialIndexType = SpatialIndexType.S2 to use S2 indexing",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -819,7 +819,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor H3ResolutionWithoutH3IndexType = new(
         "DYNDB109",
         "H3Resolution specified without H3 index type",
-        "Property '{0}' has H3Resolution specified but SpatialIndexType is not H3. Set SpatialIndexType = SpatialIndexType.H3 to use H3 indexing",
+        "Property '{0}' has H3Resolution specified but SpatialIndexType is not H3; set SpatialIndexType = SpatialIndexType.H3 to use H3 indexing",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -831,7 +831,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor GeoHashPrecisionWithoutGeoHashIndexType = new(
         "DYNDB110",
         "GeoHashPrecision specified without GeoHash index type",
-        "Property '{0}' has GeoHashPrecision specified but SpatialIndexType is not GeoHash. Set SpatialIndexType = SpatialIndexType.GeoHash or remove the GeoHashPrecision property",
+        "Property '{0}' has GeoHashPrecision specified but SpatialIndexType is not GeoHash; set SpatialIndexType = SpatialIndexType.GeoHash or remove the GeoHashPrecision property",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -843,7 +843,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor SpatialIndexOnNonGeoLocation = new(
         "DYNDB111",
         "Spatial index configuration on non-GeoLocation property",
-        "Property '{0}' has spatial index configuration but is not of type GeoLocation. Spatial index properties (SpatialIndexType, S2Level, H3Resolution, GeoHashPrecision) can only be used on GeoLocation properties",
+        "Property '{0}' has spatial index configuration but is not of type GeoLocation, and spatial index properties can only be used on GeoLocation properties",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -855,7 +855,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor MissingGeospatialPackage = new(
         "DYNDB112",
         "Missing Geospatial package",
-        "Property '{0}' has spatial index configuration but the Oproto.FluentDynamoDb.Geospatial package is not referenced. Add the package reference to enable spatial indexing",
+        "Property '{0}' has spatial index configuration but the Oproto.FluentDynamoDb.Geospatial package is not referenced; add the package reference to enable spatial indexing",
         "DynamoDb",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,

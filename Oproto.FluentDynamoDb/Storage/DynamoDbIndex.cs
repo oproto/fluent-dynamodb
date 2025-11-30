@@ -183,7 +183,7 @@ public class DynamoDbIndex<TDefault> where TDefault : class, new()
         string indexName,
         string? projectionExpression = null)
     {
-        _innerIndex = new DynamoDbIndex(table, indexName, projectionExpression);
+        _innerIndex = new DynamoDbIndex(table, indexName, projectionExpression!);
     }
     
 

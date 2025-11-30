@@ -1,5 +1,9 @@
+// Suppress AOT warnings for JSON serialization in exception ToString() - this is for debugging only
+// and doesn't affect runtime behavior in AOT scenarios
+#pragma warning disable IL2026 // RequiresUnreferencedCode - JSON serialization in exception details
+#pragma warning disable IL3050 // RequiresDynamicCode - JSON serialization in exception details
+
 using Amazon.DynamoDBv2.Model;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace Oproto.FluentDynamoDb.Storage;
@@ -91,8 +95,10 @@ public class DynamoDbMappingException : Exception
     /// Creates a detailed error message with context information for debugging.
     /// </summary>
     /// <returns>A formatted error message with context details.</returns>
-    [RequiresUnreferencedCode("ToString uses reflection to format exception details")]
-    [RequiresDynamicCode("ToString uses reflection to format exception details")]
+    /// <remarks>
+    /// This method provides additional context information beyond the base exception.
+    /// JSON serialization is wrapped in try-catch to handle any serialization failures gracefully.
+    /// </remarks>
     public override string ToString()
     {
         var details = new List<string> { base.ToString() };

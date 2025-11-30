@@ -1098,19 +1098,21 @@ public class UpdateExpressionTranslator
             }
 
             // Handle NewArrayExpression (params arrays)
+            // Use AOT-compatible array creation for common types
             if (expression is NewArrayExpression newArray)
             {
                 var elementType = newArray.Type.GetElementType()!;
-                var array = Array.CreateInstance(elementType, newArray.Expressions.Count);
-                for (int i = 0; i < newArray.Expressions.Count; i++)
+                var count = newArray.Expressions.Count;
+                
+                // Evaluate all elements first
+                var elements = new object?[count];
+                for (int i = 0; i < count; i++)
                 {
-                    // Recursively evaluate each element
-                    // Note: We don't check for parameter references here because array elements
-                    // in params arrays for our extension methods should be constants or captured variables
-                    var elementValue = EvaluateExpression(newArray.Expressions[i]);
-                    array.SetValue(elementValue, i);
+                    elements[i] = EvaluateExpression(newArray.Expressions[i]);
                 }
-                return array;
+                
+                // Create typed array for common types (AOT-compatible)
+                return CreateTypedArray(elementType, elements);
             }
 
             // Handle method calls that don't reference parameters
@@ -1259,7 +1261,7 @@ public class UpdateExpressionTranslator
                 }
                 else
                 {
-                    formattedList.Add(item);
+                    formattedList.Add(item!);
                 }
             }
             return formattedList;
@@ -1571,6 +1573,92 @@ public class UpdateExpressionTranslator
 
         // Default: convert to string
         return new AttributeValue { S = value.ToString() ?? string.Empty };
+    }
+
+    /// <summary>
+    /// Creates a typed array from evaluated elements in an AOT-compatible way.
+    /// Handles common types used in DynamoDB update expressions (strings, numbers).
+    /// </summary>
+    private static Array CreateTypedArray(Type elementType, object?[] elements)
+    {
+        // Handle common types explicitly for AOT compatibility
+        if (elementType == typeof(string))
+        {
+            var result = new string?[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] as string;
+            return result;
+        }
+        
+        if (elementType == typeof(int))
+        {
+            var result = new int[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is int v ? v : Convert.ToInt32(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (elementType == typeof(long))
+        {
+            var result = new long[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is long v ? v : Convert.ToInt64(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (elementType == typeof(double))
+        {
+            var result = new double[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is double v ? v : Convert.ToDouble(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (elementType == typeof(decimal))
+        {
+            var result = new decimal[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is decimal v ? v : Convert.ToDecimal(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (elementType == typeof(float))
+        {
+            var result = new float[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is float v ? v : Convert.ToSingle(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (elementType == typeof(bool))
+        {
+            var result = new bool[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is bool v ? v : Convert.ToBoolean(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (elementType == typeof(byte))
+        {
+            var result = new byte[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is byte v ? v : Convert.ToByte(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        if (elementType == typeof(short))
+        {
+            var result = new short[elements.Length];
+            for (int i = 0; i < elements.Length; i++)
+                result[i] = elements[i] is short v ? v : Convert.ToInt16(elements[i], CultureInfo.InvariantCulture);
+            return result;
+        }
+        
+        // For object arrays or unknown types, use object array
+        // This is still AOT-compatible as we're not using Array.CreateInstance
+        var objectResult = new object?[elements.Length];
+        Array.Copy(elements, objectResult, elements.Length);
+        return objectResult;
     }
 }
 

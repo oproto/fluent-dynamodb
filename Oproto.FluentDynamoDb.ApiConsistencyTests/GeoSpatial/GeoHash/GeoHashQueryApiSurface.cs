@@ -13,7 +13,7 @@ public class GeoHashQueryApiSurface
     public async Task AllGeoHashQueryPatterns_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        GeohashTable table = new GeohashTable(client, null);
+        GeohashTable table = new GeohashTable(client, "geohash", options: null);
 
         GeoLocation center = new GeoLocation(44.9778d, 93.2650d);
 
