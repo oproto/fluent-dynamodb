@@ -11,8 +11,6 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests.H3;
 public class H3NeighborPropertyTests
 {
     /// <summary>
-    /// Feature: cell-covering-algorithm-fix, Property 0: H3 GetNeighbors returns adjacent cells
-    /// Validates: Requirements 1.1, 1.2, 1.3, 2.1, 2.3
     /// 
     /// For any valid H3 cell index, when calling GetNeighbors(), all returned neighbor cell indices
     /// should decode to locations that are adjacent to the input cell (within 2 * cellSize distance).

@@ -283,10 +283,10 @@ public partial class Product
 }
 
 // Query GSI with generated constants
-var products = await table.Query
-    .FromIndex("StatusIndex")
-    .Where($"{ProductFields.StatusIndex.Status} = {{0}}", "active")
-    .ToListAsync<Product>();
+var products = await table.Query<Product>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Product.Fields.Status} = {{0}}", "active")
+    .ToListAsync();
 ```
 
 #### Manual Approach
@@ -299,9 +299,9 @@ public static class ProductFields
 }
 
 // Query GSI with manual constants
-var response = await table.Query
-    .FromIndex("StatusIndex")
-    .Where($"{ProductFields.Status} = :status")
+var response = await table.Query<Product>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Product.Fields.Status} = :status")
     .WithValue(":status", "active")
     .ExecuteAsync();
 ```

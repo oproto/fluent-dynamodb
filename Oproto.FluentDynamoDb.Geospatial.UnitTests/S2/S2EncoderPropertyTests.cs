@@ -10,10 +10,8 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests.S2;
 /// </summary>
 public class S2EncoderPropertyTests
 {
-    // Feature: s2-h3-geospatial-support, Property 1: S2 encoding produces valid cell tokens
     // For any valid GeoLocation and S2 level (0-30), encoding the location to an S2 cell token 
     // should produce a valid S2 token that can be decoded back to coordinates
-    // Validates: Requirements 1.2
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void S2EncodingProducesValidCellTokens(ValidLatitude lat, ValidLongitude lon, ValidS2Level lvl)
     {

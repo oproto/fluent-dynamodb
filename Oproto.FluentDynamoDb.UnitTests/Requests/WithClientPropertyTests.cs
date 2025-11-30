@@ -13,8 +13,6 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 /// <summary>
 /// Property-based tests for WithClient method on request builders.
-/// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-/// **Validates: Requirements 5.1, 5.4**
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Category", "PropertyBased")]
@@ -75,8 +73,6 @@ public class WithClientPropertyTests
     #region QueryRequestBuilder WithClient Tests
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// 
     /// For any QueryRequestBuilder instance, calling WithClient(newClient) SHALL return 
     /// the same builder instance (reference equality).
@@ -101,8 +97,6 @@ public class WithClientPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// 
     /// For any QueryRequestBuilder instance with configuration, calling WithClient(newClient) 
     /// SHALL preserve all configuration (table name, key condition, filter, etc.).
@@ -147,8 +141,6 @@ public class WithClientPropertyTests
     #region GetItemRequestBuilder WithClient Tests
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property GetItemRequestBuilder_WithClient_ReturnsSameInstance()
@@ -167,8 +159,6 @@ public class WithClientPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property GetItemRequestBuilder_WithClient_PreservesConfiguration()
@@ -197,8 +187,6 @@ public class WithClientPropertyTests
     #region PutItemRequestBuilder WithClient Tests
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property PutItemRequestBuilder_WithClient_ReturnsSameInstance()
@@ -217,8 +205,6 @@ public class WithClientPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property PutItemRequestBuilder_WithClient_PreservesConfiguration()
@@ -247,8 +233,6 @@ public class WithClientPropertyTests
     #region UpdateItemRequestBuilder WithClient Tests
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property UpdateItemRequestBuilder_WithClient_ReturnsSameInstance()
@@ -267,8 +251,6 @@ public class WithClientPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property UpdateItemRequestBuilder_WithClient_PreservesConfiguration()
@@ -297,8 +279,6 @@ public class WithClientPropertyTests
     #region DeleteItemRequestBuilder WithClient Tests
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property DeleteItemRequestBuilder_WithClient_ReturnsSameInstance()
@@ -317,8 +297,6 @@ public class WithClientPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property DeleteItemRequestBuilder_WithClient_PreservesConfiguration()
@@ -347,8 +325,6 @@ public class WithClientPropertyTests
     #region ScanRequestBuilder WithClient Tests
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property ScanRequestBuilder_WithClient_ReturnsSameInstance()
@@ -367,8 +343,6 @@ public class WithClientPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 2: WithClient Returns Same Builder**
-    /// **Validates: Requirements 5.1, 5.4**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property ScanRequestBuilder_WithClient_PreservesConfiguration()

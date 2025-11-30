@@ -24,6 +24,18 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Overview: [README](../README.md#key-features)
 - Technical details: [Getting Started](getting-started/Installation.md)
 
+**API Reference**
+- Complete reference: [API Reference](reference/ApiReference.md)
+- Request builders: [API Reference](reference/ApiReference.md#query-operations)
+- Entity accessors: [API Reference](reference/ApiReference.md#generated-entity-accessor-methods)
+- Direct async methods: [API Reference](reference/ApiReference.md#direct-async-shorthand-methods)
+
+**Architecture (Internal)**
+- Overview: [Internal Architecture](advanced-topics/InternalArchitecture.md)
+- Source generator pipeline: [Internal Architecture](advanced-topics/InternalArchitecture.md#source-generator-pipeline)
+- Expression translator: [Internal Architecture](advanced-topics/InternalArchitecture.md#expressiontranslator)
+- Request builders: [Internal Architecture](advanced-topics/InternalArchitecture.md#request-builders)
+
 **Attributes (DynamoDB)**
 - Complete reference: [Attribute Reference](reference/AttributeReference.md)
 - Entity definition: [Entity Definition](core-features/EntityDefinition.md#attribute-mapping)
@@ -126,6 +138,11 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Troubleshooting: [Troubleshooting](reference/Troubleshooting.md)
 - Error handling: [Error Handling](reference/ErrorHandling.md)
 
+**Direct Async Methods**
+- Overview: [Internal Architecture](advanced-topics/InternalArchitecture.md#direct-async-methods)
+- API reference: [API Reference](reference/ApiReference.md#direct-async-shorthand-methods)
+- When to use: [Internal Architecture](advanced-topics/InternalArchitecture.md#when-to-use-each-approach)
+
 **Discriminators**
 - Complete guide: [Discriminators](advanced-topics/Discriminators.md)
 - Flexible configuration: [Entity Definition](core-features/EntityDefinition.md#flexible-discriminator-configuration)
@@ -174,6 +191,16 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Overview: [Expression Formatting](core-features/ExpressionFormatting.md#overview-and-benefits)
 - Format specifiers: [Format Specifiers](reference/FormatSpecifiers.md)
 
+**ExpressionTranslator**
+- How it works: [Internal Architecture](advanced-topics/InternalArchitecture.md#expressiontranslator)
+- Supported operators: [Internal Architecture](advanced-topics/InternalArchitecture.md#expressiontranslator)
+- AOT compatibility: [Internal Architecture](advanced-topics/InternalArchitecture.md#expressiontranslator)
+
+**Extension Method Generation**
+- How it works: [Internal Architecture](advanced-topics/InternalArchitecture.md#extension-method-generation)
+- Benefits: [Internal Architecture](advanced-topics/InternalArchitecture.md#benefits)
+- Generated methods: [Internal Architecture](advanced-topics/InternalArchitecture.md#extension-methods-generated)
+
 **Extracted Attribute**
 - Reference: [Attribute Reference](reference/AttributeReference.md#extracted-attribute)
 - Usage: [Entity Definition](core-features/EntityDefinition.md#extracted-keys)
@@ -208,6 +235,8 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Keys: [First Entity](getting-started/FirstEntity.md#generated-key-builders)
 - Mapper: [First Entity](getting-started/FirstEntity.md#generated-mapper)
 - Customization: [Table Generation Customization](advanced-topics/TableGenerationCustomization.md)
+- All categories: [Internal Architecture](advanced-topics/InternalArchitecture.md#generated-code-categories)
+- Discovery: [Internal Architecture](advanced-topics/InternalArchitecture.md#discovering-generated-code)
 
 **GenerateAccessors Attribute**
 - Reference: [Attribute Reference](reference/AttributeReference.md#generateaccessors-attribute)
@@ -240,6 +269,10 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Extracted keys: [Entity Definition](core-features/EntityDefinition.md#multiple-extractions)
 
 ## I
+
+**IDynamoDbEntity Interface**
+- Overview: [Internal Architecture](advanced-topics/InternalArchitecture.md#idynamodbentity-interface)
+- Static abstract methods: [Internal Architecture](advanced-topics/InternalArchitecture.md#idynamodbentity-interface)
 
 **Installation**
 - Complete guide: [Installation](getting-started/Installation.md)
@@ -394,6 +427,14 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Reference: [Attribute Reference](reference/AttributeReference.md#relatedentity-attribute)
 - Usage: [Composite Entities](advanced-topics/CompositeEntities.md#related-entities-with-relatedentity-attribute)
 
+**Request Builders**
+- Overview: [Internal Architecture](advanced-topics/InternalArchitecture.md#request-builders)
+- API reference: [API Reference](reference/ApiReference.md)
+- Query builder: [API Reference](reference/ApiReference.md#query-operations)
+- Update builder: [API Reference](reference/ApiReference.md#update-operations)
+- Batch builders: [API Reference](reference/ApiReference.md#batch-operations)
+- Transaction builders: [API Reference](reference/ApiReference.md#transaction-operations)
+
 **Reserved Words**
 - Handling: [Expression Formatting](core-features/ExpressionFormatting.md#reserved-word-handling)
 
@@ -460,6 +501,8 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Guide: [Source Generator Guide](SourceGeneratorGuide.md)
 - First entity: [First Entity](getting-started/FirstEntity.md)
 - Troubleshooting: [Troubleshooting](reference/Troubleshooting.md#source-generator-issues)
+- Internal architecture: [Internal Architecture](advanced-topics/InternalArchitecture.md#source-generator-pipeline)
+- Generated code categories: [Internal Architecture](advanced-topics/InternalArchitecture.md#generated-code-categories)
 
 **STS Integration**
 - Complete guide: [STS Integration](advanced-topics/STSIntegration.md)
@@ -561,6 +604,7 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - [Projection Models](core-features/ProjectionModels.md)
 
 **Advanced Topics**
+- [Internal Architecture](advanced-topics/InternalArchitecture.md)
 - [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
 - [Table Generation Customization](advanced-topics/TableGenerationCustomization.md)
 - [Composite Entities](advanced-topics/CompositeEntities.md)
@@ -571,6 +615,7 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - [Manual Patterns](advanced-topics/ManualPatterns.md)
 
 **Reference**
+- [API Reference](reference/ApiReference.md)
 - [Attribute Reference](reference/AttributeReference.md)
 - [Format Specifiers](reference/FormatSpecifiers.md)
 - [Error Handling](reference/ErrorHandling.md)
@@ -593,6 +638,8 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Optimize performance → [Performance Optimization](advanced-topics/PerformanceOptimization.md)
 - Handle errors → [Error Handling](reference/ErrorHandling.md)
 - Fix issues → [Troubleshooting](reference/Troubleshooting.md)
+- Understand internal architecture → [Internal Architecture](advanced-topics/InternalArchitecture.md)
+- Find API methods quickly → [API Reference](reference/ApiReference.md)
 
 ---
 

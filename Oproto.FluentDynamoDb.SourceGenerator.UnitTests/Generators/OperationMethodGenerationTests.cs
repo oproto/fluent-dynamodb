@@ -10,7 +10,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// Tests for operation method generation in entity accessor classes.
 /// Verifies that operation methods (Get, Query, Scan, Put, Delete, Update) are generated
 /// correctly with proper visibility modifiers and respect Generate = false configurations.
-/// Covers requirement 5 from the table-generation-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class OperationMethodGenerationTests

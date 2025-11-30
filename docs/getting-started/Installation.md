@@ -342,17 +342,17 @@ dotnet build
 
 ### Step 3: Check Generated Code
 
-The source generator should create:
-- `TestEntityFields` class with field constants
-- `TestEntityKeys` class with key builder methods
+The source generator should create nested classes within your entity:
+- `TestEntity.Fields` class with field constants
+- `TestEntity.Keys` class with key builder methods
 - `TestEntityMapper` class with serialization logic
 
 You can verify by using IntelliSense:
 
 ```csharp
 // These should be available after build
-var fieldName = TestEntityFields.Id;  // Should autocomplete
-var key = TestEntityKeys.Pk("test");  // Should autocomplete
+var fieldName = TestEntity.Fields.Id;  // Should autocomplete
+var key = TestEntity.Keys.Pk("test");  // Should autocomplete
 ```
 
 ### Troubleshooting Source Generator
@@ -416,15 +416,15 @@ class Program
     {
         // Create client
         var client = new AmazonDynamoDBClient();
-        var table = new DynamoDbTableBase(client, "test-table");
+        var table = new TestItemsTable(client, "test-table");
         
         // Test generated code
-        Console.WriteLine($"Field name: {TestItemFields.Id}");
-        Console.WriteLine($"Key: {TestItemKeys.Pk("test123")}");
+        Console.WriteLine($"Field name: {TestItem.Fields.Id}");
+        Console.WriteLine($"Key: {TestItem.Keys.Pk("test123")}");
         
         // Test basic operation
         var item = new TestItem { Id = "test123", Name = "Test" };
-        await table.Put.WithItem(item).ExecuteAsync();
+        await table.Put<TestItem>().WithItem(item).ExecuteAsync();
         
         Console.WriteLine("Installation verified successfully!");
     }

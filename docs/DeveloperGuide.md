@@ -352,10 +352,10 @@ var queryResponse = await table.Query()
 
 #### GSI Query
 ```csharp
-var productsByStatus = await table.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{ProductFields.StatusIndex.Status} = {{0}}", "active")
-    .ToListAsync<Product>();
+var productsByStatus = await table.Query<Product>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Product.Fields.Status} = {{0}}", "active")
+    .ToListAsync();
 ```
 
 #### Range Queries

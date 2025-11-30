@@ -10,7 +10,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// <summary>
 /// Tests for table class generation with focus on multi-entity tables,
 /// entity accessor properties, and customization options.
-/// Covers requirements 1, 3, and 4 from the table-generation-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class TableClassGenerationTests

@@ -7,7 +7,6 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TableGeneration;
 /// <summary>
 /// Integration tests for single-entity table generation.
 /// Verifies that tables with a single entity generate correctly and operations work end-to-end.
-/// Tests Requirements 1 and 2 from the table-generation-redesign spec.
 /// </summary>
 [Collection("DynamoDB Local")]
 [Trait("Category", "Integration")]

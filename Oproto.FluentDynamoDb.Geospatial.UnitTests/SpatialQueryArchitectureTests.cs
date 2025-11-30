@@ -12,7 +12,6 @@ public class SpatialQueryArchitectureTests
 {
     /// <summary>
     /// Tests that custom cell lists can be used for spatial queries.
-    /// Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5
     /// </summary>
     [Fact]
     public void CustomCellList_CanBeUsedForSpatialQueries()
@@ -29,7 +28,6 @@ public class SpatialQueryArchitectureTests
 
     /// <summary>
     /// Tests that custom H3 cell lists can be generated.
-    /// Validates: Requirements 3.1, 3.2, 3.4
     /// </summary>
     [Fact]
     public void CustomH3CellList_CanBeGenerated()
@@ -46,7 +44,6 @@ public class SpatialQueryArchitectureTests
 
     /// <summary>
     /// Tests that cell computation for radius queries works correctly.
-    /// Validates: Requirements 3.1, 3.3, 3.4
     /// </summary>
     [Theory]
     [InlineData(SpatialIndexType.S2, 10)]  // Level 10 (~4.5km cells) with 3km radius stays within 500 cell limit
@@ -72,7 +69,6 @@ public class SpatialQueryArchitectureTests
 
     /// <summary>
     /// Tests that cell computation for bounding box queries works correctly.
-    /// Validates: Requirements 4.1, 4.2, 4.3
     /// </summary>
     [Theory]
     [InlineData(SpatialIndexType.S2, 10)]  // Level 10 (~4.5km cells) with 2km bbox stays within 500 cell limit
@@ -98,7 +94,6 @@ public class SpatialQueryArchitectureTests
 
     /// <summary>
     /// Tests that maxCells limit is respected.
-    /// Validates: Requirements 4.4
     /// </summary>
     [Theory]
     [InlineData(SpatialIndexType.S2, 10, 5)]  // Level 10 (~300m cells) with 20km radius stays within 500 cell limit
@@ -125,7 +120,6 @@ public class SpatialQueryArchitectureTests
 
     /// <summary>
     /// Tests that S2 cells are sorted by distance from center (spiral order).
-    /// Validates: Requirements 3.3
     /// </summary>
     [Fact]
     public void S2CellComputation_ReturnsCellsSortedByDistance()
@@ -158,7 +152,6 @@ public class SpatialQueryArchitectureTests
 
     /// <summary>
     /// Tests that H3 cells are sorted by distance from center (spiral order).
-    /// Validates: Requirements 3.4
     /// </summary>
     [Fact]
     public void H3CellComputation_ReturnsCellsSortedByDistance()

@@ -8,7 +8,6 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TableGeneration;
 /// Integration tests for custom configuration options in table generation.
 /// Verifies that custom entity property names, visibility modifiers, and operation generation
 /// work correctly end-to-end.
-/// Tests Requirements 4, 5, and 8 from the table-generation-redesign spec.
 /// </summary>
 [Collection("DynamoDB Local")]
 [Trait("Category", "Integration")]

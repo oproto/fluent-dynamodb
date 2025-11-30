@@ -36,6 +36,7 @@ Learn the essential features you'll use every day.
 ### 🎯 Advanced Topics
 Explore advanced patterns and optimizations.
 
+- **[Internal Architecture](advanced-topics/InternalArchitecture.md)** - How source generation, expression translation, and request builders work
 - **[Multi-Entity Tables](advanced-topics/MultiEntityTables.md)** - Single-table design with multiple entity types
 - **[Advanced Type System](advanced-topics/AdvancedTypes.md)** - Maps, Sets, Lists, TTL, JSON blobs, and blob storage
 - **[Composite Entities](advanced-topics/CompositeEntities.md)** - Multi-item and related entities
@@ -50,6 +51,7 @@ Explore advanced patterns and optimizations.
 ### 📚 Reference
 Detailed reference documentation for attributes, format specifiers, and troubleshooting.
 
+- **[API Reference](reference/ApiReference.md)** - Quick reference for all builder methods and generated code
 - **[Attribute Reference](reference/AttributeReference.md)** - Complete attribute documentation
 - **[Format Specifiers](reference/FormatSpecifiers.md)** - Format specifier reference
 - **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
@@ -132,6 +134,12 @@ Practical code examples for common scenarios.
 **Troubleshoot an issue**
 → [Troubleshooting Guide](reference/Troubleshooting.md)
 
+**Understand internal architecture**
+→ [Internal Architecture](advanced-topics/InternalArchitecture.md)
+
+**Find API methods quickly**
+→ [API Reference](reference/ApiReference.md)
+
 **Find a specific topic**
 → [Documentation Index](INDEX.md)
 
@@ -187,6 +195,19 @@ The source generator is automatically included and runs during compilation.
 1. **[Troubleshooting Guide](reference/Troubleshooting.md)** - Common issues and solutions
 2. **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
 3. **[Attribute Reference](reference/AttributeReference.md)** - Verify attribute usage
+
+## About
+
+**Oproto.FluentDynamoDb** is developed and maintained by [Oproto Inc](https://oproto.com), 
+a company building modern SaaS solutions for small business finance and accounting.
+
+### Links
+- 🏢 **Company**: [oproto.com](https://oproto.com)
+- 👨‍💻 **Developer Portal**: [oproto.io](https://oproto.io)
+- 📚 **Documentation**: [fluentdynamodb.dev](https://fluentdynamodb.dev)
+
+### Maintainer
+- **Dan Guisinger** - [danguisinger.com](https://danguisinger.com)
 
 ## 🤝 Contributing
 

@@ -42,6 +42,60 @@ var ordersTable = new OrdersTable(client, "orders");
 // Access via: ordersTable.Orders.Get(), ordersTable.OrderLines.Query(), etc.
 ```
 
+### Entity Accessors
+
+Generated tables provide entity-specific accessor properties that eliminate the need for generic type parameters:
+
+```csharp
+// Multi-entity table with entity accessors
+var table = new OrdersTable(client, "orders");
+
+// Entity accessors provide type-safe operations without generic parameters
+var order = await table.Orders.GetAsync("order123");
+var orderLines = await table.OrderLines.Query()
+    .Where(x => x.OrderId == "order123")
+    .ExecuteAsync();
+
+// Compare to generic approach (still available but more verbose)
+var order2 = await table.Get<Order>()
+    .WithKey("pk", "order123")
+    .GetItemAsync();
+```
+
+**Benefits of Entity Accessors:**
+- No generic type parameters needed (`table.Orders.Get()` vs `table.Get<Order>()`)
+- Better IntelliSense - IDE shows only relevant methods
+- Type-safe - compiler ensures correct entity type
+- Cleaner code - more readable and maintainable
+
+**Generated Accessor Methods:**
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `table.Entity.Get(key)` | Start a get builder | `GetItemRequestBuilder<T>` |
+| `table.Entity.GetAsync(key)` | Express-route get | `Task<T?>` |
+| `table.Entity.Query()` | Start a query builder | `QueryRequestBuilder<T>` |
+| `table.Entity.Put(entity)` | Start a put builder with entity | `PutItemRequestBuilder<T>` |
+| `table.Entity.Put()` | Start an empty put builder | `PutItemRequestBuilder<T>` |
+| `table.Entity.PutAsync(entity)` | Express-route put | `Task` |
+| `table.Entity.Update(key)` | Start an update builder | `UpdateItemRequestBuilder<T>` |
+| `table.Entity.Delete(key)` | Start a delete builder | `DeleteItemRequestBuilder<T>` |
+| `table.Entity.DeleteAsync(key)` | Express-route delete | `Task` |
+
+**Pattern Comparison:**
+```csharp
+// Express-route (simplest - for basic operations)
+await table.Users.PutAsync(user);
+
+// Builder with entity (for conditions, return values)
+await table.Users.Put(user)
+    .Where(x => x.UserId.AttributeNotExists())
+    .PutAsync();
+
+// Generic method (also available)
+await table.Put<User>().WithItem(user).ExecuteAsync();
+```
+
 ### Table Initialization with Options
 
 For advanced features like logging, encryption, blob storage, or geospatial support, use `FluentDynamoDbOptions`:
@@ -80,6 +134,202 @@ var table = new UsersTable(client, "users", options);
 
 > **Note**: This guide demonstrates both **convenience methods** (simplified single-call operations) and the **builder API** (full control with fluent chaining). Use convenience methods for simple operations and the builder pattern when you need conditions, return values, or other advanced options.
 
+## Generated Key Builders
+
+The source generator creates type-safe key builder methods that format keys with prefixes and proper separators. These are essential for single-table design patterns.
+
+### Understanding Key Builders
+
+When you define an entity with key prefixes:
+
+```csharp
+[DynamoDbTable("entities")]
+public partial class User
+{
+    [PartitionKey(Prefix = "USER")]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+    
+    [SortKey(Prefix = "PROFILE")]
+    [DynamoDbAttribute("sk")]
+    public string ProfileType { get; set; } = "MAIN";
+}
+```
+
+The source generator creates key builder methods:
+
+```csharp
+// Generated: User.Keys.Pk("123") returns "USER#123"
+// Generated: User.Keys.Sk("MAIN") returns "PROFILE#MAIN"
+```
+
+### Using Key Builders in Operations
+
+Key builders ensure consistent key formatting across your application:
+
+```csharp
+// Get item with formatted keys
+var response = await table.Get<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
+    .ExecuteAsync();
+
+// Query with formatted partition key
+var users = await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", User.Keys.Pk("user123"))
+    .ExecuteAsync();
+
+// Delete with formatted keys
+await table.Delete<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
+    .ExecuteAsync();
+```
+
+### Composite Key Patterns
+
+For entities with both partition and sort keys, use the `Key()` method to get both at once:
+
+```csharp
+// Get both keys as a tuple
+var (pk, sk) = User.Keys.Key("user123", "MAIN");
+
+// Use in operations
+await table.Get<User>()
+    .WithKey(User.Fields.UserId, pk)
+    .WithKey(User.Fields.ProfileType, sk)
+    .ExecuteAsync();
+```
+
+### GSI Key Builders
+
+Key builders are also generated for Global Secondary Indexes:
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+    
+    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [DynamoDbAttribute("createdAt")]
+    public DateTime CreatedAt { get; set; }
+}
+
+// Query GSI with generated key builders
+var orders = await table.Query<Order>()
+    .WithIndex(Order.Indexes.StatusIndex)
+    .Where($"{Order.Fields.Status} = {{0}}", Order.Keys.StatusIndex.Pk("pending"))
+    .ExecuteAsync();
+```
+
+### Benefits of Key Builders
+
+- **Consistency**: Keys are always formatted the same way
+- **Type Safety**: Compile-time validation of key parameters
+- **Refactoring**: Rename properties without breaking key formats
+- **Documentation**: Generated code shows exact key format
+
+> **Note**: You can also use string literals directly (e.g., `"USER#123"` instead of `User.Keys.Pk("123")`). The generated key builders provide compile-time validation and consistency but aren't required.
+
+## Three API Styles
+
+FluentDynamoDb supports three approaches for writing expressions. Choose based on your needs:
+
+### 1. Lambda Expressions (PREFERRED)
+
+Use C# lambda expressions for compile-time type safety and IntelliSense support:
+
+```csharp
+// PREFERRED: Type-safe with lambda expressions
+await table.Users.Update("user123")
+    .Where(x => x.Status == "active")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .UpdateAsync();
+```
+
+**Advantages:**
+- ✓ Compile-time type checking
+- ✓ IntelliSense support
+- ✓ Refactoring safety
+- ✓ Automatic parameter generation
+
+### 2. Format Strings (ALTERNATIVE)
+
+Use String.Format-style syntax for concise expressions:
+
+```csharp
+// ALTERNATIVE: Format string - concise with placeholders
+await table.Users.Update("user123")
+    .Where($"{User.Fields.Status} = {{0}}", "active")
+    .Set($"SET {User.Fields.Name} = {{0}}", "Jane Doe")
+    .UpdateAsync();
+```
+
+**Advantages:**
+- ✓ Concise syntax
+- ✓ Automatic parameter generation
+- ✓ Supports all DynamoDB features
+
+### 3. Manual WithValue (EXPLICIT CONTROL)
+
+Use explicit parameter binding for maximum control:
+
+```csharp
+// EXPLICIT CONTROL: Manual - for complex scenarios
+await table.Users.Update("user123")
+    .Where("#status = :status")
+    .WithAttribute("#status", "status")
+    .WithValue(":status", "active")
+    .Set("SET #name = :name")
+    .WithAttribute("#name", "name")
+    .WithValue(":name", "Jane Doe")
+    .UpdateAsync();
+```
+
+**Advantages:**
+- ✓ Maximum control
+- ✓ Explicit parameter management
+- ✓ Good for dynamic queries
+
+**When to Use Each Approach:**
+- **Lambda expressions:** New code, type safety important, known properties
+- **Format strings:** Balance of conciseness and flexibility
+- **Manual parameters:** Dynamic queries, complex scenarios, existing code
+
+### Field Name Options
+
+You can reference DynamoDB attribute names in several ways:
+
+```csharp
+// 1. Generated field constants (recommended) - compile-time validated
+.Where($"{User.Fields.Status} = {{0}}", "active")
+
+// 2. String literals (simpler) - not compile-time validated
+.Where("status = :status")
+.WithValue(":status", "active")
+
+// 3. Direct attribute names in format strings
+.Where($"status = {{0}}", "active")
+```
+
+**Trade-offs:**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| `User.Fields.Status` | Compile-time validation, refactoring safe | More verbose |
+| `"status"` | Cleaner to read, less typing | No compile-time validation |
+
+> **Recommendation**: Use generated field constants (`User.Fields.Status`) for production code where compile-time validation is valuable. Use string literals for quick prototyping or when the attribute name is dynamic.
+
+See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on the manual approach.
+
 ## API Pattern Overview
 
 Oproto.FluentDynamoDb provides two complementary patterns:
@@ -98,7 +348,7 @@ await table.Users.UpdateAsync("user123", update =>
 ```csharp
 // Full control with fluent chaining
 await table.Users.Put(user)
-    .Where("attribute_not_exists({0})", User.Fields.UserId)
+    .Where(x => x.UserId.AttributeNotExists())  // Lambda expression (preferred)
     .ReturnAllOldValues()
     .PutAsync();
 ```
@@ -149,29 +399,51 @@ await table.Users.Put(user).PutAsync();
 Use a condition expression to prevent overwriting existing items:
 
 ```csharp
-// Builder API required for conditions
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
+await table.Users.Put(user)
+    .Where(x => x.UserId.AttributeNotExists())
+    .PutAsync();
+
+// 2. ALTERNATIVE: Format string - concise with placeholders
 await table.Users.Put(user)
     .Where($"attribute_not_exists({User.Fields.UserId})")
     .PutAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+await table.Users.Put(user)
+    .Where("attribute_not_exists(#pk)")
+    .WithAttribute("#pk", "pk")
+    .PutAsync();
 ```
 
-> **Note**: Convenience method methods don't support conditions. Use the builder pattern when you need conditional expressions.
+> **Note**: Convenience methods don't support conditions. Use the builder pattern when you need conditional expressions.
 
 **Common Condition Patterns:**
 
 ```csharp
 // Only create if doesn't exist
+// Lambda (preferred)
+.Where(x => x.UserId.AttributeNotExists())
+// Format string
 .Where($"attribute_not_exists({UserFields.UserId})")
 
 // Only update if exists
+// Lambda (preferred)
+.Where(x => x.UserId.AttributeExists())
+// Format string
 .Where($"attribute_exists({UserFields.UserId})")
 
 // Only update if version matches (optimistic locking)
+// Lambda (preferred)
+.Where(x => x.Version == currentVersion)
+// Format string
 .Where($"{UserFields.Version} = {{0}}", currentVersion)
 
 // Only update if status is specific value
+// Lambda (preferred)
+.Where(x => x.Status == "active")
+// Format string
 .Where($"{UserFields.Status} = {{0}}", "active")
-```
 
 ### Put with Return Values
 
@@ -358,12 +630,45 @@ var response = await table.Users.Get("user123")
 
 Update operations modify specific attributes of existing items without replacing the entire item.
 
+### Basic Update - Three API Styles
+
+```csharp
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel 
+    { 
+        Name = "Jane Doe",
+        Email = "jane@example.com",
+        UpdatedAt = DateTime.UtcNow
+    })
+    .UpdateAsync();
+
+// 2. ALTERNATIVE: Format string - concise with placeholders
+await table.Users.Update("user123")
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.Email} = {{1}}, {User.Fields.UpdatedAt} = {{2:o}}", 
+         "Jane Doe", 
+         "jane@example.com",
+         DateTime.UtcNow)
+    .UpdateAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+await table.Users.Update("user123")
+    .Set("SET #name = :name, #email = :email, #updatedAt = :updatedAt")
+    .WithAttribute("#name", "name")
+    .WithAttribute("#email", "email")
+    .WithAttribute("#updatedAt", "updatedAt")
+    .WithValue(":name", "Jane Doe")
+    .WithValue(":email", "jane@example.com")
+    .WithValue(":updatedAt", DateTime.UtcNow.ToString("o"))
+    .UpdateAsync();
+```
+
 ### Entity-Specific Update Builders
 
 The library provides entity-specific update builders that eliminate verbose generic parameters:
 
 ```csharp
-// Entity-specific builder with simplified Set method
+// Lambda expression (preferred) - entity-specific builder with simplified Set method
 await table.Users.Update("user123")
     .Set(x => new UserUpdateModel 
     { 
@@ -388,9 +693,9 @@ await table.Users.UpdateAsync("user123", update =>
 - Better IntelliSense support
 - Cleaner, more readable code
 
-### SET Operations with Expression Formatting
+### SET Operations with Format Strings
 
-You can also use traditional expression formatting:
+Format strings provide a concise alternative when lambda expressions aren't suitable:
 
 ```csharp
 // Update single attribute
@@ -439,24 +744,85 @@ await table.Update
     .ExecuteAsync();
 ```
 
+### Lambda Expression SET Operations
+
+Lambda expressions provide type-safe access to DynamoDB update operations through extension methods on the update expression parameter:
+
+```csharp
+// The lambda parameter (x) provides access to special update operations
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel 
+    {
+        // Simple assignment
+        Name = "Jane Doe",
+        
+        // Atomic increment using Add()
+        LoginCount = x.LoginCount.Add(1),
+        
+        // Add elements to a set
+        Tags = x.Tags.Add("premium", "verified"),
+        
+        // Remove attribute using Remove()
+        TempData = x.TempData.Remove(),
+        
+        // Delete elements from a set
+        OldTags = x.OldTags.Delete("deprecated"),
+        
+        // Set default value if attribute doesn't exist
+        ViewCount = x.ViewCount.IfNotExists(0),
+        
+        // Append to a list
+        History = x.History.ListAppend("login-event"),
+        
+        // Prepend to a list (most recent first)
+        RecentActivity = x.RecentActivity.ListPrepend("new-event")
+    })
+    .UpdateAsync();
+```
+
+**Available Lambda Operations:**
+
+| Operation | Description | Example |
+|-----------|-------------|---------|
+| `x.Prop.Add(value)` | Atomic increment/add to set | `x.LoginCount.Add(1)` |
+| `x.Prop.Remove()` | Remove attribute entirely | `x.TempData.Remove()` |
+| `x.Prop.Delete(elements)` | Remove elements from set | `x.Tags.Delete("old")` |
+| `x.Prop.IfNotExists(default)` | Set only if attribute missing | `x.Count.IfNotExists(0)` |
+| `x.Prop.ListAppend(elements)` | Append to end of list | `x.History.ListAppend("event")` |
+| `x.Prop.ListPrepend(elements)` | Prepend to start of list | `x.Recent.ListPrepend("event")` |
+| `x.Prop + value` | Arithmetic addition | `x.Score + 10` |
+| `x.Prop - value` | Arithmetic subtraction | `x.Score - 5` |
+
 ### ADD Operations
 
 Increment numeric values or add elements to sets:
 
 ```csharp
-// Increment a counter
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 await table.Users.Update("user123")
-    .Set($"ADD {User.Fields.LoginCount} {{0}}", 1)
+    .Set(x => new UserUpdateModel { LoginCount = x.LoginCount.Add(1) })
     .UpdateAsync();
 
 // Decrement (use negative number)
 await table.Users.Update("user123")
-    .Set($"ADD {User.Fields.Credits} {{0}}", -10)
+    .Set(x => new UserUpdateModel { Credits = x.Credits.Add(-10) })
     .UpdateAsync();
 
-// Add to a number set
+// Add elements to a set
 await table.Users.Update("user123")
-    .Set($"ADD {User.Fields.Tags} {{0}}", new HashSet<string> { "premium", "verified" })
+    .Set(x => new UserUpdateModel { Tags = x.Tags.Add("premium", "verified") })
+    .UpdateAsync();
+
+// 2. ALTERNATIVE: Format string
+await table.Users.Update("user123")
+    .Set($"ADD {User.Fields.LoginCount} {{0}}", 1)
+    .UpdateAsync();
+
+// 3. EXPLICIT CONTROL: Manual
+await table.Users.Update("user123")
+    .Set("ADD #loginCount :increment")
+    .WithAttribute("#loginCount", "loginCount")
+    .WithValue(":increment", 1)
     .UpdateAsync();
 ```
 
@@ -470,17 +836,26 @@ await table.Users.Update("user123")
 Remove attributes from an item:
 
 ```csharp
-// Remove single attribute
+// 1. PREFERRED: Lambda expression
 await table.Users.Update("user123")
-    .Set($"REMOVE {User.Fields.TempData}")
+    .Set(x => new UserUpdateModel { TempData = x.TempData.Remove() })
     .UpdateAsync();
 
 // Remove multiple attributes
 await table.Users.Update("user123")
-    .Set($"REMOVE {User.Fields.TempData}, {User.Fields.OldField}")
+    .Set(x => new UserUpdateModel 
+    { 
+        TempData = x.TempData.Remove(),
+        CachedValue = x.CachedValue.Remove()
+    })
     .UpdateAsync();
 
-// Remove element from a list by index
+// 2. ALTERNATIVE: Format string
+await table.Users.Update("user123")
+    .Set($"REMOVE {User.Fields.TempData}")
+    .UpdateAsync();
+
+// Remove element from a list by index (format string only)
 await table.Users.Update("user123")
     .Set($"REMOVE {User.Fields.Addresses}[0]")
     .UpdateAsync();
@@ -491,7 +866,12 @@ await table.Users.Update("user123")
 Remove elements from sets:
 
 ```csharp
-// Remove specific tags from a set
+// 1. PREFERRED: Lambda expression
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Tags = x.Tags.Delete("old-tag", "deprecated") })
+    .UpdateAsync();
+
+// 2. ALTERNATIVE: Format string
 await table.Users.Update("user123")
     .Set($"DELETE {User.Fields.Tags} {{0}}", new HashSet<string> { "old-tag" })
     .UpdateAsync();
@@ -500,6 +880,25 @@ await table.Users.Update("user123")
 **DELETE vs REMOVE:**
 - `DELETE` - Removes elements from a set attribute
 - `REMOVE` - Removes entire attributes from the item
+
+### IfNotExists and List Operations
+
+```csharp
+// Initialize counter to 0 if it doesn't exist
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { ViewCount = x.ViewCount.IfNotExists(0) })
+    .UpdateAsync();
+
+// Append events to history list
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { History = x.History.ListAppend("login", "view-profile") })
+    .UpdateAsync();
+
+// Prepend events (most recent first)
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { RecentActivity = x.RecentActivity.ListPrepend("new-event") })
+    .UpdateAsync();
+```
 
 ### Combined Update Operations
 
@@ -518,29 +917,51 @@ await table.Users.Update("user123")
 
 ### Conditional Updates
 
-Only update if a condition is met:
+Only update if a condition is met. Here are all three API styles:
 
 ```csharp
-// Only update if user is active (string-based condition)
-await table.Users.Update("user123")
-    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
-    .Where($"{User.Fields.Status} = {{0}}", "active")
-    .UpdateAsync();
-
-// LINQ expression condition (TEntity inferred from entity-specific builder)
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 await table.Users.Update("user123")
     .Where(x => x.Status == "active")
     .Set(x => new UserUpdateModel { Name = "Jane Doe" })
     .UpdateAsync();
 
-// Optimistic locking with version number
+// 2. ALTERNATIVE: Format string - concise with placeholders
 await table.Users.Update("user123")
-    .Set(x => new UserUpdateModel 
-    { 
-        Name = "Jane Doe",
-        Version = currentVersion + 1
-    })
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .Where($"{User.Fields.Status} = {{0}}", "active")
+    .UpdateAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .Where("#status = :status")
+    .WithAttribute("#status", "status")
+    .WithValue(":status", "active")
+    .UpdateAsync();
+```
+
+**Optimistic Locking Example (all three styles):**
+
+```csharp
+// 1. PREFERRED: Lambda expression
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe", Version = currentVersion + 1 })
+    .Where(x => x.Version == currentVersion)
+    .UpdateAsync();
+
+// 2. ALTERNATIVE: Format string
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe", Version = currentVersion + 1 })
     .Where($"{User.Fields.Version} = {{0}}", currentVersion)
+    .UpdateAsync();
+
+// 3. EXPLICIT CONTROL: Manual
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe", Version = currentVersion + 1 })
+    .Where("#version = :version")
+    .WithAttribute("#version", "version")
+    .WithValue(":version", currentVersion)
     .UpdateAsync();
 ```
 
@@ -592,26 +1013,44 @@ await table.Orders.Delete("customer123", "order456").DeleteAsync();
 
 ### Conditional Delete
 
-Only delete if a condition is met:
+Only delete if a condition is met. Here are all three API styles:
 
 ```csharp
-// Builder API required for conditions
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
+await table.Users.Delete("user123")
+    .Where(x => x.Status == "inactive")
+    .DeleteAsync();
+
+// 2. ALTERNATIVE: Format string - concise with placeholders
 await table.Users.Delete("user123")
     .Where($"{User.Fields.Status} = {{0}}", "inactive")
     .DeleteAsync();
 
-// Only delete if item exists
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
 await table.Users.Delete("user123")
-    .Where($"attribute_exists({User.Fields.UserId})")
-    .DeleteAsync();
-
-// Only delete if version matches (optimistic locking)
-await table.Users.Delete("user123")
-    .Where($"{User.Fields.Version} = {{0}}", currentVersion)
+    .Where("#status = :status")
+    .WithAttribute("#status", "status")
+    .WithValue(":status", "inactive")
     .DeleteAsync();
 ```
 
-> **Note**: Convenience method methods don't support conditions. Use the builder pattern when you need conditional expressions.
+**Common Conditional Delete Patterns:**
+
+```csharp
+// Only delete if item exists
+// Lambda (preferred)
+.Where(x => x.UserId.AttributeExists())
+// Format string
+.Where($"attribute_exists({User.Fields.UserId})")
+
+// Only delete if version matches (optimistic locking)
+// Lambda (preferred)
+.Where(x => x.Version == currentVersion)
+// Format string
+.Where($"{User.Fields.Version} = {{0}}", currentVersion)
+```
+
+> **Note**: Convenience methods don't support conditions. Use the builder pattern when you need conditional expressions.
 
 ### Delete with Return Values
 
@@ -955,16 +1394,20 @@ public class UserService
 
 ## Manual Patterns
 
-While expression formatting is recommended, you can also use manual parameter binding for complex scenarios:
+While **lambda expressions are preferred** and **format strings are a good alternative**, you can also use manual parameter binding for complex or dynamic scenarios:
 
 ```csharp
-// Manual parameter approach
+// Manual parameter approach - use when you need explicit control
 await table.Users.Update("user123")
-    .Set($"SET {User.Fields.Name} = :name, {User.Fields.Email} = :email")
+    .Set("SET #name = :name, #email = :email")
+    .WithAttribute("#name", "name")
+    .WithAttribute("#email", "email")
     .WithValue(":name", "Jane Doe")
     .WithValue(":email", "jane@example.com")
     .UpdateAsync();
 ```
+
+> **Recommendation**: Use lambda expressions (preferred) or format strings (alternative) for most operations. Reserve manual patterns for dynamic queries, complex scenarios, or legacy code migration.
 
 See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on lower-level approaches.
 

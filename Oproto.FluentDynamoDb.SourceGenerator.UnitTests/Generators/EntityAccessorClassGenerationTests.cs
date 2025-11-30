@@ -10,7 +10,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// Tests for entity accessor class generation.
 /// Verifies that nested accessor classes are generated correctly with proper structure,
 /// parent table references, constructors, and operation methods.
-/// Covers requirement 3 from the table-generation-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class EntityAccessorClassGenerationTests

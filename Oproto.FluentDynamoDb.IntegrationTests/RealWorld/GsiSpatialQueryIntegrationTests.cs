@@ -69,7 +69,6 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
     
     /// <summary>
     /// Tests that multiple stores in the same S2 cell can be queried via GSI.
-    /// Validates: Requirements 3.1, 3.2
     /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_ViaGsi_ReturnsMultipleStoresInSameCell()
@@ -137,7 +136,6 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Tests pagination with GSI spatial queries across multiple cells.
     /// Uses S2 level 10 (~10km cells) with 20km radius to stay within 500 cell limit.
-    /// Validates: Requirements 3.2, 11.1, 11.2, 11.3
     /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_ViaGsi_PaginationWorksAcrossCells()
@@ -227,7 +225,6 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
 
     /// <summary>
     /// Tests custom cell list with table spatial queries.
-    /// Validates: Requirements 3.1, 3.2
     /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_WithCustomCellList_ReturnsMatchingStores()
@@ -287,7 +284,6 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
 
     /// <summary>
     /// Tests custom cell list with distance sorting.
-    /// Validates: Requirements 3.1, 3.2
     /// </summary>
     [Fact]
     public async Task SpatialQueryAsync_WithCustomCellList_SortsByDistanceWhenCenterProvided()

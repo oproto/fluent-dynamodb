@@ -13,16 +13,12 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 /// <summary>
 /// Property-based tests verifying no reflection is used for entity hydration when using FluentDynamoDbOptions.
-/// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-/// **Validates: Requirements 3.2, 6.4**
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Category", "PropertyBased")]
 public class DynamoDbResponseExtensionsHydrationPropertyTests
 {
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 3.2, 6.4**
     /// 
     /// Verifies that when a hydrator is registered, it can be retrieved from the registry.
     /// </summary>
@@ -44,8 +40,6 @@ public class DynamoDbResponseExtensionsHydrationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 3.2, 6.4**
     /// 
     /// Verifies that when no hydrator is registered, the registry returns null.
     /// </summary>
@@ -64,8 +58,6 @@ public class DynamoDbResponseExtensionsHydrationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 3.2, 6.4**
     /// 
     /// Verifies that FluentDynamoDbOptions can be configured with a custom hydrator registry.
     /// </summary>
@@ -91,8 +83,6 @@ public class DynamoDbResponseExtensionsHydrationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 3.2, 6.4**
     /// 
     /// Property test: For any registered hydrator, the registry should return the same hydrator instance.
     /// </summary>
@@ -124,8 +114,6 @@ public class DynamoDbResponseExtensionsHydrationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 3.2, 6.4**
     /// 
     /// Property test: Multiple hydrators for different entity types can be registered independently.
     /// </summary>
@@ -154,8 +142,6 @@ public class DynamoDbResponseExtensionsHydrationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 3.2, 6.4**
     /// 
     /// Verifies that the default hydrator registry is used when no custom registry is provided.
     /// </summary>
@@ -171,8 +157,6 @@ public class DynamoDbResponseExtensionsHydrationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 3.2, 6.4**
     /// 
     /// Verifies that WithHydratorRegistry preserves other options.
     /// </summary>

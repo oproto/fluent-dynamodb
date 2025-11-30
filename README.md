@@ -490,6 +490,19 @@ await table.Update
 
 
 
+## About
+
+**Oproto.FluentDynamoDb** is developed and maintained by [Oproto Inc](https://oproto.com), 
+a company building modern SaaS solutions for small business finance and accounting.
+
+### Links
+- 🏢 **Company**: [oproto.com](https://oproto.com)
+- 👨‍💻 **Developer Portal**: [oproto.io](https://oproto.io)
+- 📚 **Documentation**: [fluentdynamodb.dev](https://fluentdynamodb.dev)
+
+### Maintainer
+- **Dan Guisinger** - [danguisinger.com](https://danguisinger.com)
+
 ## Community & Support
 
 - **Issues:** [GitHub Issues](https://github.com/OProto/oproto-fluent-dynamodb/issues)

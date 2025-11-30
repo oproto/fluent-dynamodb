@@ -15,8 +15,6 @@ namespace Oproto.FluentDynamoDb.UnitTests;
 public class FluentDynamoDbOptionsPropertyTests
 {
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 2: Options Immutability**
-    /// **Validates: Requirements 8.2**
     /// 
     /// For any FluentDynamoDbOptions instance, calling With* methods SHALL return a new instance
     /// without modifying the original instance's properties.
@@ -48,8 +46,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 2: Options Immutability**
-    /// **Validates: Requirements 8.2**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property WithBlobStorage_ReturnsNewInstance_WithoutModifyingOriginal()
@@ -78,8 +74,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 2: Options Immutability**
-    /// **Validates: Requirements 8.2**
     /// </summary>
     [Property(MaxTest = 100)]
     public Property WithEncryption_ReturnsNewInstance_WithoutModifyingOriginal()
@@ -108,8 +102,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 2: Options Immutability**
-    /// **Validates: Requirements 8.2**
     /// 
     /// Chaining multiple With* calls should preserve all previously set values.
     /// </summary>
@@ -143,8 +135,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 2: Options Immutability**
-    /// **Validates: Requirements 8.2**
     /// 
     /// Calling With* methods in any order should produce equivalent results.
     /// </summary>
@@ -199,8 +189,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 2: Options Immutability**
-    /// **Validates: Requirements 8.2**
     /// 
     /// WithLogger(null) should use NoOpLogger.Instance as default.
     /// </summary>
@@ -226,8 +214,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 5: Logger Propagation**
-    /// **Validates: Requirements 5.3**
     /// 
     /// For any FluentDynamoDbOptions with a configured logger, and for any request builder
     /// created from a table using those options, the configured logger SHALL be used for logging operations.
@@ -271,8 +257,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 5: Logger Propagation**
-    /// **Validates: Requirements 5.3**
     /// 
     /// For any table created with default options (no logger configured),
     /// the NoOpLogger.Instance SHALL be used.
@@ -299,8 +283,6 @@ public class FluentDynamoDbOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 5: Logger Propagation**
-    /// **Validates: Requirements 5.3**
     /// 
     /// For any table created with new FluentDynamoDbOptions() (explicit default options),
     /// the NoOpLogger.Instance SHALL be used.
@@ -360,8 +342,6 @@ internal class TestEntity
 public class ConfigurationIsolationPropertyTests
 {
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 1: Configuration Isolation**
-    /// **Validates: Requirements 7.4, 8.1, 8.2, 8.3, 8.5**
     /// 
     /// For any two table instances created with different FluentDynamoDbOptions,
     /// the configuration of one table SHALL NOT affect the configuration of the other table.
@@ -398,8 +378,6 @@ public class ConfigurationIsolationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 1: Configuration Isolation**
-    /// **Validates: Requirements 7.4, 8.1, 8.2, 8.3, 8.5**
     /// 
     /// For any two table instances created with different FluentDynamoDbOptions,
     /// modifying one options instance after table creation SHALL NOT affect the other table.
@@ -434,8 +412,6 @@ public class ConfigurationIsolationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 1: Configuration Isolation**
-    /// **Validates: Requirements 7.4, 8.1, 8.2, 8.3, 8.5**
     /// 
     /// For any two table instances with different blob storage providers,
     /// each table SHALL use its own provider independently.
@@ -474,8 +450,6 @@ public class ConfigurationIsolationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 1: Configuration Isolation**
-    /// **Validates: Requirements 7.4, 8.1, 8.2, 8.3, 8.5**
     /// 
     /// For any two table instances with different field encryptors,
     /// each table SHALL use its own encryptor independently.
@@ -512,8 +486,6 @@ public class ConfigurationIsolationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 1: Configuration Isolation**
-    /// **Validates: Requirements 7.4, 8.1, 8.2, 8.3, 8.5**
     /// 
     /// For any number of table instances created with different configurations,
     /// each table SHALL maintain its complete configuration independently.
@@ -564,8 +536,6 @@ public class ConfigurationIsolationPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 1: Configuration Isolation**
-    /// **Validates: Requirements 7.4, 8.1, 8.2, 8.3, 8.5**
     /// 
     /// Configuration SHALL NOT be stored in static mutable fields.
     /// Creating a new table with different options SHALL NOT affect previously created tables.
@@ -640,8 +610,6 @@ internal class TestTableForIsolation : DynamoDbTableBase
 public class DefaultOptionsPropertyTests
 {
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 7: Default Options Behavior**
-    /// **Validates: Requirements 1.3, 5.2, 7.3**
     /// 
     /// For any table created without explicit options or with new FluentDynamoDbOptions(),
     /// the table SHALL use NoOpLogger.Instance for logging, null for optional providers,
@@ -666,8 +634,6 @@ public class DefaultOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 7: Default Options Behavior**
-    /// **Validates: Requirements 1.3, 5.2, 7.3**
     /// 
     /// For any FluentDynamoDbOptions created with default constructor,
     /// all optional providers SHALL be null.
@@ -694,8 +660,6 @@ public class DefaultOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 7: Default Options Behavior**
-    /// **Validates: Requirements 1.3, 5.2, 7.3**
     /// 
     /// For any table created with null options parameter,
     /// the table SHALL use sensible defaults (NoOpLogger, no optional features).
@@ -725,8 +689,6 @@ public class DefaultOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 7: Default Options Behavior**
-    /// **Validates: Requirements 1.3, 5.2, 7.3**
     /// 
     /// For any table created with explicit default options (new FluentDynamoDbOptions()),
     /// the table SHALL use the same defaults as when created with null options.
@@ -767,8 +729,6 @@ public class DefaultOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 4: Core Operations Without Optional Packages**
-    /// **Validates: Requirements 1.3, 1.4**
     /// 
     /// For any table created without optional packages (geospatial, blob storage),
     /// core DynamoDB operations (Query, Scan, Get, Put, Update, Delete) SHALL function correctly.
@@ -814,8 +774,6 @@ public class DefaultOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 4: Core Operations Without Optional Packages**
-    /// **Validates: Requirements 1.3, 1.4**
     /// 
     /// For any combination of optional packages that are registered,
     /// core DynamoDB operations SHALL function correctly.
@@ -889,8 +847,6 @@ public class DefaultOptionsPropertyTests
     }
     
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 4: Core Operations Without Optional Packages**
-    /// **Validates: Requirements 1.3, 1.4**
     /// 
     /// For any table created with only a logger configured (no other optional packages),
     /// core DynamoDB operations SHALL function correctly and use the configured logger.
@@ -976,14 +932,12 @@ internal class TestEntityForDefaultOptions
 
 /// <summary>
 /// Tests for parallel test execution to verify no cross-contamination between configurations.
-/// **Validates: Requirements 8.3**
 /// </summary>
 public class ParallelConfigurationTests
 {
     /// <summary>
     /// Verifies that multiple tables created in parallel with different configurations
     /// maintain their isolated configurations without cross-contamination.
-    /// **Validates: Requirements 8.3**
     /// </summary>
     [Fact]
     public async Task ParallelTableCreation_WithDifferentConfigs_MaintainsIsolation()
@@ -1022,7 +976,6 @@ public class ParallelConfigurationTests
     /// <summary>
     /// Verifies that concurrent access to tables with different configurations
     /// does not cause cross-contamination.
-    /// **Validates: Requirements 8.3**
     /// </summary>
     [Fact]
     public async Task ConcurrentTableAccess_WithDifferentConfigs_NoContamination()
@@ -1074,7 +1027,6 @@ public class ParallelConfigurationTests
     
     /// <summary>
     /// Verifies that creating and disposing tables in parallel does not affect other tables.
-    /// **Validates: Requirements 8.3**
     /// </summary>
     [Fact]
     public async Task ParallelTableCreationAndDisposal_NoSideEffects()
@@ -1125,7 +1077,6 @@ public class ParallelConfigurationTests
     
     /// <summary>
     /// Verifies that modifying options in parallel does not affect existing tables.
-    /// **Validates: Requirements 8.3**
     /// </summary>
     [Fact]
     public async Task ParallelOptionsModification_DoesNotAffectExistingTables()
