@@ -352,7 +352,7 @@ var filteredResponse = await table.Query
 
 // GSI query
 var gsiResponse = await table.Query
-    .WithIndex(UserIndexes.EmailIndex)
+    .UsingIndex(UserIndexes.EmailIndex)
     .Where($"{UserFields.Email} = {{0}}", "john@example.com")
     .WithClient(scopedClient)
     .ExecuteAsync<User>();
@@ -541,7 +541,7 @@ public class UserRepository
         var scopedClient = await _scopedService.GetTenantClientAsync(tenantId, user);
         
         var response = await _table.Query
-            .WithIndex(UserIndexes.StatusIndex)
+            .UsingIndex(UserIndexes.StatusIndex)
             .Where($"{UserFields.StatusIndex.Status} = {{0}}", status)
             .WithClient(scopedClient)
             .ExecuteAsync<User>();

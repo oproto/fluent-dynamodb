@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **StoreLocator Adaptive Precision** - Multi-precision spatial indexing for the StoreLocator example application
+  - Automatic precision selection based on search radius for optimal query performance
+  - S2 precision levels: Level 14 (~284m) for ≤2km, Level 12 (~1.1km) for 2-10km, Level 10 (~4.5km) for >10km
+  - H3 precision levels: Resolution 9 (~174m) for ≤2km, Resolution 7 (~1.2km) for 2-10km, Resolution 5 (~8.5km) for >10km
+  - Multi-precision storage: stores now indexed at three precision levels simultaneously
+  - New GSIs for each precision level (s2-index-fine/medium/coarse, h3-index-fine/medium/coarse)
+  - Display of precision level and cell size in search results
+  - Eliminates cell limit errors for searches up to 50km radius
+  - Property-based tests validating precision selection and multi-precision storage
+  - _Requirements: 1.1-1.4, 2.1-2.3, 3.1-3.4_
+
 - **Documentation Overhaul** - Comprehensive documentation improvements for accuracy, organization, and maintainability
   - New `docs/advanced-topics/InternalArchitecture.md` documenting internal interfaces, source generator pipeline, and component relationships
   - New `docs/reference/ApiReference.md` with express list of all request builders, entity accessors, and direct async methods

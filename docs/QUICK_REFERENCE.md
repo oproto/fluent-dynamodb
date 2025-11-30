@@ -510,7 +510,7 @@ if (response.LastEvaluatedKey != null)
 
 ```csharp
 var response = await table.Query()
-    .WithIndex(EntityIndexes.IndexName)
+    .UsingIndex(EntityIndexes.IndexName)
     .Where($"{EntityFields.GsiPartitionKey} = {{0}}", "value")
     .ExecuteAsync<Entity>();
 ```
@@ -842,7 +842,7 @@ public DateTime CreatedAt { get; set; }
 
 ```csharp
 var response = await table.Query()
-    .WithIndex(EntityIndexes.StatusIndex)
+    .UsingIndex(EntityIndexes.StatusIndex)
     .Where($"{EntityFields.Status} = {{0}}", "active")
     .ExecuteAsync<Entity>();
 ```
