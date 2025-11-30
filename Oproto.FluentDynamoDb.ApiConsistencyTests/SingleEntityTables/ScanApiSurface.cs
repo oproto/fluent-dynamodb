@@ -11,7 +11,7 @@ public class ScanApiSurface
     public async Task AllQueryPatterns_BasicPkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        ScannableTable table = new ScannableTable(client, null);
+        ScannableTable table = new ScannableTable(client, "scannable", options: null);
 
         // Scan with filter-expression string based with explicit names
         var results = await table.Scan("#age >= :age")

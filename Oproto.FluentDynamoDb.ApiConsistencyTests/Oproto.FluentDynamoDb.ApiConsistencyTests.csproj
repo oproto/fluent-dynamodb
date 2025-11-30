@@ -11,6 +11,11 @@
         <!-- Enable source generator output for IDE support -->
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+        
+        <!-- Suppress AOT/trimming warnings - test code doesn't run in AOT mode -->
+        <!-- Suppress DYNDB021 (reserved words) - test entities intentionally use reserved words -->
+        <!-- Suppress DYNDB023 (complex types) - test entities intentionally use complex types for testing -->
+        <NoWarn>$(NoWarn);IL2026;IL2060;IL2070;IL2072;IL2075;IL2090;IL3000;IL3050;DYNDB021;DYNDB023</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

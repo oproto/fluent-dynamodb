@@ -12,6 +12,12 @@
         <DevelopmentDependency>true</DevelopmentDependency>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         
+        <!-- Source generators run at compile time in Roslyn, not in user binaries -->
+        <!-- They don't need AOT compatibility - override Directory.Build.props settings -->
+        <IsAotCompatible>false</IsAotCompatible>
+        <IsTrimmable>false</IsTrimmable>
+        <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+        
         <!-- Analyzer-specific properties -->
         <AnalyzerLanguage>cs</AnalyzerLanguage>
         <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
@@ -23,6 +29,11 @@
         <!-- Optimize for IDE builds -->
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        
+        <!-- Suppress warnings for source generator code -->
+        <!-- CS0618: Obsolete Roslyn APIs - required for compatibility with older SDK versions -->
+        <!-- CS8604: Nullable warnings - handled by runtime checks -->
+        <NoWarn>$(NoWarn);CS0618;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8629</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -32,6 +43,12 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Analyzer release tracking files for RS2008 compliance -->
+    <ItemGroup>
+        <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+        <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
     </ItemGroup>
 
 

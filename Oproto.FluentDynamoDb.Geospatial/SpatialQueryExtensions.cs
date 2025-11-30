@@ -527,7 +527,7 @@ public static class SpatialQueryExtensions
                     nextToken = new SpatialContinuationToken
                     {
                         CellIndex = cellIndex,
-                        LastEvaluatedKey = SerializeLastEvaluatedKey(cellLastEvaluatedKey)
+                        LastEvaluatedKey = cellLastEvaluatedKey != null ? SerializeLastEvaluatedKey(cellLastEvaluatedKey) : null
                     };
                 }
                 else if (cellIndex + 1 < cells.Count)
@@ -648,27 +648,29 @@ public static class SpatialQueryExtensions
 
     /// <summary>
     /// Serializes DynamoDB's LastEvaluatedKey to a string for storage in continuation token.
+    /// Uses AOT-compatible source-generated JSON serialization.
     /// </summary>
     private static string SerializeLastEvaluatedKey(Dictionary<string, AttributeValue> lastEvaluatedKey)
     {
-        var serializable = new Dictionary<string, object>();
+        var serializable = new Dictionary<string, SerializableAttributeValue>();
         foreach (var kvp in lastEvaluatedKey)
         {
             serializable[kvp.Key] = AttributeValueToSerializable(kvp.Value);
         }
         
-        var json = System.Text.Json.JsonSerializer.Serialize(serializable);
+        var json = System.Text.Json.JsonSerializer.Serialize(serializable, SpatialJsonContext.Default.DictionaryStringSerializableAttributeValue);
         return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
     }
 
     /// <summary>
     /// Deserializes a LastEvaluatedKey string back to DynamoDB's AttributeValue dictionary.
+    /// Uses AOT-compatible source-generated JSON serialization.
     /// </summary>
     private static Dictionary<string, AttributeValue> DeserializeLastEvaluatedKey(string serialized)
     {
         var bytes = Convert.FromBase64String(serialized);
         var json = System.Text.Encoding.UTF8.GetString(bytes);
-        var serializable = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json)
+        var serializable = System.Text.Json.JsonSerializer.Deserialize(json, SpatialJsonContext.Default.DictionaryStringSerializableAttributeValue)
             ?? throw new InvalidOperationException("Failed to deserialize LastEvaluatedKey");
         
         var result = new Dictionary<string, AttributeValue>();
@@ -681,35 +683,30 @@ public static class SpatialQueryExtensions
     }
 
     /// <summary>
-    /// Converts an AttributeValue to a JSON-serializable object.
+    /// Converts an AttributeValue to a serializable object for AOT-compatible JSON serialization.
     /// </summary>
-    private static object AttributeValueToSerializable(AttributeValue value)
+    private static SerializableAttributeValue AttributeValueToSerializable(AttributeValue value)
     {
-        if (value.S != null) return new { Type = "S", Value = value.S };
-        if (value.N != null) return new { Type = "N", Value = value.N };
-        if (value.BOOL == true) return new { Type = "BOOL", Value = true };
-        if (value.NULL == true) return new { Type = "NULL" };
+        if (value.S != null) return new SerializableAttributeValue { Type = "S", StringValue = value.S };
+        if (value.N != null) return new SerializableAttributeValue { Type = "N", StringValue = value.N };
+        if (value.BOOL == true) return new SerializableAttributeValue { Type = "BOOL", BoolValue = true };
+        if (value.NULL == true) return new SerializableAttributeValue { Type = "NULL" };
         throw new NotSupportedException($"AttributeValue type not supported for serialization");
     }
 
     /// <summary>
-    /// Converts a JSON-serializable object back to an AttributeValue.
+    /// Converts a serializable object back to an AttributeValue.
     /// </summary>
-    private static AttributeValue SerializableToAttributeValue(object obj)
+    private static AttributeValue SerializableToAttributeValue(SerializableAttributeValue obj)
     {
-        if (obj is System.Text.Json.JsonElement element)
+        return obj.Type switch
         {
-            var type = element.GetProperty("Type").GetString();
-            return type switch
-            {
-                "S" => new AttributeValue { S = element.GetProperty("Value").GetString() },
-                "N" => new AttributeValue { N = element.GetProperty("Value").GetString() },
-                "BOOL" => new AttributeValue { BOOL = element.GetProperty("Value").GetBoolean() },
-                "NULL" => new AttributeValue { NULL = true },
-                _ => throw new NotSupportedException($"AttributeValue type {type} not supported")
-            };
-        }
-        throw new NotSupportedException("Unexpected object type in deserialization");
+            "S" => new AttributeValue { S = obj.StringValue },
+            "N" => new AttributeValue { N = obj.StringValue },
+            "BOOL" => new AttributeValue { BOOL = obj.BoolValue ?? false },
+            "NULL" => new AttributeValue { NULL = true },
+            _ => throw new NotSupportedException($"AttributeValue type {obj.Type} not supported")
+        };
     }
 
     #endregion

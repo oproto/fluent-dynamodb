@@ -10,7 +10,7 @@ public class TransactionGetApiSurface
     public async Task AllTransactionGetOperations_BasicPkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, null);
+        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
 
         // Get transaction with result object
         var result = await DynamoDbTransactions.Get

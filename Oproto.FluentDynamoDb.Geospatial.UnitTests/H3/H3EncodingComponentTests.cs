@@ -12,7 +12,7 @@ public class H3EncodingComponentTests
     public void Component_LatLonToXYZ_KnownLocation()
     {
         // Use a known H3 index and work backwards
-        var h3Index = "81003ffffffffff"; // Resolution 1
+        // h3Index "81003ffffffffff" is Resolution 1
         var expectedLat = 79.242398509799997;
         var expectedLon = 38.023407008;
         
@@ -34,7 +34,7 @@ public class H3EncodingComponentTests
     [Fact]
     public void Component_XYZToFace_KnownLocation()
     {
-        var h3Index = "81003ffffffffff"; // Resolution 1, base cell 0
+        // h3Index "81003ffffffffff" is Resolution 1, base cell 0
         var expectedLat = 79.242398509799997;
         var expectedLon = 38.023407008;
         

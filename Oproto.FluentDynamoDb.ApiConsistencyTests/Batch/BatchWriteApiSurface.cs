@@ -10,7 +10,7 @@ public class BatchWriteApiSurface
     public async Task AllBatchWriteOperations_BasicPkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, null);
+        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
 
         var item1 = new BasicPkEntity()
         {

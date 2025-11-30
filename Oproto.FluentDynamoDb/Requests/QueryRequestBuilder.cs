@@ -387,10 +387,11 @@ public class QueryRequestBuilder<TEntity> :
             var response = await _dynamoDbClient.QueryAsync(request, cancellationToken);
             
             #if !DISABLE_DYNAMODB_LOGGING
+#pragma warning disable CS8601 // Possible null reference assignment - boxing value types to object[]
             _logger?.LogInformation(LogEventIds.OperationComplete,
                 "Query completed. ItemCount: {ItemCount}, ConsumedCapacity: {ConsumedCapacity}",
-                response.Count, 
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
+                new object[] { response.Count, response.ConsumedCapacity?.CapacityUnits ?? 0 });
+#pragma warning restore CS8601
             #endif
             
             return response;

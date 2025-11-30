@@ -59,7 +59,7 @@ public class H3PentagonCenterTest
         _output.WriteLine("  CW offset faces: 0, 9");
         
         // Decode base cell 49 at resolution 0
-        ulong index = 0x8063fffffffffffUL; // Base cell 49, resolution 0
+        // index 0x8063fffffffffffUL is Base cell 49, resolution 0
         var h3String = "8063fffffffffff";
         
         var (lat, lon) = H3Encoder.Decode(h3String);

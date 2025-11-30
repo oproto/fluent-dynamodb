@@ -11,7 +11,7 @@ public class QueryApiSurface
     public async Task AllQueryPatterns_BasicPkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, null);
+        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
 
         // Query-expression string based with explicit names
         var results = await table.Query("#pk = :pk")
@@ -30,7 +30,7 @@ public class QueryApiSurface
     public async Task AllQueryPatterns_BasicPkSkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkSkTable table = new BasicPkSkTable(client,null);
+        BasicPkSkTable table = new BasicPkSkTable(client, "basicPkSk", options: null);
 
         // Query-expression string based with explicit names
         var results = await table.Query("#pk = :pk AND begins_with(#sk,:sk)")

@@ -12,7 +12,7 @@ public class TransactionWriteApiSurface
     public async Task AllTransactionWriteOperations_BasicPkTable_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, null);
+        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
 
         var item1 = new BasicPkEntity()
         {

@@ -60,7 +60,7 @@ public class H3ArabianSeaDebugTest
             var index = stringToH3IndexMethod.Invoke(null, new object[] { h3Index });
             _output.WriteLine($"H3 Index (ulong): {index}");
             
-            var parseResult = parseMethod.Invoke(null, new object[] { index });
+            var parseResult = parseMethod.Invoke(null, new object?[] { index });
             _output.WriteLine($"ParseH3IndexWithFace result: {parseResult}");
         }
 

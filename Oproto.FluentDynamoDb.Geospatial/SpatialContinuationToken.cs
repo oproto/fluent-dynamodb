@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Oproto.FluentDynamoDb.Geospatial;
 
@@ -24,12 +25,12 @@ public class SpatialContinuationToken
     /// </summary>
     /// <returns>A Base64-encoded string representation of the token.</returns>
     /// <remarks>
-    /// Uses System.Text.Json for AOT compatibility.
+    /// Uses System.Text.Json source generation for AOT compatibility.
     /// The token can be passed between requests to resume pagination.
     /// </remarks>
     public string ToBase64()
     {
-        var json = JsonSerializer.Serialize(this);
+        var json = JsonSerializer.Serialize(this, SpatialJsonContext.Default.SpatialContinuationToken);
         var bytes = System.Text.Encoding.UTF8.GetBytes(json);
         return Convert.ToBase64String(bytes);
     }
@@ -43,7 +44,7 @@ public class SpatialContinuationToken
     /// <exception cref="FormatException">Thrown when token is not valid Base64.</exception>
     /// <exception cref="JsonException">Thrown when token contains invalid JSON.</exception>
     /// <remarks>
-    /// Uses System.Text.Json for AOT compatibility.
+    /// Uses System.Text.Json source generation for AOT compatibility.
     /// </remarks>
     public static SpatialContinuationToken FromBase64(string token)
     {
@@ -52,7 +53,38 @@ public class SpatialContinuationToken
 
         var bytes = Convert.FromBase64String(token);
         var json = System.Text.Encoding.UTF8.GetString(bytes);
-        return JsonSerializer.Deserialize<SpatialContinuationToken>(json)
+        return JsonSerializer.Deserialize(json, SpatialJsonContext.Default.SpatialContinuationToken)
             ?? throw new JsonException("Failed to deserialize continuation token");
     }
+}
+
+/// <summary>
+/// JSON serializer context for AOT-compatible serialization of spatial types.
+/// </summary>
+[JsonSerializable(typeof(SpatialContinuationToken))]
+[JsonSerializable(typeof(Dictionary<string, SerializableAttributeValue>))]
+internal partial class SpatialJsonContext : JsonSerializerContext
+{
+}
+
+/// <summary>
+/// A serializable representation of DynamoDB AttributeValue for JSON serialization.
+/// Used internally for LastEvaluatedKey serialization in continuation tokens.
+/// </summary>
+internal class SerializableAttributeValue
+{
+    /// <summary>
+    /// Gets or sets the attribute type (S, N, BOOL, NULL).
+    /// </summary>
+    public string? Type { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the attribute value as a string.
+    /// </summary>
+    public string? StringValue { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the attribute value as a boolean.
+    /// </summary>
+    public bool? BoolValue { get; set; }
 }

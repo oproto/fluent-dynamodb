@@ -6,7 +6,7 @@ public partial class ScannableEntity
 {
     [PartitionKey]
     [DynamoDbAttribute("pk")]
-    public string Pk { get; set; }
+    public string Pk { get; set; } = string.Empty;
     
     [DynamoDbAttribute("age")]
     public int Age { get; set; }

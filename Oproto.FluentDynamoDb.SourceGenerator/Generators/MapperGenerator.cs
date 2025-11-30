@@ -3347,8 +3347,11 @@ internal static class MapperGenerator
             sb.AppendLine("                {");
         }
 
-        // Convert property value to bytes
-        sb.AppendLine($"                    var {propertyName}Plaintext = System.Text.Encoding.UTF8.GetBytes({GetPropertyValueAsString(property, propertyName)});");
+        // Convert property value to bytes - use null-forgiving operator for nullable properties since we've already checked for null
+        var propertyValueExpression = property.IsNullable 
+            ? GetPropertyValueAsStringWithNullForgiving(property, propertyName)
+            : GetPropertyValueAsString(property, propertyName);
+        sb.AppendLine($"                    var {propertyName}Plaintext = System.Text.Encoding.UTF8.GetBytes({propertyValueExpression});");
         sb.AppendLine();
 
         // Create encryption context
@@ -3471,6 +3474,25 @@ internal static class MapperGenerator
 
         // For other types, convert to string first
         return $"typedEntity.{escapedPropertyName}.ToString()";
+    }
+
+    /// <summary>
+    /// Gets the property value as a string expression with null-forgiving operator.
+    /// Used when we've already checked for null and need to suppress nullable warnings.
+    /// </summary>
+    private static string GetPropertyValueAsStringWithNullForgiving(PropertyModel property, string propertyName)
+    {
+        var baseType = GetBaseType(property.PropertyType);
+        var escapedPropertyName = EscapePropertyName(propertyName);
+
+        // For string properties, use directly with null-forgiving operator
+        if (baseType == "string" || baseType == "System.String")
+        {
+            return $"typedEntity.{escapedPropertyName}!";
+        }
+
+        // For other types, convert to string first (ToString() on nullable value types after null check is safe)
+        return $"typedEntity.{escapedPropertyName}!.ToString()!";
     }
 
     private static string ConvertStringToPropertyType(PropertyModel property, string stringVariable)

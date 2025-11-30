@@ -7,11 +7,11 @@ public partial class BasicPkEntity
 {
     [PartitionKey]
     [DynamoDbAttribute("pk")]
-    public string PartitionKey { get; set; }
+    public string PartitionKey { get; set; } = string.Empty;
     
     [DynamoDbAttribute("age")]
     public int Age { get; set; }
     
     [DynamoDbAttribute("name")]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
