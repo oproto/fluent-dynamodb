@@ -188,6 +188,19 @@ The source generator is automatically included and runs during compilation.
 2. **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
 3. **[Attribute Reference](reference/AttributeReference.md)** - Verify attribute usage
 
+## About
+
+**Oproto.FluentDynamoDb** is developed and maintained by [Oproto Inc](https://oproto.com), 
+a company building modern SaaS solutions for small business finance and accounting.
+
+### Links
+- 🏢 **Company**: [oproto.com](https://oproto.com)
+- 👨‍💻 **Developer Portal**: [oproto.io](https://oproto.io)
+- 📚 **Documentation**: [fluentdynamodb.dev](https://fluentdynamodb.dev)
+
+### Maintainer
+- **Dan Guisinger** - [danguisinger.com](https://danguisinger.com)
+
 ## 🤝 Contributing
 
 We welcome contributions! Please:

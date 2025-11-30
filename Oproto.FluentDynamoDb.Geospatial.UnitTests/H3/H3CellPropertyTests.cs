@@ -10,9 +10,7 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests.H3;
 /// </summary>
 public class H3CellPropertyTests
 {
-    // Feature: s2-h3-geospatial-support, Property 18: ToH3Cell returns valid H3Cell
     // For any GeoLocation and H3 resolution, calling ToH3Cell should return an H3Cell with a valid index at the specified resolution
-    // Validates: Requirements 8.2
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void ToH3Cell_ReturnsValidH3Cell(ValidLatitude lat, ValidLongitude lon, ValidH3Resolution res)
     {
@@ -37,9 +35,7 @@ public class H3CellPropertyTests
         Assert.True(cell.Bounds.Southwest.Longitude <= cell.Bounds.Northeast.Longitude);
     }
 
-    // Feature: s2-h3-geospatial-support, Property 19: GetNeighbors returns correct count and level
     // For any H3Cell, calling GetNeighbors should return all adjacent cells (6 for hexagons, 5 for pentagons) at the same precision level
-    // Validates: Requirements 8.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void GetNeighbors_ReturnsCorrectCountAndLevel(ValidLatitude lat, ValidLongitude lon, ValidH3Resolution res)
     {
@@ -70,9 +66,7 @@ public class H3CellPropertyTests
         Assert.Equal(neighbors.Length, uniqueIndices);
     }
 
-    // Feature: s2-h3-geospatial-support, Property 20: GetParent returns cell at lower precision
     // For any H3Cell with precision > 0, calling GetParent should return a cell at precision - 1
-    // Validates: Requirements 8.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void GetParent_ReturnsCellAtLowerPrecision(ValidLatitude lat, ValidLongitude lon, ValidH3Resolution res)
     {
@@ -97,9 +91,7 @@ public class H3CellPropertyTests
         Assert.Equal(15, parent.Index.Length);
     }
 
-    // Feature: s2-h3-geospatial-support, Property 21: GetChildren returns correct count and level
     // For any H3Cell below maximum precision, calling GetChildren should return child cells (7 for hexagons, 6 for pentagons) at precision + 1
-    // Validates: Requirements 8.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void GetChildren_ReturnsCorrectCountAndLevel(ValidLatitude lat, ValidLongitude lon, ValidH3Resolution res)
     {

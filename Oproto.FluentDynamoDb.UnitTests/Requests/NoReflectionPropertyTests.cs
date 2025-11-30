@@ -5,8 +5,6 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 /// <summary>
 /// Property-based tests verifying no AOT-unsafe reflection usage in main library.
-/// **Feature: code-cleanup-warnings-reflection, Property 1: No Reflection in Main Library**
-/// **Validates: Requirements 2.1**
 /// 
 /// IMPORTANT: This test distinguishes between two types of reflection:
 /// 
@@ -81,8 +79,6 @@ public class NoReflectionPropertyTests
     };
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 1: No Reflection in Main Library**
-    /// **Validates: Requirements 2.1**
     /// 
     /// Verifies that WithClientExtensions.cs has been removed from the codebase.
     /// This file previously used reflection to copy builder state.
@@ -104,8 +100,6 @@ public class NoReflectionPropertyTests
     }
     
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 1: No Reflection in Main Library**
-    /// **Validates: Requirements 2.1**
     /// 
     /// For any source file in the main library (Oproto.FluentDynamoDb), 
     /// excluding files with known AOT-unsafe reflection,
@@ -155,8 +149,6 @@ public class NoReflectionPropertyTests
     }
     
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 1: No Reflection in Main Library**
-    /// **Validates: Requirements 2.1**
     /// 
     /// Verifies that files marked as "AOT-safe reflection only" do not contain
     /// AOT-unsafe patterns. This ensures we correctly categorized these files.
@@ -216,8 +208,6 @@ public class NoReflectionPropertyTests
     };
     
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 1: No Reflection in Main Library**
-    /// **Validates: Requirements 2.1**
     /// 
     /// For any source file in extension libraries, excluding files with known reflection,
     /// the file SHALL NOT contain AOT-unsafe reflection patterns.
@@ -279,8 +269,6 @@ public class NoReflectionPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 1: No Reflection in Main Library**
-    /// **Validates: Requirements 2.1**
     /// 
     /// Property test: For any randomly selected source file from the main library
     /// (excluding files with known AOT-unsafe reflection), it should not contain

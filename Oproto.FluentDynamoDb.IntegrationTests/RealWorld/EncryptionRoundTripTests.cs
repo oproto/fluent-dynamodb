@@ -12,7 +12,6 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 /// Integration tests for encryption round-trips with update expressions.
 /// Tests the deferred encryption feature where parameters marked as requiring encryption
 /// are automatically encrypted by the request builder before sending to DynamoDB.
-/// This tests task 10.3 from the data serialization spec.
 /// </summary>
 [Collection("DynamoDB Local")]
 [Trait("Category", "Integration")]

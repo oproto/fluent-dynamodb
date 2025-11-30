@@ -1,3 +1,19 @@
+// -----------------------------------------------------------------------
+// H3 Attribution Notice
+// -----------------------------------------------------------------------
+// This file contains code derived from Uber's H3 library.
+// Original project: https://github.com/uber/h3
+// Copyright 2018 Uber Technologies, Inc.
+// Licensed under the Apache License, Version 2.0
+// See THIRD-PARTY-NOTICES.md for full license text.
+//
+// The following algorithms and data structures are derived from H3:
+// - IJK coordinate system and transformations
+// - Face-centered coordinate conversions
+// - Base cell data tables and neighbor lookup tables
+// - Hexagonal grid encoding/decoding algorithms
+// -----------------------------------------------------------------------
+
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Oproto.FluentDynamoDb.Geospatial.UnitTests")]

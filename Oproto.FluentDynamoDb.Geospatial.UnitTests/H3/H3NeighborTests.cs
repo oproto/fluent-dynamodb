@@ -4,7 +4,6 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests.H3;
 
 /// <summary>
 /// Tests for H3 neighbor calculation functionality.
-/// Validates Requirements 8.3: GetNeighbors returns correct count and level
 /// </summary>
 public class H3NeighborTests
 {
@@ -329,7 +328,6 @@ public class H3NeighborTests
     /// Cell 89283082803ffff is in San Francisco at resolution 9.
     /// This test verifies that all neighbors are actually near San Francisco,
     /// not thousands of kilometers away.
-    /// Validates Requirements 1.1, 1.2, 1.3
     /// </summary>
     [Fact]
     public void GetNeighbors_SanFranciscoCell_AllNeighborsNearby()
@@ -385,7 +383,6 @@ public class H3NeighborTests
     /// <summary>
     /// Tests neighbor symmetry: if B is a neighbor of A, then A should be a neighbor of B.
     /// Tests with multiple resolutions and locations.
-    /// Validates Requirements 1.2
     /// </summary>
     [Theory]
     [InlineData("811fbffffffffff")]  // Resolution 1, base cell 15 (hexagon)

@@ -6,7 +6,6 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests;
 
 /// <summary>
 /// Unit tests for pole handling in geospatial operations.
-/// Tests Requirements 13.3 and 13.4.
 /// </summary>
 public class PoleHandlingTests
 {

@@ -1,0 +1,148 @@
+# Implementation Plan
+
+- [x] 1. Create documentation standards steering file
+  - [x] 1.1 Create `.kiro/steering/documentation.md` with API style priority rules
+    - Define lambda expressions as preferred, format strings as alternative, manual as explicit control
+    - Document method verification rules (check generated code, base classes, extension methods)
+    - _Requirements: 9.1, 9.2_
+  - [x] 1.2 Add organization attribution requirements to steering file
+    - Include Oproto Inc, oproto.com, oproto.io, fluentdynamodb.dev, Dan Guisinger
+    - _Requirements: 9.3_
+  - [x] 1.3 Add code example standards and documentation update guidelines
+    - Define when documentation should be updated (new APIs, signature changes, deprecations)
+    - Document agent hook decision and rationale
+    - _Requirements: 9.4, 9.5, 10.2_
+  - [ ]* 1.4 Write property test for steering file completeness
+    - **Property 6: Steering file completeness**
+    - **Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 10.2**
+
+- [x] 2. Add H3 third-party attribution
+  - [x] 2.1 Update THIRD-PARTY-NOTICES.md with H3 section
+    - Follow S2 attribution format
+    - Reference Uber H3 (https://github.com/uber/h3)
+    - Include Apache License 2.0 notice
+    - Describe derived algorithms (encoding, hexagonal grid, base cell tables)
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - [x] 2.2 Verify H3 source files have appropriate headers
+    - Check files in Oproto.FluentDynamoDb.Geospatial/H3/
+    - Add attribution comments where missing
+    - _Requirements: 7.5_
+  - [ ]* 2.3 Write property test for H3 attribution completeness
+    - **Property 5: H3 attribution completeness**
+    - **Validates: Requirements 7.1, 7.2, 7.3, 7.5**
+
+- [x] 3. Update organization attribution in documentation
+  - [x] 3.1 Update root README.md with organization attribution
+    - Add Oproto Inc identification
+    - Add links to oproto.com, oproto.io, fluentdynamodb.dev
+    - Add Dan Guisinger as maintainer with link to danguisinger.com
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+  - [x] 3.2 Update docs/README.md with consistent attribution
+    - Mirror attribution format from root README
+    - _Requirements: 6.6_
+  - [ ]* 3.3 Write property test for attribution completeness
+    - **Property 4: Attribution completeness**
+    - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5**
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Clean up source code comments
+  - [x] 5.1 Scan and remove requirement/fix/issue references from comments
+    - Search for patterns: "Requirement", "Fix #", "Issue #", "Spec", "TODO" (completed work)
+    - Preserve technical explanations while removing references
+    - Focus on Oproto.FluentDynamoDb/ and Oproto.FluentDynamoDb.SourceGenerator/
+    - _Requirements: 2.1, 2.2, 2.4_
+  - [x] 5.2 Preserve valuable comments during cleanup
+    - Keep XML documentation for public APIs
+    - Keep comments explaining complex logic
+    - Keep license headers
+    - _Requirements: 2.3_
+  - [ ]* 5.3 Write property test for source code comment cleanliness
+    - **Property 2: Source code comment cleanliness**
+    - **Validates: Requirements 2.1**
+
+- [ ] 6. Create internal architecture documentation
+  - [ ] 6.1 Create docs/advanced-topics/InternalArchitecture.md
+    - Document IDynamoDbEntity interface and source generation
+    - Document request builder integration with generated code
+    - Document ExpressionTranslator lambda-to-DynamoDB conversion
+    - Include architecture diagrams
+    - _Requirements: 3.1, 3.2, 3.3, 3.5_
+  - [ ] 6.2 Document extension method generation in source generator
+    - Explain how extension methods are discovered and transformed
+    - Show examples of generic vs type-specific versions
+    - _Requirements: 3.4, 5.1, 5.2_
+  - [ ] 6.3 Document direct async method generation
+    - Explain shorthand methods that bypass builder chains
+    - Show examples comparing builder chain vs direct methods
+    - _Requirements: 5.3_
+  - [ ] 6.4 Document all categories of generated code
+    - List: mappers, field constants, key builders, entity accessors, extension methods, direct methods
+    - Explain how to discover generated code for an entity
+    - _Requirements: 5.4, 5.5_
+
+- [ ] 7. Update API documentation with three styles
+  - [ ] 7.1 Update docs/core-features/BasicOperations.md with API style ordering
+    - Show lambda expression first (marked as preferred)
+    - Show format string second
+    - Show manual approach third
+    - _Requirements: 4.1, 4.2, 4.3, 4.5_
+  - [ ] 7.2 Update docs/core-features/QueryingData.md with API style ordering
+    - Apply same ordering pattern
+    - _Requirements: 4.1, 4.2, 4.3_
+  - [ ] 7.3 Update docs/advanced-topics/ManualPatterns.md
+    - Lead with manual examples (topic-specific exception)
+    - Reference preferred lambda approach
+    - _Requirements: 4.4_
+  - [ ]* 7.4 Write property test for API style ordering
+    - **Property 3: API style ordering in documentation**
+    - **Validates: Requirements 4.1**
+
+- [ ] 8. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 9. Create API reference express list
+  - [ ] 9.1 Create docs/reference/ApiReference.md
+    - List all request builder classes with primary methods
+    - Organize by operation category (Query, Get, Put, Update, Delete, Batch, Transaction)
+    - _Requirements: 8.1, 8.4_
+  - [ ] 9.2 Document generated entity accessor methods
+    - List accessor patterns (table.Entity.Get(), table.Entity.Query(), etc.)
+    - _Requirements: 8.2_
+  - [ ] 9.3 Document direct async shorthand methods
+    - List GetAsync, QueryAsync, etc. patterns
+    - _Requirements: 8.3_
+  - [ ] 9.4 Add method source indicators and descriptions
+    - Indicate generated vs manually defined methods
+    - Add brief descriptions with links to detailed docs
+    - _Requirements: 8.5, 8.6_
+
+- [ ] 10. Audit documentation accuracy
+  - [ ] 10.1 Verify code examples in getting-started guides
+    - Check docs/getting-started/*.md examples compile
+    - Update any outdated API references
+    - _Requirements: 1.1, 1.2_
+  - [ ] 10.2 Verify code examples in core-features guides
+    - Check docs/core-features/*.md examples compile
+    - Verify builder methods exist (check all sources)
+    - _Requirements: 1.1, 1.3, 1.4_
+  - [ ] 10.3 Verify code examples in advanced-topics guides
+    - Check docs/advanced-topics/*.md examples compile
+    - _Requirements: 1.1_
+  - [ ]* 10.4 Write property test for documentation code accuracy
+    - **Property 1: Documentation code accuracy**
+    - **Validates: Requirements 1.1, 1.4**
+
+- [ ] 11. Update documentation index and navigation
+  - [ ] 11.1 Update docs/INDEX.md with new pages
+    - Add InternalArchitecture.md references
+    - Add ApiReference.md references
+    - _Requirements: 1.2_
+  - [ ] 11.2 Update docs/README.md navigation
+    - Add links to new documentation pages
+    - Ensure consistent navigation structure
+    - _Requirements: 1.2_
+
+- [ ] 12. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

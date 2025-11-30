@@ -1,3 +1,13 @@
+// -----------------------------------------------------------------------
+// H3 Attribution Notice
+// -----------------------------------------------------------------------
+// This file contains code derived from Uber's H3 library.
+// Original project: https://github.com/uber/h3
+// Copyright 2018 Uber Technologies, Inc.
+// Licensed under the Apache License, Version 2.0
+// See THIRD-PARTY-NOTICES.md for full license text.
+// -----------------------------------------------------------------------
+
 namespace Oproto.FluentDynamoDb.Geospatial.H3;
 
 /// <summary>

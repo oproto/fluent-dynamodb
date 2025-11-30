@@ -11,9 +11,7 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests.S2;
 /// </summary>
 public class S2CellPropertyTests
 {
-    // Feature: s2-h3-geospatial-support, Property 17: ToS2Cell returns valid S2Cell
     // For any GeoLocation and S2 level, calling ToS2Cell should return an S2Cell with a valid token at the specified level
-    // Validates: Requirements 8.1
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void ToS2Cell_ReturnsValidS2Cell(ValidLatitude lat, ValidLongitude lon, ValidS2Level lvl)
     {
@@ -37,10 +35,8 @@ public class S2CellPropertyTests
         Assert.True(cell.Bounds.Southwest.Longitude <= cell.Bounds.Northeast.Longitude);
     }
 
-    // Feature: s2-h3-geospatial-support, Property 19: GetNeighbors returns correct count and level
     // For any S2Cell, calling GetNeighbors should return all adjacent cells at the same precision level
     // Note: At face boundaries, cells may have fewer than 8 unique neighbors due to cube topology
-    // Validates: Requirements 8.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void GetNeighbors_ReturnsCorrectCountAndLevel(ValidLatitude lat, ValidLongitude lon, ValidS2Level lvl)
     {
@@ -77,9 +73,7 @@ public class S2CellPropertyTests
         Assert.Equal(neighbors.Length, uniqueTokens);
     }
 
-    // Feature: s2-h3-geospatial-support, Property 20: GetParent returns cell at lower precision
     // For any S2Cell with precision > 0, calling GetParent should return a cell at precision - 1
-    // Validates: Requirements 8.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void GetParent_ReturnsCellAtLowerPrecision(ValidLatitude lat, ValidLongitude lon, ValidS2Level lvl)
     {
@@ -103,9 +97,7 @@ public class S2CellPropertyTests
         Assert.NotNull(parent.Token);
     }
 
-    // Feature: s2-h3-geospatial-support, Property 21: GetChildren returns correct count and level
     // For any S2Cell below maximum precision, calling GetChildren should return all child cells (4 for S2) at precision + 1
-    // Validates: Requirements 8.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void GetChildren_ReturnsCorrectCountAndLevel(ValidLatitude lat, ValidLongitude lon, ValidS2Level lvl)
     {

@@ -8,7 +8,6 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TableGeneration;
 /// Integration tests for transaction and batch operations in table generation.
 /// Verifies that TransactWrite, TransactGet, BatchWrite, and BatchGet work correctly
 /// with multiple entity types in a single table.
-/// Tests Requirement 7 from the table-generation-redesign spec.
 /// </summary>
 [Collection("DynamoDB Local")]
 [Trait("Category", "Integration")]

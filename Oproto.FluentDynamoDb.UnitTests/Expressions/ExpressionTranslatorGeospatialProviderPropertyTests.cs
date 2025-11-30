@@ -22,8 +22,6 @@ public class ExpressionTranslatorGeospatialProviderPropertyTests
     }
 
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 2.2, 6.4**
     /// 
     /// For any operation using a registered geospatial provider, the library SHALL use the
     /// IGeospatialProvider interface instead of reflection-based method discovery.
@@ -98,8 +96,6 @@ public class ExpressionTranslatorGeospatialProviderPropertyTests
     }
 
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 2.2, 6.4**
     /// 
     /// For any geospatial operation without a configured provider, the library SHALL throw
     /// a descriptive InvalidOperationException explaining how to configure the provider.
@@ -146,8 +142,6 @@ public class ExpressionTranslatorGeospatialProviderPropertyTests
     }
 
     /// <summary>
-    /// **Feature: aot-compatible-service-registration, Property 3: No Reflection for Registered Services**
-    /// **Validates: Requirements 2.2, 6.4**
     /// 
     /// For any bounding box query with a configured provider, the provider's CreateBoundingBox
     /// and GetGeoHashRange methods SHALL be called instead of reflection.

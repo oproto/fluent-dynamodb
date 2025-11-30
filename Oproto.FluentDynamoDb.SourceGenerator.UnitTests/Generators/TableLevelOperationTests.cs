@@ -12,7 +12,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// correctly when a default entity exists, use the default entity type, and delegate to the
 /// entity accessor. Also verifies that no table-level operations are generated when there is
 /// no default entity.
-/// Covers requirement 6 from the table-generation-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class TableLevelOperationTests

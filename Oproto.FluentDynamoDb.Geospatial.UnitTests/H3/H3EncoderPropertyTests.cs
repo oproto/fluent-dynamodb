@@ -10,10 +10,8 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests.H3;
 /// </summary>
 public class H3EncoderPropertyTests
 {
-    // Feature: s2-h3-geospatial-support, Property 2: H3 encoding produces valid cell indices
     // For any valid GeoLocation and H3 resolution (0-15), encoding the location to an H3 cell index 
     // should produce a valid H3 index that can be decoded back to coordinates
-    // Validates: Requirements 1.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public void H3EncodingProducesValidCellIndices(ValidLatitude lat, ValidLongitude lon, ValidH3Resolution res)
     {

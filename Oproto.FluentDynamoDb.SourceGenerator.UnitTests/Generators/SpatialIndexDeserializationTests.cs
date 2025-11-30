@@ -6,7 +6,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
 /// <summary>
 /// Tests for source generator deserialization code that includes spatial index in GeoLocation.
-/// Validates Requirements 5.4, 5.5, 6.3, 6.4.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SpatialIndexDeserializationTests

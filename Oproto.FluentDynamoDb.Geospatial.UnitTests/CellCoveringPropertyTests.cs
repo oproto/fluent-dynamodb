@@ -21,8 +21,6 @@ public class CellCoveringPropertyTests
     // that cells are meaningfully sorted by distance (not grossly out of order).
     private const double DistanceToleranceKm = 0.01; // 10 meters
 
-    // Feature: s2-h3-geospatial-support, Property 5: S2 cell covering is sorted by distance from center
-    // Validates: Requirements 3.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property S2CellCovering_IsSortedByDistanceFromCenter(
         ValidLatitude lat,
@@ -62,8 +60,6 @@ public class CellCoveringPropertyTests
                    $"Center: {center}, Level: {level.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 6: H3 cell covering is sorted by distance from center
-    // Validates: Requirements 3.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3CellCovering_IsSortedByDistanceFromCenter(
         ValidLatitude lat,
@@ -103,8 +99,6 @@ public class CellCoveringPropertyTests
                    $"Center: {center}, Resolution: {resolution.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 10: S2 bounding box queries compute correct cell coverings
-    // Validates: Requirements 4.1
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property S2BoundingBoxCovering_CoversArea(
         ValidLatitude lat,
@@ -151,8 +145,6 @@ public class CellCoveringPropertyTests
                    $"Center: {center}, Level: {level.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 11: H3 bounding box queries compute correct cell coverings
-    // Validates: Requirements 4.2
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3BoundingBoxCovering_CoversArea(
         ValidLatitude lat,
@@ -208,8 +200,6 @@ public class CellCoveringPropertyTests
                    $"Center: {center}, Resolution: {resolution.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 12: Large bounding boxes are limited to prevent excessive queries
-    // Validates: Requirements 4.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property S2CellCovering_RespectsMaxCellsLimit(
         ValidLatitude lat,
@@ -240,8 +230,6 @@ public class CellCoveringPropertyTests
                    $"MaxCells: {maxCells}, Actual: {cells.Count}, Level: {level.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 12: Large bounding boxes are limited to prevent excessive queries
-    // Validates: Requirements 4.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3CellCovering_RespectsMaxCellsLimit(
         ValidLatitude lat,
@@ -271,8 +259,6 @@ public class CellCoveringPropertyTests
                    $"MaxCells: {maxCells}, Actual: {cells.Count}, Resolution: {resolution.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 13: Cell coverings use configured precision
-    // Validates: Requirements 4.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property S2CellCovering_UsesConfiguredLevel(
         ValidLatitude lat,
@@ -307,8 +293,6 @@ public class CellCoveringPropertyTests
                    $"Level: {level.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 13: Cell coverings use configured precision
-    // Validates: Requirements 4.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3CellCovering_UsesConfiguredResolution(
         ValidLatitude lat,
@@ -459,8 +443,6 @@ public class CellCoveringPropertyTests
                    $"Center: {center}, Resolution: {resolution.Value}, Radius: {radiusKm}km");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 27: Dateline crossing is detected correctly
-    // Validates: Requirements 13.1
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property DatelineCrossing_IsDetectedCorrectly(
         ValidLatitude swLat,
@@ -485,8 +467,6 @@ public class CellCoveringPropertyTests
                    $"SW: {southwest}, NE: {northeast}, Expected: {expectedCrossing}, Actual: {crossesDateLine}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 28: Dateline-crossing bounding boxes are split correctly
-    // Validates: Requirements 13.1
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property DatelineCrossing_SplitCorrectly(
         ValidLatitude swLat,
@@ -530,8 +510,6 @@ public class CellCoveringPropertyTests
                    $"Eastern: SW={eastern.Southwest}, NE={eastern.Northeast}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 29: Dateline queries deduplicate cells
-    // Validates: Requirements 13.2, 13.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property DatelineCrossing_S2Cells_AreDeduplicated(
         ValidLatitude swLat,
@@ -579,8 +557,6 @@ public class CellCoveringPropertyTests
                    $"Total cells: {cells.Count}, Unique: {uniqueCount}, Level: {level.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 29: Dateline queries deduplicate cells (H3)
-    // Validates: Requirements 13.2, 13.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property DatelineCrossing_H3Cells_AreDeduplicated(
         ValidLatitude swLat,
@@ -629,8 +605,6 @@ public class CellCoveringPropertyTests
                    $"Total cells: {cells.Count}, Unique: {uniqueCount}, Resolution: {resolution.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 30: Polar bounding boxes clamp latitude correctly
-    // Validates: Requirements 13.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property PolarBoundingBox_ClampsLatitudeCorrectly(
         ValidLatitude lat,
@@ -661,8 +635,6 @@ public class CellCoveringPropertyTests
                    $"SW Lat: {bbox.Southwest.Latitude}, NE Lat: {bbox.Northeast.Latitude}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 30: Polar bounding boxes clamp latitude correctly (with meters)
-    // Validates: Requirements 13.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property PolarBoundingBox_ClampsLatitudeCorrectly_Meters(
         ValidLatitude lat,
@@ -693,8 +665,6 @@ public class CellCoveringPropertyTests
                    $"SW Lat: {bbox.Southwest.Latitude}, NE Lat: {bbox.Northeast.Latitude}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 31: Polar queries handle longitude convergence
-    // Validates: Requirements 13.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property PolarQuery_S2_HandlesLongitudeConvergence(
         ValidLongitude lon,
@@ -743,8 +713,6 @@ public class CellCoveringPropertyTests
                    $"Center: {center}, Level: {level.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 31: Polar queries handle longitude convergence (H3)
-    // Validates: Requirements 13.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property PolarQuery_H3_HandlesLongitudeConvergence(
         ValidLongitude lon,
@@ -807,8 +775,6 @@ public class CellCoveringPropertyTests
                    $"Center: {center}, Resolution: {resolution.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 31: Polar bounding boxes expand longitude when pole is included
-    // Validates: Requirements 13.3, 13.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property PolarBoundingBox_ExpandsLongitudeWhenPoleIncluded(
         ValidLongitude lon)
@@ -853,8 +819,6 @@ public class CellCoveringPropertyTests
                 : failureMessage);
     }
 
-    // Feature: s2-h3-geospatial-support, Property 31: Polar bounding boxes clamp longitude offset
-    // Validates: Requirements 13.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property PolarBoundingBox_ClampsLongitudeOffset(
         ValidLongitude lon)
@@ -888,8 +852,6 @@ public class CellCoveringPropertyTests
                    $"Crosses dateline: {bbox.CrossesDateLine()}, Includes pole: {bbox.IncludesPole()}");
     }
 
-    // Feature: cell-covering-algorithm-fix, Property 7: H3 cell count scales with area
-    // Validates: Requirements 4.1, 4.2, 4.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3CellCovering_CellCountScalesWithArea(
         ValidLatitude lat,
@@ -952,8 +914,6 @@ public class CellCoveringPropertyTests
                    $"R={baseRadiusKm}km: {cellsR.Count} cells, 2R={doubledRadiusKm}km: {cells2R.Count} cells");
     }
 
-    // Feature: cell-covering-algorithm-fix, Property 2: Cell covering returns multiple cells for large radius
-    // Validates: Requirements 1.1, 1.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3CellCovering_ReturnsMultipleCellsForLargeRadius(
         ValidLatitude lat,

@@ -10,7 +10,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// Tests for transaction and batch operation generation.
 /// Verifies that transaction and batch operations use static entry points (DynamoDbTransactions, DynamoDbBatch)
 /// and are NOT generated at the table level or on entity accessor classes.
-/// Covers requirement 7 from the transaction-batch-api-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class TransactionOperationTests

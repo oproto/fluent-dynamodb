@@ -5,8 +5,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 
 /// <summary>
 /// Property-based tests verifying reflection usage reduction in test projects.
-/// **Feature: code-cleanup-warnings-reflection, Property 3: Reflection Usage Reduction in Tests**
-/// **Validates: Requirements 3.2, 3.3, 3.4**
 /// 
 /// This test verifies that test files using reflection for member access either:
 /// 1. Use direct type references via InternalsVisibleTo
@@ -88,8 +86,6 @@ public class ReflectionReductionPropertyTests
     };
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 3: Reflection Usage Reduction in Tests**
-    /// **Validates: Requirements 3.2, 3.3, 3.4**
     /// 
     /// Verifies that DynamicCompilationHelper exists and contains the expected helper methods.
     /// </summary>
@@ -120,8 +116,6 @@ public class ReflectionReductionPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 3: Reflection Usage Reduction in Tests**
-    /// **Validates: Requirements 3.2, 3.3, 3.4**
     /// 
     /// Verifies that files with documented suppressions actually contain suppression attributes.
     /// </summary>
@@ -164,8 +158,6 @@ public class ReflectionReductionPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 3: Reflection Usage Reduction in Tests**
-    /// **Validates: Requirements 3.2, 3.3, 3.4**
     /// 
     /// Verifies that test files using Assembly.Location have been refactored to use
     /// DynamicCompilationHelper or have documented suppressions.
@@ -238,8 +230,6 @@ public class ReflectionReductionPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 3: Reflection Usage Reduction in Tests**
-    /// **Validates: Requirements 3.2, 3.3, 3.4**
     /// 
     /// Property test: For any randomly selected test file from the source generator tests,
     /// if it contains reflection patterns, it should either use DynamicCompilationHelper
@@ -292,8 +282,6 @@ public class ReflectionReductionPropertyTests
     }
 
     /// <summary>
-    /// **Feature: code-cleanup-warnings-reflection, Property 3: Reflection Usage Reduction in Tests**
-    /// **Validates: Requirements 3.2, 3.3, 3.4**
     /// 
     /// Documents the current state of reflection usage in test files.
     /// </summary>

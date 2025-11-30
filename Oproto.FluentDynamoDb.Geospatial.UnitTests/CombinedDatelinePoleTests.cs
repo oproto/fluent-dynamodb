@@ -9,7 +9,6 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <strong>Validates Requirements:</strong> 13.1, 13.2, 13.3, 13.4, 13.5
 /// </para>
 /// <para>
 /// These tests verify that the system correctly handles the most complex edge cases:
@@ -23,7 +22,6 @@ public class CombinedDatelinePoleTests
     /// This tests both dateline crossing and North Pole proximity.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.1, 13.2, 13.3, 13.4, 13.5
     /// </remarks>
     [Fact]
     public void GetCellsForRadius_NorthPoleNearDateline_ReturnsValidCells()
@@ -72,7 +70,6 @@ public class CombinedDatelinePoleTests
     /// This tests both dateline crossing and South Pole proximity.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.1, 13.2, 13.3, 13.4, 13.5
     /// </remarks>
     [Fact]
     public void GetCellsForRadius_SouthPoleNearDateline_ReturnsValidCells()
@@ -121,7 +118,6 @@ public class CombinedDatelinePoleTests
     /// This tests dateline crossing without pole complications.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.1, 13.2, 13.5
     /// </remarks>
     [Fact]
     public void GetCellsForRadius_EquatorNearDateline_ReturnsValidCells()
@@ -182,7 +178,6 @@ public class CombinedDatelinePoleTests
     /// This tests North Pole handling without dateline complications.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.3, 13.4, 13.5
     /// </remarks>
     [Fact]
     public void GetCellsForRadius_NorthPoleAwayFromDateline_ReturnsValidCells()
@@ -229,7 +224,6 @@ public class CombinedDatelinePoleTests
     /// This tests South Pole handling without dateline complications.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.3, 13.4, 13.5
     /// </remarks>
     [Fact]
     public void GetCellsForRadius_SouthPoleAwayFromDateline_ReturnsValidCells()
@@ -276,7 +270,6 @@ public class CombinedDatelinePoleTests
     /// and includes polar regions.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.5
     /// </remarks>
     [Fact]
     public void GetCellsForRadius_CombinedEdgeCase_DeduplicatesCells()
@@ -306,7 +299,6 @@ public class CombinedDatelinePoleTests
     /// Tests that bounding boxes that cross the dateline and include poles are handled correctly.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.1, 13.2, 13.3, 13.4, 13.5
     /// </remarks>
     [Fact]
     public void GetCellsForBoundingBox_CrossesDatelineAndIncludesPole_ReturnsValidCells()
@@ -357,7 +349,6 @@ public class CombinedDatelinePoleTests
     /// Tests that cells are sorted by distance from center even in combined edge cases.
     /// </summary>
     /// <remarks>
-    /// Validates Requirements: 13.1, 13.2, 13.3, 13.4
     /// </remarks>
     [Fact]
     public void GetCellsForRadius_CombinedEdgeCase_CellsSortedByDistance()

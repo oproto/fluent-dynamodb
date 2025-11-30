@@ -41,8 +41,6 @@ namespace Oproto.FluentDynamoDb.Geospatial.UnitTests;
 /// </remarks>
 public class SpatialQueryPropertyTests
 {
-    // Feature: s2-h3-geospatial-support, Property 5: S2 cell covering is sorted by distance from center
-    // Validates: Requirements 3.3
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property S2ProximityQuery_CellsAreSortedByDistance(
         ValidLatitude lat,
@@ -91,8 +89,6 @@ public class SpatialQueryPropertyTests
                    $"Center: {center}, Level: {level.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 6: H3 cell covering is sorted by distance from center
-    // Validates: Requirements 3.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3ProximityQuery_CellsAreSortedByDistance(
         ValidLatitude lat,
@@ -135,8 +131,6 @@ public class SpatialQueryPropertyTests
                    $"Center: {center}, Resolution: {resolution.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 7: GeoHash queries execute single BETWEEN query
-    // Validates: Requirements 3.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property GeoHashProximityQuery_UsesSingleRange(
         ValidLatitude lat,
@@ -168,8 +162,6 @@ public class SpatialQueryPropertyTests
                    $"MinHash: {minHash}, MaxHash: {maxHash}, Precision: {precision}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 8: Query builder lambda receives correct cell value
-    // Validates: Requirements 12.2
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property QueryBuilder_ReceivesCorrectCellValue_S2(
         ValidLatitude lat,
@@ -206,8 +198,6 @@ public class SpatialQueryPropertyTests
                    $"Cell count: {cells.Count}, Level: {level.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 8: Query builder lambda receives correct cell value
-    // Validates: Requirements 12.2
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property QueryBuilder_ReceivesCorrectCellValue_H3(
         ValidLatitude lat,
@@ -244,8 +234,6 @@ public class SpatialQueryPropertyTests
                    $"Cell count: {cells.Count}, Resolution: {resolution.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 22: Pagination limits results to page size
-    // Validates: Requirements 11.1
     [Property(MaxTest = 100)]
     public Property PaginationLimits_RespectPageSize(PositiveInt pageSize)
     {
@@ -265,8 +253,6 @@ public class SpatialQueryPropertyTests
                    $"PageSize: {actualPageSize}, Items returned: {itemsReturned}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 23: Continuation token contains cell index and LastEvaluatedKey
-    // Validates: Requirements 11.2
     [Property(MaxTest = 100)]
     public Property ContinuationToken_ContainsRequiredFields(
         NonNegativeInt cellIndex,
@@ -292,8 +278,6 @@ public class SpatialQueryPropertyTests
                    $"Original: CellIndex={token.CellIndex}, LastKey={token.LastEvaluatedKey?.Substring(0, Math.Min(10, token.LastEvaluatedKey?.Length ?? 0))}...");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 23: Continuation token with null LastEvaluatedKey
-    // Validates: Requirements 11.2
     [Property(MaxTest = 100)]
     public Property ContinuationToken_HandlesNullLastEvaluatedKey(NonNegativeInt cellIndex)
     {
@@ -318,8 +302,6 @@ public class SpatialQueryPropertyTests
                    $"CellIndex: {token.CellIndex}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 24: Continuation token enables resumption from correct position
-    // Validates: Requirements 11.3, 11.4
     [Property(MaxTest = 100)]
     public Property ContinuationToken_RoundTripPreservesData(
         NonNegativeInt cellIndex,
@@ -346,8 +328,6 @@ public class SpatialQueryPropertyTests
                    $"LastKey preserved: {lastKeyMatches}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 25: Completed queries return null continuation token
-    // Validates: Requirements 11.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property CompletedQuery_ReturnsNullToken(
         ValidLatitude lat,
@@ -392,8 +372,6 @@ public class SpatialQueryPropertyTests
                    $"Total cells: {cells.Count}, Last cell index: {lastCellIndex}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 26: Query builder lambda receives all required parameters
-    // Validates: Requirements 12.1, 12.2
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property QueryBuilder_ReceivesAllParameters_S2(
         ValidLatitude lat,
@@ -432,8 +410,6 @@ public class SpatialQueryPropertyTests
                    $"Cell count: {cells.Count}, Level: {level.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 10: S2 bounding box queries compute correct cell coverings
-    // Validates: Requirements 4.1
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property S2BoundingBoxQuery_ComputesCorrectCovering(
         ValidLatitude lat,
@@ -468,8 +444,6 @@ public class SpatialQueryPropertyTests
                    $"Center: {center}, Level: {level.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 11: H3 bounding box queries compute correct cell coverings
-    // Validates: Requirements 4.2
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property H3BoundingBoxQuery_ComputesCorrectCovering(
         ValidLatitude lat,
@@ -512,8 +486,6 @@ public class SpatialQueryPropertyTests
                    $"Center: {center}, Resolution: {resolution.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 12: Large bounding boxes are limited to prevent excessive queries
-    // Validates: Requirements 4.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property BoundingBoxQuery_RespectsMaxCellsLimit_S2(
         ValidLatitude lat,
@@ -545,8 +517,6 @@ public class SpatialQueryPropertyTests
                    $"MaxCells: {maxCells}, Actual: {cells.Count}, Level: {level.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 12: Large bounding boxes are limited to prevent excessive queries
-    // Validates: Requirements 4.4
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property BoundingBoxQuery_RespectsMaxCellsLimit_H3(
         ValidLatitude lat,
@@ -577,8 +547,6 @@ public class SpatialQueryPropertyTests
                    $"MaxCells: {maxCells}, Actual: {cells.Count}, Resolution: {resolution.Value}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 13: Cell coverings use configured precision
-    // Validates: Requirements 4.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property CellCovering_UsesConfiguredPrecision_S2(
         ValidLatitude lat,
@@ -611,8 +579,6 @@ public class SpatialQueryPropertyTests
                    $"Level: {level.Value}, Cell count: {cells.Count}");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 13: Cell coverings use configured precision
-    // Validates: Requirements 4.5
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(ValidGeoArbitraries) })]
     public Property CellCovering_UsesConfiguredPrecision_H3(
         ValidLatitude lat,

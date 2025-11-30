@@ -12,10 +12,8 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 [Trait("Category", "Unit")]
 public class CoordinateStoragePropertyTests
 {
-    // Feature: s2-h3-geospatial-support, Property 13: Coordinate storage creates separate attributes
     // For any GeoLocation with StoreCoordinatesAttribute, the serialized data should contain 
     // the spatial index attribute plus separate latitude and longitude attributes
-    // Validates: Requirements 6.1, 6.2
     [Fact]
     public void CoordinateStorage_WithS2_CreatesSeparateAttributes()
     {
@@ -150,10 +148,8 @@ public class CoordinateStoragePropertyTests
         result.Should().Contain("Store full-resolution coordinates");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 14: Coordinate deserialization preserves exact values
     // For any GeoLocation serialized with coordinate storage, deserializing should return 
     // the exact original coordinates, not the cell center
-    // Validates: Requirements 6.3
     [Fact]
     public void CoordinateDeserialization_PreservesExactValues()
     {
@@ -204,10 +200,8 @@ public class CoordinateStoragePropertyTests
             "should have fallback to spatial index");
     }
 
-    // Feature: s2-h3-geospatial-support, Property 15: Single-field mode stores only spatial index
     // For any GeoLocation without coordinate storage, the serialized data should contain 
     // only one attribute: the spatial index
-    // Validates: Requirements 6.4
     [Fact]
     public void SingleFieldMode_StoresOnlySpatialIndex()
     {
