@@ -78,9 +78,29 @@ public partial class User
 - `[DynamoDbAttribute]` maps properties to DynamoDB attribute names
 
 The source generator creates:
-- `UserFields` - Type-safe field name constants
-- `UserKeys` - Key builder methods
+- `User.Fields` (or `UserFields`) - Type-safe field name constants
+- `User.Keys` (or `UserKeys`) - Key builder methods for formatted keys
 - `UserMapper` - Serialization/deserialization logic
+
+### Key Builders
+
+When you add prefixes to your keys, the generated key builders format them automatically:
+
+```csharp
+[DynamoDbTable("entities")]
+public partial class User
+{
+    [PartitionKey(Prefix = "USER")]  // Adds "USER#" prefix
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+}
+
+// User.Keys.Pk("123") returns "USER#123"
+```
+
+This ensures consistent key formatting across your application. See [Entity Definition](../core-features/EntityDefinition.md) for more on key prefixes.
+
+> **Note:** You can also use string literals directly (e.g., `"pk"` instead of `User.Fields.UserId`). The generated constants provide compile-time validation but aren't required.
 
 ## Basic Operations
 
@@ -94,17 +114,31 @@ using Oproto.FluentDynamoDb.Storage;
 // Create DynamoDB client
 var client = new AmazonDynamoDBClient();
 
-// Option 1: Use source-generated table class (recommended)
+// Use source-generated table class (recommended)
 // Table name is configurable at runtime for different environments
-var usersTable = new UsersTable(client, "users");
+var table = new UsersTable(client, "users");
 
-// Option 2: With configuration options (for logging, encryption, etc.)
+// With configuration options (for logging, encryption, etc.)
 var options = new FluentDynamoDbOptions();
-var usersTableWithOptions = new UsersTable(client, "users", options);
+var tableWithOptions = new UsersTable(client, "users", options);
+```
 
-// For multi-entity tables, use entity accessors
+### Entity Accessors
+
+For multi-entity tables, the source generator creates entity-specific accessor properties:
+
+```csharp
 var ordersTable = new OrdersTable(client, "orders");
-// Access via: ordersTable.Orders.Get(), ordersTable.OrderLines.Query(), etc.
+
+// Entity accessors eliminate generic type parameters
+var order = await ordersTable.Orders.GetAsync("order123");
+var lines = await ordersTable.OrderLines.Query()
+    .Where(x => x.OrderId == "order123")
+    .ExecuteAsync();
+
+// Express-route methods for simple operations
+await ordersTable.Orders.PutAsync(newOrder);
+await ordersTable.Orders.DeleteAsync("order123");
 ```
 
 > **Note**: This guide uses source-generated table classes. The table name is passed to the constructor, allowing you to use different table names per environment (e.g., "users-dev", "users-prod"). For advanced configuration options like logging, encryption, and geospatial support, see the [Configuration Guide](../core-features/Configuration.md).
@@ -121,10 +155,14 @@ var user = new User
     CreatedAt = DateTime.UtcNow
 };
 
-// Put item into DynamoDB
-await table.Put<User>()
-    .WithItem(user)
-    .ExecuteAsync();
+// Express-route method (recommended for simple puts)
+await table.Users.PutAsync(user);
+
+// Builder pattern (for conditional puts, return values, etc.)
+await table.Users.Put(user).PutAsync();
+
+// Generic method (also available)
+await table.Put<User>().WithItem(user).ExecuteAsync();
 
 Console.WriteLine("User created successfully!");
 ```
@@ -134,7 +172,7 @@ Console.WriteLine("User created successfully!");
 ```csharp
 // Get item by partition key using generated key builder
 var response = await table.Get<User>()
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .WithKey(User.Fields.UserId, "user123")
     .ExecuteAsync();
 
 if (response.IsSuccess)
@@ -153,8 +191,8 @@ else
 ```csharp
 // Query items with filter using expression formatting
 var queryResponse = await table.Query<User>()
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Status} = {{0}}", "active")
+    .Where($"{User.Fields.UserId} = {{0}}", "user123")
+    .WithFilter($"{User.Fields.Status} = {{0}}", "active")
     .ExecuteAsync();
 
 foreach (var user in queryResponse.Items)
@@ -165,7 +203,7 @@ foreach (var user in queryResponse.Items)
 
 **Expression Formatting Benefits:**
 - `{0}`, `{1}` placeholders are automatically converted to DynamoDB parameter names
-- Type-safe field references using generated `UserFields` constants
+- Type-safe field references using generated `User.Fields` constants
 - No manual parameter name management
 
 ### Update (Modify Item)
@@ -173,8 +211,8 @@ foreach (var user in queryResponse.Items)
 ```csharp
 // Update specific attributes using expression formatting
 await table.Update<User>()
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
+    .WithKey(User.Fields.UserId, "user123")
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)
     .ExecuteAsync();
@@ -191,7 +229,7 @@ Console.WriteLine("User updated successfully!");
 ```csharp
 // Delete item by key
 await table.Delete<User>()
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .WithKey(User.Fields.UserId, "user123")
     .ExecuteAsync();
 
 Console.WriteLine("User deleted successfully!");
@@ -202,8 +240,8 @@ Console.WriteLine("User deleted successfully!");
 ```csharp
 // Delete only if status is inactive
 await table.Delete<User>()
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Status} = {{0}}", "inactive")
+    .WithKey(User.Fields.UserId, "user123")
+    .Where($"{User.Fields.Status} = {{0}}", "inactive")
     .ExecuteAsync();
 ```
 
@@ -258,11 +296,11 @@ class Program
             CreatedAt = DateTime.UtcNow
         };
         
-        await table.Put<User>().WithItem(user).ExecuteAsync();
+        await table.Users.PutAsync(user);
         
         // Retrieve user
         var getResponse = await table.Get<User>()
-            .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+            .WithKey(User.Fields.UserId, "user123")
             .ExecuteAsync();
         
         if (getResponse.IsSuccess)
@@ -272,14 +310,14 @@ class Program
         
         // Update user
         await table.Update<User>()
-            .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-            .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
+            .WithKey(User.Fields.UserId, "user123")
+            .Set($"SET {User.Fields.Name} = {{0}}", "Jane Doe")
             .ExecuteAsync();
         
         // Query active users
         var queryResponse = await table.Query<User>()
-            .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-            .Where($"{UserFields.Status} = {{0}}", "active")
+            .Where($"{User.Fields.UserId} = {{0}}", "user123")
+            .WithFilter($"{User.Fields.Status} = {{0}}", "active")
             .ExecuteAsync();
         
         Console.WriteLine($"Found {queryResponse.Items.Count} active users");

@@ -399,10 +399,10 @@ var users = await _table.Scan()
     .ToListAsync<User>();
 
 // ✅ Efficient - query with GSI
-var users = await _table.Query
-    .FromIndex("StatusIndex")
-    .Where($"{UserFields.StatusIndex.Status} = {{0}}", "active")
-    .ToListAsync<User>();
+var users = await _table.Query<User>()
+    .UsingIndex("StatusIndex")
+    .Where($"{User.Fields.Status} = {{0}}", "active")
+    .ToListAsync();
 ```
 
 #### 3. Optimize Projections
@@ -436,9 +436,9 @@ public async Task<List<User>> GetAllUsersPagedAsync(string tenantId)
 
     do
     {
-        var query = _table.Query
-            .Where($"{UserFields.TenantId} = {{0}}", tenantId)
-            .WithLimit(100); // Process in batches
+        var query = _table.Query<User>()
+            .Where($"{User.Fields.TenantId} = {{0}}", tenantId)
+            .Take(100); // Process in batches
 
         if (lastEvaluatedKey != null)
         {
@@ -472,9 +472,9 @@ public async IAsyncEnumerable<User> GetUsersStreamAsync(string tenantId)
 
     do
     {
-        var query = _table.Query
-            .Where($"{UserFields.TenantId} = {{0}}", tenantId)
-            .WithLimit(50);
+        var query = _table.Query<User>()
+            .Where($"{User.Fields.TenantId} = {{0}}", tenantId)
+            .Take(50);
 
         if (lastEvaluatedKey != null)
         {

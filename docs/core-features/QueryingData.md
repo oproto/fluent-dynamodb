@@ -37,16 +37,16 @@ This guide covers querying and scanning data in DynamoDB using Oproto.FluentDyna
 
 **Rule of Thumb:** Always use Query when you know the partition key. Only use Scan when you truly need to examine every item.
 
-## Three Approaches to Writing Queries
+## Three API Styles
 
 FluentDynamoDb supports three approaches for writing queries. Choose based on your needs:
 
-### 1. Expression-Based (Type-Safe, Recommended)
+### 1. Lambda Expressions (PREFERRED)
 
 Use C# lambda expressions for compile-time type safety and IntelliSense support:
 
 ```csharp
-// Type-safe with lambda expressions
+// PREFERRED: Type-safe with lambda expressions
 await table.Query
     .Where<User>(x => x.UserId == userId && x.SortKey.StartsWith("ORDER#"))
     .WithFilter<User>(x => x.Status == "ACTIVE" && x.Age >= 18)
@@ -61,12 +61,12 @@ await table.Query
 
 **See:** [LINQ Expressions Guide](LinqExpressions.md) for complete documentation.
 
-### 2. Format Strings (Concise)
+### 2. Format Strings (ALTERNATIVE)
 
 Use String.Format-style syntax for concise queries:
 
 ```csharp
-// Format string approach
+// ALTERNATIVE: Format string - concise with placeholders
 await table.Query
     .Where($"{UserFields.UserId} = {{0}} AND begins_with({UserFields.SortKey}, {{1}})", 
            UserKeys.Pk(userId), "ORDER#")
@@ -82,17 +82,21 @@ await table.Query
 
 **See:** [Expression Formatting Guide](ExpressionFormatting.md) for complete documentation.
 
-### 3. Manual Parameters (Maximum Control)
+### 3. Manual WithValue (EXPLICIT CONTROL)
 
 Use explicit parameter binding for maximum control:
 
 ```csharp
-// Manual parameter approach
+// EXPLICIT CONTROL: Manual - for complex scenarios
 await table.Query
-    .Where($"{UserFields.UserId} = :pk AND begins_with({UserFields.SortKey}, :prefix)")
+    .Where("#pk = :pk AND begins_with(#sk, :prefix)")
+    .WithAttribute("#pk", "pk")
+    .WithAttribute("#sk", "sk")
     .WithValue(":pk", UserKeys.Pk(userId))
     .WithValue(":prefix", "ORDER#")
-    .WithFilter($"{UserFields.Status} = :status AND {UserFields.Age} >= :age")
+    .WithFilter("#status = :status AND #age >= :age")
+    .WithAttribute("#status", "status")
+    .WithAttribute("#age", "age")
     .WithValue(":status", "ACTIVE")
     .WithValue(":age", 18)
     .ExecuteAsync();
@@ -104,9 +108,11 @@ await table.Query
 - ✓ Good for dynamic queries
 
 **When to Use Each Approach:**
-- **Expression-based:** New code, type safety important, known properties
+- **Lambda expressions:** New code, type safety important, known properties
 - **Format strings:** Balance of conciseness and flexibility
 - **Manual parameters:** Dynamic queries, complex scenarios, existing code
+
+See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on the manual approach.
 
 ## Basic Query Operations
 
@@ -126,9 +132,21 @@ public partial class User
     public string Name { get; set; } = string.Empty;
 }
 
-// Query all items for a user
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
+var response = await table.Query
+    .Where<User>(x => x.UserId == "user123")
+    .ExecuteAsync();
+
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
+    .ExecuteAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", UserKeys.Pk("user123"))
     .ExecuteAsync();
 
 // Process results
@@ -159,16 +177,25 @@ public partial class Order
     public string Status { get; set; } = string.Empty;
 }
 
-// Expression-based (type-safe)
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId && x.OrderId > "ORDER#2024-01-01")
     .ExecuteAsync();
 
-// Format string approach
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}} AND {OrderFields.OrderId} > {{1}}", 
            OrderKeys.Pk("customer123"),
            OrderKeys.Sk("ORDER#2024-01-01"))
+    .ExecuteAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk AND #sk > :sk")
+    .WithAttribute("#pk", "pk")
+    .WithAttribute("#sk", "sk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithValue(":sk", OrderKeys.Sk("ORDER#2024-01-01"))
     .ExecuteAsync();
 ```
 
@@ -264,29 +291,41 @@ Filter expressions apply additional filtering after items are retrieved by the k
 ### Basic Filters
 
 ```csharp
-// Expression-based (type-safe)
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId)
     .WithFilter<Order>(x => x.Status == "pending")
     .ExecuteAsync();
 
-// Format string approach
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithFilter($"{OrderFields.Status} = {{0}}", "pending")
+    .ExecuteAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithFilter("#status = :status")
+    .WithAttribute("#status", "status")
+    .WithValue(":status", "pending")
     .ExecuteAsync();
 ```
 
 ### Multiple Filter Conditions
 
+**AND Conditions (all three styles):**
+
 ```csharp
-// Expression-based: Combine multiple conditions with AND
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId)
     .WithFilter<Order>(x => x.Status == "pending" && x.Total > 100.00m)
     .ExecuteAsync();
 
-// Format string: Combine multiple conditions with AND
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithFilter($"{OrderFields.Status} = {{0}} AND {OrderFields.Total} > {{1}}", 
@@ -294,18 +333,45 @@ var response = await table.Query
                 100.00m)
     .ExecuteAsync();
 
-// Expression-based: Combine conditions with OR
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithFilter("#status = :status AND #total > :total")
+    .WithAttribute("#status", "status")
+    .WithAttribute("#total", "total")
+    .WithValue(":status", "pending")
+    .WithValue(":total", 100.00m)
+    .ExecuteAsync();
+```
+
+**OR Conditions (all three styles):**
+
+```csharp
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId)
     .WithFilter<Order>(x => x.Status == "pending" || x.Status == "processing")
     .ExecuteAsync();
 
-// Format string: Combine conditions with OR
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithFilter($"{OrderFields.Status} = {{0}} OR {OrderFields.Status} = {{1}}", 
                 "pending", 
                 "processing")
+    .ExecuteAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithFilter("#status = :status1 OR #status = :status2")
+    .WithAttribute("#status", "status")
+    .WithValue(":status1", "pending")
+    .WithValue(":status2", "processing")
     .ExecuteAsync();
 ```
 
@@ -975,18 +1041,23 @@ public async Task<(List<Order> Orders, string? NextPageToken)> GetCustomerOrders
 
 ## Manual Patterns
 
-For complex dynamic scenarios, you can use manual parameter binding:
+While **lambda expressions are preferred** and **format strings are a good alternative**, you can use manual parameter binding for complex or dynamic scenarios:
 
 ```csharp
-// Manual parameter approach
+// Manual parameter approach - use when you need explicit control
 await table.Query
-    .Where($"{OrderFields.CustomerId} = :pk AND {OrderFields.OrderDate} > :date")
+    .Where("#pk = :pk AND #date > :date")
+    .WithAttribute("#pk", "pk")
+    .WithAttribute("#date", "orderDate")
     .WithValue(":pk", OrderKeys.Pk("customer123"))
     .WithValue(":date", startDate)
-    .WithFilter($"{OrderFields.Status} = :status")
+    .WithFilter("#status = :status")
+    .WithAttribute("#status", "status")
     .WithValue(":status", "pending")
     .ExecuteAsync();
 ```
+
+> **Recommendation**: Use lambda expressions (preferred) or format strings (alternative) for most queries. Reserve manual patterns for dynamic queries, complex scenarios, or legacy code migration.
 
 See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on lower-level approaches.
 

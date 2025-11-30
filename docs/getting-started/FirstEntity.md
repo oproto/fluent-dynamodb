@@ -212,10 +212,10 @@ public partial class User
 **Usage:**
 ```csharp
 // Access through entity class
-await table.Query
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .Where($"{User.Fields.Email} = {{0}}", "john@example.com")
-    .ExecuteAsync<User>();
+await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", "user123")
+    .WithFilter($"{User.Fields.Email} = {{0}}", "john@example.com")
+    .ExecuteAsync();
 ```
 
 **Benefits:**
@@ -223,6 +223,8 @@ await table.Query
 - IntelliSense support
 - Refactoring support (rename property → field name updates automatically)
 - No namespace pollution - Fields class is nested within entity
+
+> **Tip:** You can also use string literals directly (e.g., `"pk"` instead of `User.Fields.UserId`). The generated constants provide compile-time validation but aren't required. Use whichever approach is cleaner for your use case.
 
 ### 2. Keys Class (Key Builder Methods)
 
@@ -246,9 +248,9 @@ public partial class User
 var key = User.Keys.Pk("user123");  // Returns "USER#user123"
 
 // Use in operations
-await table.Get
+await table.Get<User>()
     .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .ExecuteAsync();
 ```
 
 **Benefits:**
@@ -256,6 +258,8 @@ await table.Get
 - Prevents key format errors
 - Supports composite key patterns
 - Clear relationship between entity and its keys
+
+> **Note:** The `Keys.Pk()` method formats keys based on your entity's `[Computed]` or `[PartitionKey(Prefix = "...")]` attributes. If no prefix is configured, it returns the value as-is. You can also pass raw values directly to `WithKey()` if you don't need key formatting.
 
 ### 3. Mapper Class (Serialization/Deserialization)
 
@@ -308,9 +312,9 @@ public partial class User
 }
 
 // Usage
-await table.Get
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .ExecuteAsync<User>();
+await table.Get<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .ExecuteAsync();
 ```
 
 ### Pattern 2: Composite Key Entity
@@ -335,10 +339,9 @@ public partial class Order
 }
 
 // Usage - requires both partition and sort key
-await table.Get
-    .WithKey(OrderFields.CustomerId, OrderKeys.Pk("customer123"))
-    .WithKey(OrderFields.OrderId, OrderKeys.Sk("order456"))
-    .ExecuteAsync<Order>();
+await table.Get<Order>()
+    .WithKey(Order.Fields.CustomerId, "customer123", Order.Fields.OrderId, "order456")
+    .ExecuteAsync();
 ```
 
 ### Pattern 3: Computed Keys (Format Strings)
@@ -478,7 +481,7 @@ using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Storage;
 
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "users");
+var table = new UsersTable(client, "users");
 
 // Create user
 var user = new User
@@ -494,24 +497,22 @@ var user = new User
     }
 };
 
-await table.Put.WithItem(user).ExecuteAsync();
+await table.Put<User>().WithItem(user).ExecuteAsync();
 
-// Retrieve user using generated fields and keys
-var response = await table.Get
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .WithKey(User.Fields.RecordType, User.Keys.Sk())
-    .ExecuteAsync<User>();
+// Retrieve user using generated fields
+var response = await table.Get<User>()
+    .WithKey(User.Fields.UserId, "user123", User.Fields.RecordType, "PROFILE")
+    .ExecuteAsync();
 
 // Query with filter using generated fields
-var activeUsers = await table.Query
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .Where($"{User.Fields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+var activeUsers = await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", "user123")
+    .WithFilter($"{User.Fields.Status} = {{0}}", "active")
+    .ExecuteAsync();
 
 // Update using generated fields
-await table.Update
-    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .WithKey(User.Fields.RecordType, User.Keys.Sk())
+await table.Update<User>()
+    .WithKey(User.Fields.UserId, "user123", User.Fields.RecordType, "PROFILE")
     .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)

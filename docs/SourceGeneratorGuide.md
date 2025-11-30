@@ -244,10 +244,9 @@ foreach (var transaction in queryResponse.Items)
 
 ```csharp
 // Query GSI using generated field constants and key builders
-var statusResponse = await table.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{TransactionFields.StatusIndex.Status} = :status", 
-           new { status = TransactionKeys.StatusIndex.Pk("pending") })
+var statusResponse = await table.Query<Transaction>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Transaction.Fields.Status} = {{0}}", "pending")
     .ExecuteAsync<Transaction>();
 ```
 

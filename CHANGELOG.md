@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Documentation Overhaul** - Comprehensive documentation improvements for accuracy, organization, and maintainability
+  - New `docs/advanced-topics/InternalArchitecture.md` documenting internal interfaces, source generator pipeline, and component relationships
+  - New `docs/reference/ApiReference.md` with express list of all request builders, entity accessors, and direct async methods
+  - New `.kiro/steering/documentation.md` establishing documentation standards for API style priority, method verification, and attribution
+  - H3 third-party attribution added to `THIRD-PARTY-NOTICES.md` following S2 format with Apache License 2.0 notice
+  - Organization attribution (Oproto Inc, oproto.com, oproto.io, fluentdynamodb.dev, Dan Guisinger) added to README.md and docs/README.md
+  - Updated `docs/INDEX.md` and `docs/README.md` navigation with links to new documentation pages
+  - New "Repository Pattern with Table Class" section in `docs/CodeExamples.md` demonstrating how to use table classes as repositories with controlled access using `[GenerateAccessors]` attribute
+
+### Changed
+- **API Documentation Style** - All documentation now consistently shows three API styles in priority order
+  - Lambda expressions shown first (preferred) with type-safety benefits highlighted
+  - Format strings shown second as alternative approach
+  - Manual WithValue approach shown third for explicit control scenarios
+  - Updated `docs/core-features/BasicOperations.md` and `docs/core-features/QueryingData.md` with consistent ordering
+  - Updated `docs/advanced-topics/ManualPatterns.md` to reference preferred lambda approach
+
+### Improved
+- **Source Code Comment Cleanup** - Removed requirement/fix/issue references from source code comments
+  - Cleaned comments in `Oproto.FluentDynamoDb/` and `Oproto.FluentDynamoDb.SourceGenerator/` projects
+  - Preserved XML documentation for public APIs and comments explaining complex logic
+  - Removed TODO comments referencing completed work
+- **Documentation Accuracy** - Verified and updated code examples across all documentation
+  - Verified examples in `docs/getting-started/`, `docs/core-features/`, and `docs/advanced-topics/`
+  - Updated outdated API references to match current implementation
+  - Added documentation for entity accessors, Keys.Pk()/Keys.Sk() usage, and lambda SET operations
+
 ### Fixed
 - **Compile Warning Reduction** - Eliminated all 1,182 compile-time warnings across the solution
   - Reduced warning count from 1,182 to 0 (target was < 100)

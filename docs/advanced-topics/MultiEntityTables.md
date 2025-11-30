@@ -630,9 +630,9 @@ var paymentResponse = await ecommerceTable.Payments.Get()
     .ExecuteAsync();
 
 // Query orders by status using GSI (table-level operation)
-var pendingOrders = await ecommerceTable.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{OrderFields.StatusIndexPk} = :status", new { status = "pending" })
+var pendingOrders = await ecommerceTable.Query<Order>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Order.Fields.StatusIndexPk} = {{0}}", "pending")
     .ExecuteAsync();
 
 // Update order status and create shipment atomically
@@ -710,15 +710,15 @@ Use GSI for status queries across entity types:
 
 ```csharp
 // Query all pending orders
-var pendingOrders = await table.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{OrderFields.StatusIndexPk} = :status", new { status = "pending" })
+var pendingOrders = await table.Query<Order>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Order.Fields.StatusIndexPk} = {{0}}", "pending")
     .ExecuteAsync();
 
 // Query pending payments
 var pendingPayments = await table.Payments.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{PaymentFields.StatusIndexPk} = :status", new { status = "pending" })
+    .UsingIndex("StatusIndex")
+    .Where($"{Payment.Fields.StatusIndexPk} = {{0}}", "pending")
     .ExecuteAsync();
 ```
 
