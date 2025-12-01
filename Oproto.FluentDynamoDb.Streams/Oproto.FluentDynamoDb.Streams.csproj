@@ -18,7 +18,7 @@
         <Description>DynamoDB Streams processing support for Oproto.FluentDynamoDb. Provides fluent API for processing stream events with type-safe entity deserialization, LINQ-style filtering, and discriminator-based routing for Lambda functions.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;streams;lambda;fluent;aot</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
+using Oproto.FluentDynamoDb.Geospatial.GeoHash;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 using StoreLocator.Entities;
@@ -41,20 +42,19 @@ public class StoreGeoHashTable : DynamoDbTableBase
         GeoLocation center,
         double radiusKilometers)
     {
-        var result = await LocationIndex.SpatialQueryAsync<StoreGeoHash>(
-            locationSelector: store => store.Location,
-            spatialIndexType: SpatialIndexType.GeoHash,
-            precision: 7,
-            center: center,
-            radiusKilometers: radiusKilometers,
-            queryBuilder: (query, cell, pagination) => query
-                .Where("geohash_cell = {0}", cell),
-            pageSize: null);
-
-        LastQueryCount = result.TotalCellsQueried;
-
-        return result.Items
+        // GeoHash always uses a single BETWEEN query (unlike S2/H3 which use multiple discrete cell queries)
+        LastQueryCount = 1;
+        
+        // Use lambda expression with WithinDistanceKilometers which translates to a DynamoDB BETWEEN query
+        var results = await LocationIndex.Query<StoreGeoHash>()
+            .Where(x => x.Location.WithinDistanceKilometers(center, radiusKilometers))
+            .ToListAsync();
+        
+        // Post-filter by exact distance (BETWEEN returns rectangular approximation, not circular)
+        // and sort results by distance
+        return results
             .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center)))
+            .Where(x => x.DistanceKm <= radiusKilometers)
             .OrderBy(x => x.DistanceKm)
             .ToList();
     }

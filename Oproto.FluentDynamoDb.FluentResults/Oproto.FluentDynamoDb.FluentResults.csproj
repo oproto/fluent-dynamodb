@@ -10,9 +10,17 @@
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
         <IsPackable>true</IsPackable>
         <StripSymbols>false</StripSymbols>
+        <PackageId>Oproto.FluentDynamoDb.FluentResults</PackageId>
+        <Title>Oproto.FluentDynamoDb.FluentResults</Title>
         <Description>FluentResults extensions for Oproto.FluentDynamoDb providing Result&lt;T&gt; return patterns instead of exceptions.</Description>
         <PackageTags>dynamodb;fluentresults;aws;dotnet;aot</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
+
+    <!-- Include README in package -->
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="FluentResults" Version="[4.0.0,5.0.0)" />

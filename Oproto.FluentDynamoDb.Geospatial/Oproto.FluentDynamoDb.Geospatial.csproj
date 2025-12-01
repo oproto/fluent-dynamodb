@@ -7,13 +7,9 @@
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IsPackable>true</IsPackable>
         <LangVersion>12.0</LangVersion>
-    </PropertyGroup>
-    
-    <!-- Only generate package on Release builds to avoid file locking issues in IDE -->
-    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <!-- Make internal types visible to test projects -->
@@ -28,8 +24,8 @@
         <Description>Geospatial query support for Oproto.FluentDynamoDb using GeoHash encoding. Enables efficient location-based queries in DynamoDB with type-safe geospatial operations. Supports proximity queries, bounding box queries, and distance calculations with AOT compatibility.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;geospatial;geohash;location;proximity;fluent;aot</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/Oproto.FluentDynamoDb</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/oproto/Oproto.FluentDynamoDb</RepositoryUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>

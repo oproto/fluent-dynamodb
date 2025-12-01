@@ -7,14 +7,10 @@
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IsPackable>true</IsPackable>
         <StripSymbols>false</StripSymbols>
         <LangVersion>12.0</LangVersion>
-    </PropertyGroup>
-    
-    <!-- Only generate package on Release builds to avoid file locking issues in IDE -->
-    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <!-- Make internal types visible to test projects and extension packages -->
@@ -32,7 +28,7 @@
         <Description>A fluent-style API wrapper for Amazon DynamoDB with source generator support for automatic entity mapping, field constants, and key builders. Provides type-safe, AOT-compatible DynamoDB operations with minimal boilerplate code.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;fluent;aot;source-generator;entity-mapping</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

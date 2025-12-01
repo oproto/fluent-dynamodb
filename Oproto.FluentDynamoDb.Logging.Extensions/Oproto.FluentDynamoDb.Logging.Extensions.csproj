@@ -18,7 +18,7 @@
         <Description>Microsoft.Extensions.Logging adapter for Oproto.FluentDynamoDb providing seamless integration with the standard .NET logging infrastructure.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;logging;microsoft-extensions-logging;aot</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

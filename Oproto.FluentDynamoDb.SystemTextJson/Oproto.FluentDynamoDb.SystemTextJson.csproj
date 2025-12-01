@@ -17,7 +17,7 @@
         <Description>System.Text.Json serialization support for Oproto.FluentDynamoDb. Provides AOT-compatible JSON serialization for complex objects stored in DynamoDB.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;json;system-text-json;fluent;aot;serialization</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

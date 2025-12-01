@@ -24,6 +24,28 @@ var client = DynamoDbSetup.CreateLocalClient();
 ConsoleHelpers.ShowInfo("Ensuring tables exist...");
 await EnsureTablesExistAsync();
 
+// Validate GSIs exist on all tables
+ConsoleHelpers.ShowInfo("Validating GSI indexes...");
+var missingGsis = await ValidateGSIsAsync();
+if (missingGsis.Count > 0)
+{
+    ConsoleHelpers.ShowWarning("Missing GSIs detected:");
+    foreach (var issue in missingGsis)
+        Console.WriteLine($"  - {issue}");
+    Console.WriteLine();
+    Console.Write("Tables need to be recreated to add missing GSIs. Recreate tables? (y/n): ");
+    var confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
+    if (confirm == "y" || confirm == "yes")
+    {
+        await RecreateTablesAsync();
+        ConsoleHelpers.ShowSuccess("Tables recreated with all required GSIs");
+    }
+    else
+    {
+        ConsoleHelpers.ShowWarning("Continuing with missing GSIs - some queries may fail");
+    }
+}
+
 // Create table instances
 var geoHashTable = new StoreGeoHashTable(client);
 var s2Table = new StoreS2Table(client);
@@ -128,6 +150,122 @@ async Task EnsureTablesExistAsync()
             CreateGsi("h3-index-coarse", "h3_cell_r5", "pk")
         });
     if (created3) ConsoleHelpers.ShowSuccess($"Created table '{StoreH3Table.TableName}' with 3 precision GSIs");
+}
+
+/// <summary>
+/// Validates that all required GSIs exist on each table.
+/// </summary>
+/// <returns>List of missing GSI descriptions, or empty if all present.</returns>
+async Task<List<string>> ValidateGSIsAsync()
+{
+    var issues = new List<string>();
+    
+    try
+    {
+        // Check S2 table GSIs
+        var s2Description = await client.DescribeTableAsync(StoreS2Table.TableName);
+        var s2Gsis = s2Description.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
+        if (!s2Gsis.Contains("s2-index-fine")) issues.Add("S2 table missing s2-index-fine");
+        if (!s2Gsis.Contains("s2-index-medium")) issues.Add("S2 table missing s2-index-medium");
+        if (!s2Gsis.Contains("s2-index-coarse")) issues.Add("S2 table missing s2-index-coarse");
+    }
+    catch (ResourceNotFoundException)
+    {
+        // Table doesn't exist yet, will be created with GSIs
+    }
+    
+    try
+    {
+        // Check H3 table GSIs
+        var h3Description = await client.DescribeTableAsync(StoreH3Table.TableName);
+        var h3Gsis = h3Description.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
+        if (!h3Gsis.Contains("h3-index-fine")) issues.Add("H3 table missing h3-index-fine");
+        if (!h3Gsis.Contains("h3-index-medium")) issues.Add("H3 table missing h3-index-medium");
+        if (!h3Gsis.Contains("h3-index-coarse")) issues.Add("H3 table missing h3-index-coarse");
+    }
+    catch (ResourceNotFoundException)
+    {
+        // Table doesn't exist yet, will be created with GSIs
+    }
+    
+    try
+    {
+        // Check GeoHash table GSI
+        var geoHashDescription = await client.DescribeTableAsync(StoreGeoHashTable.TableName);
+        var geoHashGsis = geoHashDescription.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
+        if (!geoHashGsis.Contains("geohash-index")) issues.Add("GeoHash table missing geohash-index");
+    }
+    catch (ResourceNotFoundException)
+    {
+        // Table doesn't exist yet, will be created with GSIs
+    }
+    
+    return issues;
+}
+
+/// <summary>
+/// Deletes a table if it exists and waits for deletion to complete.
+/// </summary>
+async Task DeleteTableIfExistsAsync(string tableName)
+{
+    try
+    {
+        ConsoleHelpers.ShowInfo($"Deleting table '{tableName}'...");
+        await client.DeleteTableAsync(tableName);
+        
+        // Wait for table deletion to complete
+        while (true)
+        {
+            try
+            {
+                await client.DescribeTableAsync(tableName);
+                await Task.Delay(500); // Wait and check again
+            }
+            catch (ResourceNotFoundException)
+            {
+                // Table is deleted
+                break;
+            }
+        }
+        ConsoleHelpers.ShowSuccess($"Deleted table '{tableName}'");
+    }
+    catch (ResourceNotFoundException)
+    {
+        // Table doesn't exist, nothing to delete
+        ConsoleHelpers.ShowInfo($"Table '{tableName}' does not exist, skipping deletion");
+    }
+}
+
+/// <summary>
+/// Recreates all three tables with correct GSI definitions.
+/// </summary>
+async Task RecreateTablesAsync()
+{
+    Console.WriteLine();
+    ConsoleHelpers.ShowWarning("WARNING: This will delete all existing store data!");
+    Console.Write("Are you sure you want to continue? (y/n): ");
+    var confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
+    if (confirm != "y" && confirm != "yes")
+    {
+        ConsoleHelpers.ShowInfo("Table recreation cancelled");
+        return;
+    }
+    
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Deleting existing tables...");
+    
+    // Delete all three tables
+    await DeleteTableIfExistsAsync(StoreGeoHashTable.TableName);
+    await DeleteTableIfExistsAsync(StoreS2Table.TableName);
+    await DeleteTableIfExistsAsync(StoreH3Table.TableName);
+    
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Recreating tables with correct GSIs...");
+    
+    // Recreate with correct GSIs
+    await EnsureTablesExistAsync();
+    
+    Console.WriteLine();
 }
 
 /// <summary>

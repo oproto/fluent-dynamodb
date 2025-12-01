@@ -199,6 +199,18 @@ public static class ConsoleHelpers
     }
 
     /// <summary>
+    /// Displays a warning message.
+    /// </summary>
+    /// <param name="message">The warning message.</param>
+    public static void ShowWarning(string message)
+    {
+        var originalColor = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"⚠ {message}");
+        Console.ForegroundColor = originalColor;
+    }
+
+    /// <summary>
     /// Displays a section header.
     /// </summary>
     /// <param name="title">The section title.</param>
