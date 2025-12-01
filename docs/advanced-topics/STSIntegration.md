@@ -28,7 +28,7 @@ var query = table.Query
 // Execute with custom client
 var response = await query
     .WithClient(customClient)
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 **Key Features:**
@@ -75,10 +75,10 @@ public class TenantScopedService
             assumeRoleResponse.Credentials.SessionToken);
         
         // Execute query with scoped client
-        var response = await _table.Get
+        var response = await _table.Get<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
             .WithClient(scopedClient)
-            .ExecuteAsync<User>();
+            .GetItemAsync();
         
         return response.Item;
     }
@@ -113,10 +113,10 @@ public class CustomConfigService
         var customClient = new AmazonDynamoDBClient(config);
         
         // Execute with custom client
-        var response = await _table.Get
+        var response = await _table.Get<Order>()
             .WithKey(OrderFields.OrderId, OrderKeys.Pk(orderId))
             .WithClient(customClient)
-            .ExecuteAsync<Order>();
+            .GetItemAsync();
         
         return response.Item;
     }
@@ -150,10 +150,10 @@ public class MultiRegionService
         var regionalClient = _regionalClients[region];
         
         // Execute in specific region
-        var response = await _table.Get
+        var response = await _table.Get<Product>()
             .WithKey(ProductFields.ProductId, ProductKeys.Pk(productId))
             .WithClient(regionalClient)
-            .ExecuteAsync<Product>();
+            .GetItemAsync();
         
         return response.Item;
     }
@@ -185,9 +185,9 @@ public class LocalDevelopmentService
     {
         var table = new DynamoDbTableBase(_localClient, "users-local");
         
-        var response = await table.Get
+        var response = await table.Get<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-            .ExecuteAsync<User>();
+            .GetItemAsync();
         
         return response.Item;
     }
@@ -295,10 +295,10 @@ var sessionClient = new AmazonDynamoDBClient(sessionCredentials);
 
 ```csharp
 // Single item get
-var response = await table.Get
+var response = await table.Get<User>()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithClient(scopedClient)
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
 // Batch get
 var batchResponse = await new BatchGetItemRequestBuilder(defaultClient)
@@ -324,38 +324,38 @@ var user = new User
 await table.Put
     .WithItem(user)
     .WithClient(scopedClient)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Conditional put
 await table.Put
     .WithItem(user)
     .Where($"attribute_not_exists({UserFields.UserId})")
     .WithClient(scopedClient)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ### Query Operations
 
 ```csharp
 // Basic query
-var queryResponse = await table.Query
+var queryResponse = await table.Query<User>()
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
     .WithClient(scopedClient)
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // Query with filter
-var filteredResponse = await table.Query
+var filteredResponse = await table.Query<User>()
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
     .WithFilter($"{UserFields.Status} = {{0}}", "active")
     .WithClient(scopedClient)
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // GSI query
-var gsiResponse = await table.Query
+var gsiResponse = await table.Query<User>()
     .UsingIndex(UserIndexes.EmailIndex)
     .Where($"{UserFields.Email} = {{0}}", "john@example.com")
     .WithClient(scopedClient)
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ### Update Operations
@@ -368,7 +368,7 @@ await table.Update
          "Jane Doe", 
          DateTime.UtcNow)
     .WithClient(scopedClient)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Conditional update
 await table.Update
@@ -376,7 +376,7 @@ await table.Update
     .Set($"SET {UserFields.Status} = {{0}}", "inactive")
     .Where($"{UserFields.Status} = {{0}}", "active")
     .WithClient(scopedClient)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Delete Operations
@@ -386,14 +386,14 @@ await table.Update
 await table.Delete
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithClient(scopedClient)
-    .ExecuteAsync();
+    .DeleteAsync();
 
 // Conditional delete
 await table.Delete
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.Status} = {{0}}", "inactive")
     .WithClient(scopedClient)
-    .ExecuteAsync();
+    .DeleteAsync();
 ```
 
 ### Transaction Operations
@@ -412,7 +412,7 @@ txnBuilder.Update(table, builder => builder
 // Execute with scoped client
 await txnBuilder
     .WithClient(scopedClient)
-    .ExecuteAsync();
+    .CommitAsync();
 ```
 
 
@@ -525,10 +525,10 @@ public class UserRepository
         var scopedClient = await _scopedService.GetTenantClientAsync(tenantId, user);
         
         // Execute query with scoped client
-        var response = await _table.Get
+        var response = await _table.Get<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
             .WithClient(scopedClient)
-            .ExecuteAsync<User>();
+            .GetItemAsync();
         
         return response.Item;
     }
@@ -540,11 +540,11 @@ public class UserRepository
     {
         var scopedClient = await _scopedService.GetTenantClientAsync(tenantId, user);
         
-        var response = await _table.Query
+        var response = await _table.Query<User>()
             .UsingIndex(UserIndexes.StatusIndex)
             .Where($"{UserFields.StatusIndex.Status} = {{0}}", status)
             .WithClient(scopedClient)
-            .ExecuteAsync<User>();
+            .ToListAsync();
         
         return response.Items;
     }
@@ -557,7 +557,7 @@ public class UserRepository
             .WithItem(user)
             .Where($"attribute_not_exists({UserFields.UserId})")
             .WithClient(scopedClient)
-            .ExecuteAsync();
+            .PutAsync();
     }
 }
 ```
@@ -642,10 +642,11 @@ public class OptimizedService
     public async Task<User> GetUserAsync(string userId)
     {
         // Reuse the same client
-        return await _table.Get
+        var response = await _table.Get<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
             .WithClient(_scopedClient)
-            .ExecuteAsync<User>();
+            .GetItemAsync();
+        return response.Item;
     }
 }
 ```
@@ -659,10 +660,11 @@ public class InefficientService
         // Bad: Creates new client for every request
         var client = new AmazonDynamoDBClient();
         
-        return await _table.Get
+        var response = await _table.Get<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
             .WithClient(client)
-            .ExecuteAsync<User>();
+            .GetItemAsync();
+        return response.Item;
     }
 }
 ```

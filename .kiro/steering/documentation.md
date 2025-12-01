@@ -151,6 +151,49 @@ The `CHANGELOG.md` file MUST be updated as part of every pull request that inclu
 
 **PR Requirement**: Pull requests will not be merged without an appropriate changelog entry.
 
+### Documentation Changelog Requirements
+
+In addition to the repository `CHANGELOG.md`, a separate **Documentation Changelog** is maintained at `docs/DOCUMENTATION_CHANGELOG.md`. This file is distinct from the repository changelog and serves a specific purpose:
+
+**Purpose**: The documentation changelog tracks corrections and updates to documentation content, enabling teams maintaining derived documentation (e.g., website at fluentdynamodb.dev) to synchronize their content.
+
+**When to Update**: The documentation changelog MUST be updated when:
+- Correcting incorrect API method names or signatures in documentation
+- Fixing outdated code patterns or examples
+- Correcting return value access patterns
+- Updating XML documentation comments in source code
+- Any change that affects how users should write code based on documentation
+
+**Entry Format**: Each entry MUST include:
+1. **Date**: The date of the correction (YYYY-MM-DD format)
+2. **File Path**: The path to the file that was corrected
+3. **Before Pattern**: The incorrect code or text that was changed
+4. **After Pattern**: The corrected code or text
+5. **Reason**: Brief explanation of why the change was necessary
+
+**Example Entry**:
+```markdown
+## [2024-12-01]
+
+### File: docs/core-features/BasicOperations.md
+
+**Before:**
+```csharp
+var response = await table.Users.Get(userId).ExecuteAsync();
+```
+
+**After:**
+```csharp
+var user = await table.Users.Get(userId).GetItemAsync();
+```
+
+**Reason:** ExecuteAsync() does not exist on GetItemRequestBuilder. The correct method is GetItemAsync().
+```
+
+**Important Distinction**: 
+- `CHANGELOG.md` (repository root): Tracks code changes, features, bug fixes
+- `docs/DOCUMENTATION_CHANGELOG.md`: Tracks documentation corrections only
+
 ### Documentation Review Checkpoints
 - Before each release, review documentation accuracy
 - After significant feature additions

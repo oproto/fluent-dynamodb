@@ -15,25 +15,26 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// <example>
 /// <code>
 /// // Put an entity
-/// var response = await table.Put&lt;MyEntity&gt;()
+/// await table.Put&lt;MyEntity&gt;()
 ///     .WithItem(myEntity)
-///     .ExecuteAsync();
+///     .PutAsync();
 /// 
 /// // Put with raw attributes
-/// var response = await table.Put&lt;MyEntity&gt;()
+/// await table.Put&lt;MyEntity&gt;()
 ///     .WithItem(new Dictionary&lt;string, AttributeValue&gt;
 ///     {
 ///         ["id"] = new AttributeValue { S = "123" },
 ///         ["name"] = new AttributeValue { S = "John Doe" },
 ///         ["email"] = new AttributeValue { S = "john@example.com" }
 ///     })
-///     .ExecuteAsync();
+///     .PutAsync();
 /// 
-/// // Conditional put (only if item doesn't exist)
+/// // Conditional put with return values (use ToDynamoDbResponseAsync to access response.Attributes)
 /// var response = await table.Put&lt;MyEntity&gt;()
 ///     .WithItem(myEntity)
 ///     .Where("attribute_not_exists(id)")
-///     .ExecuteAsync();
+///     .ReturnAllOldValues()
+///     .ToDynamoDbResponseAsync();
 /// </code>
 /// </example>
 public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequestBuilder<TEntity>>, IWithAttributeValues<PutItemRequestBuilder<TEntity>>,
@@ -212,7 +213,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// var myEntity = new MyEntity { Id = "123", Name = "John" };
     /// await table.Put&lt;MyEntity&gt;()
     ///     .WithItem(myEntity)
-    ///     .ExecuteAsync();
+    ///     .PutAsync();
     /// </code>
     /// </example>
     public PutItemRequestBuilder<TEntity> WithItem<T>(T entity) where T : class, TEntity, IDynamoDbEntity

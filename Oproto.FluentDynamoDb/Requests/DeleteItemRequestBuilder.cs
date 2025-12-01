@@ -16,15 +16,15 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// // Simple delete by primary key
 /// await table.Delete&lt;Transaction&gt;()
 ///     .WithKey("id", "user123")
-///     .ExecuteAsync();
+///     .DeleteAsync();
 /// 
-/// // Conditional delete with return values
+/// // Conditional delete with return values (use ToDynamoDbResponseAsync to access response.Attributes)
 /// var response = await table.Delete&lt;Transaction&gt;()
 ///     .WithKey("pk", "USER", "sk", "user123")
 ///     .Where("attribute_exists(#status)")
 ///     .WithAttribute("#status", "status")
 ///     .ReturnAllOldValues()
-///     .ExecuteAsync();
+///     .ToDynamoDbResponseAsync();
 /// </code>
 /// </example>
 public class DeleteItemRequestBuilder<TEntity> :

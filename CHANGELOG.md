@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Documentation API Corrections** - Comprehensive fix for incorrect API method references across all documentation
+  - Replaced `ExecuteAsync()` with correct method names throughout documentation:
+    - `GetItemAsync()` for GetItemRequestBuilder
+    - `PutAsync()` for PutItemRequestBuilder
+    - `UpdateAsync()` for UpdateItemRequestBuilder
+    - `DeleteAsync()` for DeleteItemRequestBuilder
+    - `ToListAsync()` for QueryRequestBuilder and ScanRequestBuilder
+    - `CommitAsync()` for transaction builders
+  - Fixed return value access patterns to use `ToDynamoDbResponseAsync()` when accessing `response.Attributes`
+  - Added alternative examples using `DynamoDbOperationContext.Current` for context-based access
+  - Updated XML documentation comments in source files (DeleteItemRequestBuilder, UpdateItemRequestBuilder, PutItemRequestBuilder)
+  - Corrected examples in 20+ documentation files across getting-started, core-features, advanced-topics, examples, and reference sections
+  - Created `docs/DOCUMENTATION_CHANGELOG.md` for tracking documentation corrections separately from code changes
+  - Updated `.kiro/steering/documentation.md` with documentation changelog requirements
+
 ### Added
 - **StoreLocator Adaptive Precision** - Multi-precision spatial indexing for the StoreLocator example application
   - Automatic precision selection based on search radius for optimal query performance

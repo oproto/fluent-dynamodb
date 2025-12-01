@@ -303,9 +303,9 @@ Discriminator validation occurs automatically during entity hydration:
 
 ```csharp
 // Query returns items from multi-entity table
-var response = await table.Query
+var response = await table.Query<User>()
     .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // Each item is validated:
 // 1. Check if discriminator property exists
@@ -320,9 +320,9 @@ using Oproto.FluentDynamoDb.Storage;
 
 try
 {
-    var response = await table.Query
+    var response = await table.Query<User>()
         .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
-        .ExecuteAsync<User>();
+        .ToListAsync();
     
     var users = response.Items;
 }
@@ -343,7 +343,7 @@ Discriminator properties are automatically included in projection expressions:
 var response = await table.Query
     .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
     .WithProjectionExpression($"{UserFields.Name}, {UserFields.Email}")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // Actual projection: "name, email, sk" (sk is discriminator property)
 ```
@@ -454,9 +454,9 @@ public partial class User { }
 // ✅ Good - handle discriminator mismatches
 try
 {
-    var users = await table.Query
+    var users = await table.Query<User>()
         .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
-        .ExecuteAsync<User>();
+        .ToListAsync();
 }
 catch (DiscriminatorMismatchException ex)
 {
@@ -474,13 +474,13 @@ catch (DiscriminatorMismatchException ex)
 public async Task Query_WithDiscriminator_ReturnsOnlyMatchingEntities()
 {
     // Arrange - insert mixed entity types
-    await table.Put.WithItem(new User { TenantId = "TENANT#abc", SortKey = "USER#user1" }).ExecuteAsync();
-    await table.Put.WithItem(new Order { TenantId = "TENANT#abc", SortKey = "ORDER#order1" }).ExecuteAsync();
+    await table.Put.WithItem(new User { TenantId = "TENANT#abc", SortKey = "USER#user1" }).PutAsync();
+    await table.Put.WithItem(new Order { TenantId = "TENANT#abc", SortKey = "ORDER#order1" }).PutAsync();
     
     // Act - query for users only
-    var response = await table.Query
+    var response = await table.Query<User>()
         .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
-        .ExecuteAsync<User>();
+        .ToListAsync();
     
     // Assert - only users returned
     Assert.All(response.Items, user => 
@@ -508,9 +508,9 @@ public partial class User
 }
 
 // Query: All users for tenant
-var users = await table.Query
+var users = await table.Query<User>()
     .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ### Hierarchical Entities
@@ -590,7 +590,7 @@ public partial class OrderItem
 // Handle gracefully
 try
 {
-    var users = await query.ExecuteAsync<User>();
+    var users = await query.ToListAsync();
 }
 catch (DiscriminatorMismatchException ex)
 {

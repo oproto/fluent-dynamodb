@@ -54,7 +54,7 @@ var table = new OrdersTable(client, "orders");
 var order = await table.Orders.GetAsync("order123");
 var orderLines = await table.OrderLines.Query()
     .Where(x => x.OrderId == "order123")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Compare to generic approach (still available but more verbose)
 var order2 = await table.Get<Order>()
@@ -93,7 +93,7 @@ await table.Users.Put(user)
     .PutAsync();
 
 // Generic method (also available)
-await table.Put<User>().WithItem(user).ExecuteAsync();
+await table.Put<User>().WithItem(user).PutAsync();
 ```
 
 ### Table Initialization with Options
@@ -172,18 +172,18 @@ Key builders ensure consistent key formatting across your application:
 var response = await table.Get<User>()
     .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
     .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Query with formatted partition key
 var users = await table.Query<User>()
     .Where($"{User.Fields.UserId} = {{0}}", User.Keys.Pk("user123"))
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Delete with formatted keys
 await table.Delete<User>()
     .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
     .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
-    .ExecuteAsync();
+    .DeleteAsync();
 ```
 
 ### Composite Key Patterns
@@ -198,7 +198,7 @@ var (pk, sk) = User.Keys.Key("user123", "MAIN");
 await table.Get<User>()
     .WithKey(User.Fields.UserId, pk)
     .WithKey(User.Fields.ProfileType, sk)
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 ### GSI Key Builders
@@ -226,7 +226,7 @@ public partial class Order
 var orders = await table.Query<Order>()
     .UsingIndex(Order.Indexes.StatusIndex)
     .Where($"{Order.Fields.Status} = {{0}}", Order.Keys.StatusIndex.Pk("pending"))
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Benefits of Key Builders
@@ -449,11 +449,13 @@ await table.Users.Put(user)
 
 Get the old item values after a put operation:
 
+**Option 1: Advanced API (ToDynamoDbResponseAsync) - Direct Response Access**
+
 ```csharp
-// Builder API required for return values
+// Use ToDynamoDbResponseAsync to get the raw AWS SDK response
 var response = await table.Users.Put(user)
     .ReturnAllOldValues()
-    .PutAsync();
+    .ToDynamoDbResponseAsync();
 
 // Check if an item was replaced
 if (response.Attributes != null && response.Attributes.Count > 0)
@@ -463,7 +465,30 @@ if (response.Attributes != null && response.Attributes.Count > 0)
 }
 ```
 
-> **Note**: Convenience method methods don't return response objects. Use the builder pattern when you need return values.
+**Option 2: Primary API (PutAsync) - Context-Based Access**
+
+```csharp
+// Primary API populates DynamoDbOperationContext automatically
+await table.Users.Put(user)
+    .ReturnAllOldValues()
+    .PutAsync();
+
+// Access old values via context
+var context = DynamoDbOperationContext.Current;
+if (context?.PreOperationValues != null && context.PreOperationValues.Count > 0)
+{
+    // Use the built-in deserialization helper
+    var oldUser = context.DeserializePreOperationValue<User>();
+    if (oldUser != null)
+    {
+        Console.WriteLine($"Replaced user: {oldUser.Name}");
+    }
+}
+```
+
+> **Note**: `PutAsync()` returns `Task` (void) and populates `DynamoDbOperationContext.Current` with operation metadata. Use `ToDynamoDbResponseAsync()` when you need direct access to the raw AWS SDK response.
+
+> **Warning**: `DynamoDbOperationContext` uses `AsyncLocal<T>` which may not be suitable for unit testing scenarios where async context doesn't flow as expected. For testable code, prefer `ToDynamoDbResponseAsync()` or inject the context access pattern.
 
 **Return Value Options:**
 - `ReturnAllOldValues()` - Returns all attributes of the old item
@@ -734,14 +759,14 @@ await table.Update
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = if_not_exists({UserFields.Name}, {{0}})", 
          "Default Name")
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Concatenate strings
 await table.Update
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.FullName} = list_append({UserFields.FirstName}, {{0}})", 
          " " + user.LastName)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Lambda Expression SET Operations
@@ -971,18 +996,44 @@ await table.Users.Update("user123")
 
 Get attribute values before or after the update:
 
+**Option 1: Advanced API (ToDynamoDbResponseAsync) - Direct Response Access**
+
 ```csharp
-// Return all new values after update
+// Use ToDynamoDbResponseAsync to get the raw AWS SDK response
 var response = await table.Users.Update("user123")
     .Set(x => new UserUpdateModel { Name = "Jane Doe" })
     .ReturnAllNewValues()
-    .UpdateAsync();
+    .ToDynamoDbResponseAsync();
 
 var updatedUser = UserMapper.FromAttributeMap(response.Attributes);
 Console.WriteLine($"Updated user: {updatedUser.Name}");
 ```
 
-> **Note**: Convenience method `UpdateAsync()` methods don't return response objects. Use the builder pattern when you need return values.
+**Option 2: Primary API (UpdateAsync) - Context-Based Access**
+
+```csharp
+// Primary API populates DynamoDbOperationContext automatically
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .ReturnAllNewValues()
+    .UpdateAsync();
+
+// Access new values via context
+var context = DynamoDbOperationContext.Current;
+if (context?.PostOperationValues != null)
+{
+    // Use the built-in deserialization helper
+    var updatedUser = context.DeserializePostOperationValue<User>();
+    if (updatedUser != null)
+    {
+        Console.WriteLine($"Updated user: {updatedUser.Name}");
+    }
+}
+```
+
+> **Note**: `UpdateAsync()` returns `Task` (void) and populates `DynamoDbOperationContext.Current` with operation metadata. Use `ToDynamoDbResponseAsync()` when you need direct access to the raw AWS SDK response.
+
+> **Warning**: `DynamoDbOperationContext` uses `AsyncLocal<T>` which may not be suitable for unit testing scenarios where async context doesn't flow as expected. For testable code, prefer `ToDynamoDbResponseAsync()` or inject the context access pattern.
 
 **Return Value Options:**
 - `ReturnAllNewValues()` - All attributes after update
@@ -1056,11 +1107,13 @@ await table.Users.Delete("user123")
 
 Get the deleted item's attributes:
 
+**Option 1: Advanced API (ToDynamoDbResponseAsync) - Direct Response Access**
+
 ```csharp
-// Builder API required for return values
+// Use ToDynamoDbResponseAsync to get the raw AWS SDK response
 var response = await table.Users.Delete("user123")
     .ReturnAllOldValues()
-    .DeleteAsync();
+    .ToDynamoDbResponseAsync();
 
 if (response.Attributes != null && response.Attributes.Count > 0)
 {
@@ -1071,7 +1124,32 @@ if (response.Attributes != null && response.Attributes.Count > 0)
 }
 ```
 
-> **Note**: Convenience method methods don't return response objects. Use the builder pattern when you need return values.
+**Option 2: Primary API (DeleteAsync) - Context-Based Access**
+
+```csharp
+// Primary API populates DynamoDbOperationContext automatically
+await table.Users.Delete("user123")
+    .ReturnAllOldValues()
+    .DeleteAsync();
+
+// Access old values via context
+var context = DynamoDbOperationContext.Current;
+if (context?.PreOperationValues != null && context.PreOperationValues.Count > 0)
+{
+    // Use the built-in deserialization helper
+    var deletedUser = context.DeserializePreOperationValue<User>();
+    if (deletedUser != null)
+    {
+        Console.WriteLine($"Deleted user: {deletedUser.Name}");
+        
+        // Could save to audit log, implement undo, etc.
+    }
+}
+```
+
+> **Note**: `DeleteAsync()` returns `Task` (void) and populates `DynamoDbOperationContext.Current` with operation metadata. Use `ToDynamoDbResponseAsync()` when you need direct access to the raw AWS SDK response.
+
+> **Warning**: `DynamoDbOperationContext` uses `AsyncLocal<T>` which may not be suitable for unit testing scenarios where async context doesn't flow as expected. For testable code, prefer `ToDynamoDbResponseAsync()` or inject the context access pattern.
 
 ### Delete with Error Handling
 
@@ -1198,17 +1276,17 @@ See [Batch Operations](BatchOperations.md) for detailed batch operation patterns
    // ✅ Good - only retrieve needed attributes
    .WithProjection($"{UserFields.Name}, {UserFields.Email}")
    
-   // ❌ Avoid - retrieves all attributes
-   .ExecuteAsync<User>()
+   // ❌ Avoid - retrieves all attributes without projection
+   .GetItemAsync()
    ```
 
 2. **Use Eventually Consistent Reads When Possible**
    ```csharp
    // ✅ Good - faster and cheaper for most use cases
-   .ExecuteAsync<User>()
+   .GetItemAsync()
    
    // ⚠️ Use sparingly - 2x cost
-   .UsingConsistentRead().ExecuteAsync<User>()
+   .UsingConsistentRead().GetItemAsync()
    ```
 
 3. **Use Batch Operations**
@@ -1219,7 +1297,7 @@ See [Batch Operations](BatchOperations.md) for detailed batch operation patterns
    // ❌ Avoid - multiple requests
    foreach (var id in ids)
    {
-       await table.Get.WithKey(...).ExecuteAsync();
+       await table.Get.WithKey(...).GetItemAsync();
    }
    ```
 
@@ -1229,7 +1307,7 @@ See [Batch Operations](BatchOperations.md) for detailed batch operation patterns
    .Where($"attribute_not_exists({UserFields.UserId})")
    
    // ❌ Avoid - always writes, even if unchanged
-   await table.Put.WithItem(user).ExecuteAsync();
+   await table.Put.WithItem(user).PutAsync();
    ```
 
 ## Error Handling
@@ -1241,7 +1319,7 @@ using Amazon.DynamoDBv2.Model;
 
 try
 {
-    await table.Put.WithItem(user).ExecuteAsync();
+    await table.Put.WithItem(user).PutAsync();
 }
 catch (ConditionalCheckFailedException ex)
 {
@@ -1295,7 +1373,7 @@ public async Task<T> ExecuteWithRetry<T>(
 
 // Usage
 var response = await ExecuteWithRetry(() => 
-    table.Get.WithKey(UserFields.UserId, UserKeys.Pk("user123")).ExecuteAsync<User>()
+    table.Get.WithKey(UserFields.UserId, UserKeys.Pk("user123")).GetItemAsync()
 );
 ```
 
@@ -1348,13 +1426,13 @@ public class UserService
     public Task<User?> GetUserAsync(string userId) =>
         _table.Users.GetAsync(userId);
 
-    // Builder pattern for complex operations
+    // Builder pattern for complex operations - use ToDynamoDbResponseAsync for return values
     public async Task<User?> CreateUserAsync(User user)
     {
         var response = await _table.Users.Put(user)
             .Where("attribute_not_exists({0})", User.Fields.UserId)
             .ReturnAllOldValues()
-            .PutAsync();
+            .ToDynamoDbResponseAsync();
         
         return response.Attributes != null 
             ? UserMapper.FromAttributeMap(response.Attributes) 

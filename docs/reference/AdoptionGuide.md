@@ -49,7 +49,7 @@ public partial class User
 }
 
 // Usage with generated code and expression formatting
-await table.Put.WithItem(user).ExecuteAsync();
+await table.Put.WithItem(user).PutAsync();
 
 var response = await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))

@@ -390,7 +390,7 @@ Manual encryption uses the same ambient context pattern as Put/Get operations:
 EncryptionContext.Current = "tenant-123";
 
 // All operations use the context
-await table.PutItem(user).ExecuteAsync();
+await table.PutItem(user).PutAsync();
 var encrypted = table.Encrypt(value, "FieldName");
 await table.Query<User>()
     .WithFilter<User>(x => x.EncryptedField == table.Encrypt(value, "EncryptedField"))

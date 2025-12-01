@@ -380,7 +380,7 @@ public class OptimisticLockingService
             .Set(x => updates)
             .Where($"{User.Fields.Version} = {{0}}", user.Version)
             .ReturnAllNewValues()
-            .UpdateAsync();
+            .ToDynamoDbResponseAsync();
 
         return response.Attributes != null 
             ? UserMapper.FromAttributeMap(response.Attributes) 
@@ -462,7 +462,7 @@ public class AdvancedUpdateService
                 UpdatedAt = DateTime.UtcNow
             })
             .ReturnAllNewValues()
-            .UpdateAsync();
+            .ToDynamoDbResponseAsync();
 
         return response.Attributes != null 
             ? UserMapper.FromAttributeMap(response.Attributes) 
@@ -644,7 +644,7 @@ public class OrderService
                 })
                 .Where($"{Order.Fields.Status} IN ({{0}}, {{1}})", "pending", "processing")
                 .ReturnAllOldValues()
-                .UpdateAsync();
+                .ToDynamoDbResponseAsync();
 
             return response.Attributes != null;
         }

@@ -134,7 +134,7 @@ var ordersTable = new OrdersTable(client, "orders");
 var order = await ordersTable.Orders.GetAsync("order123");
 var lines = await ordersTable.OrderLines.Query()
     .Where(x => x.OrderId == "order123")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Express-route methods for simple operations
 await ordersTable.Orders.PutAsync(newOrder);
@@ -162,7 +162,7 @@ await table.Users.PutAsync(user);
 await table.Users.Put(user).PutAsync();
 
 // Generic method (also available)
-await table.Put<User>().WithItem(user).ExecuteAsync();
+await table.Put<User>().WithItem(user).PutAsync();
 
 Console.WriteLine("User created successfully!");
 ```
@@ -173,7 +173,7 @@ Console.WriteLine("User created successfully!");
 // Get item by partition key using generated key builder
 var response = await table.Get<User>()
     .WithKey(User.Fields.UserId, "user123")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 if (response.IsSuccess)
 {
@@ -193,7 +193,7 @@ else
 var queryResponse = await table.Query<User>()
     .Where($"{User.Fields.UserId} = {{0}}", "user123")
     .WithFilter($"{User.Fields.Status} = {{0}}", "active")
-    .ExecuteAsync();
+    .ToListAsync();
 
 foreach (var user in queryResponse.Items)
 {
@@ -215,7 +215,7 @@ await table.Update<User>()
     .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 Console.WriteLine("User updated successfully!");
 ```
@@ -230,7 +230,7 @@ Console.WriteLine("User updated successfully!");
 // Delete item by key
 await table.Delete<User>()
     .WithKey(User.Fields.UserId, "user123")
-    .ExecuteAsync();
+    .DeleteAsync();
 
 Console.WriteLine("User deleted successfully!");
 ```
@@ -242,7 +242,7 @@ Console.WriteLine("User deleted successfully!");
 await table.Delete<User>()
     .WithKey(User.Fields.UserId, "user123")
     .Where($"{User.Fields.Status} = {{0}}", "inactive")
-    .ExecuteAsync();
+    .DeleteAsync();
 ```
 
 ## Complete Example
@@ -301,7 +301,7 @@ class Program
         // Retrieve user
         var getResponse = await table.Get<User>()
             .WithKey(User.Fields.UserId, "user123")
-            .ExecuteAsync();
+            .GetItemAsync();
         
         if (getResponse.IsSuccess)
         {
@@ -312,13 +312,13 @@ class Program
         await table.Update<User>()
             .WithKey(User.Fields.UserId, "user123")
             .Set($"SET {User.Fields.Name} = {{0}}", "Jane Doe")
-            .ExecuteAsync();
+            .UpdateAsync();
         
         // Query active users
         var queryResponse = await table.Query<User>()
             .Where($"{User.Fields.UserId} = {{0}}", "user123")
             .WithFilter($"{User.Fields.Status} = {{0}}", "active")
-            .ExecuteAsync();
+            .ToListAsync();
         
         Console.WriteLine($"Found {queryResponse.Items.Count} active users");
     }
