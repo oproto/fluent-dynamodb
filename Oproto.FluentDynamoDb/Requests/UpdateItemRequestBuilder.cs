@@ -14,23 +14,24 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// <example>
 /// <code>
 /// // Update specific attributes
-/// var response = await table.Update&lt;Transaction&gt;()
+/// await table.Update&lt;Transaction&gt;()
 ///     .WithKey("id", "123")
 ///     .Set("SET #name = :name, #status = :status")
 ///     .WithAttribute("#name", "name")
 ///     .WithAttribute("#status", "status")
 ///     .WithValue(":name", "John Doe")
 ///     .WithValue(":status", "ACTIVE")
-///     .ExecuteAsync();
+///     .UpdateAsync();
 /// 
-/// // Conditional update
+/// // Conditional update with return values (use ToDynamoDbResponseAsync to access response.Attributes)
 /// var response = await table.Update&lt;Transaction&gt;()
 ///     .WithKey("id", "123")
 ///     .Set("SET #count = #count + :inc")
 ///     .Where("attribute_exists(id)")
 ///     .WithAttribute("#count", "count")
 ///     .WithValue(":inc", 1)
-///     .ExecuteAsync();
+///     .ReturnAllNewValues()
+///     .ToDynamoDbResponseAsync();
 /// </code>
 /// </example>
 public class UpdateItemRequestBuilder<TEntity> :

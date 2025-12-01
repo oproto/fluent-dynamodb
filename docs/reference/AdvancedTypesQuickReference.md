@@ -159,19 +159,19 @@ var tags = new HashSet<string> { "tag1", "tag2" };
 await table.Update
     .WithKey("pk", id)
     .Set("SET metadata = {0}, tags = {1}", metadata, tags)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // TTL in expressions
 await table.Update
     .WithKey("pk", id)
     .Set("SET expires_at = {0}", DateTime.UtcNow.AddDays(7))
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Set operations
 await table.Update
     .WithKey("pk", id)
     .Set("ADD tags {0}", new HashSet<string> { "new-tag" })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## Empty Collection Handling

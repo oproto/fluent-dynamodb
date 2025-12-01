@@ -424,7 +424,7 @@ class Program
         
         // Test basic operation
         var item = new TestItem { Id = "test123", Name = "Test" };
-        await table.Put<TestItem>().WithItem(item).ExecuteAsync();
+        await table.Put<TestItem>().WithItem(item).PutAsync();
         
         Console.WriteLine("Installation verified successfully!");
     }

@@ -41,7 +41,7 @@ try
     await table.Put
         .WithItem(user)
         .WithCondition($"attribute_not_exists({UserFields.UserId})")
-        .ExecuteAsync();
+        .PutAsync();
     
     Console.WriteLine("User created successfully");
 }
@@ -59,7 +59,7 @@ try
         .Set($"SET {UserFields.Name} = {{0}}, {UserFields.Version} = {UserFields.Version} + {{1}}", 
              "New Name", 1)
         .WithCondition($"{UserFields.Version} = {{0}}", currentVersion)
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (ConditionalCheckFailedException)
 {
@@ -73,7 +73,7 @@ try
     await table.Delete
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
         .WithCondition($"{UserFields.Status} = {{0}}", "inactive")
-        .ExecuteAsync();
+        .DeleteAsync();
 }
 catch (ConditionalCheckFailedException)
 {

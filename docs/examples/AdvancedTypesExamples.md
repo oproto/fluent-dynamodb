@@ -44,19 +44,19 @@ var product = new Product
 
 await productTable.Put
     .WithItem(product)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Query and update
-var loaded = await productTable.Get
+var loaded = await productTable.Get<Product>()
     .WithKey("pk", "prod-001")
-    .ExecuteAsync<Product>();
+    .GetItemAsync();
 
 loaded.Item.Metadata["color"] = "red";
 loaded.Item.Metadata["updated"] = DateTime.UtcNow.ToString("O");
 
 await productTable.Put
     .WithItem(loaded.Item)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ### Nested Object Map
@@ -117,7 +117,7 @@ var customer = new Customer
 
 await customerTable.Put
     .WithItem(customer)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ### Complex Nested Maps
@@ -218,26 +218,26 @@ var article = new Article
 
 await articleTable.Put
     .WithItem(article)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Add tags using ADD operation
 var newTags = new HashSet<string> { "beginner", "guide" };
 await articleTable.Update
     .WithKey("pk", "article-001")
     .Set("ADD tags {0}", newTags)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Remove tags using DELETE operation
 var removeTags = new HashSet<string> { "tutorial" };
 await articleTable.Update
     .WithKey("pk", "article-001")
     .Set("DELETE tags {0}", removeTags)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Query articles with specific tag
-await articleTable.Query
+await articleTable.Query<Article>()
     .Where("contains(tags, {0})", "dynamodb")
-    .ExecuteAsync<Article>();
+    .ToListAsync();
 ```
 
 ### Number Set for IDs
@@ -268,13 +268,13 @@ var user = new User
 await userTable.Update
     .WithKey("pk", "user-001")
     .Set("ADD follower_ids {0}", new HashSet<int> { 105 })
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Remove follower
 await userTable.Update
     .WithKey("pk", "user-001")
     .Set("DELETE follower_ids {0}", new HashSet<int> { 102 })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Binary Set for Checksums
@@ -304,7 +304,7 @@ var file = new FileRecord
 
 await fileTable.Put
     .WithItem(file)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ## List Examples
@@ -339,12 +339,12 @@ var order = new Order
 
 await orderTable.Put
     .WithItem(order)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Calculate total
-var loaded = await orderTable.Get
+var loaded = await orderTable.Get<Order>()
     .WithKey("pk", "order-001")
-    .ExecuteAsync<Order>();
+    .GetItemAsync();
 
 decimal total = 0;
 for (int i = 0; i < loaded.Item.ItemIds.Count; i++)
@@ -439,13 +439,13 @@ var session = new Session
 
 await sessionTable.Put
     .WithItem(session)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Extend session
 await sessionTable.Update
     .WithKey("session_id", session.SessionId)
     .Set("SET ttl = {0}", DateTime.UtcNow.AddHours(2))
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Temporary Data Storage
@@ -475,7 +475,7 @@ var tempData = new TempData
 
 await tempTable.Put
     .WithItem(tempData)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ### Cache with Expiration
@@ -572,7 +572,7 @@ var order = new Order
 
 await orderTable.Put
     .WithItem(order)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ### Configuration Storage

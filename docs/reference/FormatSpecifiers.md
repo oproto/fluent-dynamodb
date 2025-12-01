@@ -540,11 +540,11 @@ table.Query().Where($"{UserFields.CreatedAt} > {{0:o}}", date)
 // Before - format specifier in every query
 await table.Query()
     .Where($"{TransactionFields.CreatedAt} > {{0:o}}", date)
-    .ExecuteAsync();
+    .ToListAsync();
 
 await table.Query()
     .Where($"{TransactionFields.CreatedAt} BETWEEN {{0:o}} AND {{1:o}}", start, end)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // After - format defined once on attribute
 [DynamoDbAttribute("created_at", Format = "o")]

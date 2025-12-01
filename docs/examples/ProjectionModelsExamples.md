@@ -287,7 +287,7 @@ public class ProductsTable : DynamoDbTableBase
 // Usage
 var response = await table.CategoryIndex.Query
     .Where("category = {0}", "Electronics")
-    .ExecuteAsync();
+    .ToListAsync();
 // Fetches only: id, name, price, stock_quantity
 ```
 
@@ -347,16 +347,16 @@ public class TransactionsTable : DynamoDbTableBase
 var listItems = await table.StatusIndexMinimal.Query
     .Where("status = {0}", "ACTIVE")
     .Take(100)
-    .ExecuteAsync();
+    .ToListAsync();
 
 var standardItems = await table.StatusIndex.Query
     .Where("status = {0}", "ACTIVE")
     .Take(10)
-    .ExecuteAsync();
+    .ToListAsync();
 
 var fullItems = await table.StatusIndexFull.Query
     .Where("status = {0} AND id = {1}", "ACTIVE", "TXN123")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Type Override Patterns
@@ -404,7 +404,7 @@ public async Task<QueryResponse> QueryTransactions(
     }
     // Otherwise, use index default projection
 
-    return await query.ExecuteAsync();
+    return await query.ToListAsync();
 }
 ```
 

@@ -93,14 +93,14 @@ Type errors caught at compile time, not runtime:
 
 ```csharp
 // Compile-time error (caught during build)
-await table.Get
+await table.Get<User>()
     .WithKey(UserFields.UserId, 123)  // Error: Expected string, got int
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
 // Runtime error (discovered during execution)
-await table.Get
+await table.Get<User>()
     .WithKey("userId", 123)  // Compiles, fails at runtime
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 **Performance Impact:**
@@ -115,9 +115,9 @@ await table.Get
 **✅ Efficient: Specific partition key**
 ```csharp
 // Reads from single partition
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Consumed capacity: ~5 RCUs for 40KB of data
 ```
@@ -128,7 +128,7 @@ var response = await table.Query
 // Note: Requires [Scannable] attribute on table class
 var response = await table.Scan()
     .WithFilter($"{OrderFields.CustomerId} = {{0}}", "customer123")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Consumed capacity: 500+ RCUs for 4MB table
 ```
@@ -145,11 +145,11 @@ var response = await table.Scan()
 // Query with sort key condition
 var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.CustomerId} = {{0}} AND {OrderFields.CreatedAt} > {{1:o}}", 
            OrderKeys.Pk("customer123"), 
            sevenDaysAgo)
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Returns only recent orders
 ```
@@ -157,10 +157,10 @@ var response = await table.Query
 **❌ Inefficient: Filter expression only**
 ```csharp
 // Query all orders, filter in application
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithFilter($"{OrderFields.CreatedAt} > {{0:o}}", sevenDaysAgo)
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Reads all orders, filters after (consumes more RCUs)
 ```
@@ -175,10 +175,10 @@ var response = await table.Query
 **✅ Efficient: Query GSI**
 ```csharp
 // Query by status using GSI
-var response = await table.Query
+var response = await table.Query<Order>()
     .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Efficient: Uses index
 ```
@@ -189,7 +189,7 @@ var response = await table.Query
 // Note: Requires [Scannable] attribute on table class
 var response = await table.Scan()
     .WithFilter($"{OrderFields.Status} = {{0}}", "pending")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Inefficient: Reads entire table
 ```
@@ -210,7 +210,7 @@ var response = await table.Scan()
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithProjection($"{OrderFields.OrderId}, {OrderFields.Total}, {OrderFields.Status}")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Reads: 10KB (3 attributes)
 // Consumed: 2 RCUs
@@ -219,9 +219,9 @@ var response = await table.Query
 **❌ Inefficient: Fetch all attributes**
 ```csharp
 // Fetch entire items
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Reads: 40KB (all attributes)
 // Consumed: 5 RCUs
@@ -240,7 +240,7 @@ var response = await table.Query
 var response = await table.Query
     .Where($"{ProductFields.Category} = {{0}}", "electronics")
     .WithProjection($"{ProductFields.ProductId}, {ProductFields.Name}")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Process lightweight results
 var dropdown = response.Items.Select(item => new
@@ -278,9 +278,9 @@ var users = new List<User>();
 
 foreach (var userId in userIds)
 {
-    var response = await table.Get
+    var response = await table.Get<User>()
         .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-        .ExecuteAsync<User>();
+        .GetItemAsync();
     
     users.Add(response.Item);
 }
@@ -319,7 +319,7 @@ foreach (var order in orders)
 {
     await table.Put
         .WithItem(order)
-        .ExecuteAsync();
+        .PutAsync();
 }
 
 // 25 requests for 25 items
@@ -372,7 +372,7 @@ do
         .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
         .Take(100)  // Page size
         .WithExclusiveStartKey(lastEvaluatedKey)
-        .ExecuteAsync<Order>();
+        .ToListAsync();
     
     allOrders.AddRange(response.Items);
     lastEvaluatedKey = response.LastEvaluatedKey;
@@ -383,9 +383,9 @@ do
 **❌ Inefficient: Fetch all at once**
 ```csharp
 // No pagination - may hit 1MB limit
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // May require multiple round trips internally
 // No control over memory usage
@@ -400,13 +400,13 @@ Choose page size based on item size and use case:
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .Take(1000)  // 1MB / 1KB = 1000 items
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Large items (100KB each): Smaller page size
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .Take(10)  // 1MB / 100KB = 10 items
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 ```
 
 **Guidelines:**
@@ -427,7 +427,7 @@ public async Task<ActionResult<PagedResult<Order>>> GetOrders(
         .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk(customerId))
         .Take(pageSize)
         .WithExclusiveStartKey(cursor)
-        .ExecuteAsync<Order>();
+        .ToListAsync();
     
     return Ok(new PagedResult<Order>
     {
@@ -445,9 +445,9 @@ public async Task<ActionResult<PagedResult<Order>>> GetOrders(
 
 ```csharp
 // Eventually consistent (default)
-var response = await table.Get
+var response = await table.Get<User>()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
 // Cost: 0.5 RCU per 4KB
 // Latency: ~5-10ms
@@ -467,7 +467,7 @@ var response = await table.Get
 var response = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .UsingConsistentRead()
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
 // Cost: 1 RCU per 4KB (2x more expensive)
 // Latency: ~10-15ms
@@ -505,7 +505,7 @@ var response = await table.Get
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Log consumed capacity
 Console.WriteLine($"Consumed capacity: {response.ConsumedCapacity?.CapacityUnits} RCUs");
@@ -528,7 +528,7 @@ if (response.ConsumedCapacity?.GlobalSecondaryIndexes != null)
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithReturnConsumedCapacity(ReturnConsumedCapacity.INDEXES)
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Detailed breakdown
 var capacity = response.ConsumedCapacity;
@@ -554,7 +554,7 @@ public class CapacityMonitoringService
         
         var response = await query
             .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-            .ExecuteAsync();
+            .ToListAsync();
         
         stopwatch.Stop();
         
@@ -661,7 +661,7 @@ public class ShardedWriteService
         
         await table.Put
             .WithItem(evt)
-            .ExecuteAsync();
+            .PutAsync();
     }
     
     public async Task<List<Event>> ReadAllEventsAsync(string basePartitionKey)
@@ -673,9 +673,9 @@ public class ShardedWriteService
             .Select(async shardId =>
             {
                 var pk = $"{basePartitionKey}#{shardId}";
-                var response = await table.Query
+                var response = await table.Query<Event>()
                     .Where($"{EventFields.PartitionKey} = {{0}}", pk)
-                    .ExecuteAsync<Event>();
+                    .ToListAsync();
                 return response.Items;
             });
         
@@ -708,9 +708,9 @@ public class CachedUserService
         }
         
         // Query DynamoDB
-        var response = await _table.Get
+        var response = await _table.Get<User>()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-            .ExecuteAsync<User>();
+            .GetItemAsync();
         
         // Cache result
         if (response.Item != null)
@@ -738,7 +738,7 @@ var daxClient = new ClusterDaxClient(daxConfig);
 var response = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithClient(daxClient)
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
 // Microsecond latency for cached items
 // Millisecond latency for cache misses
@@ -771,12 +771,12 @@ public partial class User
 
 ```csharp
 // ✅ Query with partition key
-await table.Query
+await table.Query<Order>()
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // ❌ Avoid scans (requires [Scannable] attribute)
-await table.Scan().ExecuteAsync();
+await table.Scan().ToListAsync();
 ```
 
 ### 3. Use Batch Operations
@@ -790,7 +790,7 @@ await batchBuilder.ExecuteAsync();
 // ❌ Avoid individual gets in loop
 foreach (var id in ids)
 {
-    await table.Get.WithKey(...).ExecuteAsync();
+    await table.Get<User>().WithKey(...).GetItemAsync();
 }
 ```
 
@@ -801,7 +801,7 @@ foreach (var id in ids)
 await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithProjection($"{OrderFields.OrderId}, {OrderFields.Total}")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### 5. Use Eventually Consistent Reads
@@ -826,7 +826,7 @@ await table.Get
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 Console.WriteLine($"Consumed: {response.ConsumedCapacity?.CapacityUnits} RCUs");
 ```
@@ -850,7 +850,7 @@ if (_cache.TryGetValue(cacheKey, out var cachedValue))
     return cachedValue;
 }
 
-var response = await table.Get.WithKey(...).ExecuteAsync();
+var response = await table.Get<User>().WithKey(...).GetItemAsync();
 _cache.Set(cacheKey, response.Item, TimeSpan.FromMinutes(5));
 ```
 

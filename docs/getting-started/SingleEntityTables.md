@@ -119,18 +119,18 @@ var user = new User
 };
 
 // Option 1: Entity accessor (recommended - no generic parameter needed)
-await usersTable.Users.Put(user).ExecuteAsync();
+await usersTable.Users.Put(user).PutAsync();
 
 // Option 2: Generic method
-await usersTable.Put<User>().WithItem(user).ExecuteAsync();
+await usersTable.Put<User>().WithItem(user).PutAsync();
 
 // Get a user - using entity accessor
-var response = await usersTable.Users.Get("user123").ExecuteAsync();
+var response = await usersTable.Users.Get("user123").GetItemAsync();
 
 // Or with explicit field names (string literals work too!)
 var response = await usersTable.Get<User>()
     .WithKey("pk", "user123")  // Can use string literal instead of User.Fields.UserId
-    .ExecuteAsync();
+    .GetItemAsync();
 
 if (response.Item != null)
 {
@@ -140,15 +140,15 @@ if (response.Item != null)
 // Query users
 var queryResponse = await usersTable.Users.Query()
     .Where($"{User.Fields.UserId} = {{0}}", "user123")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Update a user
 await usersTable.Users.Update("user123")
     .Set($"SET {User.Fields.Name} = {{0}}", "Jane Doe")
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Delete a user
-await usersTable.Users.Delete("user123").ExecuteAsync();
+await usersTable.Users.Delete("user123").DeleteAsync();
 ```
 
 **Entity Accessors:** Generated tables include entity-specific accessors (like `usersTable.Users`) that provide operations without requiring generic type parameters. The accessor methods accept key values directly, making the code cleaner.
@@ -196,17 +196,17 @@ var order = new Order
 
 await ordersTable.Put<Order>()
     .WithItem(order)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Get a specific order (requires both keys)
 var response = await ordersTable.Get<Order>()
     .WithKey(Order.Fields.CustomerId, "customer123", Order.Fields.OrderId, "order456")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Query all orders for a customer
 var customerOrders = await ordersTable.Query<Order>()
     .Where($"{Order.Fields.CustomerId} = {{0}}", "customer123")
-    .ExecuteAsync();
+    .ToListAsync();
 
 foreach (var customerOrder in customerOrders.Items)
 {
@@ -217,7 +217,7 @@ foreach (var customerOrder in customerOrders.Items)
 var recentOrders = await ordersTable.Query<Order>()
     .Where($"{Order.Fields.CustomerId} = {{0}} AND {Order.Fields.OrderId} > {{1}}",
            "customer123", "order400")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Single-Entity Table with GSI
@@ -257,13 +257,13 @@ var productsTable = new ProductsTable(client, "products");
 // Query by primary key
 var product = await productsTable.Get<Product>()
     .WithKey(Product.Fields.ProductId, "prod123")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Query by category using GSI
 var electronicsProducts = await productsTable.Query<Product>()
     .UsingIndex("CategoryIndex")
     .Where($"{Product.Fields.Category} = {{0}}", "Electronics")
-    .ExecuteAsync();
+    .ToListAsync();
 
 foreach (var prod in electronicsProducts.Items)
 {
@@ -301,12 +301,12 @@ Single-entity tables maintain backward compatibility with the previous table gen
 var table = new UsersTable(client, "users");
 
 // All these operations work directly on the table
-await table.Get<User>().WithKey(User.Fields.UserId, "user123").ExecuteAsync();
-await table.Query<User>().Where($"{User.Fields.UserId} = {{0}}", "user123").ExecuteAsync();
-await table.Scan<User>().ExecuteAsync();
-await table.Put<User>().WithItem(user).ExecuteAsync();
-await table.Delete<User>().WithKey(User.Fields.UserId, "user123").ExecuteAsync();
-await table.Update<User>().WithKey(User.Fields.UserId, "user123").Set("SET ...").ExecuteAsync();
+await table.Get<User>().WithKey(User.Fields.UserId, "user123").GetItemAsync();
+await table.Query<User>().Where($"{User.Fields.UserId} = {{0}}", "user123").ToListAsync();
+await table.Scan<User>().ToListAsync();
+await table.Put<User>().WithItem(user).PutAsync();
+await table.Delete<User>().WithKey(User.Fields.UserId, "user123").DeleteAsync();
+await table.Update<User>().WithKey(User.Fields.UserId, "user123").Set("SET ...").UpdateAsync();
 ```
 
 **No Breaking Changes:** If you're upgrading from a previous version, your existing single-entity table code continues to work without modifications.
@@ -323,7 +323,7 @@ var ordersTable = new OrdersTable(client, "orders");
 await DynamoDbTransactions.Write(client)
     .Add(usersTable.Put<User>().WithItem(user))
     .Add(ordersTable.Put<Order>().WithItem(order))
-    .ExecuteAsync();
+    .CommitAsync();
 
 // Batch write operations
 await DynamoDbBatch.Write(client)
@@ -429,7 +429,7 @@ var user = new BlogUser
     Email = "john@example.com",
     EmailLower = "john@example.com"
 };
-await usersTable.Put<BlogUser>().WithItem(user).ExecuteAsync();
+await usersTable.Put<BlogUser>().WithItem(user).PutAsync();
 
 // Create a post
 var post = new BlogPost
@@ -440,7 +440,7 @@ var post = new BlogPost
     AuthorId = "user123",
     AuthorIndexKey = "user123"
 };
-await postsTable.Put<BlogPost>().WithItem(post).ExecuteAsync();
+await postsTable.Put<BlogPost>().WithItem(post).PutAsync();
 
 // Add a comment
 var comment = new BlogComment
@@ -450,24 +450,24 @@ var comment = new BlogComment
     Content = "Great post!",
     AuthorId = "user123"
 };
-await commentsTable.Put<BlogComment>().WithItem(comment).ExecuteAsync();
+await commentsTable.Put<BlogComment>().WithItem(comment).PutAsync();
 
 // Query posts by author
 var authorPosts = await postsTable.Query<BlogPost>()
     .UsingIndex("AuthorIndex")
     .Where($"{BlogPost.Fields.AuthorIndexKey} = {{0}}", "user123")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Query comments for a post
 var postComments = await commentsTable.Query<BlogComment>()
     .Where($"{BlogComment.Fields.PostId} = {{0}}", "post456")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Find user by email
 var userByEmail = await usersTable.Query<BlogUser>()
     .UsingIndex("EmailIndex")
     .Where($"{BlogUser.Fields.EmailLower} = {{0}}", "john@example.com")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## When to Use Single-Entity Tables
@@ -501,10 +501,10 @@ var table = new UsersTable(client, "users");
 
 await table.Get()
     .WithKey(UserFields.UserId, "user123")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 await table.Put(user)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 **No breaking changes** for single-entity tables. The new table generation system is fully backward compatible.

@@ -1,0 +1,961 @@
+# Documentation Changelog
+
+This changelog tracks corrections and updates to the Oproto.FluentDynamoDb documentation.
+
+## Purpose
+
+This file is maintained **separately from the repository `CHANGELOG.md`** to facilitate synchronization with derived documentation maintained by other teams (e.g., website documentation at [fluentdynamodb.dev](https://fluentdynamodb.dev)).
+
+The repository `CHANGELOG.md` tracks code changes, new features, and bug fixes. This file specifically tracks:
+- Documentation corrections (fixing incorrect API references, outdated patterns)
+- Documentation improvements (clarifications, additional examples)
+- Documentation restructuring (file moves, reorganization)
+
+## How to Use This Changelog
+
+### For Documentation Maintainers
+
+When syncing derived documentation:
+1. Note the date of your last sync
+2. Review all entries since that date
+3. Apply the same corrections to your derived documentation
+4. Update your sync date
+
+### Entry Format
+
+Each entry follows this structure:
+
+```markdown
+## [YYYY-MM-DD]
+
+### File: path/to/file.md
+
+**Before:**
+```csharp
+// incorrect code example
+```
+
+**After:**
+```csharp
+// corrected code example
+```
+
+**Reason:** Brief explanation of why this change was made.
+```
+
+### Categories
+
+Entries may be categorized as:
+- **API Correction**: Fixing incorrect method names or signatures
+- **Pattern Update**: Updating code patterns to match current best practices
+- **Clarification**: Adding notes or explanations for clarity
+- **Example Fix**: Correcting code examples that wouldn't compile or work correctly
+
+---
+
+## Changelog Entries
+
+<!-- Add new entries below this line, with most recent at the top -->
+
+## [2025-12-01]
+
+### File: docs/core-features/BasicOperations.md
+
+**Category:** API Correction
+
+**Before:**
+```csharp
+var orderLines = await table.OrderLines.Query()
+    .Where(x => x.OrderId == "order123")
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+var orderLines = await table.OrderLines.Query()
+    .Where(x => x.OrderId == "order123")
+    .ToListAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on QueryRequestBuilder. The correct method is `ToListAsync()` for returning a list of entities.
+
+---
+
+**Before:**
+```csharp
+await table.Put<User>().WithItem(user).ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Put<User>().WithItem(user).PutAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on PutItemRequestBuilder. The correct method is `PutAsync()`.
+
+---
+
+**Before:**
+```csharp
+var response = await table.Get<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+var response = await table.Get<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
+    .GetItemAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on GetItemRequestBuilder. The correct method is `GetItemAsync()`.
+
+---
+
+**Before:**
+```csharp
+var users = await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", User.Keys.Pk("user123"))
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+var users = await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", User.Keys.Pk("user123"))
+    .ToListAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on QueryRequestBuilder. The correct method is `ToListAsync()`.
+
+---
+
+**Before:**
+```csharp
+await table.Delete<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Delete<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .WithKey(User.Fields.ProfileType, User.Keys.Sk("MAIN"))
+    .DeleteAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on DeleteItemRequestBuilder. The correct method is `DeleteAsync()`.
+
+---
+
+**Before:**
+```csharp
+await table.Get<User>()
+    .WithKey(User.Fields.UserId, pk)
+    .WithKey(User.Fields.ProfileType, sk)
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Get<User>()
+    .WithKey(User.Fields.UserId, pk)
+    .WithKey(User.Fields.ProfileType, sk)
+    .GetItemAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on GetItemRequestBuilder. The correct method is `GetItemAsync()`.
+
+---
+
+**Before:**
+```csharp
+var orders = await table.Query<Order>()
+    .UsingIndex(Order.Indexes.StatusIndex)
+    .Where($"{Order.Fields.Status} = {{0}}", Order.Keys.StatusIndex.Pk("pending"))
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+var orders = await table.Query<Order>()
+    .UsingIndex(Order.Indexes.StatusIndex)
+    .Where($"{Order.Fields.Status} = {{0}}", Order.Keys.StatusIndex.Pk("pending"))
+    .ToListAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on QueryRequestBuilder. The correct method is `ToListAsync()`.
+
+---
+
+**Before:**
+```csharp
+await table.Update
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set($"SET {UserFields.Name} = if_not_exists({UserFields.Name}, {{0}})", "Default Name")
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Update
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set($"SET {UserFields.Name} = if_not_exists({UserFields.Name}, {{0}})", "Default Name")
+    .UpdateAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on UpdateItemRequestBuilder. The correct method is `UpdateAsync()`.
+
+---
+
+**Before (Performance Considerations section):**
+```csharp
+.ExecuteAsync<User>()
+// and
+.UsingConsistentRead().ExecuteAsync<User>()
+// and
+await table.Get.WithKey(...).ExecuteAsync();
+// and
+await table.Put.WithItem(user).ExecuteAsync();
+```
+
+**After:**
+```csharp
+.GetItemAsync()
+// and
+.UsingConsistentRead().GetItemAsync()
+// and
+await table.Get.WithKey(...).GetItemAsync();
+// and
+await table.Put.WithItem(user).PutAsync();
+```
+
+**Reason:** Updated generic examples in Performance Considerations and Error Handling sections to use correct method names (`GetItemAsync()`, `PutAsync()`) instead of non-existent `ExecuteAsync()`.
+
+---
+
+### File: docs/core-features/QueryingData.md
+
+**Category:** API Correction
+
+**Before:**
+```csharp
+await table.Query
+    .Where<User>(x => x.UserId == userId && x.SortKey.StartsWith("ORDER#"))
+    .WithFilter<User>(x => x.Status == "ACTIVE" && x.Age >= 18)
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Query
+    .Where<User>(x => x.UserId == userId && x.SortKey.StartsWith("ORDER#"))
+    .WithFilter<User>(x => x.Status == "ACTIVE" && x.Age >= 18)
+    .ToListAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on QueryRequestBuilder. The correct method is `ToListAsync()` for returning a list of entities.
+
+---
+
+**Before:**
+```csharp
+var response = await scannableTable.Scan
+    .ExecuteAsync();
+```
+
+**After:**
+```csharp
+var response = await scannableTable.Scan
+    .ToListAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on ScanRequestBuilder. The correct method is `ToListAsync()`.
+
+---
+
+**Summary of QueryingData.md corrections:**
+- Replaced all `ExecuteAsync()` calls on Query builders with `ToListAsync()`
+- Replaced all `ExecuteAsync()` calls on Scan builders with `ToListAsync()`
+- Updated pagination examples to use `ToListAsync()`
+- Updated GSI query examples to use `ToListAsync()`
+- Updated performance optimization examples to use `ToListAsync()`
+- Total of 35+ ExecuteAsync references corrected
+
+---
+
+## [2025-12-01]
+
+### File: docs/core-features/BasicOperations.md
+
+**Category:** Pattern Update
+
+**Before (Put with Return Values):**
+```csharp
+// Builder API required for return values
+var response = await table.Users.Put(user)
+    .ReturnAllOldValues()
+    .PutAsync();
+
+// Check if an item was replaced
+if (response.Attributes != null && response.Attributes.Count > 0)
+{
+    var oldUser = UserMapper.FromAttributeMap(response.Attributes);
+    Console.WriteLine($"Replaced user: {oldUser.Name}");
+}
+```
+
+**After:**
+```csharp
+// Option 1: Use ToDynamoDbResponseAsync to get the raw AWS SDK response
+var response = await table.Users.Put(user)
+    .ReturnAllOldValues()
+    .ToDynamoDbResponseAsync();
+
+if (response.Attributes != null && response.Attributes.Count > 0)
+{
+    var oldUser = UserMapper.FromAttributeMap(response.Attributes);
+    Console.WriteLine($"Replaced user: {oldUser.Name}");
+}
+
+// Option 2: Primary API populates DynamoDbOperationContext automatically
+await table.Users.Put(user)
+    .ReturnAllOldValues()
+    .PutAsync();
+
+var context = DynamoDbOperationContext.Current;
+if (context?.PreOperationValues != null && context.PreOperationValues.Count > 0)
+{
+    var oldUser = context.DeserializePreOperationValue<User>();
+    // ...
+}
+```
+
+**Reason:** `PutAsync()` returns `Task` (void), not a response object. To access `response.Attributes`, use `ToDynamoDbResponseAsync()` which returns the raw AWS SDK response. Alternatively, use `DynamoDbOperationContext.Current.PreOperationValues` for context-based access. Added warning about AsyncLocal not being suitable for unit testing.
+
+---
+
+**Before (Update with Return Values):**
+```csharp
+var response = await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .ReturnAllNewValues()
+    .UpdateAsync();
+
+var updatedUser = UserMapper.FromAttributeMap(response.Attributes);
+```
+
+**After:**
+```csharp
+// Option 1: Use ToDynamoDbResponseAsync
+var response = await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .ReturnAllNewValues()
+    .ToDynamoDbResponseAsync();
+
+var updatedUser = UserMapper.FromAttributeMap(response.Attributes);
+
+// Option 2: Use context-based access
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .ReturnAllNewValues()
+    .UpdateAsync();
+
+var context = DynamoDbOperationContext.Current;
+var updatedUser = context?.DeserializePostOperationValue<User>();
+```
+
+**Reason:** `UpdateAsync()` returns `Task` (void), not a response object. To access `response.Attributes`, use `ToDynamoDbResponseAsync()`. Added alternative using `DynamoDbOperationContext.Current.PostOperationValues` and warning about AsyncLocal.
+
+---
+
+**Before (Delete with Return Values):**
+```csharp
+var response = await table.Users.Delete("user123")
+    .ReturnAllOldValues()
+    .DeleteAsync();
+
+if (response.Attributes != null && response.Attributes.Count > 0)
+{
+    var deletedUser = UserMapper.FromAttributeMap(response.Attributes);
+    // ...
+}
+```
+
+**After:**
+```csharp
+// Option 1: Use ToDynamoDbResponseAsync
+var response = await table.Users.Delete("user123")
+    .ReturnAllOldValues()
+    .ToDynamoDbResponseAsync();
+
+if (response.Attributes != null && response.Attributes.Count > 0)
+{
+    var deletedUser = UserMapper.FromAttributeMap(response.Attributes);
+    // ...
+}
+
+// Option 2: Use context-based access
+await table.Users.Delete("user123")
+    .ReturnAllOldValues()
+    .DeleteAsync();
+
+var context = DynamoDbOperationContext.Current;
+var deletedUser = context?.DeserializePreOperationValue<User>();
+```
+
+**Reason:** `DeleteAsync()` returns `Task` (void), not a response object. To access `response.Attributes`, use `ToDynamoDbResponseAsync()`. Added alternative using `DynamoDbOperationContext.Current.PreOperationValues` and warning about AsyncLocal.
+
+---
+
+**Before (Mixing Patterns - CreateUserAsync):**
+```csharp
+public async Task<User?> CreateUserAsync(User user)
+{
+    var response = await _table.Users.Put(user)
+        .Where("attribute_not_exists({0})", User.Fields.UserId)
+        .ReturnAllOldValues()
+        .PutAsync();
+    
+    return response.Attributes != null 
+        ? UserMapper.FromAttributeMap(response.Attributes) 
+        : null;
+}
+```
+
+**After:**
+```csharp
+public async Task<User?> CreateUserAsync(User user)
+{
+    var response = await _table.Users.Put(user)
+        .Where("attribute_not_exists({0})", User.Fields.UserId)
+        .ReturnAllOldValues()
+        .ToDynamoDbResponseAsync();
+    
+    return response.Attributes != null 
+        ? UserMapper.FromAttributeMap(response.Attributes) 
+        : null;
+}
+```
+
+**Reason:** Changed `PutAsync()` to `ToDynamoDbResponseAsync()` since the code needs to access `response.Attributes` directly.
+
+
+---
+
+## [2025-12-01]
+
+### File: Oproto.FluentDynamoDb/Requests/DeleteItemRequestBuilder.cs
+
+**Category:** API Correction (XML Documentation)
+
+**Before:**
+```csharp
+/// // Simple delete by primary key
+/// await table.Delete<Transaction>()
+///     .WithKey("id", "user123")
+///     .ExecuteAsync();
+/// 
+/// // Conditional delete with return values
+/// var response = await table.Delete<Transaction>()
+///     .WithKey("pk", "USER", "sk", "user123")
+///     .Where("attribute_exists(#status)")
+///     .WithAttribute("#status", "status")
+///     .ReturnAllOldValues()
+///     .ExecuteAsync();
+```
+
+**After:**
+```csharp
+/// // Simple delete by primary key
+/// await table.Delete<Transaction>()
+///     .WithKey("id", "user123")
+///     .DeleteAsync();
+/// 
+/// // Conditional delete with return values (use ToDynamoDbResponseAsync to access response.Attributes)
+/// var response = await table.Delete<Transaction>()
+///     .WithKey("pk", "USER", "sk", "user123")
+///     .Where("attribute_exists(#status)")
+///     .WithAttribute("#status", "status")
+///     .ReturnAllOldValues()
+///     .ToDynamoDbResponseAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on DeleteItemRequestBuilder. The correct methods are `DeleteAsync()` for void operations and `ToDynamoDbResponseAsync()` when accessing response attributes.
+
+---
+
+### File: Oproto.FluentDynamoDb/Requests/UpdateItemRequestBuilder.cs
+
+**Category:** API Correction (XML Documentation)
+
+**Before:**
+```csharp
+/// // Update specific attributes
+/// var response = await table.Update<Transaction>()
+///     .WithKey("id", "123")
+///     .Set("SET #name = :name, #status = :status")
+///     ...
+///     .ExecuteAsync();
+/// 
+/// // Conditional update
+/// var response = await table.Update<Transaction>()
+///     .WithKey("id", "123")
+///     .Set("SET #count = #count + :inc")
+///     .Where("attribute_exists(id)")
+///     ...
+///     .ExecuteAsync();
+```
+
+**After:**
+```csharp
+/// // Update specific attributes
+/// await table.Update<Transaction>()
+///     .WithKey("id", "123")
+///     .Set("SET #name = :name, #status = :status")
+///     ...
+///     .UpdateAsync();
+/// 
+/// // Conditional update with return values (use ToDynamoDbResponseAsync to access response.Attributes)
+/// var response = await table.Update<Transaction>()
+///     .WithKey("id", "123")
+///     .Set("SET #count = #count + :inc")
+///     .Where("attribute_exists(id)")
+///     ...
+///     .ReturnAllNewValues()
+///     .ToDynamoDbResponseAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on UpdateItemRequestBuilder. The correct methods are `UpdateAsync()` for void operations and `ToDynamoDbResponseAsync()` when accessing response attributes.
+
+---
+
+### File: Oproto.FluentDynamoDb/Requests/PutItemRequestBuilder.cs
+
+**Category:** API Correction (XML Documentation)
+
+**Before:**
+```csharp
+/// // Put an entity
+/// var response = await table.Put<MyEntity>()
+///     .WithItem(myEntity)
+///     .ExecuteAsync();
+/// 
+/// // Put with raw attributes
+/// var response = await table.Put<MyEntity>()
+///     .WithItem(new Dictionary<string, AttributeValue> { ... })
+///     .ExecuteAsync();
+/// 
+/// // Conditional put (only if item doesn't exist)
+/// var response = await table.Put<MyEntity>()
+///     .WithItem(myEntity)
+///     .Where("attribute_not_exists(id)")
+///     .ExecuteAsync();
+```
+
+**After:**
+```csharp
+/// // Put an entity
+/// await table.Put<MyEntity>()
+///     .WithItem(myEntity)
+///     .PutAsync();
+/// 
+/// // Put with raw attributes
+/// await table.Put<MyEntity>()
+///     .WithItem(new Dictionary<string, AttributeValue> { ... })
+///     .PutAsync();
+/// 
+/// // Conditional put with return values (use ToDynamoDbResponseAsync to access response.Attributes)
+/// var response = await table.Put<MyEntity>()
+///     .WithItem(myEntity)
+///     .Where("attribute_not_exists(id)")
+///     .ReturnAllOldValues()
+///     .ToDynamoDbResponseAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on PutItemRequestBuilder. The correct methods are `PutAsync()` for void operations and `ToDynamoDbResponseAsync()` when accessing response attributes. Also corrected the `WithItem<T>` method example.
+
+
+## [2025-12-01]
+
+### File: docs/advanced-topics/CompositeEntities.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+- Replaced `ExecuteAsync<T>()` on Query builders with `Query<T>().ToListAsync()`
+- Replaced `ExecuteAsync<T>()` on Get builders with `Get<T>().GetItemAsync()`
+- Replaced `ExecuteAsync()` on TransactWrite builders with `CommitAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `PutAsync()`, `ToListAsync()`, `GetItemAsync()`, and `CommitAsync()` respectively.
+
+---
+
+### File: docs/advanced-topics/STSIntegration.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync<User>()` on Get builders with `Get<User>().GetItemAsync()`
+- Replaced `ExecuteAsync<User>()` on Query builders with `Query<User>().ToListAsync()`
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Update builders with `UpdateAsync()`
+- Replaced `ExecuteAsync()` on Delete builders with `DeleteAsync()`
+- Replaced `ExecuteAsync()` on TransactWrite builders with `CommitAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `GetItemAsync()`, `ToListAsync()`, `PutAsync()`, `UpdateAsync()`, `DeleteAsync()`, and `CommitAsync()` respectively.
+
+---
+
+### File: docs/advanced-topics/MultiEntityTables.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+- Replaced `ExecuteAsync()` on Get builders with `GetItemAsync()`
+- Replaced `ExecuteAsync()` on TransactWrite builders with `CommitAsync()`
+- Replaced `ExecuteAsync()` on Scan builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `PutAsync()`, `ToListAsync()`, `GetItemAsync()`, `CommitAsync()` respectively.
+
+---
+
+### File: docs/advanced-topics/Discriminators.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync<User>()` on Query builders with `Query<User>().ToListAsync()`
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `ToListAsync()` and `PutAsync()` respectively.
+
+---
+
+### File: docs/advanced-topics/PerformanceOptimization.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync<T>()` on Get builders with `Get<T>().GetItemAsync()`
+- Replaced `ExecuteAsync<T>()` on Query builders with `Query<T>().ToListAsync()`
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Scan builders with `ToListAsync()`
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `GetItemAsync()`, `ToListAsync()`, and `PutAsync()` respectively. Note: `ExecuteAsync()` is correct for BatchGetItemRequestBuilder and BatchWriteItemRequestBuilder.
+
+
+
+---
+
+### File: docs/examples/AdvancedTypesExamples.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Update builders with `UpdateAsync()`
+- Replaced `ExecuteAsync<T>()` on Get builders with `Get<T>().GetItemAsync()`
+- Replaced `ExecuteAsync<T>()` on Query builders with `Query<T>().ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `PutAsync()`, `UpdateAsync()`, `GetItemAsync()`, and `ToListAsync()` respectively.
+
+---
+
+### File: docs/examples/ProjectionModelsExamples.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on QueryRequestBuilder. The correct method is `ToListAsync()`.
+
+---
+
+### File: docs/examples/EntitySpecificBuildersExamples.md
+
+**Category:** Pattern Update
+
+**Summary of corrections:**
+- Changed `UpdateAsync()` to `ToDynamoDbResponseAsync()` when accessing `response.Attributes`
+
+**Reason:** `UpdateAsync()` returns `Task` (void), not a response object. To access `response.Attributes`, use `ToDynamoDbResponseAsync()` which returns the raw AWS SDK response.
+
+
+
+---
+
+### File: docs/getting-started/Installation.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on PutItemRequestBuilder. The correct method is `PutAsync()`.
+
+---
+
+### File: docs/getting-started/QuickStart.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Get builders with `GetItemAsync()`
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Update builders with `UpdateAsync()`
+- Replaced `ExecuteAsync()` on Delete builders with `DeleteAsync()`
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `GetItemAsync()`, `PutAsync()`, `UpdateAsync()`, `DeleteAsync()`, and `ToListAsync()` respectively.
+
+---
+
+### File: docs/getting-started/FirstEntity.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Get builders with `GetItemAsync()`
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Update builders with `UpdateAsync()`
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `GetItemAsync()`, `PutAsync()`, `UpdateAsync()`, and `ToListAsync()` respectively.
+
+---
+
+### File: docs/getting-started/SingleEntityTables.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Get builders with `GetItemAsync()`
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Update builders with `UpdateAsync()`
+- Replaced `ExecuteAsync()` on Delete builders with `DeleteAsync()`
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+- Replaced `ExecuteAsync()` on Scan builders with `ToListAsync()`
+- Replaced `ExecuteAsync()` on DynamoDbTransactions.Write with `CommitAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `GetItemAsync()`, `PutAsync()`, `UpdateAsync()`, `DeleteAsync()`, `ToListAsync()`, and `CommitAsync()` respectively. Note: `ExecuteAsync()` is correct for DynamoDbBatch.Write and DynamoDbBatch.Get.
+
+
+
+---
+
+### File: docs/reference/LoggingTroubleshooting.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on QueryRequestBuilder. The correct method is `ToListAsync()`. Note: `ExecuteAsync()` is correct for BatchGet operations.
+
+---
+
+### File: docs/reference/FormatSpecifiers.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on QueryRequestBuilder. The correct method is `ToListAsync()`. Note: Many ExecuteAsync references remain in this file for Update and Delete operations that need further review.
+
+---
+
+### File: docs/reference/ApiImprovementsMigration.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on PutItemRequestBuilder. The correct method is `PutAsync()`. Note: Many ExecuteAsync references remain in this file for Query operations that need further review.
+
+---
+
+### File: docs/reference/AdoptionGuide.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on PutItemRequestBuilder. The correct method is `PutAsync()`.
+
+---
+
+### File: docs/reference/AdvancedTypesQuickReference.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Update builders with `UpdateAsync()`
+- Replaced `ExecuteAsync()` on Query builders with `ToListAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `UpdateAsync()` and `ToListAsync()` respectively.
+
+---
+
+### File: docs/reference/ErrorHandling.md
+
+**Category:** API Correction
+
+**Summary of corrections:**
+- Replaced `ExecuteAsync()` on Put builders with `PutAsync()`
+- Replaced `ExecuteAsync()` on Update builders with `UpdateAsync()`
+- Replaced `ExecuteAsync()` on Delete builders with `DeleteAsync()`
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are `PutAsync()`, `UpdateAsync()`, and `DeleteAsync()` respectively.
+
+---
+
+### File: docs/SourceGeneratorGuide.md
+
+**Category:** API Correction
+
+**Before:**
+```csharp
+// Introduction text
+The Oproto.FluentDynamoDb source generator automatically creates entity mapping code, field constants, key builders, and enhanced ExecuteAsync methods...
+
+// Put operation
+await transactionsTable.Put(transaction)
+    .ExecuteAsync();
+
+// Get operation
+var response = await transactionsTable.Get()
+    .WithKey(TransactionFields.TenantId, TransactionKeys.Pk("tenant123"))
+    .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk("txn456"))
+    .ExecuteAsync();
+
+// Multi-entity Put operations
+await ecommerceTable.Orders.Put(order)
+    .ExecuteAsync();
+await ecommerceTable.OrderLines.Put(orderLine)
+    .ExecuteAsync();
+
+// Query operations
+var orders = await ecommerceTable.Orders.Query()
+    .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
+    .ExecuteAsync();
+
+// Manual pattern Get
+var response = await table.Get()
+    .WithKey(...)
+    .ExecuteAsync<Transaction>();
+
+// Query with strongly-typed results
+var queryResponse = await table.Query()
+    .Where($"{TransactionFields.TenantId} = :pk", new { pk = TransactionKeys.Pk("tenant123") })
+    .ExecuteAsync<Transaction>();
+
+// GSI Query
+var statusResponse = await table.Query<Transaction>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Transaction.Fields.Status} = {{0}}", "pending")
+    .ExecuteAsync<Transaction>();
+
+// Multi-item entity query
+var response = await table.Query()
+    .Where(...)
+    .ExecuteAsync<TransactionWithEntries>();
+
+// STS scoped client
+var response = await _table.Get()
+    .WithClient(scopedClient)
+    .WithKey(...)
+    .ExecuteAsync<Transaction>();
+
+// FluentResults integration
+var result = await table.Get()
+    .WithKey(...)
+    .ExecuteAsync<Transaction>();
+
+// Migration guide
+3. Replace manual mapping code with generated `ExecuteAsync<T>()` calls
+```
+
+**After:**
+```csharp
+// Introduction text
+The Oproto.FluentDynamoDb source generator automatically creates entity mapping code, field constants, key builders, and type-safe async methods...
+
+// Put operation
+await transactionsTable.Put(transaction)
+    .PutAsync();
+
+// Get operation
+var transaction = await transactionsTable.Get()
+    .WithKey(TransactionFields.TenantId, TransactionKeys.Pk("tenant123"))
+    .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk("txn456"))
+    .GetItemAsync();
+
+// Multi-entity Put operations
+await ecommerceTable.Orders.Put(order)
+    .PutAsync();
+await ecommerceTable.OrderLines.Put(orderLine)
+    .PutAsync();
+
+// Query operations
+var orders = await ecommerceTable.Orders.Query()
+    .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
+    .ToListAsync();
+
+// Manual pattern Get
+var response = await table.Get<Transaction>()
+    .WithKey(...)
+    .GetItemAsync();
+
+// Query with strongly-typed results
+var transactions = await table.Query<Transaction>()
+    .Where($"{TransactionFields.TenantId} = :pk", new { pk = TransactionKeys.Pk("tenant123") })
+    .ToListAsync();
+
+// GSI Query
+var pendingTransactions = await table.Query<Transaction>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Transaction.Fields.Status} = {{0}}", "pending")
+    .ToListAsync();
+
+// Multi-item entity query
+var transactionsWithEntries = await table.Query<TransactionWithEntries>()
+    .Where(...)
+    .ToListAsync();
+
+// STS scoped client
+var transaction = await _table.Get<Transaction>()
+    .WithClient(scopedClient)
+    .WithKey(...)
+    .GetItemAsync();
+
+// FluentResults integration
+var result = await table.Get<Transaction>()
+    .WithKey(...)
+    .GetItemAsync();
+
+// Migration guide
+3. Replace manual mapping code with generated type-safe async methods (`GetItemAsync()`, `PutAsync()`, `ToListAsync()`, etc.)
+```
+
+**Reason:** `ExecuteAsync()` does not exist on these request builders. The correct methods are:
+- `PutAsync()` for PutItemRequestBuilder
+- `GetItemAsync()` for GetItemRequestBuilder
+- `ToListAsync()` for QueryRequestBuilder and ScanRequestBuilder
+- Updated introduction text to reflect accurate terminology
+- Updated migration guide to reference correct method names
+

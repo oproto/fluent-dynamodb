@@ -215,7 +215,7 @@ public partial class User
 await table.Query<User>()
     .Where($"{User.Fields.UserId} = {{0}}", "user123")
     .WithFilter($"{User.Fields.Email} = {{0}}", "john@example.com")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Benefits:**
@@ -250,7 +250,7 @@ var key = User.Keys.Pk("user123");  // Returns "USER#user123"
 // Use in operations
 await table.Get<User>()
     .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 **Benefits:**
@@ -314,7 +314,7 @@ public partial class User
 // Usage
 await table.Get<User>()
     .WithKey(User.Fields.UserId, "user123")
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 ### Pattern 2: Composite Key Entity
@@ -341,7 +341,7 @@ public partial class Order
 // Usage - requires both partition and sort key
 await table.Get<Order>()
     .WithKey(Order.Fields.CustomerId, "customer123", Order.Fields.OrderId, "order456")
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 ### Pattern 3: Computed Keys (Format Strings)
@@ -497,18 +497,18 @@ var user = new User
     }
 };
 
-await table.Put<User>().WithItem(user).ExecuteAsync();
+await table.Put<User>().WithItem(user).PutAsync();
 
 // Retrieve user using generated fields
 var response = await table.Get<User>()
     .WithKey(User.Fields.UserId, "user123", User.Fields.RecordType, "PROFILE")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Query with filter using generated fields
 var activeUsers = await table.Query<User>()
     .Where($"{User.Fields.UserId} = {{0}}", "user123")
     .WithFilter($"{User.Fields.Status} = {{0}}", "active")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Update using generated fields
 await table.Update<User>()
@@ -516,7 +516,7 @@ await table.Update<User>()
     .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## Best Practices

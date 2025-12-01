@@ -127,7 +127,7 @@ await table.Put
         [OrderFields.OrderDate] = new AttributeValue { S = order.OrderDate.ToString("o") },
         [OrderFields.Status] = new AttributeValue { S = order.Status }
     })
-    .ExecuteAsync();
+    .PutAsync();
 
 // Store each item separately
 foreach (var (item, index) in order.Items.Select((item, i) => (item, i)))
@@ -142,7 +142,7 @@ foreach (var (item, index) in order.Items.Select((item, i) => (item, i)))
             ["quantity"] = new AttributeValue { N = item.Quantity.ToString() },
             ["price"] = new AttributeValue { N = item.Price.ToString() }
         })
-        .ExecuteAsync();
+        .PutAsync();
 }
 ```
 
@@ -155,7 +155,7 @@ Query all items for an order using the partition key:
 // Query all items for the order
 var response = await table.Query
     .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Group items by sort key pattern
 var orderHeader = response.Items
@@ -400,9 +400,9 @@ public List<OrderItem>? Items { get; set; }
 **✅ Efficient: Single Query for Composite Entity**
 ```csharp
 // One query retrieves all related items
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // All related entities populated automatically
 var order = response.Items.First();
@@ -412,16 +412,16 @@ Console.WriteLine($"Order has {order.Items?.Count ?? 0} items");
 **❌ Inefficient: Multiple Queries**
 ```csharp
 // Avoid: Multiple round trips to DynamoDB
-var orderHeader = await table.Get
+var orderHeader = await table.Get<Order>()
     .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
     .WithKey(OrderFields.SortKey, "METADATA")
-    .ExecuteAsync<Order>();
+    .GetItemAsync();
 
 // Separate query for each item type
 var items = await table.Query
     .Where($"{OrderFields.OrderId} = {{0}} AND begins_with({OrderFields.SortKey}, {{1}})", 
            OrderKeys.Pk("order123"), "ITEM#")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Item Size Limits
@@ -456,10 +456,10 @@ Querying composite entities consumes read capacity based on:
 // Eventually consistent: 5 RCUs (40KB / 8KB, rounded up)
 // Strongly consistent: 10 RCUs (40KB / 4KB, rounded up)
 
-var response = await table.Query
+var response = await table.Query<Order>()
     .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
     .UsingConsistentRead()  // Optional: Use strongly consistent reads
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 ```
 
 ### Pagination for Large Collections
@@ -476,7 +476,7 @@ do
         .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
         .Take(100)  // Limit items per page
         .WithExclusiveStartKey(lastEvaluatedKey)
-        .ExecuteAsync();
+        .ToListAsync();
     
     // Process items
     var pageItems = response.Items
@@ -677,9 +677,9 @@ PK: CUSTOMER#123       SK: PREFERENCES       → Preferences
 
 ```csharp
 // Query customer with all related data
-var response = await table.Query
+var response = await table.Query<Customer>()
     .Where($"{CustomerFields.CustomerId} = {{0}}", CustomerKeys.Pk("customer123"))
-    .ExecuteAsync<Customer>();
+    .ToListAsync();
 
 var customer = response.Items.First();
 
@@ -871,7 +871,7 @@ foreach (var item in order.Items)
     txnBuilder.Put(table, builder => builder.WithItem(/* item */));
 }
 
-await txnBuilder.ExecuteAsync();
+await txnBuilder.CommitAsync();
 ```
 
 ### 5. Consider Item Count Limits
@@ -889,7 +889,7 @@ do
         .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
         .Take(100)
         .WithExclusiveStartKey(lastKey)
-        .ExecuteAsync();
+        .ToListAsync();
     
     // Process page
     allItems.AddRange(/* extract items */);
