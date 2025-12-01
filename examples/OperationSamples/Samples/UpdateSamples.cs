@@ -15,8 +15,9 @@ public static class UpdateSamples
 
     /// <summary>
     /// Raw AWS SDK approach - explicit expression strings and AttributeValue dictionaries.
+    /// Uses ReturnValues to get the updated item for equivalency demonstration.
     /// </summary>
-    public static async Task<UpdateItemResponse> RawSdkUpdateAsync(
+    public static async Task<Order?> RawSdkUpdateAsync(
         IAmazonDynamoDB client, string orderId, string newStatus, DateTime modifiedAt)
     {
         var request = new UpdateItemRequest
@@ -37,10 +38,26 @@ public static class UpdateSamples
             {
                 [":status"] = new AttributeValue { S = newStatus },
                 [":modified"] = new AttributeValue { S = modifiedAt.ToString("o") }
-            }
+            },
+            ReturnValues = ReturnValue.ALL_NEW
         };
 
-        return await client.UpdateItemAsync(request);
+        var response = await client.UpdateItemAsync(request);
+
+        if (response.Attributes == null || response.Attributes.Count == 0)
+            return null;
+
+        // Manual conversion of updated item to domain model
+        return new Order
+        {
+            Pk = response.Attributes["pk"].S,
+            Sk = response.Attributes["sk"].S,
+            OrderId = response.Attributes["orderId"].S,
+            CustomerId = response.Attributes["customerId"].S,
+            OrderDate = DateTime.Parse(response.Attributes["orderDate"].S),
+            Status = response.Attributes["orderStatus"].S,
+            TotalAmount = decimal.Parse(response.Attributes["totalAmount"].N)
+        };
     }
 
     /// <summary>
@@ -74,15 +91,17 @@ public static class UpdateSamples
     }
 
     /// <summary>
-    /// FluentDynamoDb lambda expression - uses entity accessor with key parameters.
+    /// FluentDynamoDb lambda expression - uses entity accessor with strongly-typed Set().
+    /// Note: Uses Status property which exists on Order entity (modifiedAt would need to be added to entity).
     /// </summary>
     public static async Task FluentLambdaUpdateAsync(
         OrdersTable table, string orderId, string newStatus, DateTime modifiedAt)
     {
         await table.Orders.Update(Order.CreatePk(orderId), Order.CreateSk())
-            .Set("SET #status = {0}, #modified = {1:o}", newStatus, modifiedAt)
-            .WithAttribute("#status", "orderStatus")
-            .WithAttribute("#modified", "modifiedAt")
+            .Set(x => new OrderUpdateModel
+            {
+                Status = newStatus
+            })
             .UpdateAsync();
     }
 }

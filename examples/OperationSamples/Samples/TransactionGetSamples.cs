@@ -16,9 +16,9 @@ public static class TransactionGetSamples
 
     /// <summary>
     /// Raw AWS SDK approach - full verbose implementation showing explicit request construction.
-    /// This demonstrates the verbosity required for transaction gets without any abstraction.
+    /// Manually converts response items to domain models for equivalency.
     /// </summary>
-    public static async Task<TransactGetItemsResponse> RawSdkTransactionGetAsync(
+    public static async Task<(Order?, OrderLine?)> RawSdkTransactionGetAsync(
         IAmazonDynamoDB client, string orderId, string lineId)
     {
         var request = new TransactGetItemsRequest
@@ -52,7 +52,43 @@ public static class TransactionGetSamples
             }
         };
 
-        return await client.TransactGetItemsAsync(request);
+        var response = await client.TransactGetItemsAsync(request);
+
+        // Manual conversion of response items to domain models
+        Order? order = null;
+        OrderLine? orderLine = null;
+
+        if (response.Responses.Count > 0 && response.Responses[0].Item?.Count > 0)
+        {
+            var item = response.Responses[0].Item;
+            order = new Order
+            {
+                Pk = item["pk"].S,
+                Sk = item["sk"].S,
+                OrderId = item["orderId"].S,
+                CustomerId = item["customerId"].S,
+                OrderDate = DateTime.Parse(item["orderDate"].S),
+                Status = item["orderStatus"].S,
+                TotalAmount = decimal.Parse(item["totalAmount"].N)
+            };
+        }
+
+        if (response.Responses.Count > 1 && response.Responses[1].Item?.Count > 0)
+        {
+            var item = response.Responses[1].Item;
+            orderLine = new OrderLine
+            {
+                Pk = item["pk"].S,
+                Sk = item["sk"].S,
+                LineId = item["lineId"].S,
+                ProductId = item["productId"].S,
+                ProductName = item["productName"].S,
+                Quantity = int.Parse(item["quantity"].N),
+                UnitPrice = decimal.Parse(item["unitPrice"].N)
+            };
+        }
+
+        return (order, orderLine);
     }
 
     /// <summary>

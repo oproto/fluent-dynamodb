@@ -42,21 +42,21 @@
   - [x] 6.2 Create BatchWriteSamples.cs with RawSdkBatchWriteAsync (full verbose SDK), FluentManualBatchWriteAsync, FluentFormattedBatchWriteAsync, FluentLambdaBatchWriteAsync methods demonstrating multiple item types
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.2, 5.10, 7.2, 7.3_
 
-- [ ] 7. Refine samples for full equivalency and proper lambda expressions
-  - [ ] 7.1 Update RawSdk methods to return domain models by manually converting AWS SDK responses
+- [x] 7. Refine samples for full equivalency and proper lambda expressions
+  - [x] 7.1 Update RawSdk methods to return domain models by manually converting AWS SDK responses
     - Add manual conversion from AttributeValue dictionaries to domain models
     - _Requirements: 8.1, 8.2_
-  - [ ] 7.2 Create OrderUpdateModel class for lambda expression Set() operations
+  - [x] 7.2 Create OrderUpdateModel class for lambda expression Set() operations
     - Add update model with nullable properties for Status, ModifiedAt, TotalAmount
     - _Requirements: 9.1_
-  - [ ] 7.3 Update FluentLambdaUpdateAsync to use Set(x => new OrderUpdateModel { ... }) syntax
+  - [x] 7.3 Update FluentLambdaUpdateAsync to use Set(x => new OrderUpdateModel { ... }) syntax
     - Replace format string Set() with lambda expression Set()
     - _Requirements: 9.1_
-  - [ ] 7.4 Update FluentLambdaTransactionWriteAsync to use proper lambda expressions
+  - [x] 7.4 Update FluentLambdaTransactionWriteAsync to use proper lambda expressions
     - Use Set(x => new OrderUpdateModel { ... }) for updates
     - Use Where(x => x.Pk.AttributeNotExists()) and Where(x => x.Pk.AttributeExists()) for conditions
     - _Requirements: 9.1, 9.2_
-  - [ ] 7.5 Verify express-route methods are used in FluentLambda samples
+  - [x] 7.5 Verify express-route methods are used in FluentLambda samples
     - Confirm PutAsync(entity), GetAsync(key), DeleteAsync(key) patterns are used
     - _Requirements: 9.3_
 

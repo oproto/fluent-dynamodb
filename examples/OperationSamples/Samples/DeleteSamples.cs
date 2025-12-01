@@ -15,8 +15,9 @@ public static class DeleteSamples
 
     /// <summary>
     /// Raw AWS SDK approach - explicit AttributeValue dictionaries for key specification.
+    /// Uses ReturnValues to get the deleted item for equivalency demonstration.
     /// </summary>
-    public static async Task<DeleteItemResponse> RawSdkDeleteAsync(IAmazonDynamoDB client, string orderId)
+    public static async Task<Order?> RawSdkDeleteAsync(IAmazonDynamoDB client, string orderId)
     {
         var request = new DeleteItemRequest
         {
@@ -25,10 +26,26 @@ public static class DeleteSamples
             {
                 ["pk"] = new AttributeValue { S = $"ORDER#{orderId}" },
                 ["sk"] = new AttributeValue { S = "META" }
-            }
+            },
+            ReturnValues = ReturnValue.ALL_OLD
         };
 
-        return await client.DeleteItemAsync(request);
+        var response = await client.DeleteItemAsync(request);
+
+        if (response.Attributes == null || response.Attributes.Count == 0)
+            return null;
+
+        // Manual conversion of deleted item to domain model
+        return new Order
+        {
+            Pk = response.Attributes["pk"].S,
+            Sk = response.Attributes["sk"].S,
+            OrderId = response.Attributes["orderId"].S,
+            CustomerId = response.Attributes["customerId"].S,
+            OrderDate = DateTime.Parse(response.Attributes["orderDate"].S),
+            Status = response.Attributes["orderStatus"].S,
+            TotalAmount = decimal.Parse(response.Attributes["totalAmount"].N)
+        };
     }
 
     /// <summary>

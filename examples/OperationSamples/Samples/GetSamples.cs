@@ -14,9 +14,9 @@ public static class GetSamples
     private const string TableName = "Orders";
 
     /// <summary>
-    /// Raw AWS SDK approach - explicit AttributeValue dictionaries and manual request construction.
+    /// Raw AWS SDK approach - explicit AttributeValue dictionaries and manual response conversion.
     /// </summary>
-    public static async Task<GetItemResponse> RawSdkGetAsync(IAmazonDynamoDB client, string orderId)
+    public static async Task<Order?> RawSdkGetAsync(IAmazonDynamoDB client, string orderId)
     {
         var request = new GetItemRequest
         {
@@ -28,7 +28,22 @@ public static class GetSamples
             }
         };
 
-        return await client.GetItemAsync(request);
+        var response = await client.GetItemAsync(request);
+
+        if (response.Item == null || response.Item.Count == 0)
+            return null;
+
+        // Manual conversion to domain model
+        return new Order
+        {
+            Pk = response.Item["pk"].S,
+            Sk = response.Item["sk"].S,
+            OrderId = response.Item["orderId"].S,
+            CustomerId = response.Item["customerId"].S,
+            OrderDate = DateTime.Parse(response.Item["orderDate"].S),
+            Status = response.Item["orderStatus"].S,
+            TotalAmount = decimal.Parse(response.Item["totalAmount"].N)
+        };
     }
 
     /// <summary>

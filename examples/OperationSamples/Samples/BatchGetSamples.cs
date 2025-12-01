@@ -16,9 +16,9 @@ public static class BatchGetSamples
 
     /// <summary>
     /// Raw AWS SDK approach - full verbose implementation showing explicit request construction.
-    /// This demonstrates the verbosity required for batch gets without any abstraction.
+    /// Manually converts response items to domain models for equivalency.
     /// </summary>
-    public static async Task<BatchGetItemResponse> RawSdkBatchGetAsync(
+    public static async Task<(Order?, OrderLine?, OrderLine?)> RawSdkBatchGetAsync(
         IAmazonDynamoDB client, string orderId, string lineId1, string lineId2)
     {
         var request = new BatchGetItemRequest
@@ -49,7 +49,61 @@ public static class BatchGetSamples
             }
         };
 
-        return await client.BatchGetItemAsync(request);
+        var response = await client.BatchGetItemAsync(request);
+
+        // Manual conversion of response items to domain models
+        Order? order = null;
+        OrderLine? line1 = null;
+        OrderLine? line2 = null;
+
+        if (response.Responses.TryGetValue(TableName, out var items))
+        {
+            foreach (var item in items)
+            {
+                var sk = item["sk"].S;
+                if (sk == "META")
+                {
+                    order = new Order
+                    {
+                        Pk = item["pk"].S,
+                        Sk = item["sk"].S,
+                        OrderId = item["orderId"].S,
+                        CustomerId = item["customerId"].S,
+                        OrderDate = DateTime.Parse(item["orderDate"].S),
+                        Status = item["orderStatus"].S,
+                        TotalAmount = decimal.Parse(item["totalAmount"].N)
+                    };
+                }
+                else if (sk == $"LINE#{lineId1}")
+                {
+                    line1 = new OrderLine
+                    {
+                        Pk = item["pk"].S,
+                        Sk = item["sk"].S,
+                        LineId = item["lineId"].S,
+                        ProductId = item["productId"].S,
+                        ProductName = item["productName"].S,
+                        Quantity = int.Parse(item["quantity"].N),
+                        UnitPrice = decimal.Parse(item["unitPrice"].N)
+                    };
+                }
+                else if (sk == $"LINE#{lineId2}")
+                {
+                    line2 = new OrderLine
+                    {
+                        Pk = item["pk"].S,
+                        Sk = item["sk"].S,
+                        LineId = item["lineId"].S,
+                        ProductId = item["productId"].S,
+                        ProductName = item["productName"].S,
+                        Quantity = int.Parse(item["quantity"].N),
+                        UnitPrice = decimal.Parse(item["unitPrice"].N)
+                    };
+                }
+            }
+        }
+
+        return (order, line1, line2);
     }
 
     /// <summary>

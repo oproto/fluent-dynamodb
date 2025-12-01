@@ -15,8 +15,9 @@ public static class ScanSamples
 
     /// <summary>
     /// Raw AWS SDK approach - explicit FilterExpression and AttributeValue dictionaries.
+    /// Manually converts response items to domain models for equivalency.
     /// </summary>
-    public static async Task<ScanResponse> RawSdkScanAsync(IAmazonDynamoDB client, string status)
+    public static async Task<List<Order>> RawSdkScanAsync(IAmazonDynamoDB client, string status)
     {
         var request = new ScanRequest
         {
@@ -33,7 +34,19 @@ public static class ScanSamples
             }
         };
 
-        return await client.ScanAsync(request);
+        var response = await client.ScanAsync(request);
+
+        // Manual conversion of items to domain models
+        return response.Items.Select(item => new Order
+        {
+            Pk = item["pk"].S,
+            Sk = item["sk"].S,
+            OrderId = item["orderId"].S,
+            CustomerId = item["customerId"].S,
+            OrderDate = DateTime.Parse(item["orderDate"].S),
+            Status = item["orderStatus"].S,
+            TotalAmount = decimal.Parse(item["totalAmount"].N)
+        }).ToList();
     }
 
     /// <summary>

@@ -15,8 +15,9 @@ public static class QuerySamples
 
     /// <summary>
     /// Raw AWS SDK approach - explicit KeyConditionExpression and AttributeValue dictionaries.
+    /// Manually converts response items to domain models for equivalency.
     /// </summary>
-    public static async Task<QueryResponse> RawSdkQueryAsync(IAmazonDynamoDB client, string orderId)
+    public static async Task<List<OrderLine>> RawSdkQueryAsync(IAmazonDynamoDB client, string orderId)
     {
         var request = new QueryRequest
         {
@@ -29,7 +30,19 @@ public static class QuerySamples
             }
         };
 
-        return await client.QueryAsync(request);
+        var response = await client.QueryAsync(request);
+
+        // Manual conversion of items to domain models
+        return response.Items.Select(item => new OrderLine
+        {
+            Pk = item["pk"].S,
+            Sk = item["sk"].S,
+            LineId = item["lineId"].S,
+            ProductId = item["productId"].S,
+            ProductName = item["productName"].S,
+            Quantity = int.Parse(item["quantity"].N),
+            UnitPrice = decimal.Parse(item["unitPrice"].N)
+        }).ToList();
     }
 
     /// <summary>

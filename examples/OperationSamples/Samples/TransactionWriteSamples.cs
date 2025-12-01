@@ -143,7 +143,8 @@ public static class TransactionWriteSamples
     }
 
     /// <summary>
-    /// FluentDynamoDb lambda expression - uses entity accessors with strongly-typed operations.
+    /// FluentDynamoDb lambda expression - uses entity accessors with strongly-typed Set().
+    /// Note: Transaction builders use format strings for Where() conditions.
     /// </summary>
     public static async Task FluentLambdaTransactionWriteAsync(
         OrdersTable table,
@@ -156,8 +157,7 @@ public static class TransactionWriteSamples
             .Add(table.OrderLines.Put(newLine)
                 .Where("attribute_not_exists(pk)"))
             .Add(table.Orders.Update(Order.CreatePk(orderId), Order.CreateSk())
-                .Set("SET #total = {0}", newTotal)
-                .WithAttribute("#total", "totalAmount")
+                .Set(x => new OrderUpdateModel { TotalAmount = newTotal })
                 .Where("attribute_exists(pk)"))
             .Add(table.OrderLines.Delete(OrderLine.CreatePk(orderId), OrderLine.CreateSk(deleteLineId))
                 .Where("attribute_exists(pk)"))
