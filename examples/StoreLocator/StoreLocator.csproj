@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>12.0</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+        <ProjectReference Include="..\..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false" />
+        <ProjectReference Include="..\..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
+        <ProjectReference Include="..\Examples.Shared\Examples.Shared.csproj" />
+    </ItemGroup>
+
+</Project>

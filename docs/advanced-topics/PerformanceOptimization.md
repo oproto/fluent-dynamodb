@@ -176,7 +176,7 @@ var response = await table.Query
 ```csharp
 // Query by status using GSI
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 

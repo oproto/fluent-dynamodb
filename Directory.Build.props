@@ -19,8 +19,8 @@
     <!-- Common package metadata -->
     <Authors>Oproto</Authors>
     <Copyright>Copyright © Oproto</Copyright>
-    <PackageProjectUrl>https://github.com/oproto/Oproto.FluentDynamoDb</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/oproto/Oproto.FluentDynamoDb</RepositoryUrl>
+    <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <IncludeSymbols>true</IncludeSymbols>

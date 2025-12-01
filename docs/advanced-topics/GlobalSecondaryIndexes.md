@@ -198,7 +198,7 @@ await table.Get
 
 // Use GSI fields
 await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 ```
@@ -234,7 +234,7 @@ var dateKey = OrderKeys.StatusIndex.Sk(DateTime.UtcNow);  // Returns ISO 8601 ti
 
 // Use in query
 await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", 
            OrderKeys.StatusIndex.Pk("pending"))
     .ExecuteAsync<Order>();
@@ -285,7 +285,7 @@ var gsiKey = EventKeys.TenantTypeIndex.Pk("tenant123", "LOGIN");
 
 // Use in query
 await table.Query
-    .WithIndex(EventIndexes.TenantTypeIndex)
+    .UsingIndex(EventIndexes.TenantTypeIndex)
     .Where($"{EventFields.TenantTypeIndex.TenantTypeKey} = {{0}}", 
            EventKeys.TenantTypeIndex.Pk("tenant123", "LOGIN"))
     .ExecuteAsync<Event>();
@@ -300,7 +300,7 @@ Query a GSI using expression formatting:
 ```csharp
 // Query orders by status
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 
@@ -319,7 +319,7 @@ Query with sort key conditions:
 var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}} AND {OrderFields.StatusIndex.CreatedAt} > {{1:o}}", 
            "pending", 
            sevenDaysAgo)
@@ -333,7 +333,7 @@ Add filter expressions for additional filtering:
 ```csharp
 // Query pending orders over $100
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .WithFilter($"{OrderFields.Total} > {{0}}", 100.00m)
     .ExecuteAsync<Order>();
@@ -352,7 +352,7 @@ string? lastEvaluatedKey = null;
 do
 {
     var response = await table.Query
-        .WithIndex(OrderIndexes.StatusIndex)
+        .UsingIndex(OrderIndexes.StatusIndex)
         .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
         .Take(100)
         .WithExclusiveStartKey(lastEvaluatedKey)
@@ -387,7 +387,7 @@ When using KEYS_ONLY or INCLUDE projections, only projected attributes are retur
 // GSI configured with KEYS_ONLY projection
 // Only returns: pk, status, createdAt
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 
@@ -402,7 +402,7 @@ To get full items when using sparse projections:
 ```csharp
 // Step 1: Query GSI for keys
 var gsiResponse = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 
@@ -443,7 +443,7 @@ var fullItems = await batchGetBuilder.ExecuteAsync();
 // Omits: large description field, metadata
 
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 
@@ -484,7 +484,7 @@ public partial class Task
 var nextWeek = DateTime.UtcNow.AddDays(7);
 
 var response = await table.Query
-    .WithIndex(TaskIndexes.StatusIndex)
+    .UsingIndex(TaskIndexes.StatusIndex)
     .Where($"{TaskFields.StatusIndex.Status} = {{0}} AND {TaskFields.StatusIndex.DueDate} < {{1:o}}", 
            "pending", 
            nextWeek)
@@ -521,7 +521,7 @@ public partial class Document
 
 ```csharp
 var response = await table.Query
-    .WithIndex(DocumentIndexes.TenantIndex)
+    .UsingIndex(DocumentIndexes.TenantIndex)
     .Where($"{DocumentFields.TenantIndex.TenantId} = {{0}}", 
            DocumentKeys.TenantIndex.Pk("tenant123"))
     .ScanIndexForward(false)  // Descending order
@@ -559,7 +559,7 @@ public partial class User
 ```csharp
 // Only items with premiumStatus != null are in the index
 var response = await table.Query
-    .WithIndex(UserIndexes.PremiumIndex)
+    .UsingIndex(UserIndexes.PremiumIndex)
     .Where($"{UserFields.PremiumIndex.PremiumStatus} = {{0}}", "active")
     .ExecuteAsync<User>();
 ```
@@ -616,7 +616,7 @@ var followers = await table.Query
 
 // Pattern 2: Get all users that a user is following (GSI)
 var following = await table.Query
-    .WithIndex(RelationshipIndexes.InvertedIndex)
+    .UsingIndex(RelationshipIndexes.InvertedIndex)
     .Where($"{RelationshipFields.InvertedIndex.InvertedPk} = {{0}}", 
            RelationshipKeys.InvertedIndex.Pk("user123"))
     .ExecuteAsync<Relationship>();
@@ -654,7 +654,7 @@ public partial class Product
 
 ```csharp
 var response = await table.Query
-    .WithIndex(ProductIndexes.CategoryStatusIndex)
+    .UsingIndex(ProductIndexes.CategoryStatusIndex)
     .Where($"{ProductFields.CategoryStatusIndex.CategoryStatusKey} = {{0}}", 
            ProductKeys.CategoryStatusIndex.Pk("electronics", "active"))
     .ExecuteAsync<Product>();
@@ -671,7 +671,7 @@ GSI queries consume read capacity from the GSI, not the main table:
 ```csharp
 // Consumes RCUs from StatusIndex
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 ```
@@ -722,13 +722,13 @@ GSIs consume additional storage:
 ```csharp
 // Good: Specific partition key
 await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 
 // Good: Partition key + sort key range
 await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}} AND {OrderFields.StatusIndex.CreatedAt} > {{1:o}}", 
            "pending", sevenDaysAgo)
     .ExecuteAsync<Order>();
@@ -739,13 +739,13 @@ await table.Query
 // Bad: Scan entire GSI (no partition key)
 // Note: Requires [Scannable] attribute on table class
 var response = await table.Scan()
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .WithFilter($"{OrderFields.Total} > {{0}}", 100.00m)
     .ExecuteAsync();
 
 // Bad: Filter expression does heavy lifting
 await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .WithFilter($"{OrderFields.CustomerId} = {{0}} AND {OrderFields.Total} > {{1}}", 
                 "customer123", 100.00m)
@@ -767,7 +767,7 @@ public string CustomerStatusKey { get; set; } = string.Empty;
 
 // Query efficiently
 await table.Query
-    .WithIndex(OrderIndexes.CustomerStatusIndex)
+    .UsingIndex(OrderIndexes.CustomerStatusIndex)
     .Where($"{OrderFields.CustomerStatusIndex.CustomerStatusKey} = {{0}}", 
            OrderKeys.CustomerStatusIndex.Pk("customer123", "pending"))
     .ExecuteAsync<Order>();
@@ -790,7 +790,7 @@ public string? ErrorCode { get; set; }  // null for successful items
 ```csharp
 // ✅ Good - KEYS_ONLY for lookup, then batch get
 var keys = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 
@@ -823,7 +823,7 @@ public string StatusDateKey { get; set; } = string.Empty;
 ```csharp
 // Monitor consumed capacity
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
     .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
     .ExecuteAsync<Order>();

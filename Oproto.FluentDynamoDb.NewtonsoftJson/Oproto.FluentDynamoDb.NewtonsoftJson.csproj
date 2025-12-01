@@ -17,7 +17,7 @@
         <Description>Newtonsoft.Json serialization support for Oproto.FluentDynamoDb. Provides JSON serialization for complex objects stored in DynamoDB. Note: This package uses runtime reflection and has limited AOT compatibility. For full AOT support, use Oproto.FluentDynamoDb.SystemTextJson instead.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;json;newtonsoft;fluent;serialization</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -17,7 +17,7 @@
         <Description>AWS KMS-based field-level encryption for Oproto.FluentDynamoDb. Provides transparent encryption and decryption of sensitive fields using AWS Encryption SDK with KMS keyring support.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;kms;encryption;field-level-encryption;security;aot</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

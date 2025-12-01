@@ -570,7 +570,7 @@ public static class UserFields
 ```csharp
 // Query by email using GSI
 var response = await table.Query
-    .WithIndex(UserIndexes.EmailIndex)
+    .UsingIndex(UserIndexes.EmailIndex)
     .Where($"{UserFields.Email} = {{0}}", "john@example.com")
     .ExecuteAsync<User>();
 ```
@@ -601,7 +601,7 @@ public partial class Order
 ```csharp
 // Query orders by status, sorted by creation date
 var response = await table.Query
-    .WithIndex(OrderIndexes.StatusIndex)
+    .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.Status} = {{0}}", "pending")
     .ExecuteAsync<Order>();
 ```

@@ -1,0 +1,198 @@
+# Implementation Plan
+
+- [x] 1. Set up shared infrastructure and project structure
+  - [x] 1.1 Delete the existing examples/BasicUsage project and its contents
+    - Remove the outdated BasicUsage folder
+    - _Requirements: 1.1_
+  - [x] 1.2 Create Examples.Shared project with DynamoDbSetup class
+    - Create `examples/Examples.Shared/Examples.Shared.csproj` with project references to FluentDynamoDb
+    - Implement `DynamoDbSetup.CreateLocalClient()` returning IAmazonDynamoDB configured for localhost:8000
+    - Implement `DynamoDbSetup.EnsureTableExistsAsync()` that checks for table existence before creating
+    - Handle ResourceInUseException gracefully for idempotent table creation
+    - _Requirements: 1.2, 1.3_
+  - [x] 1.3 Create ConsoleHelpers class for interactive menu UI
+    - Implement `ShowMenu()` that displays numbered options and reads keyboard input via Console.ReadLine
+    - Implement `GetInput()` for string input with validation
+    - Implement `DisplayTable()` for formatted tabular output with column alignment
+    - Implement `ShowSuccess()` and `ShowError()` for consistent feedback messages
+    - Ensure error messages don't expose stack traces
+    - _Requirements: 1.5, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
+  - [x] 1.4 Add example projects to the main solution file
+    - Add Examples.Shared, TodoList, InvoiceManager, TransactionDemo, and StoreLocator to Oproto.FluentDynamoDb.sln
+    - Organize under an "Examples" solution folder
+    - _Requirements: 1.1, 1.4_
+  - [x] 1.5 Write property test for idempotent table creation
+    - **Property 1: Idempotent Table Creation**
+    - **Validates: Requirements 1.2**
+
+- [x] 2. Implement TodoList application
+  - [x] 2.1 Create TodoList project structure and entity
+    - Create `examples/TodoList/TodoList.csproj` with project references
+    - Create `TodoItem` entity with `[Scannable]` attribute, partition key, description, isComplete, createdAt, completedAt
+    - Add XML documentation comments explaining attribute usage
+    - _Requirements: 2.1, 2.7, 7.2_
+  - [x] 2.2 Create TodoTable class with CRUD operations
+    - Implement table class extending DynamoDbTableBase
+    - Implement `AddAsync()` that creates item with unique ID, false completion status, and current timestamp
+    - Implement `GetAllAsync()` using scan operation
+    - Implement `MarkCompleteAsync()` that sets isComplete=true and completedAt timestamp
+    - Implement `EditDescriptionAsync()` that updates only description
+    - Implement `DeleteAsync()` that removes item
+    - Add comments explaining access patterns and scannable table usage
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 7.3_
+  - [x] 2.3 Implement TodoList Program.cs with interactive menu
+    - Create main menu with options: Add, List, Complete, Edit, Delete, Exit
+    - Implement list display showing incomplete items first, then completed, sorted by creation date
+    - Show both lambda expression and format string query alternatives in comments
+    - _Requirements: 2.6, 6.4, 6.7, 7.4_
+  - [x] 2.4 Create TodoList README.md
+    - Document demonstrated features (CRUD, scannable tables)
+    - Include instructions to run the example
+    - _Requirements: 7.1_
+  - [x] 2.5 Write property tests for TodoItem operations
+    - **Property 2: Todo Item Creation Completeness**
+    - **Property 3: Todo List Retrieval Completeness**
+    - **Property 4: Todo Completion State Transition**
+    - **Property 5: Todo Description Edit Preservation**
+    - **Property 6: Todo Deletion Removes Item**
+    - **Property 7: Todo List Sort Order**
+    - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6**
+
+- [x] 3. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 4. Implement InvoiceManager application
+  - [x] 4.1 Create InvoiceManager project structure and entities
+    - Create `examples/InvoiceManager/InvoiceManager.csproj` with project references
+    - Create `Customer` entity with pk="CUSTOMER#{customerId}", sk="PROFILE"
+    - Create `Invoice` entity with pk="CUSTOMER#{customerId}", sk="INVOICE#{invoiceNumber}", and `[ExtractedAttribute]` Lines property
+    - Create `InvoiceLine` entity with pk="CUSTOMER#{customerId}", sk="INVOICE#{invoiceNumber}#LINE#{lineNumber}"
+    - Add XML documentation comments explaining single-table design
+    - _Requirements: 3.1, 3.2, 3.3, 7.2_
+  - [x] 4.2 Create InvoiceTable class with query operations
+    - Implement table class extending DynamoDbTableBase
+    - Implement `CreateCustomerAsync()` with correct key format
+    - Implement `CreateInvoiceAsync()` with correct key format
+    - Implement `AddLineItemAsync()` with correct key format
+    - Implement `GetCompleteInvoiceAsync()` using single query with begins_with and ToComplexEntity
+    - Implement `GetCustomerInvoicesAsync()` that returns only Invoice entities (not lines)
+    - Add comments explaining key design and access patterns
+    - _Requirements: 3.4, 3.5, 3.7, 7.3_
+  - [x] 4.3 Implement InvoiceManager Program.cs with interactive menu
+    - Create main menu with options: Create Customer, Create Invoice, Add Line Item, View Invoice, List Customer Invoices, Exit
+    - Display invoice with customer info, header, all lines, and calculated total
+    - Show both lambda expression and format string query alternatives in comments
+    - _Requirements: 3.6, 6.4, 6.7, 7.4_
+  - [x] 4.4 Create InvoiceManager README.md
+    - Document demonstrated features (single-table design, ToComplexEntity, hierarchical keys)
+    - Include instructions to run the example
+    - _Requirements: 7.1_
+  - [x] 4.5 Write property tests for Invoice key formats and queries
+    - **Property 8: Customer Key Format**
+    - **Property 9: Invoice Key Format**
+    - **Property 10: Invoice Line Key Format**
+    - **Property 11: Single Query Invoice Retrieval**
+    - **Property 12: Complex Entity Assembly**
+    - **Property 13: Invoice Total Calculation**
+    - **Property 14: Customer Invoice Listing**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7**
+
+- [x] 5. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 6. Implement TransactionDemo application
+  - [x] 6.1 Create TransactionDemo project structure and entities
+    - Prefer lambda expressions over string expressions
+    - Create `examples/TransactionDemo/TransactionDemo.csproj` with project references
+    - Create `Account` entity with pk="ACCOUNT#{accountId}", sk="PROFILE"
+    - Create `TransactionRecord` entity with pk="ACCOUNT#{accountId}", sk="TXN#{timestamp}#{txnId}"
+    - Add XML documentation comments
+    - _Requirements: 7.2_
+  - [x] 6.2 Implement FluentDynamoDb transaction method
+    - Create method that executes 25 put operations using DynamoDbTransactions.Write
+    - Use fluent builder pattern with table.Put<T>().WithItem()
+    - Record line count and execution time
+    - _Requirements: 4.1_
+  - [x] 6.3 Implement raw SDK transaction method
+    - Create method that executes identical 25 put operations using only AWS SDK
+    - Build TransactWriteItemsRequest manually with Dictionary<string, AttributeValue>
+    - Record line count and execution time
+    - _Requirements: 4.2_
+  - [x] 6.4 Implement TransactionDemo Program.cs with interactive menu
+    - Create main menu with options: Run FluentDynamoDb Transaction, Run Raw SDK Transaction, Compare Results, Demonstrate Failure Rollback, Exit
+    - Display line count comparison between approaches
+    - Display execution time for both approaches
+    - Verify all 25 items exist after successful transaction
+    - Demonstrate rollback by showing no items written on failure
+    - _Requirements: 4.3, 4.4, 4.5, 4.6, 6.4, 6.7_
+  - [x] 6.5 Create TransactionDemo README.md
+    - Document demonstrated features (transactions, code comparison)
+    - Include instructions to run the example
+    - _Requirements: 7.1_
+  - [x] 6.6 Write property tests for transaction atomicity
+    - **Property 15: Transaction Atomicity Success**
+    - **Property 16: Transaction Atomicity Failure**
+    - **Validates: Requirements 4.4, 4.5**
+
+- [x] 7. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 8. Implement StoreLocator application
+  - [x] 8.1 Create StoreLocator project structure and GeoHash entity
+    - Create `examples/StoreLocator/StoreLocator.csproj` with project references including Geospatial
+    - Create `StoreGeoHash` entity with pk="STORE", sk="{geohash}#{storeId}", GeoLocation with GeoHashPrecision=7
+    - Add XML documentation comments explaining geospatial attributes
+    - _Requirements: 5.3, 7.2_
+  - [x] 8.2 Create S2 entity with multiple precision GeoLocation properties
+    - Create `StoreS2` entity with pk="STORE", sk="{s2_l16}#{storeId}"
+    - Add LocationL16 (S2Level=16), LocationL14 (S2Level=14), LocationL12 (S2Level=12) properties
+    - Configure GSIs for L14 and L12 with composite sort keys
+    - _Requirements: 5.4, 5.8_
+  - [x] 8.3 Create H3 entity with multiple precision GeoLocation properties
+    - Create `StoreH3` entity with pk="STORE", sk="{h3_r9}#{storeId}"
+    - Add LocationR9 (H3Resolution=9), LocationR7 (H3Resolution=7), LocationR5 (H3Resolution=5) properties
+    - Configure GSIs for R7 and R5 with composite sort keys
+    - _Requirements: 5.5, 5.8_
+  - [x] 8.4 Create store seed data for San Francisco Bay Area
+    - Create `StoreSeedData` class with 50+ predefined store locations
+    - Define Bay Area bounding box (37.2 to 37.9 lat, -122.6 to -121.8 lon)
+    - Include realistic store names and addresses
+    - _Requirements: 5.1_
+  - [x] 8.5 Create StoreLocatorTable classes for each index type
+    - Implement GeoHash table with proximity search using BETWEEN
+    - Implement S2 table with adaptive precision selection based on radius
+    - Implement H3 table with adaptive precision selection based on radius
+    - Track and expose query count for comparison
+    - _Requirements: 5.2, 5.6, 5.8, 7.3_
+  - [x] 8.6 Implement StoreLocator Program.cs with interactive menu
+    - Create main menu with options: Seed Data, Search GeoHash, Search S2, Search H3, Compare All, Exit
+    - Prompt for search center coordinates and radius
+    - Display results sorted by distance with name, address, distance, and cell identifier
+    - Show query count for each approach
+    - Show both lambda expression and format string query alternatives in comments
+    - _Requirements: 5.2, 5.6, 5.7, 6.4, 6.7, 7.4_
+  - [x] 8.7 Create StoreLocator README.md
+    - Document demonstrated features (geospatial queries, index comparison, adaptive precision)
+    - Include instructions to run the example
+    - Explain when to use each index type
+    - _Requirements: 7.1_
+  - [x] 8.8 Write property tests for spatial search
+    - **Property 17: Spatial Search Distance Ordering**
+    - **Property 18: Store Display Completeness**
+    - **Property 19: Adaptive Precision Selection**
+    - **Validates: Requirements 5.2, 5.7, 5.8**
+
+- [x] 9. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 10. Create test project and error handling property test
+  - [x] 10.1 Create Examples.Tests project
+    - Create `examples/Examples.Tests/Examples.Tests.csproj` with FsCheck and xUnit references
+    - Add project references to all example projects
+    - _Requirements: 1.4_
+  - [x] 10.2 Write property test for error message safety
+    - **Property 20: Error Message Safety**
+    - **Validates: Requirements 6.5**
+
+- [x] 11. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

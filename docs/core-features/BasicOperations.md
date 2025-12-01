@@ -224,7 +224,7 @@ public partial class Order
 
 // Query GSI with generated key builders
 var orders = await table.Query<Order>()
-    .WithIndex(Order.Indexes.StatusIndex)
+    .UsingIndex(Order.Indexes.StatusIndex)
     .Where($"{Order.Fields.Status} = {{0}}", Order.Keys.StatusIndex.Pk("pending"))
     .ExecuteAsync();
 ```
