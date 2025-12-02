@@ -244,29 +244,6 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </example>
     public ConditionCheckBuilder<TEntity> ConditionCheck<TEntity>() where TEntity : class => 
         new ConditionCheckBuilder<TEntity>(DynamoDbClient, Name);
-    
-    /// <summary>
-    /// Creates a new Scan operation builder for this table.
-    /// Use this to scan all items in the table or apply filters.
-    /// </summary>
-    /// <returns>A ScanRequestBuilder configured for this table.</returns>
-    /// <example>
-    /// <code>
-    /// // Basic scan
-    /// var results = await table.Scan&lt;MyEntity&gt;()
-    ///     .ExecuteAsync();
-    /// 
-    /// // Scan with filter
-    /// var results = await table.Scan&lt;MyEntity&gt;()
-    ///     .WithFilter("status = {0}", "ACTIVE")
-    ///     .ExecuteAsync();
-    /// </code>
-    /// </example>
-    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
-        new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
-
-
-
 
 
     /// <summary>

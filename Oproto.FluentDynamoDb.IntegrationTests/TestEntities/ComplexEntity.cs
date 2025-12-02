@@ -8,6 +8,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 /// </summary>
 [DynamoDbEntity]
 [DynamoDbTable("test-complex-entity")]
+[Scannable]
 public partial class ComplexEntity
 {
     [PartitionKey]

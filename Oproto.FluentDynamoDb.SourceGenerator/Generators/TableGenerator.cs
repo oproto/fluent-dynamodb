@@ -74,6 +74,9 @@ internal static class TableGenerator
             GenerateTableLevelOperations(sb, defaultEntity);
         }
         
+        // Generate generic Scan<TEntity>() methods for all scannable entities
+        GenerateGenericScanMethods(sb, entities);
+        
         // Index properties (from default entity or first entity)
         var entityForIndexes = defaultEntity ?? primaryEntity;
         GenerateIndexProperties(sb, entityForIndexes, tableClassName);
@@ -2158,5 +2161,35 @@ internal static class TableGenerator
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Generates generic Scan&lt;TEntity&gt;() method if any entity in the table has [Scannable].
+    /// This replaces the hardcoded Scan&lt;TEntity&gt;() method that was removed from DynamoDbTableBase.
+    /// If any entity opts in to scanning, the table gets the generic method.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append to.</param>
+    /// <param name="entities">The list of entities in this table.</param>
+    private static void GenerateGenericScanMethods(StringBuilder sb, List<EntityModel> entities)
+    {
+        // If any entity has [Scannable], generate the generic Scan<TEntity>() method
+        var hasScannableEntity = entities.Any(e => e.IsScannable);
+        
+        if (!hasScannableEntity)
+        {
+            return;
+        }
+        
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a new Scan operation builder for this table.");
+        sb.AppendLine($"    /// ");
+        sb.AppendLine($"    /// WARNING: Scan operations read every item in a table or index and can be very expensive.");
+        sb.AppendLine($"    /// Use Query operations instead whenever possible.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <typeparam name=\"TEntity\">The entity type to scan for.</typeparam>");
+        sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;TEntity&gt; configured for this table.</returns>");
+        sb.AppendLine($"    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>");
+        sb.AppendLine($"        new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
+        sb.AppendLine();
     }
 }

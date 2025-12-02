@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
 using Oproto.FluentDynamoDb.Geospatial.GeoHash;
+using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 using StoreLocator.Entities;
@@ -21,6 +22,14 @@ public class StoreGeoHashTable : DynamoDbTableBase
     {
         LocationIndex = new DynamoDbIndex(this, "geohash-index");
     }
+
+    /// <summary>
+    /// Creates a new Scan operation builder for this table.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to scan.</typeparam>
+    /// <returns>A ScanRequestBuilder configured for this table.</returns>
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
 
     public async Task<StoreGeoHash> AddStoreAsync(string storeId, string name, string address, GeoLocation location)
     {
