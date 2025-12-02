@@ -22,6 +22,7 @@ namespace FluentDynamoDb.OperationSamples.Models;
 [DynamoDbEntity]
 [DynamoDbTable("Orders", IsDefault = true)]
 [GenerateEntityProperty(Name = "Orders")]
+[Scannable]
 public partial class Order : IDynamoDbEntity
 {
     /// <summary>
@@ -61,6 +62,12 @@ public partial class Order : IDynamoDbEntity
     /// </summary>
     [DynamoDbAttribute("orderStatus")]
     public string Status { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the date when the order was placed.
+    /// </summary>
+    [DynamoDbAttribute("modifiedAt")]
+    public DateTime ModifiedAt { get; set; }
 
     /// <summary>
     /// Gets or sets the total amount of the order.

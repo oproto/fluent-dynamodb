@@ -92,7 +92,6 @@ public static class UpdateSamples
 
     /// <summary>
     /// FluentDynamoDb lambda expression - uses entity accessor with strongly-typed Set().
-    /// Note: Uses Status property which exists on Order entity (modifiedAt would need to be added to entity).
     /// </summary>
     public static async Task FluentLambdaUpdateAsync(
         OrdersTable table, string orderId, string newStatus, DateTime modifiedAt)
@@ -100,7 +99,8 @@ public static class UpdateSamples
         await table.Orders.Update(Order.CreatePk(orderId), Order.CreateSk())
             .Set(x => new OrderUpdateModel
             {
-                Status = newStatus
+                Status = newStatus,
+                ModifiedAt = modifiedAt
             })
             .UpdateAsync();
     }

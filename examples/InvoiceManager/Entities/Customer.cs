@@ -38,6 +38,7 @@ namespace InvoiceManager.Entities;
 [DynamoDbEntity]
 [DynamoDbTable("invoices", IsDefault = true)]
 [GenerateEntityProperty(Name = "Customers")]
+[Scannable]
 public partial class Customer : IDynamoDbEntity
 {
     /// <summary>

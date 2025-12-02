@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Examples.Shared;
 using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 using TransactionDemo.Entities;
@@ -182,6 +183,9 @@ public class TransactionAtomicityPropertyTests
         public TestTransactionTable(IAmazonDynamoDB client) : base(client, TestTableName)
         {
         }
+
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+            new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
 
         public async Task<int> CountAllItemsAsync()
         {

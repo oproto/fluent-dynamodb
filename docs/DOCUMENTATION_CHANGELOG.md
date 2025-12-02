@@ -59,6 +59,43 @@ Entries may be categorized as:
 
 ## [2025-12-01]
 
+### File: docs/core-features/QueryingData.md, docs/getting-started/SingleEntityTables.md
+
+**Category:** Pattern Update - Scan Opt-In Pattern
+
+**Before:**
+```csharp
+// Scan was available on all tables via base class
+var allOrders = await table.Scan<Order>().ToListAsync();
+```
+
+**After:**
+```csharp
+// Scan now requires [Scannable] attribute on the entity
+[DynamoDbEntity]
+[DynamoDbTable("Orders")]
+[Scannable]  // Required for Scan operations
+public partial class Order : IDynamoDbEntity { ... }
+
+// Then use entity accessor or table method (if default entity)
+var allOrders = await table.Orders.Scan().ToListAsync();
+// Or for default entity:
+var allOrders = await table.Scan().ToListAsync();
+// Generic method still works when entity has [Scannable]:
+var allOrders = await table.Scan<Order>().ToListAsync();
+```
+
+**Reason:** Scan operations are expensive and not a recommended DynamoDB access pattern. The `table.Scan<TEntity>()` method has been removed from `DynamoDbTableBase` to enforce an opt-in pattern. Developers must now explicitly add the `[Scannable]` attribute to entities that need Scan support. This prevents accidental table scans and encourages proper access pattern design.
+
+**Migration Steps:**
+1. Add `[Scannable]` attribute to entities that require Scan operations
+2. Update code from `table.Scan<TEntity>()` to use entity accessor `table.Entitys.Scan()` or `table.Scan()` for default entity
+3. The generic `table.Scan<TEntity>()` method is still available when the entity has `[Scannable]` attribute
+
+---
+
+## [2025-12-01]
+
 ### File: docs/core-features/BasicOperations.md
 
 **Category:** API Correction

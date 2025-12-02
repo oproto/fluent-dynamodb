@@ -26,6 +26,7 @@ namespace TransactionDemo.Entities;
 [DynamoDbEntity]
 [DynamoDbTable("transaction-demo", IsDefault = true)]
 [GenerateEntityProperty(Name = "Accounts")]
+[Scannable]
 public partial class Account : IDynamoDbEntity
 {
     /// <summary>

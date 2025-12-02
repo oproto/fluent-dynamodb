@@ -300,6 +300,7 @@ public class SingleEntityTableTests : IntegrationTestBase
 /// Test entity for single-entity table tests.
 /// </summary>
 [DynamoDbTable("single-entity-test")]
+[Scannable]
 public partial class SingleEntityTestEntity
 {
     [PartitionKey]

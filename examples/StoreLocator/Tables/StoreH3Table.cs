@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
+using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 using StoreLocator.Entities;
@@ -61,6 +62,14 @@ public class StoreH3Table : DynamoDbTableBase
         MediumIndex = new DynamoDbIndex(this, "h3-index-medium");
         CoarseIndex = new DynamoDbIndex(this, "h3-index-coarse");
     }
+
+    /// <summary>
+    /// Creates a new Scan operation builder for this table.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to scan.</typeparam>
+    /// <returns>A ScanRequestBuilder configured for this table.</returns>
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
 
     /// <summary>
     /// Adds a store with spatial indices at all three precision levels.

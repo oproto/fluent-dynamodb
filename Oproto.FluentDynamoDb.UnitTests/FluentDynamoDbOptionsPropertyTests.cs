@@ -4,6 +4,7 @@ using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests;
@@ -324,6 +325,13 @@ internal class TestTableForLoggerPropagation : DynamoDbTableBase
     /// Exposes the logger for testing purposes.
     /// </summary>
     public IDynamoDbLogger GetLoggerForTest() => Logger;
+    
+    /// <summary>
+    /// Creates a new Scan operation builder for this table.
+    /// Added for testing purposes to verify Scan builder creation.
+    /// </summary>
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 }
 
 /// <summary>
@@ -919,6 +927,13 @@ internal class TestTableForDefaultOptions : DynamoDbTableBase
     /// Exposes the field encryptor for testing purposes.
     /// </summary>
     public IFieldEncryptor? GetEncryptorForTest() => FieldEncryptor;
+    
+    /// <summary>
+    /// Creates a new Scan operation builder for this table.
+    /// Added for testing purposes to verify Scan builder creation.
+    /// </summary>
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 }
 
 /// <summary>
