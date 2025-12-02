@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
+using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 
@@ -15,7 +16,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Trait("Feature", "OperationContext")]
 public class OperationContextIntegrationTests : IntegrationTestBase
 {
-    private DynamoDbTableBase _table = null!;
+    private TestTable _table = null!;
     
     public OperationContextIntegrationTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
@@ -895,5 +896,8 @@ public class OperationContextIntegrationTests : IntegrationTestBase
             : base(client, tableName)
         {
         }
+        
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+            new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
     }
 }

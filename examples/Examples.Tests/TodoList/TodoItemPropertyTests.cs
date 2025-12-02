@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Examples.Shared;
+using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 using TodoList.Entities;
@@ -422,6 +423,9 @@ public class TodoItemPropertyTests
         public TestTodoTable(IAmazonDynamoDB client) : base(client, TestTableName)
         {
         }
+
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+            new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
 
         public async Task<TodoItem> AddAsync(string description)
         {

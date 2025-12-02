@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# 
+#
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb", "Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj", "{988B3792-D039-496B-99D7-5362FC913AF0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.UnitTests", "Oproto.FluentDynamoDb.UnitTests\Oproto.FluentDynamoDb.UnitTests.csproj", "{950913A4-B4B1-42B0-97B3-FDBE7B692004}"
@@ -67,6 +67,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StoreLocator", "examples\StoreLocator\StoreLocator.csproj", "{E21EC5C1-D69F-43FF-9C54-25A83C89670B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Examples.Tests", "examples\Examples.Tests\Examples.Tests.csproj", "{5828F8E9-4A2E-4E03-BD93-6B4C4FA51D79}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OperationSamples", "examples\OperationSamples\OperationSamples.csproj", "{774AAFD6-31BF-47B3-868C-C73D369D49FA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -194,6 +196,10 @@ Global
 		{5828F8E9-4A2E-4E03-BD93-6B4C4FA51D79}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5828F8E9-4A2E-4E03-BD93-6B4C4FA51D79}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5828F8E9-4A2E-4E03-BD93-6B4C4FA51D79}.Release|Any CPU.Build.0 = Release|Any CPU
+		{774AAFD6-31BF-47B3-868C-C73D369D49FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{774AAFD6-31BF-47B3-868C-C73D369D49FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{774AAFD6-31BF-47B3-868C-C73D369D49FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{774AAFD6-31BF-47B3-868C-C73D369D49FA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E69E2710-6FE5-4BFB-8028-4A13D115C405} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
@@ -202,5 +208,6 @@ Global
 		{C1EF782A-CEE7-438B-8457-03B73DCD0151} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
 		{E21EC5C1-D69F-43FF-9C54-25A83C89670B} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
 		{5828F8E9-4A2E-4E03-BD93-6B4C4FA51D79} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
+		{774AAFD6-31BF-47B3-868C-C73D369D49FA} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
 	EndGlobalSection
 EndGlobal

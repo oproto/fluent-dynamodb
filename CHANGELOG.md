@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+- **Scan Opt-In Pattern** - Scan operations now require explicit opt-in via `[Scannable]` attribute
+  - Removed generic `Scan<TEntity>()` method from `DynamoDbTableBase` to prevent accidental table scans
+  - Scan operations are expensive and not a recommended DynamoDB access pattern
+  - Entities must now have `[Scannable]` attribute to enable Scan operations
+  - Use entity accessor `table.Entitys.Scan()` or `table.Scan()` for default entity
+  - Generic `table.Scan<TEntity>()` method is still available when entity has `[Scannable]` attribute
+  - _Requirements: 1.1_
+  
+  **Migration:**
+  ```csharp
+  // Before: Scan was always available
+  var allOrders = await table.Scan<Order>().ToListAsync();
+  
+  // After: Add [Scannable] attribute to entity
+  [DynamoDbEntity]
+  [Scannable]  // Required for Scan operations
+  public partial class Order : IDynamoDbEntity { ... }
+  
+  // Then use entity accessor
+  var allOrders = await table.Orders.Scan().ToListAsync();
+  ```
+
+### Added
+- **Lambda Expression Where() for Put and Delete** - Type-safe condition expressions for Put and Delete operations
+  - Added `Where<TEntity>(Expression<Func<TEntity, bool>>)` extension method for `PutItemRequestBuilder<TEntity>`
+  - Added `Where<TEntity>(Expression<Func<TEntity, bool>>)` extension method for `DeleteItemRequestBuilder<TEntity>`
+  - Supports `AttributeExists()` and `AttributeNotExists()` extension methods in lambda expressions
+  - Supports comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`) in lambda expressions
+  - Consistent API across all request builders (Query, Update, Put, Delete)
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2_
+  
+  **Usage Examples:**
+  ```csharp
+  // Conditional put - only if item doesn't exist
+  await table.Orders.Put(order)
+      .Where(x => x.Pk.AttributeNotExists())
+      .PutAsync();
+  
+  // Conditional delete - only if item exists
+  await table.Orders.Delete(pk, sk)
+      .Where(x => x.Pk.AttributeExists())
+      .DeleteAsync();
+  
+  // Conditional delete with comparison
+  await table.Orders.Delete(pk, sk)
+      .Where(x => x.Status == "pending")
+      .DeleteAsync();
+  ```
+
+- **Scan() Method on Entity Accessors** - Type-safe Scan operations via entity accessors
+  - Generated `Scan()` method on entity accessors for entities with `[Scannable]` attribute
+  - Parameterless `Scan()` returning `ScanRequestBuilder<TEntity>`
+  - `Scan(string, params object[])` with filter expression
+  - `Scan(Expression<Func<TEntity, bool>>)` with lambda filter
+  - _Requirements: 1.1, 1.2, 4.3_
+  
+  **Usage Examples:**
+  ```csharp
+  // Simple scan
+  var allOrders = await table.Orders.Scan().ToListAsync();
+  
+  // Scan with lambda filter
+  var activeOrders = await table.Orders.Scan(x => x.Status == "active").ToListAsync();
+  
+  // Scan with format string filter
+  var recentOrders = await table.Orders.Scan("CreatedAt > {0}", cutoffDate).ToListAsync();
+  ```
+
 ### Fixed
 - **Documentation API Corrections** - Comprehensive fix for incorrect API method references across all documentation
   - Replaced `ExecuteAsync()` with correct method names throughout documentation:

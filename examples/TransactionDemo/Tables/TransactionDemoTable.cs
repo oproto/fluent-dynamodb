@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 using TransactionDemo.Entities;
@@ -46,6 +47,14 @@ public class TransactionDemoTable : DynamoDbTableBase
     public TransactionDemoTable(IAmazonDynamoDB client) : base(client, TableName)
     {
     }
+
+    /// <summary>
+    /// Creates a new Scan operation builder for this table.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to scan.</typeparam>
+    /// <returns>A ScanRequestBuilder configured for this table.</returns>
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
 
     /// <summary>
     /// Gets an account by ID.

@@ -16,7 +16,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Trait("Feature", "ExpressionSupport")]
 public class ExpressionMixedTests : IntegrationTestBase
 {
-    private DynamoDbTableBase _table = null!;
+    private TestTable _table = null!;
     
     public ExpressionMixedTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
@@ -433,5 +433,8 @@ public class ExpressionMixedTests : IntegrationTestBase
         
         public ScanRequestBuilder<ComplexEntity> Scan() => 
             new ScanRequestBuilder<ComplexEntity>(DynamoDbClient).ForTable(Name);
+        
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+            new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
     }
 }
