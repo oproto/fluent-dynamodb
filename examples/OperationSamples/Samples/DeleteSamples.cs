@@ -59,12 +59,12 @@ public static class DeleteSamples
     }
 
     /// <summary>
-    /// FluentDynamoDb formatted string - uses constant for sort key value.
+    /// FluentDynamoDb formatted string - uses generated key methods for key values.
     /// </summary>
     public static async Task FluentFormattedDeleteAsync(OrdersTable table, string orderId)
     {
         await table.Delete<Order>()
-            .WithKey("pk", $"ORDER#{orderId}", "sk", Order.MetaSk)
+            .WithKey("pk", Order.Keys.Pk(orderId), "sk", "META")
             .DeleteAsync();
     }
 
@@ -73,6 +73,6 @@ public static class DeleteSamples
     /// </summary>
     public static async Task FluentLambdaDeleteAsync(OrdersTable table, string orderId)
     {
-        await table.Orders.DeleteAsync(Order.CreatePk(orderId), Order.CreateSk());
+        await table.Orders.DeleteAsync(Order.Keys.Pk(orderId), "META");
     }
 }

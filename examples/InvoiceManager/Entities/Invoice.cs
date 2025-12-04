@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace InvoiceManager.Entities;
 
@@ -42,22 +41,21 @@ namespace InvoiceManager.Entities;
 /// related InvoiceLine entities returned in the same query.
 /// </para>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("invoices")]
 [GenerateEntityProperty(Name = "Invoices")]
-public partial class Invoice : IDynamoDbEntity
+public partial class Invoice
 {
     /// <summary>
     /// Gets or sets the partition key in format "CUSTOMER#{customerId}".
     /// </summary>
-    [PartitionKey]
+    [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the sort key in format "INVOICE#{invoiceNumber}".
     /// </summary>
-    [SortKey]
+    [SortKey(Prefix = "INVOICE")]
     [DynamoDbAttribute("sk")]
     public string Sk { get; set; } = string.Empty;
 
@@ -102,18 +100,4 @@ public partial class Invoice : IDynamoDbEntity
     /// Gets the total amount of the invoice (sum of all line amounts).
     /// </summary>
     public decimal Total => Lines.Sum(l => l.Amount);
-
-    /// <summary>
-    /// Creates the sort key for an invoice.
-    /// </summary>
-    /// <param name="invoiceNumber">The invoice number.</param>
-    /// <returns>The formatted sort key.</returns>
-    public static string CreateSk(string invoiceNumber) => $"INVOICE#{invoiceNumber}";
-
-    /// <summary>
-    /// Creates the sort key prefix for querying an invoice and its lines.
-    /// </summary>
-    /// <param name="invoiceNumber">The invoice number.</param>
-    /// <returns>The sort key prefix for begins_with queries.</returns>
-    public static string CreateSkPrefix(string invoiceNumber) => $"INVOICE#{invoiceNumber}";
 }

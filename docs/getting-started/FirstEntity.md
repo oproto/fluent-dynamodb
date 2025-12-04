@@ -344,9 +344,51 @@ await table.Get<Order>()
     .GetItemAsync();
 ```
 
-### Pattern 3: Computed Keys (Format Strings)
+### Pattern 3: Key Prefixes (Recommended)
 
-Use `[Computed]` attribute for keys with dynamic formatting:
+Use the `Prefix` property on `[PartitionKey]` and `[SortKey]` for simple key formatting:
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    // Generates keys like "ORDER#order123"
+    [PartitionKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("pk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    // Generates keys like "LINE#item456"
+    [SortKey(Prefix = "LINE")]
+    [DynamoDbAttribute("sk")]
+    public string LineId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("total")]
+    public decimal Total { get; set; }
+}
+
+// Generated key builder methods
+// Order.Keys.Pk("order123") returns "ORDER#order123"
+// Order.Keys.Sk("item456") returns "LINE#item456"
+```
+
+**Key Prefix Properties:**
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Prefix` | `null` | Optional prefix prepended to key values |
+| `Separator` | `"#"` | Separator between prefix and value |
+
+**Custom Separator Example:**
+```csharp
+// Generates keys like "USER_user123"
+[PartitionKey(Prefix = "USER", Separator = "_")]
+[DynamoDbAttribute("pk")]
+public string UserId { get; set; } = string.Empty;
+```
+
+### Pattern 4: Computed Keys (Advanced Format Strings)
+
+Use `[Computed]` attribute for complex keys with dynamic formatting:
 
 ```csharp
 [DynamoDbTable("products")]
@@ -377,7 +419,9 @@ public partial class Product
 - `{PropertyName:o}` - DateTime ISO 8601 format
 - See [Expression Formatting](../core-features/ExpressionFormatting.md) for more options
 
-### Pattern 4: Extracted Keys (Composite Patterns)
+> **Tip:** For simple prefix patterns like `"ORDER#123"`, use `[PartitionKey(Prefix = "ORDER")]` instead of `[Computed]`. Reserve `[Computed]` for complex multi-property keys or custom formatting.
+
+### Pattern 5: Extracted Keys (Composite Patterns)
 
 Use `[Extracted]` for keys derived from other properties:
 

@@ -87,8 +87,8 @@ public class TransactionComparison
                     // First 10: Create account profiles
                     var account = new Account
                     {
-                        Pk = Account.CreatePk(accountId),
-                        Sk = Account.ProfileSk,
+                        Pk = Account.Keys.Pk(accountId),
+                        Sk = "PROFILE",
                         AccountId = accountId,
                         Name = $"Account {i}",
                         Balance = 1000m * i
@@ -101,8 +101,8 @@ public class TransactionComparison
                     var targetAccountId = $"ACCT-{((i - 11) % 5) + 1:D3}";
                     var txnRecord = new TransactionRecord
                     {
-                        Pk = Account.CreatePk(targetAccountId),
-                        Sk = TransactionRecord.CreateSk(timestamp, txnId),
+                        Pk = TransactionRecord.Keys.Pk(targetAccountId),
+                        Sk = $"TXN#{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}",
                         TxnId = txnId,
                         AccountId = targetAccountId,
                         Amount = 100m * (i - 10),
@@ -260,8 +260,8 @@ public class TransactionComparison
             {
                 var account = new Account
                 {
-                    Pk = Account.CreatePk($"ROLLBACK-{i}"),
-                    Sk = Account.ProfileSk,
+                    Pk = Account.Keys.Pk($"ROLLBACK-{i}"),
+                    Sk = "PROFILE",
                     AccountId = $"ROLLBACK-{i}",
                     Name = $"Rollback Test {i}",
                     Balance = 500m
@@ -273,8 +273,8 @@ public class TransactionComparison
             // on an item that doesn't exist (this will cause the transaction to fail)
             transaction = transaction.Add(
                 _table.ConditionCheck<Account>()
-                    .WithKey("pk", Account.CreatePk("NON-EXISTENT-ACCOUNT"))
-                    .WithKey("sk", Account.ProfileSk)
+                    .WithKey("pk", Account.Keys.Pk("NON-EXISTENT-ACCOUNT"))
+                    .WithKey("sk", "PROFILE")
                     .Where("attribute_exists(pk)")); // This will fail because item doesn't exist
 
             await transaction.ExecuteAsync();

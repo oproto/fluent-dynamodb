@@ -49,7 +49,7 @@ public class TransactionAtomicityPropertyTests
                     {
                         var account = new Account
                         {
-                            Pk = Account.CreatePk($"TEST-{Guid.NewGuid():N}"),
+                            Pk = Account.Keys.Pk($"TEST-{Guid.NewGuid():N}"),
                             Sk = Account.ProfileSk,
                             AccountId = $"TEST-{i}",
                             Name = $"Test Account {i}",
@@ -120,7 +120,7 @@ public class TransactionAtomicityPropertyTests
                     {
                         var account = new Account
                         {
-                            Pk = Account.CreatePk($"{uniquePrefix}-{i}"),
+                            Pk = Account.Keys.Pk($"{uniquePrefix}-{i}"),
                             Sk = Account.ProfileSk,
                             AccountId = $"{uniquePrefix}-{i}",
                             Name = $"Test Account {i}",
@@ -130,7 +130,7 @@ public class TransactionAtomicityPropertyTests
                     }
 
                     // Add a condition check that will fail (checking for an item that doesn't exist)
-                    var nonExistentPk = Account.CreatePk("NON-EXISTENT-ACCOUNT-" + Guid.NewGuid());
+                    var nonExistentPk = Account.Keys.Pk("NON-EXISTENT-ACCOUNT-" + Guid.NewGuid());
                     transaction = transaction.Add(
                         table.ConditionCheck<Account>()
                             .WithKey("pk", nonExistentPk)

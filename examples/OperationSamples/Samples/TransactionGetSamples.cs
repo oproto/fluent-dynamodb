@@ -104,14 +104,14 @@ public static class TransactionGetSamples
     }
 
     /// <summary>
-    /// FluentDynamoDb formatted string - uses helper methods for key construction.
+    /// FluentDynamoDb formatted string - uses generated key methods for key construction.
     /// </summary>
     public static async Task<(Order?, OrderLine?)> FluentFormattedTransactionGetAsync(
         OrdersTable table, string orderId, string lineId)
     {
         return await DynamoDbTransactions.Get
-            .Add(table.Get<Order>().WithKey("pk", Order.CreatePk(orderId), "sk", Order.CreateSk()))
-            .Add(table.Get<OrderLine>().WithKey("pk", OrderLine.CreatePk(orderId), "sk", OrderLine.CreateSk(lineId)))
+            .Add(table.Get<Order>().WithKey("pk", Order.Keys.Pk(orderId), "sk", "META"))
+            .Add(table.Get<OrderLine>().WithKey("pk", OrderLine.Keys.Pk(orderId), "sk", OrderLine.Keys.Sk(lineId)))
             .ExecuteAndMapAsync<Order, OrderLine>();
     }
 
@@ -122,8 +122,8 @@ public static class TransactionGetSamples
         OrdersTable table, string orderId, string lineId)
     {
         return await DynamoDbTransactions.Get
-            .Add(table.Orders.Get(Order.CreatePk(orderId), Order.CreateSk()))
-            .Add(table.OrderLines.Get(OrderLine.CreatePk(orderId), OrderLine.CreateSk(lineId)))
+            .Add(table.Orders.Get(Order.Keys.Pk(orderId), "META"))
+            .Add(table.OrderLines.Get(OrderLine.Keys.Pk(orderId), OrderLine.Keys.Sk(lineId)))
             .ExecuteAndMapAsync<Order, OrderLine>();
     }
 }

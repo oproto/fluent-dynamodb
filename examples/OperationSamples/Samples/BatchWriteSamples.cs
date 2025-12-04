@@ -118,12 +118,12 @@ public static class BatchWriteSamples
             .Add(table.Put<Order>().WithItem(newOrder))
             .Add(table.Put<OrderLine>().WithItem(newLine1))
             .Add(table.Put<OrderLine>().WithItem(newLine2))
-            .Add(table.Delete<OrderLine>().WithKey("pk", $"ORDER#{deleteOrderId}", "sk", $"LINE#{deleteLineId}"))
+            .Add(table.Delete<OrderLine>().WithKey("pk", OrderLine.Keys.Pk(deleteOrderId), "sk", OrderLine.Keys.Sk(deleteLineId)))
             .ExecuteAsync();
     }
 
     /// <summary>
-    /// FluentDynamoDb formatted string - uses helper methods for key construction.
+    /// FluentDynamoDb formatted string - uses generated key methods for key construction.
     /// </summary>
     public static async Task<BatchWriteItemResponse> FluentFormattedBatchWriteAsync(
         OrdersTable table,
@@ -137,7 +137,7 @@ public static class BatchWriteSamples
             .Add(table.Put<Order>().WithItem(newOrder))
             .Add(table.Put<OrderLine>().WithItem(newLine1))
             .Add(table.Put<OrderLine>().WithItem(newLine2))
-            .Add(table.Delete<OrderLine>().WithKey("pk", OrderLine.CreatePk(deleteOrderId), "sk", OrderLine.CreateSk(deleteLineId)))
+            .Add(table.Delete<OrderLine>().WithKey("pk", OrderLine.Keys.Pk(deleteOrderId), "sk", OrderLine.Keys.Sk(deleteLineId)))
             .ExecuteAsync();
     }
 
@@ -156,7 +156,7 @@ public static class BatchWriteSamples
             .Add(table.Orders.Put(newOrder))
             .Add(table.OrderLines.Put(newLine1))
             .Add(table.OrderLines.Put(newLine2))
-            .Add(table.OrderLines.Delete(OrderLine.CreatePk(deleteOrderId), OrderLine.CreateSk(deleteLineId)))
+            .Add(table.OrderLines.Delete(OrderLine.Keys.Pk(deleteOrderId), OrderLine.Keys.Sk(deleteLineId)))
             .ExecuteAsync();
     }
 }

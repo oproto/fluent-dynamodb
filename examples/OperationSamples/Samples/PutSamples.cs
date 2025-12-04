@@ -17,7 +17,7 @@ public static class PutSamples
     /// Raw AWS SDK approach - explicit AttributeValue dictionaries for all fields.
     /// Returns the order that was put (for equivalency with Fluent methods).
     /// </summary>
-    public static async Task<Order> RawSdkPutAsync(IAmazonDynamoDB client, Order order)
+    public static async Task RawSdkPutAsync(IAmazonDynamoDB client, Order order)
     {
         var request = new PutItemRequest
         {
@@ -35,9 +35,6 @@ public static class PutSamples
         };
 
         await client.PutItemAsync(request);
-        
-        // Return the order for equivalency (Put doesn't return item by default)
-        return order;
     }
 
     /// <summary>

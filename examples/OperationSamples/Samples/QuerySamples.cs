@@ -52,7 +52,7 @@ public static class QuerySamples
     {
         return await table.Query<OrderLine>()
             .Where("pk = :pk AND begins_with(sk, :skPrefix)")
-            .WithValue(":pk", $"ORDER#{orderId}")
+            .WithValue(":pk", OrderLine.Keys.Pk(orderId))
             .WithValue(":skPrefix", "LINE#")
             .ToListAsync();
     }
@@ -63,7 +63,7 @@ public static class QuerySamples
     public static async Task<List<OrderLine>> FluentFormattedQueryAsync(OrdersTable table, string orderId)
     {
         return await table.Query<OrderLine>()
-            .Where("pk = {0} AND begins_with(sk, {1})", OrderLine.CreatePk(orderId), "LINE#")
+            .Where("pk = {0} AND begins_with(sk, {1})", OrderLine.Keys.Pk(orderId), "LINE#")
             .ToListAsync();
     }
 
@@ -73,7 +73,7 @@ public static class QuerySamples
     public static async Task<List<OrderLine>> FluentLambdaQueryAsync(OrdersTable table, string orderId)
     {
         return await table.OrderLines.Query()
-            .Where(x => x.Pk == OrderLine.CreatePk(orderId) && x.Sk.StartsWith("LINE#"))
+            .Where(x => x.Pk == OrderLine.Keys.Pk(orderId) && x.Sk.StartsWith("LINE#"))
             .ToListAsync();
     }
 }

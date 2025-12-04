@@ -153,6 +153,48 @@ await usersTable.Users.Delete("user123").DeleteAsync();
 
 **Entity Accessors:** Generated tables include entity-specific accessors (like `usersTable.Users`) that provide operations without requiring generic type parameters. The accessor methods accept key values directly, making the code cleaner.
 
+## Single-Entity Table with Key Prefixes
+
+Use the `Prefix` property on key attributes for consistent key formatting:
+
+```csharp
+[DynamoDbTable("users")]
+public partial class User
+{
+    // Generates keys like "USER#user123"
+    [PartitionKey(Prefix = "USER")]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("email")]
+    public string Email { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+**Usage with Generated Key Builders:**
+
+```csharp
+var usersTable = new UsersTable(client, "users");
+
+// Use generated key builder for consistent formatting
+var pk = User.Keys.Pk("user123");  // Returns "USER#user123"
+
+// Get user using generated key
+var response = await usersTable.Get<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .GetItemAsync();
+```
+
+**Key Prefix Properties:**
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Prefix` | `null` | Optional prefix prepended to key values |
+| `Separator` | `"#"` | Separator between prefix and value |
+
 ## Single-Entity Table with Sort Key
 
 For composite primary keys:
@@ -161,11 +203,13 @@ For composite primary keys:
 [DynamoDbTable("orders")]
 public partial class Order
 {
-    [PartitionKey]
+    // Generates keys like "CUSTOMER#cust123"
+    [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
     public string CustomerId { get; set; } = string.Empty;
     
-    [SortKey]
+    // Generates keys like "ORDER#order456"
+    [SortKey(Prefix = "ORDER")]
     [DynamoDbAttribute("sk")]
     public string OrderId { get; set; } = string.Empty;
     
@@ -180,16 +224,16 @@ public partial class Order
 }
 ```
 
-**Usage:**
+**Usage with Generated Key Builders:**
 
 ```csharp
 var ordersTable = new OrdersTable(client, "orders");
 
-// Create an order
+// Create an order - set key values with prefixes
 var order = new Order
 {
-    CustomerId = "customer123",
-    OrderId = "order456",
+    CustomerId = Order.Keys.Pk("customer123"),  // "CUSTOMER#customer123"
+    OrderId = Order.Keys.Sk("order456"),        // "ORDER#order456"
     Total = 99.99m,
     Status = "pending"
 };
@@ -198,14 +242,15 @@ await ordersTable.Put<Order>()
     .WithItem(order)
     .PutAsync();
 
-// Get a specific order (requires both keys)
+// Get a specific order using generated key builders
 var response = await ordersTable.Get<Order>()
-    .WithKey(Order.Fields.CustomerId, "customer123", Order.Fields.OrderId, "order456")
+    .WithKey(Order.Fields.CustomerId, Order.Keys.Pk("customer123"), 
+             Order.Fields.OrderId, Order.Keys.Sk("order456"))
     .GetItemAsync();
 
 // Query all orders for a customer
 var customerOrders = await ordersTable.Query<Order>()
-    .Where($"{Order.Fields.CustomerId} = {{0}}", "customer123")
+    .Where($"{Order.Fields.CustomerId} = {{0}}", Order.Keys.Pk("customer123"))
     .ToListAsync();
 
 foreach (var customerOrder in customerOrders.Items)
@@ -213,10 +258,10 @@ foreach (var customerOrder in customerOrders.Items)
     Console.WriteLine($"Order {customerOrder.OrderId}: ${customerOrder.Total}");
 }
 
-// Query orders with sort key condition
+// Query orders with sort key prefix (begins_with)
 var recentOrders = await ordersTable.Query<Order>()
-    .Where($"{Order.Fields.CustomerId} = {{0}} AND {Order.Fields.OrderId} > {{1}}",
-           "customer123", "order400")
+    .Where($"{Order.Fields.CustomerId} = {{0}} AND begins_with({Order.Fields.OrderId}, {{1}})",
+           Order.Keys.Pk("customer123"), "ORDER#")
     .ToListAsync();
 ```
 

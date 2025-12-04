@@ -6,6 +6,10 @@
         <Nullable>enable</Nullable>
         <LangVersion>12.0</LangVersion>
         <RootNamespace>FluentDynamoDb.OperationSamples</RootNamespace>
+        
+        <!-- Write source-generated files to disk for demonstration -->
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+        <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)\GeneratedFiles</CompilerGeneratedFilesOutputPath>
     </PropertyGroup>
 
     <ItemGroup>

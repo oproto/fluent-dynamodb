@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace InvoiceManager.Entities;
 
@@ -35,17 +34,16 @@ namespace InvoiceManager.Entities;
 /// with a single Query operation using the partition key.
 /// </para>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("invoices", IsDefault = true)]
 [GenerateEntityProperty(Name = "Customers")]
 [Scannable]
-public partial class Customer : IDynamoDbEntity
+public partial class Customer
 {
     /// <summary>
     /// Gets or sets the partition key in format "CUSTOMER#{customerId}".
     /// This groups all data for a single customer together.
     /// </summary>
-    [PartitionKey]
+    [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
@@ -73,13 +71,6 @@ public partial class Customer : IDynamoDbEntity
     /// </summary>
     [DynamoDbAttribute("email")]
     public string Email { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Creates the partition key for a customer.
-    /// </summary>
-    /// <param name="customerId">The customer ID.</param>
-    /// <returns>The formatted partition key.</returns>
-    public static string CreatePk(string customerId) => $"CUSTOMER#{customerId}";
 
     /// <summary>
     /// The sort key value for customer profile records.

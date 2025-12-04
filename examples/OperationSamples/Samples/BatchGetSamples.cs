@@ -120,15 +120,15 @@ public static class BatchGetSamples
     }
 
     /// <summary>
-    /// FluentDynamoDb formatted string - uses helper methods for key construction.
+    /// FluentDynamoDb formatted string - uses generated key methods for key construction.
     /// </summary>
     public static async Task<(Order?, OrderLine?, OrderLine?)> FluentFormattedBatchGetAsync(
         OrdersTable table, string orderId, string lineId1, string lineId2)
     {
         return await DynamoDbBatch.Get
-            .Add(table.Get<Order>().WithKey("pk", Order.CreatePk(orderId), "sk", Order.CreateSk()))
-            .Add(table.Get<OrderLine>().WithKey("pk", OrderLine.CreatePk(orderId), "sk", OrderLine.CreateSk(lineId1)))
-            .Add(table.Get<OrderLine>().WithKey("pk", OrderLine.CreatePk(orderId), "sk", OrderLine.CreateSk(lineId2)))
+            .Add(table.Get<Order>().WithKey("pk", Order.Keys.Pk(orderId), "sk", "META"))
+            .Add(table.Get<OrderLine>().WithKey("pk", OrderLine.Keys.Pk(orderId), "sk", OrderLine.Keys.Sk(lineId1)))
+            .Add(table.Get<OrderLine>().WithKey("pk", OrderLine.Keys.Pk(orderId), "sk", OrderLine.Keys.Sk(lineId2)))
             .ExecuteAndMapAsync<Order, OrderLine, OrderLine>();
     }
 
@@ -139,9 +139,9 @@ public static class BatchGetSamples
         OrdersTable table, string orderId, string lineId1, string lineId2)
     {
         return await DynamoDbBatch.Get
-            .Add(table.Orders.Get(Order.CreatePk(orderId), Order.CreateSk()))
-            .Add(table.OrderLines.Get(OrderLine.CreatePk(orderId), OrderLine.CreateSk(lineId1)))
-            .Add(table.OrderLines.Get(OrderLine.CreatePk(orderId), OrderLine.CreateSk(lineId2)))
+            .Add(table.Orders.Get(Order.Keys.Pk(orderId), "META"))
+            .Add(table.OrderLines.Get(OrderLine.Keys.Pk(orderId), OrderLine.Keys.Sk(lineId1)))
+            .Add(table.OrderLines.Get(OrderLine.Keys.Pk(orderId), OrderLine.Keys.Sk(lineId2)))
             .ExecuteAndMapAsync<Order, OrderLine, OrderLine>();
     }
 }
