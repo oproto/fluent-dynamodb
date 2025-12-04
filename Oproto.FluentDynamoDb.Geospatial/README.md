@@ -598,10 +598,21 @@ For comprehensive documentation, examples, and advanced usage patterns, see:
 - Oproto.FluentDynamoDb 1.0.0 or later
 - AOT compatible
 
+## Acknowledgments
+
+This package includes implementations based on algorithms from:
+
+- **[Google S2 Geometry Library](https://github.com/google/s2geometry)** - The S2 spatial indexing algorithms are derived from Google's S2 Geometry Library (Apache License 2.0)
+- **[Uber H3](https://github.com/uber/h3)** - The H3 hexagonal indexing algorithms are derived from Uber's H3 library (Apache License 2.0)
+
+See [THIRD-PARTY-NOTICES.md](https://github.com/oproto/fluent-dynamodb/blob/main/THIRD-PARTY-NOTICES.md) for full attribution and license details.
+
+## Links
+
+- 📚 **Documentation**: [fluentdynamodb.dev](https://fluentdynamodb.dev/)
+- 🐙 **GitHub**: [github.com/oproto/fluent-dynamodb](https://github.com/oproto/fluent-dynamodb)
+- 📦 **NuGet**: [Oproto.FluentDynamoDb.Geospatial](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Geospatial)
+
 ## License
 
-[Your License Here]
-
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for details.
+MIT License - see [LICENSE](https://github.com/oproto/fluent-dynamodb/blob/main/LICENSE) for details.

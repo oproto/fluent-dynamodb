@@ -1,5 +1,10 @@
 <Project>
   <PropertyGroup>
+    <!-- MSBuildProjectDirectory is needed for relative path calculation -->
+    <IconPath>$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'Directory.Build.props'))\docs\assets\icon.png</IconPath>
+  </PropertyGroup>
+  
+  <PropertyGroup>
     <!-- Default version for local development -->
     <!-- This will be overridden by CI/CD with -p:Version=x.y.z -->
     <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
@@ -23,6 +28,7 @@
     <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon.png</PackageIcon>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     
@@ -35,4 +41,9 @@
     <IsAotCompatible>true</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
+  
+  <!-- Include package icon for all packable projects -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(IconPath)" Pack="true" PackagePath="\" Condition="Exists('$(IconPath)')" />
+  </ItemGroup>
 </Project>

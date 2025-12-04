@@ -604,11 +604,12 @@ public partial class Document
 - **[Advanced Types](../docs/advanced-topics/AdvancedTypes.md)** - Blob storage integration
 - **[Error Handling](../docs/reference/ErrorHandling.md)** - Exception handling
 
+## Links
+
+- 📚 **Documentation**: [fluentdynamodb.dev](https://fluentdynamodb.dev/)
+- 🐙 **GitHub**: [github.com/oproto/fluent-dynamodb](https://github.com/oproto/fluent-dynamodb)
+- 📦 **NuGet**: [Oproto.FluentDynamoDb.Encryption.Kms](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Encryption.Kms)
+
 ## License
 
-This package is part of Oproto.FluentDynamoDb and is licensed under the MIT License.
-
-## Support
-
-- **Issues:** [GitHub Issues](https://github.com/OProto/oproto-fluent-dynamodb/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/OProto/oproto-fluent-dynamodb/discussions)
+MIT License - see [LICENSE](https://github.com/oproto/fluent-dynamodb/blob/main/LICENSE) for details.
