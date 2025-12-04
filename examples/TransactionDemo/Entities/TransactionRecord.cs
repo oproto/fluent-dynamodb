@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace TransactionDemo.Entities;
 
@@ -30,15 +29,14 @@ namespace TransactionDemo.Entities;
 /// <item><description>Uniqueness via the transaction ID suffix</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("transaction-demo")]
 [GenerateEntityProperty(Name = "Transactions")]
-public partial class TransactionRecord : IDynamoDbEntity
+public partial class TransactionRecord
 {
     /// <summary>
     /// Gets or sets the partition key in format "ACCOUNT#{accountId}".
     /// </summary>
-    [PartitionKey]
+    [PartitionKey(Prefix = "ACCOUNT")]
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
@@ -85,15 +83,6 @@ public partial class TransactionRecord : IDynamoDbEntity
     /// </summary>
     [DynamoDbAttribute("description")]
     public string Description { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Creates the sort key for a transaction record.
-    /// </summary>
-    /// <param name="timestamp">The transaction timestamp.</param>
-    /// <param name="txnId">The transaction ID.</param>
-    /// <returns>The formatted sort key.</returns>
-    public static string CreateSk(DateTime timestamp, string txnId) 
-        => $"TXN#{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}";
 
     /// <summary>
     /// The sort key prefix for querying all transactions.

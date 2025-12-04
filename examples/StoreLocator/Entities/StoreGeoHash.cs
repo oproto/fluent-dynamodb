@@ -1,6 +1,5 @@
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace StoreLocator.Entities;
 
@@ -27,11 +26,10 @@ namespace StoreLocator.Entities;
 /// street-level store location queries.
 /// </para>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("stores-geohash", IsDefault = true)]
 [Scannable]
 [GenerateAccessors]
-public partial class StoreGeoHash : IDynamoDbEntity
+public partial class StoreGeoHash
 {
     /// <summary>
     /// Gets or sets the unique store identifier - main table partition key.

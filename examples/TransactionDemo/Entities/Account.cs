@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace TransactionDemo.Entities;
 
@@ -23,17 +22,16 @@ namespace TransactionDemo.Entities;
 /// with a single Query operation using the partition key.
 /// </para>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("transaction-demo", IsDefault = true)]
 [GenerateEntityProperty(Name = "Accounts")]
 [Scannable]
-public partial class Account : IDynamoDbEntity
+public partial class Account
 {
     /// <summary>
     /// Gets or sets the partition key in format "ACCOUNT#{accountId}".
     /// This groups all data for a single account together.
     /// </summary>
-    [PartitionKey]
+    [PartitionKey(Prefix = "ACCOUNT")]
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
@@ -61,13 +59,6 @@ public partial class Account : IDynamoDbEntity
     /// </summary>
     [DynamoDbAttribute("balance")]
     public decimal Balance { get; set; }
-
-    /// <summary>
-    /// Creates the partition key for an account.
-    /// </summary>
-    /// <param name="accountId">The account ID.</param>
-    /// <returns>The formatted partition key.</returns>
-    public static string CreatePk(string accountId) => $"ACCOUNT#{accountId}";
 
     /// <summary>
     /// The sort key value for account profile records.

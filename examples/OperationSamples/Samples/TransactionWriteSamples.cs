@@ -107,19 +107,19 @@ public static class TransactionWriteSamples
                 .WithItem(newLine)
                 .Where("attribute_not_exists(pk)"))
             .Add(table.Update<Order>()
-                .WithKey("pk", $"ORDER#{orderId}", "sk", "META")
+                .WithKey("pk", Order.Keys.Pk(orderId), "sk", "META")
                 .Set("SET #total = :total")
                 .WithAttribute("#total", "totalAmount")
                 .WithValue(":total", newTotal)
                 .Where("attribute_exists(pk)"))
             .Add(table.Delete<OrderLine>()
-                .WithKey("pk", $"ORDER#{orderId}", "sk", $"LINE#{deleteLineId}")
+                .WithKey("pk", OrderLine.Keys.Pk(orderId), "sk", OrderLine.Keys.Sk(deleteLineId))
                 .Where("attribute_exists(pk)"))
             .ExecuteAsync();
     }
 
     /// <summary>
-    /// FluentDynamoDb formatted string - uses placeholders and helper methods for keys.
+    /// FluentDynamoDb formatted string - uses generated key methods for key construction.
     /// </summary>
     public static async Task FluentFormattedTransactionWriteAsync(
         OrdersTable table,
@@ -133,12 +133,12 @@ public static class TransactionWriteSamples
                 .WithItem(newLine)
                 .Where("attribute_not_exists(pk)"))
             .Add(table.Update<Order>()
-                .WithKey("pk", Order.CreatePk(orderId), "sk", Order.CreateSk())
+                .WithKey("pk", Order.Keys.Pk(orderId), "sk", "META")
                 .Set("SET #total = {0}", newTotal)
                 .WithAttribute("#total", "totalAmount")
                 .Where("attribute_exists(pk)"))
             .Add(table.Delete<OrderLine>()
-                .WithKey("pk", OrderLine.CreatePk(orderId), "sk", OrderLine.CreateSk(deleteLineId))
+                .WithKey("pk", OrderLine.Keys.Pk(orderId), "sk", OrderLine.Keys.Sk(deleteLineId))
                 .Where("attribute_exists(pk)"))
             .ExecuteAsync();
     }
@@ -153,27 +153,15 @@ public static class TransactionWriteSamples
         string orderId,
         decimal newTotal,
         string deleteLineId)
-    {
-        // Demonstrate lambda expressions work across all operation types
-        await table.Query<Order>().Where(x => x.OrderId == orderId).ToListAsync(); // Compiles - Query with lambda
-        await table.Orders.Query().Where(x => x.OrderId == orderId).ToListAsync(); // Compiles - Query via accessor
-        await table.Orders.Scan().WithFilter(x => x.OrderId == orderId).ToListAsync(); // Compiles - Scan requires [Scannable] on Order
-        await table.Put<Order>().Where(x => x.Pk.AttributeNotExists()).PutAsync();  // Compiles - lambda Where() on Put
-        await table.Orders.Put().Where(x => x.Pk.AttributeNotExists()).PutAsync();  // Compiles - lambda Where() on Put via accessor
-        await table.Delete<Order>().WithKey("pk", Order.CreatePk(orderId), "sk", Order.CreateSk())
-            .Where(x => x.Pk.AttributeExists()).DeleteAsync();   // Compiles - lambda Where() on Delete
-        await table.Orders.Delete(Order.CreatePk(orderId), Order.CreateSk())
-            .Where(x => x.Pk.AttributeExists()).DeleteAsync();   // Compiles - lambda Where() on Delete via accessor
-        
-        // Transaction with lambda Where() conditions using AttributeExists/AttributeNotExists
+    {   
         await DynamoDbTransactions.Write
             .Add(table.OrderLines.Put(newLine)
-                .Where(x => x.Pk.AttributeNotExists()))  // Lambda: prevent overwrite if item exists
-            .Add(table.Orders.Update(Order.CreatePk(orderId), Order.CreateSk())
+                .Where(x => x.Pk.AttributeNotExists()))
+            .Add(table.Orders.Update(Order.Keys.Pk(orderId), "META")
                 .Set(x => new OrderUpdateModel { TotalAmount = newTotal })
-                .Where(x => x.Pk.AttributeExists()))    // Lambda: only update if item exists
-            .Add(table.OrderLines.Delete(OrderLine.CreatePk(orderId), OrderLine.CreateSk(deleteLineId))
-                .Where(x => x.Pk.AttributeExists()))    // Lambda: only delete if item exists
+                .Where(x => x.Pk.AttributeExists()))
+            .Add(table.OrderLines.Delete(OrderLine.Keys.Pk(orderId), OrderLine.Keys.Sk(deleteLineId))
+                .Where(x => x.Pk.AttributeExists()))
             .ExecuteAsync();
     }
 }

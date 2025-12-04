@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace FluentDynamoDb.OperationSamples.Models;
 
@@ -19,16 +18,15 @@ namespace FluentDynamoDb.OperationSamples.Models;
 /// <item><description>Sort Key (sk): "META" - identifies this as the order header</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("Orders", IsDefault = true)]
 [GenerateEntityProperty(Name = "Orders")]
 [Scannable]
-public partial class Order : IDynamoDbEntity
+public partial class Order
 {
     /// <summary>
     /// Gets or sets the partition key in format "ORDER#{OrderId}".
     /// </summary>
-    [PartitionKey]
+    [PartitionKey(Prefix = "ORDER")]
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
@@ -79,17 +77,4 @@ public partial class Order : IDynamoDbEntity
     /// The sort key value for order metadata.
     /// </summary>
     public const string MetaSk = "META";
-
-    /// <summary>
-    /// Creates the partition key for an order.
-    /// </summary>
-    /// <param name="orderId">The order ID.</param>
-    /// <returns>The formatted partition key.</returns>
-    public static string CreatePk(string orderId) => $"ORDER#{orderId}";
-
-    /// <summary>
-    /// Creates the sort key for an order header.
-    /// </summary>
-    /// <returns>The sort key for order metadata.</returns>
-    public static string CreateSk() => MetaSk;
 }

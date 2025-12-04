@@ -43,7 +43,7 @@ The `[Sensitive]` attribute marks fields that should be excluded from logging ou
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;
 
-[DynamoDbEntity]
+[DynamoDbTable("Users")]
 public partial class User
 {
     [PartitionKey]
@@ -136,7 +136,7 @@ This package includes:
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;
 
-[DynamoDbEntity]
+[DynamoDbTable("CustomerData")]
 public partial class CustomerData
 {
     [PartitionKey]
@@ -308,7 +308,7 @@ For querying encrypted fields, you must manually encrypt the query parameters. T
 Use `table.Encrypt()` directly in LINQ expressions:
 
 ```csharp
-[DynamoDbTable("users")]
+[DynamoDbTable("Users")]
 public partial class User
 {
     [PartitionKey]
@@ -532,7 +532,7 @@ This provides:
 Combine `[Sensitive]` and `[Encrypted]` for maximum protection:
 
 ```csharp
-[DynamoDbEntity]
+[DynamoDbTable("SecureEntities")]
 public partial class SecureEntity
 {
     [PartitionKey]
@@ -580,7 +580,7 @@ For large encrypted fields that might exceed DynamoDB's 400KB item size limit, c
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;
 
-[DynamoDbEntity]
+[DynamoDbTable("Documents")]
 public partial class Document
 {
     [PartitionKey]

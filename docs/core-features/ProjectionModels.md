@@ -30,7 +30,7 @@ Projection Models enable automatic generation and application of DynamoDB projec
 using Oproto.FluentDynamoDb.Attributes;
 
 // Full entity
-[DynamoDbEntity]
+[DynamoDbTable("Transactions")]
 public partial class Transaction
 {
     [PartitionKey]
@@ -92,7 +92,7 @@ public partial class ProjectionModel
 Properties are automatically mapped using the same rules as the source entity:
 
 ```csharp
-[DynamoDbEntity]
+[DynamoDbTable("Products")]
 public partial class Product
 {
     [PartitionKey]
@@ -153,7 +153,7 @@ public partial class InvalidProjection
 Use `[UseProjection]` to enforce that queries on a GSI must use a specific projection model:
 
 ```csharp
-[DynamoDbEntity]
+[DynamoDbTable("Transactions")]
 public partial class Transaction
 {
     [PartitionKey]
@@ -388,7 +388,7 @@ public async Task<List<T>> QueryTransactions<T>(
 Projection models work seamlessly with discriminator-based multi-entity tables:
 
 ```csharp
-[DynamoDbEntity(EntityDiscriminator = "ORDER")]
+[DynamoDbTable("MultiEntity", EntityDiscriminator = "ORDER")]
 public partial class Order
 {
     [PartitionKey]
@@ -399,7 +399,7 @@ public partial class Order
     public List<string> Items { get; set; } = new();
 }
 
-[DynamoDbEntity(EntityDiscriminator = "INVOICE")]
+[DynamoDbTable("MultiEntity", EntityDiscriminator = "INVOICE")]
 public partial class Invoice
 {
     [PartitionKey]

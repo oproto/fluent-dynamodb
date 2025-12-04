@@ -80,8 +80,8 @@ public class InvoiceTable : DynamoDbTableBase
     {
         var customer = new Customer
         {
-            Pk = Customer.CreatePk(customerId),
-            Sk = Customer.ProfileSk,
+            Pk = Customer.Keys.Pk(customerId),
+            Sk = "PROFILE",
             CustomerId = customerId,
             Name = name,
             Email = email
@@ -108,8 +108,8 @@ public class InvoiceTable : DynamoDbTableBase
     {
         var invoice = new Invoice
         {
-            Pk = Customer.CreatePk(customerId),
-            Sk = Invoice.CreateSk(invoiceNumber),
+            Pk = Invoice.Keys.Pk(customerId),
+            Sk = Invoice.Keys.Sk(invoiceNumber),
             InvoiceNumber = invoiceNumber,
             Date = DateTime.UtcNow,
             Status = status,
@@ -148,8 +148,9 @@ public class InvoiceTable : DynamoDbTableBase
     {
         var line = new InvoiceLine
         {
-            Pk = Customer.CreatePk(customerId),
-            Sk = InvoiceLine.CreateSk(invoiceNumber, lineNumber),
+            Pk = InvoiceLine.Keys.Pk(customerId),
+            // Complex sort key pattern - manual construction required
+            Sk = $"INVOICE#{invoiceNumber}#LINE#{lineNumber}",
             LineNumber = lineNumber,
             Description = description,
             Quantity = quantity,
@@ -190,8 +191,8 @@ public class InvoiceTable : DynamoDbTableBase
     /// </remarks>
     public async Task<Invoice?> GetCompleteInvoiceAsync(string customerId, string invoiceNumber)
     {
-        var pk = Customer.CreatePk(customerId);
-        var skPrefix = Invoice.CreateSkPrefix(invoiceNumber);
+        var pk = Customer.Keys.Pk(customerId);
+        var skPrefix = Invoice.Keys.Sk(invoiceNumber);
 
         // Query all items where sk begins with the invoice prefix
         // This returns both the invoice header and all line items in a single query
@@ -221,7 +222,7 @@ public class InvoiceTable : DynamoDbTableBase
             var sk = item["sk"].S;
             
             // Invoice header has sk = "INVOICE#{invoiceNumber}" (no #LINE suffix)
-            if (sk == Invoice.CreateSk(invoiceNumber))
+            if (sk == Invoice.Keys.Sk(invoiceNumber))
             {
                 invoice = Invoice.FromDynamoDb<Invoice>(item);
             }
@@ -255,7 +256,7 @@ public class InvoiceTable : DynamoDbTableBase
     /// </remarks>
     public async Task<List<Invoice>> GetCustomerInvoicesAsync(string customerId)
     {
-        var pk = Customer.CreatePk(customerId);
+        var pk = Customer.Keys.Pk(customerId);
 
         // PREFERRED: Lambda expression approach - type-safe with IntelliSense
         // ToListAsync returns only Invoice entities, filtering out InvoiceLine items
@@ -279,8 +280,8 @@ public class InvoiceTable : DynamoDbTableBase
     public async Task<Customer?> GetCustomerAsync(string customerId)
     {
         return await Get<Customer>()
-            .WithKey("pk", Customer.CreatePk(customerId))
-            .WithKey("sk", Customer.ProfileSk)
+            .WithKey("pk", Customer.Keys.Pk(customerId))
+            .WithKey("sk", "PROFILE")
             .GetItemAsync();
     }
 
@@ -296,7 +297,7 @@ public class InvoiceTable : DynamoDbTableBase
     {
         // PREFERRED: Lambda expression approach
         var customers = await Scan<Customer>()
-            .WithFilter(x => x.Sk == Customer.ProfileSk)
+            .WithFilter(x => x.Sk == "PROFILE")
             .ToListAsync();
 
         return customers;

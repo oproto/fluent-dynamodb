@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace FluentDynamoDb.OperationSamples.Models;
 
@@ -27,22 +26,21 @@ namespace FluentDynamoDb.OperationSamples.Models;
 /// (sk begins_with "LINE#").
 /// </para>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("Orders")]
 [GenerateEntityProperty(Name = "OrderLines")]
-public partial class OrderLine : IDynamoDbEntity
+public partial class OrderLine
 {
     /// <summary>
     /// Gets or sets the partition key in format "ORDER#{OrderId}".
     /// </summary>
-    [PartitionKey]
+    [PartitionKey(Prefix = "ORDER")]
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the sort key in format "LINE#{LineId}".
     /// </summary>
-    [SortKey]
+    [SortKey(Prefix = "LINE")]
     [DynamoDbAttribute("sk")]
     public string Sk { get; set; } = string.Empty;
 
@@ -80,18 +78,4 @@ public partial class OrderLine : IDynamoDbEntity
     /// Gets the total amount for this line (Quantity * UnitPrice).
     /// </summary>
     public decimal Amount => Quantity * UnitPrice;
-
-    /// <summary>
-    /// Creates the partition key for an order line.
-    /// </summary>
-    /// <param name="orderId">The order ID.</param>
-    /// <returns>The formatted partition key.</returns>
-    public static string CreatePk(string orderId) => $"ORDER#{orderId}";
-
-    /// <summary>
-    /// Creates the sort key for an order line.
-    /// </summary>
-    /// <param name="lineId">The line ID.</param>
-    /// <returns>The formatted sort key.</returns>
-    public static string CreateSk(string lineId) => $"LINE#{lineId}";
 }

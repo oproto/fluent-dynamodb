@@ -64,8 +64,8 @@ public class TransactionDemoTable : DynamoDbTableBase
     public async Task<Account?> GetAccountAsync(string accountId)
     {
         return await Get<Account>()
-            .WithKey("pk", Account.CreatePk(accountId))
-            .WithKey("sk", Account.ProfileSk)
+            .WithKey("pk", Account.Keys.Pk(accountId))
+            .WithKey("sk", "PROFILE")
             .GetItemAsync();
     }
 
@@ -79,7 +79,7 @@ public class TransactionDemoTable : DynamoDbTableBase
         var items = await Scan<Account>().ToListAsync();
         
         // Filter to only account profiles (not transaction records)
-        return items.Where(x => x.Sk == Account.ProfileSk).ToList();
+        return items.Where(x => x.Sk == "PROFILE").ToList();
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ public class TransactionDemoTable : DynamoDbTableBase
     /// <returns>A list of transaction records, ordered by timestamp descending.</returns>
     public async Task<List<TransactionRecord>> GetAccountTransactionsAsync(string accountId)
     {
-        var pk = Account.CreatePk(accountId);
+        var pk = Account.Keys.Pk(accountId);
 
         // PREFERRED: Format string approach for begins_with queries
         var transactions = await Query<TransactionRecord>()

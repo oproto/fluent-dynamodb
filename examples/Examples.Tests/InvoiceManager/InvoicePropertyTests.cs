@@ -468,7 +468,7 @@ public class InvoicePropertyTests
         {
             var customer = new Customer
             {
-                Pk = Customer.CreatePk(customerId),
+                Pk = Customer.Keys.Pk(customerId),
                 Sk = Customer.ProfileSk,
                 CustomerId = customerId,
                 Name = name,
@@ -482,8 +482,8 @@ public class InvoicePropertyTests
         {
             var invoice = new Invoice
             {
-                Pk = Customer.CreatePk(customerId),
-                Sk = Invoice.CreateSk(invoiceNumber),
+                Pk = Customer.Keys.Pk(customerId),
+                Sk = Invoice.Keys.Sk(invoiceNumber),
                 InvoiceNumber = invoiceNumber,
                 Date = DateTime.UtcNow,
                 Status = "Draft",
@@ -498,8 +498,8 @@ public class InvoicePropertyTests
         {
             var line = new InvoiceLine
             {
-                Pk = Customer.CreatePk(customerId),
-                Sk = InvoiceLine.CreateSk(invoiceNumber, lineNumber),
+                Pk = Customer.Keys.Pk(customerId),
+                Sk = $"INVOICE#{invoiceNumber}#LINE#{lineNumber}",
                 LineNumber = lineNumber,
                 Description = description,
                 Quantity = quantity,
@@ -511,8 +511,8 @@ public class InvoicePropertyTests
 
         public async Task<Invoice?> GetCompleteInvoiceAsync(string customerId, string invoiceNumber)
         {
-            var pk = Customer.CreatePk(customerId);
-            var skPrefix = Invoice.CreateSkPrefix(invoiceNumber);
+            var pk = Customer.Keys.Pk(customerId);
+            var skPrefix = Invoice.Keys.Sk(invoiceNumber);
 
             // Query all items where sk begins with the invoice prefix
             var response = await Query<Customer>()
@@ -532,7 +532,7 @@ public class InvoicePropertyTests
             {
                 var sk = item["sk"].S;
                 
-                if (sk == Invoice.CreateSk(invoiceNumber))
+                if (sk == Invoice.Keys.Sk(invoiceNumber))
                 {
                     invoice = Invoice.FromDynamoDb<Invoice>(item);
                 }
@@ -552,7 +552,7 @@ public class InvoicePropertyTests
 
         public async Task<List<Invoice>> GetCustomerInvoicesAsync(string customerId)
         {
-            var pk = Customer.CreatePk(customerId);
+            var pk = Customer.Keys.Pk(customerId);
 
             var invoices = await Query<Invoice>()
                 .Where(x => x.Pk == pk && x.Sk.StartsWith("INVOICE#"))
@@ -563,8 +563,8 @@ public class InvoicePropertyTests
 
         public async Task<int> GetInvoiceItemCountAsync(string customerId, string invoiceNumber)
         {
-            var pk = Customer.CreatePk(customerId);
-            var skPrefix = Invoice.CreateSkPrefix(invoiceNumber);
+            var pk = Customer.Keys.Pk(customerId);
+            var skPrefix = Invoice.Keys.Sk(invoiceNumber);
 
             var response = await Query<Customer>()
                 .Where(x => x.Pk == pk && x.Sk.StartsWith(skPrefix))
@@ -576,7 +576,7 @@ public class InvoicePropertyTests
         public async Task DeleteCustomerAsync(string customerId)
         {
             await Delete<Customer>()
-                .WithKey("pk", Customer.CreatePk(customerId))
+                .WithKey("pk", Customer.Keys.Pk(customerId))
                 .WithKey("sk", Customer.ProfileSk)
                 .DeleteAsync();
         }
@@ -584,16 +584,16 @@ public class InvoicePropertyTests
         public async Task DeleteInvoiceAsync(string customerId, string invoiceNumber)
         {
             await Delete<Invoice>()
-                .WithKey("pk", Customer.CreatePk(customerId))
-                .WithKey("sk", Invoice.CreateSk(invoiceNumber))
+                .WithKey("pk", Customer.Keys.Pk(customerId))
+                .WithKey("sk", Invoice.Keys.Sk(invoiceNumber))
                 .DeleteAsync();
         }
 
         public async Task DeleteLineItemAsync(string customerId, string invoiceNumber, int lineNumber)
         {
             await Delete<InvoiceLine>()
-                .WithKey("pk", Customer.CreatePk(customerId))
-                .WithKey("sk", InvoiceLine.CreateSk(invoiceNumber, lineNumber))
+                .WithKey("pk", Customer.Keys.Pk(customerId))
+                .WithKey("sk", $"INVOICE#{invoiceNumber}#LINE#{lineNumber}")
                 .DeleteAsync();
         }
     }

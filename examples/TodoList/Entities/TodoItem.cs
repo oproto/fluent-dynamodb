@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace TodoList.Entities;
 
@@ -17,14 +16,9 @@ namespace TodoList.Entities;
 /// <list type="bullet">
 /// <item>
 /// <description>
-/// <see cref="DynamoDbEntityAttribute"/> - Marks this class for source generation of
-/// DynamoDB mapping code (ToDynamoDb/FromDynamoDb methods).
-/// </description>
-/// </item>
-/// <item>
-/// <description>
 /// <see cref="DynamoDbTableAttribute"/> - Specifies the DynamoDB table name. The IsDefault=true
-/// indicates this is the primary entity for the table.
+/// indicates this is the primary entity for the table. This attribute triggers source generation
+/// of DynamoDB mapping code (ToDynamoDb/FromDynamoDb methods).
 /// </description>
 /// </item>
 /// <item>
@@ -47,11 +41,10 @@ namespace TodoList.Entities;
 /// </item>
 /// </list>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("todo-items", IsDefault = true)]
 [Scannable]
 [GenerateEntityProperty(Name = "TodoItems")]
-public partial class TodoItem : IDynamoDbEntity
+public partial class TodoItem
 {
     /// <summary>
     /// Gets or sets the unique identifier for the todo item.

@@ -57,12 +57,12 @@ public static class GetSamples
     }
 
     /// <summary>
-    /// FluentDynamoDb formatted string - uses constants for key values.
+    /// FluentDynamoDb formatted string - uses generated key methods for key values.
     /// </summary>
     public static async Task<Order?> FluentFormattedGetAsync(OrdersTable table, string orderId)
     {
         return await table.Get<Order>()
-            .WithKey("pk", $"ORDER#{orderId}", "sk", Order.MetaSk)
+            .WithKey("pk", Order.Keys.Pk(orderId), "sk", "META")
             .GetItemAsync();
     }
 
@@ -71,6 +71,6 @@ public static class GetSamples
     /// </summary>
     public static async Task<Order?> FluentLambdaGetAsync(OrdersTable table, string orderId)
     {
-        return await table.Orders.GetAsync(Order.CreatePk(orderId), Order.CreateSk());
+        return await table.Orders.GetAsync(Order.Keys.Pk(orderId), "META");
     }
 }

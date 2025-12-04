@@ -1,6 +1,5 @@
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace StoreLocator.Entities;
 
@@ -38,11 +37,10 @@ namespace StoreLocator.Entities;
 /// <item><description>Hierarchical structure with consistent parent-child relationships</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("stores-h3", IsDefault = true)]
 [Scannable]
 [GenerateAccessors]
-public partial class StoreH3 : IDynamoDbEntity
+public partial class StoreH3
 {
     /// <summary>
     /// Gets or sets the unique store identifier - main table partition key.

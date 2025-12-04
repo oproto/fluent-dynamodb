@@ -1,5 +1,4 @@
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace InvoiceManager.Entities;
 
@@ -36,15 +35,14 @@ namespace InvoiceManager.Entities;
 /// <item><description>sk = "INVOICE#INV-001#LINE#2" (Line item 2)</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbEntity]
 [DynamoDbTable("invoices")]
 [GenerateEntityProperty(Name = "InvoiceLines")]
-public partial class InvoiceLine : IDynamoDbEntity
+public partial class InvoiceLine
 {
     /// <summary>
     /// Gets or sets the partition key in format "CUSTOMER#{customerId}".
     /// </summary>
-    [PartitionKey]
+    [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
@@ -83,13 +81,4 @@ public partial class InvoiceLine : IDynamoDbEntity
     /// Gets the total amount for this line (Quantity * UnitPrice).
     /// </summary>
     public decimal Amount => Quantity * UnitPrice;
-
-    /// <summary>
-    /// Creates the sort key for an invoice line.
-    /// </summary>
-    /// <param name="invoiceNumber">The invoice number.</param>
-    /// <param name="lineNumber">The line number.</param>
-    /// <returns>The formatted sort key.</returns>
-    public static string CreateSk(string invoiceNumber, int lineNumber) 
-        => $"INVOICE#{invoiceNumber}#LINE#{lineNumber}";
 }

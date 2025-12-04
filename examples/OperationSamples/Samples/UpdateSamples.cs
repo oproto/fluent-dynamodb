@@ -83,7 +83,7 @@ public static class UpdateSamples
         OrdersTable table, string orderId, string newStatus, DateTime modifiedAt)
     {
         await table.Update<Order>()
-            .WithKey("pk", Order.CreatePk(orderId), "sk", Order.CreateSk())
+            .WithKey("pk", Order.Keys.Pk(orderId), "sk", "META")
             .Set("SET #status = {0}, #modified = {1:o}", newStatus, modifiedAt)
             .WithAttribute("#status", "orderStatus")
             .WithAttribute("#modified", "modifiedAt")
@@ -96,7 +96,7 @@ public static class UpdateSamples
     public static async Task FluentLambdaUpdateAsync(
         OrdersTable table, string orderId, string newStatus, DateTime modifiedAt)
     {
-        await table.Orders.Update(Order.CreatePk(orderId), Order.CreateSk())
+        await table.Orders.Update(Order.Keys.Pk(orderId), "META")
             .Set(x => new OrderUpdateModel
             {
                 Status = newStatus,

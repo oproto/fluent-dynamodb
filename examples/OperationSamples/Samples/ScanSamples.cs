@@ -58,7 +58,7 @@ public static class ScanSamples
             .WithFilter("#status = :status AND sk = :sk")
             .WithAttribute("#status", "orderStatus")
             .WithValue(":status", status)
-            .WithValue(":sk", Order.MetaSk)
+            .WithValue(":sk", "META")
             .ToListAsync();
     }
 
@@ -68,7 +68,7 @@ public static class ScanSamples
     public static async Task<List<Order>> FluentFormattedScanAsync(OrdersTable table, string status)
     {
         return await table.Scan()
-            .WithFilter("#status = {0} AND sk = {1}", status, Order.MetaSk)
+            .WithFilter("#status = {0} AND sk = {1}", status, "META")
             .WithAttribute("#status", "orderStatus")
             .ToListAsync();
     }
@@ -79,7 +79,7 @@ public static class ScanSamples
     public static async Task<List<Order>> FluentLambdaScanAsync(OrdersTable table, string status)
     {
         return await table.Scan()
-            .WithFilter(x => x.Status == status && x.Sk == Order.MetaSk)
+            .WithFilter(x => x.Status == status && x.Sk == "META")
             .ToListAsync();
     }
 }
