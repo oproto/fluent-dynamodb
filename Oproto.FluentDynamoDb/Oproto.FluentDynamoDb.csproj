@@ -47,7 +47,7 @@
 
     <!-- Include README in package -->
     <ItemGroup>
-        <None Include="..\README.md" Pack="true" PackagePath="\" />
+        <None Include="README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
     <!-- Include source generator as analyzer for development -->

@@ -1,0 +1,103 @@
+# Implementation Plan
+
+- [x] 1. Set up shared package icon
+  - [x] 1.1 Verify icon.png exists at docs/assets/icon.png (user to add 128x128 PNG)
+  - [x] 1.2 Update Directory.Build.props to include PackageIcon property for all packages
+    - Add `<PackageIcon>icon.png</PackageIcon>` to common PropertyGroup
+    - _Requirements: 3.1, 3.2_
+
+- [x] 2. Create missing README files
+  - [x] 2.1 Create Oproto.FluentDynamoDb/README.md (core package)
+    - Include condensed overview from main README
+    - Installation, quick usage example, links to full documentation
+    - _Requirements: 1.1, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 2.2 Create Oproto.FluentDynamoDb.Logging.Extensions/README.md
+    - Describe Microsoft.Extensions.Logging adapter
+    - Show configuration with ILoggerFactory
+    - _Requirements: 1.2, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 2.3 Create Oproto.FluentDynamoDb.NewtonsoftJson/README.md
+    - Describe nested object JSON serialization
+    - Note: Does NOT support AOT compilation
+    - _Requirements: 1.3, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 2.4 Create Oproto.FluentDynamoDb.SystemTextJson/README.md
+    - Describe nested object JSON serialization
+    - Highlight AOT compatibility
+    - _Requirements: 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+
+- [x] 3. Update package .csproj files with icon and README configuration
+  - [x] 3.1 Update Oproto.FluentDynamoDb.csproj
+    - Add PackageReadmeFile, PackageIcon properties
+    - Add ItemGroup for README.md and icon.png
+    - Verify/add Description and PackageTags
+    - _Requirements: 1.5, 3.2, 3.4, 4.2, 4.3_
+  - [x] 3.2 Update Oproto.FluentDynamoDb.Logging.Extensions.csproj
+    - Add PackageReadmeFile, PackageIcon properties
+    - Add ItemGroup for README.md and icon.png
+    - Verify/add Description and PackageTags
+    - _Requirements: 1.5, 3.2, 3.4, 4.2, 4.3_
+  - [x] 3.3 Update Oproto.FluentDynamoDb.NewtonsoftJson.csproj
+    - Add PackageReadmeFile, PackageIcon properties
+    - Add ItemGroup for README.md and icon.png
+    - Verify/add Description and PackageTags
+    - _Requirements: 1.5, 3.2, 3.4, 4.2, 4.3_
+  - [x] 3.4 Update Oproto.FluentDynamoDb.SystemTextJson.csproj
+    - Add PackageReadmeFile, PackageIcon properties
+    - Add ItemGroup for README.md and icon.png
+    - Verify/add Description and PackageTags
+    - _Requirements: 1.5, 3.2, 3.4, 4.2, 4.3_
+
+- [x] 4. Review and update existing package READMEs
+  - [x] 4.1 Review Oproto.FluentDynamoDb.BlobStorage.S3/README.md
+    - Ensure all standard sections present
+    - Update Links section if needed
+    - _Requirements: 5.1, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 4.2 Review Oproto.FluentDynamoDb.Encryption.Kms/README.md
+    - Ensure all standard sections present
+    - Update Links section if needed
+    - _Requirements: 5.2, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 4.3 Review Oproto.FluentDynamoDb.FluentResults/README.md
+    - Ensure all standard sections present (already good template)
+    - _Requirements: 5.3, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 4.4 Review Oproto.FluentDynamoDb.Geospatial/README.md
+    - Ensure all standard sections present
+    - Update Links section if needed
+    - _Requirements: 5.4, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 4.5 Review Oproto.FluentDynamoDb.SourceGenerator/README.md
+    - Ensure all standard sections present
+    - Update Links section if needed
+    - _Requirements: 5.5, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 4.6 Review Oproto.FluentDynamoDb.Streams/README.md
+    - Ensure all standard sections present
+    - Update Links section if needed
+    - _Requirements: 5.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+
+- [x] 5. Update existing package .csproj files with icon configuration
+  - [x] 5.1 Update Oproto.FluentDynamoDb.BlobStorage.S3.csproj with icon
+    - Add PackageIcon property and ItemGroup for icon.png
+    - _Requirements: 3.2, 3.4_
+  - [x] 5.2 Update Oproto.FluentDynamoDb.Encryption.Kms.csproj with icon
+    - Add PackageIcon property and ItemGroup for icon.png
+    - _Requirements: 3.2, 3.4_
+  - [x] 5.3 Update Oproto.FluentDynamoDb.FluentResults.csproj with icon
+    - Add PackageIcon property and ItemGroup for icon.png
+    - _Requirements: 3.2, 3.4_
+  - [x] 5.4 Update Oproto.FluentDynamoDb.Geospatial.csproj with icon
+    - Add PackageIcon property and ItemGroup for icon.png
+    - _Requirements: 3.2, 3.4_
+  - [x] 5.5 Update Oproto.FluentDynamoDb.SourceGenerator.csproj with icon
+    - Add PackageIcon property and ItemGroup for icon.png
+    - _Requirements: 3.2, 3.4_
+  - [x] 5.6 Update Oproto.FluentDynamoDb.Streams.csproj with icon
+    - Add PackageIcon property and ItemGroup for icon.png
+    - _Requirements: 3.2, 3.4_
+
+- [x] 6. Verify Directory.Build.props metadata
+  - [x] 6.1 Verify RepositoryUrl points to github.com/oproto/fluent-dynamodb
+    - _Requirements: 4.4_
+  - [x] 6.2 Verify Authors, Copyright, PackageProjectUrl are set correctly
+    - _Requirements: 4.1_
+
+- [x] 7. Final verification
+  - [x] 7.1 Run dotnet pack on all packages to verify configuration
+    - Ensure no errors about missing files
+    - _Requirements: 1.5, 3.2, 3.4_

@@ -1,7 +1,11 @@
+<p align="center">
+  <img src="docs/assets/FluentDynamoDBLogo.svg" alt="Oproto.FluentDynamoDb Logo" width="300">
+</p>
+
 # Oproto.FluentDynamoDb
 
-[![Build](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/build.yml)
-[![Tests](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/test.yml)
+[![Build](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml)
+[![Tests](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml)
 [![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
 
 A modern, fluent-style API wrapper for Amazon DynamoDB that combines automatic code generation with type-safe operations. Built for .NET 8+, this library eliminates boilerplate through source generation while providing an intuitive, expression-based syntax for all DynamoDB operations. Whether you're building serverless applications, microservices, or enterprise systems, Oproto.FluentDynamoDb delivers a developer-friendly experience without sacrificing performance or flexibility.
@@ -503,6 +507,17 @@ a company building modern SaaS solutions for small business finance and accounti
 ### Maintainer
 - **Dan Guisinger** - [danguisinger.com](https://danguisinger.com)
 
+## Built Using Kiro (for Kiroween 2025)
+
+FluentDynamoDB was developed using Kiro's spec-driven workflow, including structured requirements and design specifications, source-generator implementation tasks, multi-model LLM workflows for complex features, and extensive automated testing.
+
+A short demo of this workflow was submitted as part of the Kiroween 2025 Hackathon. This repository continues to evolve beyond the hackathon submission.
+
+### 🎥 Demo Video & Submission
+
+- https://www.youtube.com/watch?v=4-SI6YgSX_s
+- https://devpost.com/software/fluent-dynamodb
+
 ## Community & Support
 
 - **Issues:** [GitHub Issues](https://github.com/OProto/oproto-fluent-dynamodb/issues)
@@ -512,6 +527,10 @@ a company building modern SaaS solutions for small business finance and accounti
 ## Contributing
 
 Contributions are welcome! Please see our contributing guidelines for more information.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
