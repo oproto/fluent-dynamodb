@@ -30,12 +30,12 @@ Oproto.FluentDynamoDb/                           # Core library (.NET 8)
 
 Oproto.FluentDynamoDb.SourceGenerator/           # Source generator (.NET Standard 2.0)
 ├── Generators/
-│   ├── AdvancedTypeMapper.cs                    # Map/Set/List generation
+│   ├── ComplexTypeMapper.cs                    # Map/Set/List generation
 │   ├── TtlConverter.cs                          # TTL conversion generation
 │   ├── JsonBlobMapper.cs                        # JSON serialization generation
 │   └── BlobReferenceMapper.cs                   # Blob storage generation
 └── Analyzers/
-    └── AdvancedTypeAnalyzer.cs                  # Validation and diagnostics
+    └── ComplexTypeAnalyzer.cs                  # Validation and diagnostics
 
 Oproto.FluentDynamoDb.SystemTextJson/            # System.Text.Json support (.NET 8)
 └── SystemTextJsonSerializer.cs                  # AOT-compatible via source generation
@@ -400,11 +400,11 @@ internal class AttributeValueInternal
 The source generator will analyze properties and detect advanced types:
 
 ```csharp
-public class AdvancedTypeAnalyzer
+public class ComplexTypeAnalyzer
 {
-    public AdvancedTypeInfo AnalyzeProperty(PropertyModel property)
+    public ComplexTypeInfo AnalyzeProperty(PropertyModel property)
     {
-        var info = new AdvancedTypeInfo
+        var info = new ComplexTypeInfo
         {
             PropertyName = property.PropertyName,
             IsMap = IsMapType(property),
@@ -442,7 +442,7 @@ public class AdvancedTypeAnalyzer
         return property.PropertyType.StartsWith("List<");
     }
     
-    private void ValidateTypeConfiguration(AdvancedTypeInfo info, PropertyModel property)
+    private void ValidateTypeConfiguration(ComplexTypeInfo info, PropertyModel property)
     {
         // TTL validation
         if (info.IsTtl && !property.PropertyType.Contains("DateTime"))
@@ -477,7 +477,7 @@ public class AdvancedTypeAnalyzer
     }
 }
 
-public class AdvancedTypeInfo
+public class ComplexTypeInfo
 {
     public string PropertyName { get; set; }
     public bool IsMap { get; set; }
@@ -921,10 +921,10 @@ public class PropertyModel
     public string PropertyType { get; set; }
     
     // New: Advanced type information
-    public AdvancedTypeInfo AdvancedType { get; set; }
+    public ComplexTypeInfo ComplexType { get; set; }
 }
 
-public class AdvancedTypeInfo
+public class ComplexTypeInfo
 {
     public bool IsMap { get; set; }
     public bool IsSet { get; set; }
@@ -1099,13 +1099,13 @@ public class S3BlobProvider : IBlobStorageProvider
 ### Compilation Errors
 
 ```csharp
-public static class AdvancedTypeDiagnostics
+public static class ComplexTypeDiagnostics
 {
     public static readonly DiagnosticDescriptor InvalidTtlType = new(
         "DYNDB101",
         "Invalid TTL property type",
         "[TimeToLive] can only be used on DateTime or DateTimeOffset properties. Property '{0}' is type '{1}'",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb.ComplexTypes",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
     
@@ -1113,7 +1113,7 @@ public static class AdvancedTypeDiagnostics
         "DYNDB102",
         "Missing JSON serializer package",
         "[JsonBlob] requires referencing either Oproto.FluentDynamoDb.SystemTextJson or Oproto.FluentDynamoDb.NewtonsoftJson",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb.ComplexTypes",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
     
@@ -1121,7 +1121,7 @@ public static class AdvancedTypeDiagnostics
         "DYNDB103",
         "Missing blob provider package",
         "[BlobReference] requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb.ComplexTypes",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
     
@@ -1129,7 +1129,7 @@ public static class AdvancedTypeDiagnostics
         "DYNDB104",
         "Incompatible attribute combination",
         "[TimeToLive] cannot be combined with [JsonBlob] or [BlobReference] on property '{0}'",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb.ComplexTypes",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
     
@@ -1137,7 +1137,7 @@ public static class AdvancedTypeDiagnostics
         "DYNDB105",
         "Multiple TTL fields",
         "Entity '{0}' has multiple [TimeToLive] properties. Only one TTL field is allowed per entity",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb.ComplexTypes",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
     
@@ -1145,7 +1145,7 @@ public static class AdvancedTypeDiagnostics
         "DYNDB106",
         "Unsupported collection type",
         "Collection type '{0}' is not supported. Use Dictionary<string, T>, HashSet<T>, or List<T>",
-        "DynamoDb.AdvancedTypes",
+        "DynamoDb.ComplexTypes",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 }

@@ -13,7 +13,7 @@ using System.Collections.Immutable;
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
 [Trait("Category", "Unit")]
-public class AdvancedTypeGenerationTests
+public class ComplexTypeGenerationTests
 {
     #region Map Property Tests (Task 19.1)
 

@@ -4,7 +4,7 @@ using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 
 /// <summary>
-/// Comprehensive integration tests for Phase 2 expression-based update features.
+/// Comprehensive integration tests for expression-based update features.
 /// Tests format strings, combined operations, error conditions, and performance.
 /// 
 /// NOTE: Tests for nullable type operations (ADD, DELETE, REMOVE, DynamoDB functions)
@@ -16,12 +16,12 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Collection("DynamoDB Local")]
 [Trait("Category", "Integration")]
 [Trait("Feature", "ExpressionBasedUpdates")]
-[Trait("Phase", "Phase2")]
-public class Phase2ComprehensiveTests : IntegrationTestBase
+[Trait("Feature", "ExpressionUpdates")]
+public class ExpressionUpdateComprehensiveTests : IntegrationTestBase
 {
     private DynamoDbTableBase _table = null!;
     
-    public Phase2ComprehensiveTests(DynamoDbLocalFixture fixture) : base(fixture)
+    public ExpressionUpdateComprehensiveTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
     }
     

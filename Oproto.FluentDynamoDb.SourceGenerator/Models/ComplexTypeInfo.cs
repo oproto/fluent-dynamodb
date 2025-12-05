@@ -1,9 +1,9 @@
 namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 
 /// <summary>
-/// Contains information about advanced type features for a property.
+/// Contains information about complex type features for a property.
 /// </summary>
-internal class AdvancedTypeInfo
+internal class ComplexTypeInfo
 {
     /// <summary>
     /// Gets or sets the property name.
@@ -56,7 +56,7 @@ internal class AdvancedTypeInfo
     public BlobProviderConfig? BlobProvider { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether this property uses any advanced type features.
+    /// Gets a value indicating whether this property uses any complex type features.
     /// </summary>
-    public bool HasAdvancedType => IsMap || IsSet || IsList || IsTtl || IsJsonBlob || IsBlobReference;
+    public bool HasComplexType => IsMap || IsSet || IsList || IsTtl || IsJsonBlob || IsBlobReference;
 }

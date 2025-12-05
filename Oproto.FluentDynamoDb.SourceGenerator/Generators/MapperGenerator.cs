@@ -102,7 +102,7 @@ internal static class MapperGenerator
         sb.AppendLine("    {");
 
         // Check if entity has blob reference properties or encrypted properties
-        var hasBlobReferences = entity.Properties.Any(p => p.AdvancedType?.IsBlobReference == true);
+        var hasBlobReferences = entity.Properties.Any(p => p.ComplexType?.IsBlobReference == true);
         var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
 
         // Generate all required interface methods
@@ -222,7 +222,7 @@ internal static class MapperGenerator
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         
-        var hasBlobReferences = entity.Properties.Any(p => p.AdvancedType?.IsBlobReference == true);
+        var hasBlobReferences = entity.Properties.Any(p => p.ComplexType?.IsBlobReference == true);
         var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
         
         if (hasBlobReferences && hasEncryptedProperties)
@@ -403,21 +403,21 @@ internal static class MapperGenerator
         }
 
         // Handle TTL properties (Time-To-Live)
-        if (property.AdvancedType?.IsTtl == true)
+        if (property.ComplexType?.IsTtl == true)
         {
             GenerateTtlPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle JSON blob properties
-        if (property.AdvancedType?.IsJsonBlob == true)
+        if (property.ComplexType?.IsJsonBlob == true)
         {
             GenerateJsonBlobPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle Map properties (Dictionary types)
-        if (property.AdvancedType?.IsMap == true)
+        if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyToAttributeValue(sb, property, entity);
             return;
@@ -501,35 +501,35 @@ internal static class MapperGenerator
         }
 
         // Handle combined JSON blob + blob reference (serialize to JSON, then store as external blob)
-        if (property.AdvancedType?.IsJsonBlob == true && property.AdvancedType?.IsBlobReference == true)
+        if (property.ComplexType?.IsJsonBlob == true && property.ComplexType?.IsBlobReference == true)
         {
             GenerateCombinedJsonBlobAndBlobReferenceToAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle blob reference properties (async)
-        if (property.AdvancedType?.IsBlobReference == true)
+        if (property.ComplexType?.IsBlobReference == true)
         {
             GenerateBlobReferencePropertyToAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle TTL properties (Time-To-Live)
-        if (property.AdvancedType?.IsTtl == true)
+        if (property.ComplexType?.IsTtl == true)
         {
             GenerateTtlPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle JSON blob properties
-        if (property.AdvancedType?.IsJsonBlob == true)
+        if (property.ComplexType?.IsJsonBlob == true)
         {
             GenerateJsonBlobPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle Map properties (Dictionary types)
-        if (property.AdvancedType?.IsMap == true)
+        if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyToAttributeValue(sb, property, entity);
             return;
@@ -698,7 +698,7 @@ internal static class MapperGenerator
         var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
-        var serializerType = property.AdvancedType?.JsonSerializerType;
+        var serializerType = property.ComplexType?.JsonSerializerType;
 
         // Generate suggested key based on entity keys (declare before try block so it's accessible in catch)
         var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
@@ -1886,21 +1886,21 @@ internal static class MapperGenerator
         }
 
         // Handle TTL properties (Time-To-Live)
-        if (property.AdvancedType?.IsTtl == true)
+        if (property.ComplexType?.IsTtl == true)
         {
             GenerateTtlPropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle JSON blob properties
-        if (property.AdvancedType?.IsJsonBlob == true)
+        if (property.ComplexType?.IsJsonBlob == true)
         {
             GenerateJsonBlobPropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle Map properties (Dictionary types)
-        if (property.AdvancedType?.IsMap == true)
+        if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyFromAttributeValue(sb, property, entity);
             return;
@@ -1966,35 +1966,35 @@ internal static class MapperGenerator
         }
 
         // Handle combined JSON blob + blob reference (retrieve blob, then deserialize from JSON)
-        if (property.AdvancedType?.IsJsonBlob == true && property.AdvancedType?.IsBlobReference == true)
+        if (property.ComplexType?.IsJsonBlob == true && property.ComplexType?.IsBlobReference == true)
         {
             GenerateCombinedJsonBlobAndBlobReferenceFromAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle blob reference properties (async)
-        if (property.AdvancedType?.IsBlobReference == true)
+        if (property.ComplexType?.IsBlobReference == true)
         {
             GenerateBlobReferencePropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle TTL properties (Time-To-Live)
-        if (property.AdvancedType?.IsTtl == true)
+        if (property.ComplexType?.IsTtl == true)
         {
             GenerateTtlPropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle JSON blob properties
-        if (property.AdvancedType?.IsJsonBlob == true)
+        if (property.ComplexType?.IsJsonBlob == true)
         {
             GenerateJsonBlobPropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
         // Handle Map properties (Dictionary types)
-        if (property.AdvancedType?.IsMap == true)
+        if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyFromAttributeValue(sb, property, entity);
             return;
@@ -2118,7 +2118,7 @@ internal static class MapperGenerator
         var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
-        var serializerType = property.AdvancedType?.JsonSerializerType;
+        var serializerType = property.ComplexType?.JsonSerializerType;
 
         sb.AppendLine($"            // Combined JSON blob + blob reference: retrieve blob, then deserialize from JSON");
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");

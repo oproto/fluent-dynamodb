@@ -16,7 +16,7 @@ This document provides a detailed baseline of the current state of unit tests in
 - **Files Requiring Migration:** 6 (Priority 1 & 2)
 - **Tests Requiring Migration:** 65
 - **String Assertions to Replace:** 248
-- **Files Already Using Compilation Verification:** 4 (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests)
+- **Files Already Using Compilation Verification:** 4 (MapperGeneratorTests, ComplexTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests)
 - **Files Needing Compilation Verification:** 2 (DynamoDbSourceGeneratorTests, MapperGeneratorBugFixTests)
 
 ---
@@ -35,7 +35,7 @@ This document provides a detailed baseline of the current state of unit tests in
 | File | Tests | String Assertions | Compilation Verification | Semantic Assertions |
 |------|-------|-------------------|-------------------------|---------------------|
 | MapperGeneratorTests.cs | 9 | 48 | ✅ Yes | ❌ No |
-| AdvancedTypeGenerationTests.cs | 38 | 131 | ✅ Yes | ❌ No |
+| ComplexTypeGenerationTests.cs | 38 | 131 | ✅ Yes | ❌ No |
 | KeysGeneratorTests.cs | 8 | 31 | ✅ Yes | ❌ No |
 
 **Migration Impact:** HIGH - These tests verify core code generation and break frequently on formatting changes.
@@ -231,7 +231,7 @@ result.Should().Contain("var keyValue = \"tenant#\" + id", "should use correct p
 | File | Tests | String Assertions | Estimated Hours | Complexity |
 |------|-------|-------------------|-----------------|------------|
 | MapperGeneratorTests.cs | 9 | 48 | 3-4 hours | High - Complex mapping logic |
-| AdvancedTypeGenerationTests.cs | 38 | 131 | 8-10 hours | Very High - Many test categories |
+| ComplexTypeGenerationTests.cs | 38 | 131 | 8-10 hours | Very High - Many test categories |
 | KeysGeneratorTests.cs | 8 | 31 | 2-3 hours | Medium - Key format strings |
 | FieldsGeneratorTests.cs | 6 | 18 | 1-2 hours | Low - Mostly constant values |
 | DynamoDbSourceGeneratorTests.cs | 3 | 15 | 1 hour | Low - End-to-end tests |
@@ -245,7 +245,7 @@ result.Should().Contain("var keyValue = \"tenant#\" + id", "should use correct p
 
 ### High Risk Areas
 
-1. **AdvancedTypeGenerationTests.cs**
+1. **ComplexTypeGenerationTests.cs**
    - **Risk:** 38 tests with 131 string assertions
    - **Mitigation:** Break into smaller chunks, test incrementally
    - **Impact:** High - Tests critical advanced type handling
@@ -329,7 +329,7 @@ Oproto.FluentDynamoDb.SourceGenerator.UnitTests/
 
 ### Priority 1 Files
 - `Generators/MapperGeneratorTests.cs`
-- `Generators/AdvancedTypeGenerationTests.cs`
+- `Generators/ComplexTypeGenerationTests.cs`
 - `Generators/KeysGeneratorTests.cs`
 
 ### Priority 2 Files

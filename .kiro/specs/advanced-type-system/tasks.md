@@ -79,7 +79,7 @@
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
 - [x] 5. Enhance source generator for advanced type detection
-  - [x] 5.1 Create AdvancedTypeAnalyzer class
+  - [x] 5.1 Create ComplexTypeAnalyzer class
     - Detect Map types (Dictionary and [DynamoDbMap] classes)
     - Detect Set types (HashSet<T>)
     - Detect List types (List<T>)
@@ -623,8 +623,8 @@
     - _Requirements: 11.3, 11.4_
 
 - [x] 26. Fix remaining advanced type test failures
-  - [x] 26.1 Run all AdvancedTypeGenerationTests and identify remaining failures
-    - Execute: `dotnet test --filter "FullyQualifiedName~AdvancedTypeGenerationTests"`
+  - [x] 26.1 Run all ComplexTypeGenerationTests and identify remaining failures
+    - Execute: `dotnet test --filter "FullyQualifiedName~ComplexTypeGenerationTests"`
     - Document which tests are still failing
     - Identify patterns in the failures
   
@@ -646,7 +646,7 @@
     - Ensure empty List is handled correctly in FromDynamoDb
     - _Requirements: 15.1, 15.2_
   
-  - [x] 26.5 Verify all 30 AdvancedTypeGenerationTests pass
-    - Run full test suite: `dotnet test --filter "FullyQualifiedName~AdvancedTypeGenerationTests"`
+  - [x] 26.5 Verify all 30 ComplexTypeGenerationTests pass
+    - Run full test suite: `dotnet test --filter "FullyQualifiedName~ComplexTypeGenerationTests"`
     - Confirm all tests pass
     - Document any remaining issues

@@ -5,20 +5,20 @@ using Oproto.FluentDynamoDb.SourceGenerator.Models;
 namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 
 /// <summary>
-/// Analyzes properties for advanced DynamoDB type support including Maps, Sets, Lists,
+/// Analyzes properties for complex DynamoDB type support including Maps, Sets, Lists,
 /// TTL fields, JSON blobs, and blob references.
 /// </summary>
-internal class AdvancedTypeAnalyzer
+internal class ComplexTypeAnalyzer
 {
     /// <summary>
-    /// Analyzes a property to detect advanced type information.
+    /// Analyzes a property to detect complex type information.
     /// </summary>
     /// <param name="property">The property model to analyze.</param>
     /// <param name="semanticModel">The semantic model for type resolution.</param>
-    /// <returns>Advanced type information for the property.</returns>
-    public AdvancedTypeInfo AnalyzeProperty(PropertyModel property, SemanticModel semanticModel)
+    /// <returns>Complex type information for the property.</returns>
+    public ComplexTypeInfo AnalyzeProperty(PropertyModel property, SemanticModel semanticModel)
     {
-        var info = new AdvancedTypeInfo
+        var info = new ComplexTypeInfo
         {
             PropertyName = property.PropertyName
         };

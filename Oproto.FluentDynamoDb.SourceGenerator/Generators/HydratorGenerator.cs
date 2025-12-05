@@ -29,7 +29,7 @@ internal static class HydratorGenerator
     /// <returns>True if the entity has blob reference properties, false otherwise.</returns>
     public static bool RequiresHydrator(EntityModel entity)
     {
-        return entity.Properties.Any(p => p.AdvancedType?.IsBlobReference == true);
+        return entity.Properties.Any(p => p.ComplexType?.IsBlobReference == true);
     }
 
     /// <summary>

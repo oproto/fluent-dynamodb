@@ -7,11 +7,11 @@ using Oproto.FluentDynamoDb.Utility;
 namespace Oproto.FluentDynamoDb.UnitTests.Integration;
 
 /// <summary>
-/// Integration tests for advanced DynamoDB types (Maps, Sets, Lists, TTL).
+/// Integration tests for complex DynamoDB types (Maps, Sets, Lists, TTL).
 /// These tests verify end-to-end functionality including serialization, storage, and deserialization.
 /// Note: JSON blob and blob reference tests are not included as those features require source generator implementation.
 /// </summary>
-public class AdvancedTypesIntegrationTests
+public class ComplexTypesIntegrationTests
 {
     private readonly IAmazonDynamoDB _mockClient = Substitute.For<IAmazonDynamoDB>();
 

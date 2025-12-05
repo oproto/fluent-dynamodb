@@ -5,9 +5,9 @@ using Oproto.FluentDynamoDb.SourceGenerator.Models;
 namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 
 /// <summary>
-/// Validates advanced type configurations and reports diagnostics for invalid configurations.
+/// Validates complex type configurations and reports diagnostics for invalid configurations.
 /// </summary>
-internal class AdvancedTypeValidator
+internal class ComplexTypeValidator
 {
     private readonly List<Diagnostic> _diagnostics = new();
 
@@ -17,28 +17,28 @@ internal class AdvancedTypeValidator
     public IReadOnlyList<Diagnostic> Diagnostics => _diagnostics;
 
     /// <summary>
-    /// Validates advanced type configuration for a property.
+    /// Validates complex type configuration for a property.
     /// </summary>
     /// <param name="property">The property to validate.</param>
-    /// <param name="advancedType">The advanced type information.</param>
+    /// <param name="complexType">The complex type information.</param>
     /// <param name="hasJsonSerializerPackage">Whether a JSON serializer package is referenced.</param>
     /// <param name="hasBlobProviderPackage">Whether a blob provider package is referenced.</param>
     /// <param name="semanticModel">The semantic model for type resolution.</param>
     public void ValidateProperty(
         PropertyModel property,
-        AdvancedTypeInfo advancedType,
+        ComplexTypeInfo complexType,
         bool hasJsonSerializerPackage,
         bool hasBlobProviderPackage,
         SemanticModel semanticModel)
     {
         // Validate TTL property type
-        if (advancedType.IsTtl)
+        if (complexType.IsTtl)
         {
             ValidateTtlPropertyType(property);
         }
 
         // Validate JSON blob requires serializer package
-        if (advancedType.IsJsonBlob && !hasJsonSerializerPackage)
+        if (complexType.IsJsonBlob && !hasJsonSerializerPackage)
         {
             ReportDiagnostic(
                 DiagnosticDescriptors.MissingJsonSerializer,
@@ -47,7 +47,7 @@ internal class AdvancedTypeValidator
         }
 
         // Validate blob reference requires provider package
-        if (advancedType.IsBlobReference && !hasBlobProviderPackage)
+        if (complexType.IsBlobReference && !hasBlobProviderPackage)
         {
             ReportDiagnostic(
                 DiagnosticDescriptors.MissingBlobProvider,
@@ -56,16 +56,16 @@ internal class AdvancedTypeValidator
         }
 
         // Validate attribute combinations
-        ValidateAttributeCombinations(property, advancedType);
+        ValidateAttributeCombinations(property, complexType);
 
         // Validate collection types
-        if (advancedType.IsSet)
+        if (complexType.IsSet)
         {
-            ValidateSetType(property, advancedType);
+            ValidateSetType(property, complexType);
         }
 
         // Validate nested map types have [DynamoDbEntity] for AOT compatibility
-        if (advancedType.IsMap)
+        if (complexType.IsMap)
         {
             ValidateNestedMapType(property, semanticModel);
         }
@@ -97,10 +97,10 @@ internal class AdvancedTypeValidator
     /// <summary>
     /// Validates that attribute combinations are compatible.
     /// </summary>
-    private void ValidateAttributeCombinations(PropertyModel property, AdvancedTypeInfo advancedType)
+    private void ValidateAttributeCombinations(PropertyModel property, ComplexTypeInfo complexType)
     {
         // TTL cannot be combined with JsonBlob or BlobReference
-        if (advancedType.IsTtl && (advancedType.IsJsonBlob || advancedType.IsBlobReference))
+        if (complexType.IsTtl && (complexType.IsJsonBlob || complexType.IsBlobReference))
         {
             ReportDiagnostic(
                 DiagnosticDescriptors.IncompatibleAttributes,
@@ -110,7 +110,7 @@ internal class AdvancedTypeValidator
         }
 
         // Map/Set/List cannot be combined with TTL
-        if (advancedType.IsTtl && (advancedType.IsMap || advancedType.IsSet || advancedType.IsList))
+        if (complexType.IsTtl && (complexType.IsMap || complexType.IsSet || complexType.IsList))
         {
             ReportDiagnostic(
                 DiagnosticDescriptors.IncompatibleAttributes,
@@ -127,12 +127,12 @@ internal class AdvancedTypeValidator
     /// <summary>
     /// Validates that Set element type is supported.
     /// </summary>
-    private void ValidateSetType(PropertyModel property, AdvancedTypeInfo advancedType)
+    private void ValidateSetType(PropertyModel property, ComplexTypeInfo complexType)
     {
-        if (advancedType.ElementType == null)
+        if (complexType.ElementType == null)
             return;
 
-        var elementType = advancedType.ElementType.TrimEnd('?');
+        var elementType = complexType.ElementType.TrimEnd('?');
 
         var supportedSetTypes = new[]
         {
@@ -151,7 +151,7 @@ internal class AdvancedTypeValidator
                 DiagnosticDescriptors.UnsupportedCollectionType,
                 property.PropertyDeclaration?.Identifier.GetLocation(),
                 property.PropertyName,
-                $"HashSet<{advancedType.ElementType}>");
+                $"HashSet<{complexType.ElementType}>");
         }
     }
 
@@ -207,7 +207,7 @@ internal class AdvancedTypeValidator
     public void ValidateEntityTtlFields(EntityModel entityModel)
     {
         var ttlProperties = entityModel.Properties
-            .Where(p => p.AdvancedType?.IsTtl == true)
+            .Where(p => p.ComplexType?.IsTtl == true)
             .ToArray();
 
         if (ttlProperties.Length > 1)

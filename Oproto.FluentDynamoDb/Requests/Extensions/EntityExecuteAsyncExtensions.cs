@@ -9,10 +9,10 @@ using Oproto.FluentDynamoDb.Providers.BlobStorage;
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 
 /// <summary>
-/// Enhanced ExecuteAsync extensions that provide strongly-typed entity mapping.
+/// Entity ExecuteAsync extensions that provide strongly-typed entity mapping.
 /// These extensions work with entities that implement IDynamoDbEntity interface.
 /// </summary>
-public static class EnhancedExecuteAsyncExtensions
+public static class EntityExecuteAsyncExtensions
 {
     /// <summary>
     /// Executes a GetItem operation and returns a strongly-typed entity (Primary API).

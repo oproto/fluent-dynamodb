@@ -62,7 +62,7 @@ The migration of brittle unit tests from string-based assertions to compilation 
   - Preserved 6 relationship mapping checks
 - **Impact:** Core mapping logic now resilient to formatting changes
 
-#### 2. AdvancedTypeGenerationTests.cs ✅
+#### 2. ComplexTypeGenerationTests.cs ✅
 - **Tests Migrated:** 38
 - **Compilation Verification:** Already present, verified
 - **Key Changes:**
@@ -297,13 +297,13 @@ Execution Time: ~6.2 seconds
    - Impact: None on migration
 
 2. **Generator_WithDateTimeTtl_GeneratesUnixEpochConversion**
-   - Location: `AdvancedTypeGenerationTests.cs`
+   - Location: `ComplexTypeGenerationTests.cs`
    - Reason: Variable name changed in generated code (`seconds` no longer exists)
    - Status: Test updated to use semantic assertions
    - Impact: Fixed during migration
 
 3. **Generator_WithDynamoDbMapAttribute_GeneratesNestedMapConversion**
-   - Location: `AdvancedTypeGenerationTests.cs`
+   - Location: `ComplexTypeGenerationTests.cs`
    - Reason: Variable name changed in generated code (`attributesMap` no longer exists)
    - Status: Test updated to use semantic assertions
    - Impact: Fixed during migration
@@ -492,7 +492,7 @@ The test suite is now more robust, maintainable, and provides better error messa
 | File | Priority | Tests | Compilation | Semantic | DynamoDB | Status |
 |------|----------|-------|-------------|----------|----------|--------|
 | MapperGeneratorTests.cs | 1 | 9 | ✅ | ✅ | ✅ | ✅ Complete |
-| AdvancedTypeGenerationTests.cs | 1 | 38 | ✅ | ✅ | ✅ | ✅ Complete |
+| ComplexTypeGenerationTests.cs | 1 | 38 | ✅ | ✅ | ✅ | ✅ Complete |
 | KeysGeneratorTests.cs | 1 | 8 | ✅ | ✅ | ✅ | ✅ Complete |
 | FieldsGeneratorTests.cs | 2 | 6 | ✅ | ✅ | ✅ | ✅ Complete |
 | DynamoDbSourceGeneratorTests.cs | 2 | 3 | ✅ | ✅ | ✅ | ✅ Complete |

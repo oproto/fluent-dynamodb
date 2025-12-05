@@ -177,7 +177,7 @@ Created a complete set of documentation to support the unit test migration proje
 - **Estimated Effort:** 3-4 hours
 - **Status:** Ready to start (Task 2)
 
-### 2. AdvancedTypeGenerationTests.cs
+### 2. ComplexTypeGenerationTests.cs
 - **Tests:** 38
 - **String Assertions:** 131
 - **Compilation Verification:** ✅ Already added
@@ -229,7 +229,7 @@ Created a complete set of documentation to support the unit test migration proje
 4. Update MIGRATION_STATUS.md after completion
 
 ### Subsequent Tasks
-- Task 3: Migrate AdvancedTypeGenerationTests.cs
+- Task 3: Migrate ComplexTypeGenerationTests.cs
 - Task 4: Migrate KeysGeneratorTests.cs
 - Task 5: Migrate FieldsGeneratorTests.cs
 - Task 6: Migrate DynamoDbSourceGeneratorTests.cs
