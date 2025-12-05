@@ -186,11 +186,12 @@ static async Task MarkCompleteAsync(TodoItemsTable table)
 
     try
     {
-        // PREFERRED: Using the generated entity accessor Update method with format string
+        // PREFERRED: Using the generated entity accessor Update method with lambda expression
         await table.TodoItems.Update(matchingItem.Id)
-            .Set("SET #isComplete = {0}, #completedAt = {1:o}", true, DateTime.UtcNow)
-            .WithAttribute("#isComplete", "isComplete")
-            .WithAttribute("#completedAt", "completedAt")
+            .Set(x => new TodoItemUpdateModel { 
+                IsComplete = true,
+                CompletedAt = DateTime.UtcNow
+            })
             .UpdateAsync();
 
         ConsoleHelpers.ShowSuccess($"Marked '{TruncateString(matchingItem.Description, 30)}' as complete");
@@ -242,10 +243,10 @@ static async Task EditDescriptionAsync(TodoItemsTable table)
 
     try
     {
-        // PREFERRED: Using the generated entity accessor Update method with format string
         await table.TodoItems.Update(matchingItem.Id)
-            .Set("SET #description = {0}", newDescription)
-            .WithAttribute("#description", "description")
+            .Set(x => new TodoItemUpdateModel { 
+                Description = newDescription
+            })
             .UpdateAsync();
 
         ConsoleHelpers.ShowSuccess("Description updated successfully");

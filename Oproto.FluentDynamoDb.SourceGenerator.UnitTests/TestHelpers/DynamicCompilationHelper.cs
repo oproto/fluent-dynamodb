@@ -124,6 +124,9 @@ public static class DynamicCompilationHelper
         references.Add(CreateReferenceFromType(typeof(System.Text.Json.Serialization.JsonSerializerContext)));
         references.Add(CreateReferenceFromType(typeof(Newtonsoft.Json.JsonConvert)));
         
+        // Regex reference (used for wildcard pattern matching in multi-item entities)
+        references.Add(CreateReferenceFromType(typeof(System.Text.RegularExpressions.Regex)));
+        
         // AWS SDK references
         references.Add(CreateReferenceFromType(typeof(Amazon.DynamoDBv2.Model.AttributeValue)));
         

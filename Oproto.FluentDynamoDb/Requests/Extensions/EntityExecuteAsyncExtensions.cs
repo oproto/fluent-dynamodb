@@ -437,14 +437,16 @@ public static class EntityExecuteAsyncExtensions
                 ResponseMetadata = response.ResponseMetadata
             };
 
-            // Filter items that match the entity type
-            var matchingItems = items.Where(T.MatchesEntity).ToList();
-
-            if (matchingItems.Count == 0)
+            // For composite entities, pass all items to FromDynamoDb
+            // The multi-item FromDynamoDb method handles identifying the primary entity
+            // and related entities based on sort key patterns
+            // We don't filter by MatchesEntity here because related entities (e.g., InvoiceLine)
+            // won't match the primary entity type (e.g., Invoice)
+            if (items.Count == 0)
                 return null;
 
             // Use multi-item FromDynamoDb to combine all items into single entity
-            return T.FromDynamoDb<T>(matchingItems, builder.GetOptions());
+            return T.FromDynamoDb<T>(items, builder.GetOptions());
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -496,10 +498,10 @@ public static class EntityExecuteAsyncExtensions
                 ResponseMetadata = response.ResponseMetadata
             };
 
-            // Filter items that match the entity type
-            var matchingItems = items.Where(T.MatchesEntity).ToList();
-
-            if (matchingItems.Count == 0)
+            // For composite entities, pass all items to FromDynamoDb
+            // The multi-item FromDynamoDb method handles identifying the primary entity
+            // and related entities based on sort key patterns
+            if (items.Count == 0)
                 return null;
 
             // Check if a hydrator is registered for this entity type (AOT-safe)
@@ -508,12 +510,12 @@ public static class EntityExecuteAsyncExtensions
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
-                return await hydrator.HydrateAsync(matchingItems, blobProvider, options, cancellationToken);
+                return await hydrator.HydrateAsync(items, blobProvider, options, cancellationToken);
             }
             else
             {
                 // Entity doesn't have blob references - use synchronous method
-                return T.FromDynamoDb<T>(matchingItems, options);
+                return T.FromDynamoDb<T>(items, options);
             }
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))

@@ -65,6 +65,14 @@ Practical code examples for common scenarios.
 - **[Projection Models Examples](examples/ProjectionModelsExamples.md)** - Projection models, GSI enforcement, and type overrides
 - **[Advanced Types Examples](examples/AdvancedTypesExamples.md)** - Maps, Sets, Lists, TTL, JSON, and blob storage examples
 
+### 🏗️ Example Applications
+Complete, runnable applications demonstrating real-world patterns.
+
+- **[TodoList](../examples/TodoList/README.md)** - Basic CRUD operations with `[Scannable]` tables and lambda expression updates
+- **[TransactionDemo](../examples/TransactionDemo/README.md)** - DynamoDB transactions with single-table design and SDK comparison
+- **[InvoiceManager](../examples/InvoiceManager/README.md)** - Single-table design with hierarchical composite keys and `ToCompositeEntityAsync`
+- **[StoreLocator](../examples/StoreLocator/README.md)** - Geospatial queries comparing GeoHash, S2, and H3 spatial indexing
+
 ### 📑 Additional Resources
 
 - **[INDEX](INDEX.md)** - Alphabetical index of all topics
@@ -109,6 +117,18 @@ Practical code examples for common scenarios.
 
 **See practical examples**
 → [Advanced Types Examples](examples/AdvancedTypesExamples.md)
+
+**See a complete CRUD application**
+→ [TodoList Example](../examples/TodoList/README.md)
+
+**Learn DynamoDB transactions**
+→ [TransactionDemo Example](../examples/TransactionDemo/README.md)
+
+**Implement single-table design**
+→ [InvoiceManager Example](../examples/InvoiceManager/README.md)
+
+**Build location-based queries**
+→ [StoreLocator Example](../examples/StoreLocator/README.md)
 
 **Migrate existing entities**
 → [Advanced Types Migration](reference/AdvancedTypesMigration.md)

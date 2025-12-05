@@ -23,6 +23,25 @@ The library is designed with AOT (Ahead-of-Time) compilation compatibility in mi
 
 Perfect for teams seeking to reduce development time and maintenance overhead, Oproto.FluentDynamoDb provides compile-time safety through source generation, runtime efficiency through optimized request building, and developer productivity through expression formatting that eliminates manual parameter management.
 
+## Feature Maturity (0.8.0)
+
+FluentDynamoDB is a large library, and not every subsystem is at the same level of maturity yet.
+
+**Production-ready (core focus)**
+- Strongly-typed entity modeling and repositories
+- Single-table, multi-entity patterns (e.g., Invoice + Lines)
+- Query and scan builders (LINQ-style expressions)
+- Batch operations and transactional helpers
+- Source generation (no reflection, AOT-friendly)
+
+**Experimental / evolving**
+- Geospatial indexing (GeoHash, S2, H3)
+- S3-backed blob storage
+- KMS-based field encryption
+- Attributes for defining Entities *may* evolve over time
+
+These experimental features are available for early testing and feedback, but may change shape before 1.0 and do not yet have full demo coverage or documentation.
+
 ## Quick Start
 
 ### Installation

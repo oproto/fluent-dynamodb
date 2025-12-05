@@ -218,6 +218,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `EnhancedExecuteAsyncExtensions` to pass options to `HydrateAsync()` and `SerializeAsync()` calls
   - Enables field encryption and JSON serialization in async hydration scenarios
 
+- **Composite Entity Assembly (ToCompositeEntityAsync)** - Fixed `ToCompositeEntityAsync()` not populating related entity collections
+  - Fixed `IsMultiItemEntity` flag not being set for entities with `[RelatedEntity]` attributes
+    - `EntityAnalyzer` now sets `IsMultiItemEntity = true` when entity has relationships
+    - Enables proper multi-item `FromDynamoDb` code generation for composite entities
+  - Fixed wildcard pattern matching for multi-segment sort key patterns
+    - Patterns like `"INVOICE#*#LINE#*"` now correctly match sort keys like `"INVOICE#INV-001#LINE#1"`
+    - Implemented regex-based pattern matching with proper delimiter handling
+    - Supports `#`, `_`, and `:` delimiters with automatic detection
+  - Fixed primary entity identification in multi-item queries
+    - `FromDynamoDb` now identifies the primary entity item using the entity's sort key pattern
+    - Non-collection properties are populated from the primary entity, not the first item
+    - Returns `null` when no primary entity item is found in the result set
+  - Added comprehensive property-based tests for all correctness properties
+  - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3_
+  
+  **Usage Example:**
+  ```csharp
+  // Define composite entity with related entities
+  [DynamoDbTable("Invoices")]
+  public partial class Invoice
+  {
+      [PartitionKey(Prefix = "CUSTOMER")]
+      public string Pk { get; set; }
+      
+      [SortKey(Prefix = "INVOICE")]
+      public string Sk { get; set; }
+      
+      public string InvoiceNumber { get; set; }
+      public decimal Total { get; set; }
+      
+      [RelatedEntity(SortKeyPattern = "INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+      public List<InvoiceLine> Lines { get; set; } = new();
+  }
+  
+  // Retrieve complete invoice with all line items in a single query
+  var invoice = await table.Invoices.Query()
+      .Where(x => x.Pk == customerId && x.Sk.BeginsWith("INVOICE#"))
+      .ToCompositeEntityAsync<Invoice>();
+  
+  // invoice.Lines is automatically populated with all matching InvoiceLine items
+  ```
+
 ### Added
 - **StoreLocator Adaptive Precision** - Multi-precision spatial indexing for the StoreLocator example application
   - Automatic precision selection based on search radius for optimal query performance

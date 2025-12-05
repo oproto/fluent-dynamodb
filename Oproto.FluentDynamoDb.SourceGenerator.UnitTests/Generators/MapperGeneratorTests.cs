@@ -189,10 +189,10 @@ public class MapperGeneratorTests
             "should document AuditEntries relationship mapping");
         result.Should().Contain("// Map related entity: Summary",
             "should document Summary relationship mapping");
-        result.Should().Contain("if (sortKey.StartsWith(\"audit#\"))",
-            "should check sort key pattern for AuditEntries relationship");
-        result.Should().Contain("if (sortKey == \"summary\" || sortKey.StartsWith(\"summary#\"))",
-            "should check sort key pattern for Summary relationship");
+        result.Should().Contain("Regex.IsMatch(sortKey, @\"^audit\\#[^\\#]*$\")",
+            "should check sort key pattern for AuditEntries relationship using regex");
+        result.Should().Contain("Regex.IsMatch(sortKey, @\"^summary$\")",
+            "should check sort key pattern for Summary relationship using regex");
     }
 
     [Fact]
@@ -1190,5 +1190,74 @@ public class MapperGeneratorTests
             "should parse formatted decimal");
         result.Should().Contain("int.TryParse",
             "should parse formatted integer");
+    }
+
+    /// <summary>
+    /// Tests that when only related items exist (no primary entity), the FromDynamoDb method returns null.
+    /// **Validates: Requirements 2.3**
+    /// </summary>
+    [Fact]
+    public void GenerateEntityImplementation_WithMultiItemEntity_GeneratesNullReturnWhenNoPrimaryEntity()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "Invoice",
+            Namespace = "TestNamespace",
+            TableName = "invoices",
+            IsMultiItemEntity = true,
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Pk",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "CUSTOMER" }
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Sk",
+                    AttributeName = "sk",
+                    PropertyType = "string",
+                    IsSortKey = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "INVOICE" }
+                },
+                new PropertyModel
+                {
+                    PropertyName = "InvoiceNumber",
+                    AttributeName = "invoice_number",
+                    PropertyType = "string"
+                }
+            },
+            Relationships = new[]
+            {
+                new RelationshipModel
+                {
+                    PropertyName = "Lines",
+                    PropertyType = "List<InvoiceLine>",
+                    SortKeyPattern = "INVOICE#*#LINE#*",
+                    EntityType = "InvoiceLine",
+                    IsCollection = true
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        var relatedSources = CreateRelatedEntitySources(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, new[] { entitySource }.Concat(relatedSources).ToArray());
+
+        // Assert - Should generate null check for primary entity
+        result.Should().Contain("if (primaryItem == null)",
+            "should check if primary entity item was found");
+        result.Should().Contain("return default!",
+            "should return null (default!) when no primary entity item is found");
+        result.Should().Contain("// Return null if no primary entity item found",
+            "should have comment explaining the null return behavior");
     }
 }

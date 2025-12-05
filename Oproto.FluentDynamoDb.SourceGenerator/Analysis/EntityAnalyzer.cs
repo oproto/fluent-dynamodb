@@ -77,6 +77,9 @@ internal class EntityAnalyzer
         // Extract relationship information
         ExtractRelationships(classDecl, semanticModel, entityModel);
 
+        // Set IsMultiItemEntity based on relationships (must be after ExtractRelationships)
+        entityModel.IsMultiItemEntity = entityModel.Relationships.Length > 0;
+
         // Validate related entity configurations (must be after ExtractRelationships)
         if (entityModel.Relationships.Length > 0)
         {
@@ -939,9 +942,7 @@ internal class EntityAnalyzer
             }
         }
 
-        // Multi-item entity concept is legacy - collections are now just serialized as DynamoDB Lists
-        // ToListAsync() handles multiple entity instances, compound entities use different patterns
-        entityModel.IsMultiItemEntity = false;
+        // Note: IsMultiItemEntity is set after ExtractRelationships based on whether the entity has relationships
 
         // Validate computed and extracted keys
         ValidateComputedAndExtractedKeys(entityModel);
