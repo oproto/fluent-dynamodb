@@ -59,6 +59,44 @@ Entries may be categorized as:
 
 ## [2025-12-04]
 
+### File: Multiple documentation files - Put().ExecuteAsync() → PutAsync() corrections
+
+**Category:** API Correction
+
+**Summary:** Corrected remaining `Put().ExecuteAsync()` patterns to use the correct `PutAsync()` method across documentation and source files.
+
+**Files corrected:**
+- `docs/advanced-topics/AdvancedTypes.md` (2 occurrences)
+- `docs/advanced-topics/TableGenerationCustomization.md` (10 occurrences)
+- `docs/reference/AttributeReference.md` (1 occurrence)
+- `docs/DOCUMENTATION_CHANGELOG.md` (1 occurrence - example code)
+- `Oproto.FluentDynamoDb.SystemTextJson/README.md` (1 occurrence)
+- `Oproto.FluentDynamoDb.NewtonsoftJson/README.md` (1 occurrence)
+- `Oproto.FluentDynamoDb/Attributes/GenerateAccessorsAttribute.cs` (1 occurrence - XML documentation)
+- `.kiro/specs/integration-test-build-fixes/design.md` (1 occurrence)
+
+---
+
+**Before:**
+```csharp
+await table.Documents.Put(document).ExecuteAsync();
+await table.Orders.Put(order).ExecuteAsync();
+await OrderLines.Put(line).ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Documents.Put(document).PutAsync();
+await table.Orders.Put(order).PutAsync();
+await OrderLines.Put(line).PutAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on `PutItemRequestBuilder`. The correct method is `PutAsync()`. This is consistent with other request builders: `GetItemAsync()`, `UpdateAsync()`, `DeleteAsync()`.
+
+---
+
+## [2025-12-04]
+
 ### File: docs/DOCUMENTATION_CHANGELOG.md, docs/examples/ProjectionModelsExamples.md, docs/core-features/ProjectionModels.md, docs/advanced-topics/FieldLevelSecurity.md
 
 **Category:** Pattern Update - Example Entity Cleanup
@@ -1075,3 +1113,414 @@ var result = await table.Get<Transaction>()
 - Updated introduction text to reflect accurate terminology
 - Updated migration guide to reference correct method names
 
+
+
+---
+
+## [2025-12-04]
+
+### File: Oproto.FluentDynamoDb.SystemTextJson/README.md
+
+**Category:** Pattern Update - JSON Serializer Refactor
+
+**Summary:** Complete rewrite of the SystemTextJson package README to document the new runtime configuration pattern via `FluentDynamoDbOptions` instead of the removed compile-time assembly attribute approach.
+
+---
+
+**Before (Old assembly attribute pattern):**
+```csharp
+// Assembly-level configuration (compile-time)
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+// Entity with JsonBlob
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [JsonBlob]
+    [DynamoDbAttribute("content")]
+    public DocumentContent Content { get; set; }
+}
+
+// Usage - no way to customize serializer options
+var table = new DocumentTable(client, "documents");
+```
+
+**After (New runtime configuration pattern):**
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.SystemTextJson;
+
+// Entity with JsonBlob (no assembly attribute needed)
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [JsonBlob]
+    [DynamoDbAttribute("content")]
+    public DocumentContent Content { get; set; }
+}
+
+// Configure at runtime with options
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // Default options
+
+// Or with custom JsonSerializerOptions
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(new JsonSerializerOptions 
+    { 
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+    });
+
+// Or for AOT with JsonSerializerContext
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(MyJsonContext.Default);
+
+var table = new DocumentTable(client, "documents", options);
+```
+
+**Reason:** The JSON serialization system was refactored from compile-time assembly attributes to runtime configuration via `FluentDynamoDbOptions`. This enables users to customize serializer options (camelCase, null handling, etc.) and provides full AOT compatibility with `JsonSerializerContext`.
+
+---
+
+### File: Oproto.FluentDynamoDb.NewtonsoftJson/README.md
+
+**Category:** Pattern Update - JSON Serializer Refactor
+
+**Summary:** Complete rewrite of the NewtonsoftJson package README to document the new runtime configuration pattern via `FluentDynamoDbOptions` instead of the removed compile-time assembly attribute approach.
+
+---
+
+**Before (Old assembly attribute pattern):**
+```csharp
+// Assembly-level configuration (compile-time)
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.NewtonsoftJson)]
+
+// Entity with JsonBlob
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [JsonBlob]
+    [DynamoDbAttribute("content")]
+    public DocumentContent Content { get; set; }
+}
+
+// Usage - no way to customize serializer settings
+var table = new DocumentTable(client, "documents");
+```
+
+**After (New runtime configuration pattern):**
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.NewtonsoftJson;
+
+// Entity with JsonBlob (no assembly attribute needed)
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [JsonBlob]
+    [DynamoDbAttribute("content")]
+    public DocumentContent Content { get; set; }
+}
+
+// Configure at runtime with options
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson();  // Default settings
+
+// Or with custom JsonSerializerSettings
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson(new JsonSerializerSettings 
+    { 
+        ContractResolver = new CamelCasePropertyNamesContractResolver() 
+    });
+
+var table = new DocumentTable(client, "documents", options);
+```
+
+**Reason:** The JSON serialization system was refactored from compile-time assembly attributes to runtime configuration via `FluentDynamoDbOptions`. This enables users to customize serializer settings and provides a consistent configuration pattern across all FluentDynamoDb options.
+
+---
+
+### File: docs/advanced-topics/AdvancedTypes.md
+
+**Category:** Pattern Update - JSON Serializer Refactor
+
+**Summary:** Updated the JSON Blob Serialization section to document the new runtime configuration pattern. Removed all references to the `[assembly: DynamoDbJsonSerializer]` attribute and replaced with `FluentDynamoDbOptions` configuration examples.
+
+---
+
+**Before (Old assembly attribute pattern):**
+```csharp
+// Assembly-level configuration
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+// Entity with JsonBlob
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [JsonBlob]
+    [DynamoDbAttribute("content")]
+    public DocumentContent Content { get; set; }
+}
+```
+
+**After (New runtime configuration pattern):**
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.SystemTextJson;
+
+// Entity with JsonBlob
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [JsonBlob]
+    [DynamoDbAttribute("content")]
+    public DocumentContent Content { get; set; }
+}
+
+// Configure FluentDynamoDbOptions with JSON serializer
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+```
+
+**Reason:** JSON serialization is now configured at runtime via `FluentDynamoDbOptions` instead of compile-time assembly attributes. This provides flexibility to customize serializer options and supports AOT-compatible `JsonSerializerContext`.
+
+---
+
+**Before (Error handling section):**
+```csharp
+// DYNDB102: Missing JSON serializer package
+[JsonBlob]
+public ComplexObject Data { get; set; } // Warning: Add SystemTextJson or NewtonsoftJson package
+```
+
+**After (Error handling section):**
+```csharp
+// Compile-time: DYNDB102 warning when [JsonBlob] used without JSON package reference
+// Runtime: InvalidOperationException when no JSON serializer configured
+
+// This will throw InvalidOperationException at runtime:
+var options = new FluentDynamoDbOptions(); // No JSON serializer configured!
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+
+await table.Documents.Put(document).PutAsync();
+// InvalidOperationException: Property 'Content' has [JsonBlob] attribute but no JSON serializer is configured. 
+// Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.
+```
+
+**Reason:** Added documentation for the new runtime exception that occurs when `[JsonBlob]` properties are used without configuring a JSON serializer via `FluentDynamoDbOptions`.
+
+---
+
+### File: docs/reference/AttributeReference.md
+
+**Category:** Pattern Update - JSON Serializer Refactor
+
+**Summary:** Removed the `[DynamoDbJsonSerializer]` attribute section entirely as this attribute has been deleted. The JSON serialization is now configured via `FluentDynamoDbOptions` at runtime.
+
+---
+
+**Before:**
+```markdown
+## [DynamoDbJsonSerializer]
+
+Assembly-level attribute to configure JSON serialization for `[JsonBlob]` properties.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `serializerType` | `JsonSerializerType` | Yes | The JSON serializer to use |
+
+### Example
+
+```csharp
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+```
+```
+
+**After:**
+Section removed entirely. JSON serialization is now documented in the `[JsonBlob]` attribute section with reference to `FluentDynamoDbOptions` configuration.
+
+**Reason:** The `[assembly: DynamoDbJsonSerializer]` attribute and `JsonSerializerType` enum have been deleted as part of the JSON serializer refactor. JSON serialization is now configured at runtime via `FluentDynamoDbOptions.WithSystemTextJson()` or `FluentDynamoDbOptions.WithNewtonsoftJson()`.
+
+---
+
+### File: docs/reference/AdvancedTypesQuickReference.md
+
+**Category:** Pattern Update - JSON Serializer Refactor
+
+**Summary:** Updated the JSON Blobs section to show the new runtime configuration pattern via `FluentDynamoDbOptions`.
+
+---
+
+**Before:**
+```csharp
+// Assembly-level configuration
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+[DynamoDbAttribute("content")]
+[JsonBlob]
+public ComplexObject Content { get; set; }
+```
+
+**After:**
+```csharp
+// 1. Define entity with [JsonBlob] property
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [DynamoDbAttribute("content")]
+    [JsonBlob]
+    public ComplexObject Content { get; set; } = new();
+}
+
+// 2. Configure FluentDynamoDbOptions with JSON serializer
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // or .WithNewtonsoftJson()
+
+// 3. Create table with options
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+```
+
+**Reason:** JSON serialization is now configured at runtime via `FluentDynamoDbOptions` instead of compile-time assembly attributes.
+
+---
+
+### File: docs/examples/AdvancedTypesExamples.md
+
+**Category:** Pattern Update - JSON Serializer Refactor
+
+**Summary:** Updated all JSON Blob examples to show the new runtime configuration pattern via `FluentDynamoDbOptions`.
+
+---
+
+**Before:**
+```csharp
+// Install: dotnet add package Oproto.FluentDynamoDb.SystemTextJson
+// Add assembly attribute
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [DynamoDbAttribute("details")]
+    [JsonBlob]
+    public OrderDetails Details { get; set; }
+}
+
+// Usage
+var order = new Order { ... };
+await orderTable.Put.WithItem(order).PutAsync();
+```
+
+**After:**
+```csharp
+// Install: dotnet add package Oproto.FluentDynamoDb.SystemTextJson
+using Oproto.FluentDynamoDb.SystemTextJson;
+
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [DynamoDbAttribute("details")]
+    [JsonBlob]
+    public OrderDetails Details { get; set; }
+}
+
+// Configure JSON serialization at runtime
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // Uses default options
+
+// Or with custom options
+var customOptions = new FluentDynamoDbOptions()
+    .WithSystemTextJson(new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    });
+
+var orderTable = new OrderTable(dynamoDbClient, "orders", options);
+
+// Usage
+var order = new Order { ... };
+await orderTable.Put.WithItem(order).PutAsync();
+```
+
+**Reason:** JSON serialization is now configured at runtime via `FluentDynamoDbOptions` instead of compile-time assembly attributes. This enables customization of serializer options.
+
+---
+
+### File: docs/QUICK_REFERENCE.md
+
+**Category:** Pattern Update - JSON Serializer Refactor
+
+**Summary:** Updated the JSON Blob section in the Advanced Types quick reference to show the new runtime configuration pattern.
+
+---
+
+**Before:**
+```csharp
+// Assembly-level configuration
+[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+
+[DynamoDbAttribute("content")]
+[JsonBlob]
+public ComplexObject Content { get; set; }
+```
+
+**After:**
+```csharp
+// 1. Define entity with [JsonBlob] property
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [DynamoDbAttribute("content")]
+    [JsonBlob]
+    public ComplexObject Content { get; set; } = new();
+}
+
+// 2. Configure FluentDynamoDbOptions with JSON serializer
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // or .WithNewtonsoftJson()
+
+// Custom serializer options
+var jsonOptions = new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+};
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(jsonOptions);
+
+// AOT-compatible with JsonSerializerContext
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(MyJsonContext.Default);
+```
+
+**Reason:** JSON serialization is now configured at runtime via `FluentDynamoDbOptions` instead of compile-time assembly attributes.
+
+---
+
+### Summary of JSON Serializer Refactor Documentation Changes
+
+**Breaking Changes Documented:**
+
+1. **Removed `[assembly: DynamoDbJsonSerializer]` attribute** - No longer exists, replaced by runtime configuration
+2. **Removed `JsonSerializerType` enum** - No longer needed
+3. **Changed `IDynamoDbEntity` interface** - `ToDynamoDb`/`FromDynamoDb` methods now accept `FluentDynamoDbOptions?` instead of `IDynamoDbLogger?`
+
+**New Features Documented:**
+
+1. **`IJsonBlobSerializer` interface** - Core interface for JSON serialization
+2. **`FluentDynamoDbOptions.WithJsonSerializer()`** - Builder method for configuring JSON serializer
+3. **`WithSystemTextJson()` extension methods** - Configure System.Text.Json with default, custom, or AOT-compatible options
+4. **`WithNewtonsoftJson()` extension methods** - Configure Newtonsoft.Json with default or custom settings
+5. **Runtime exception** - Clear error message when `[JsonBlob]` used without configured serializer
+
+**Files Updated:**
+- `Oproto.FluentDynamoDb.SystemTextJson/README.md`
+- `Oproto.FluentDynamoDb.NewtonsoftJson/README.md`
+- `docs/advanced-topics/AdvancedTypes.md`
+- `docs/reference/AttributeReference.md`
+- `docs/reference/AdvancedTypesQuickReference.md`
+- `docs/examples/AdvancedTypesExamples.md`
+- `docs/QUICK_REFERENCE.md`

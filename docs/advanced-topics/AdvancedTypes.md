@@ -283,7 +283,23 @@ aws dynamodb update-time-to-live \
 
 ## JSON Blob Serialization
 
-Store complex objects as JSON strings in DynamoDB attributes using `[JsonBlob]`:
+Store complex objects as JSON strings in DynamoDB attributes using `[JsonBlob]`. JSON serialization is configured at runtime via `FluentDynamoDbOptions`, giving you full control over serialization settings.
+
+### Configuration
+
+JSON serialization requires installing a serializer package and configuring it via `FluentDynamoDbOptions`:
+
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.SystemTextJson; // or NewtonsoftJson
+
+// Configure options with your preferred JSON serializer
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // or .WithNewtonsoftJson()
+
+// Create your table with the configured options
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+```
 
 ### System.Text.Json (Recommended for AOT)
 
@@ -291,30 +307,41 @@ Store complex objects as JSON strings in DynamoDB attributes using `[JsonBlob]`:
 // 1. Install package
 // dotnet add package Oproto.FluentDynamoDb.SystemTextJson
 
-// 2. Configure serializer at assembly level
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
-
-// 3. Define entity
+// 2. Define entity with [JsonBlob] property
 [DynamoDbTable("documents")]
 public partial class Document
 {
+    [PartitionKey]
     [DynamoDbAttribute("doc_id")]
-    public string DocumentId { get; set; }
+    public string DocumentId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = "DOC";
     
     [DynamoDbAttribute("content")]
     [JsonBlob]
-    public DocumentContent Content { get; set; }
+    public DocumentContent Content { get; set; } = new();
 }
 
 public class DocumentContent
 {
-    public string Title { get; set; }
-    public string Body { get; set; }
-    public Dictionary<string, string> Metadata { get; set; }
-    public List<string> Tags { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public Dictionary<string, string> Metadata { get; set; } = new();
+    public List<string> Tags { get; set; } = new();
 }
 
-// Usage
+// 3. Configure FluentDynamoDbOptions with System.Text.Json
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.SystemTextJson;
+
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+
+// 4. Use the entity
 var document = new Document
 {
     DocumentId = "doc-123",
@@ -331,17 +358,44 @@ var document = new Document
     }
 };
 
-await table.Put.WithItem(document).ExecuteAsync();
+await table.Documents.Put(document).PutAsync();
 ```
 
-The source generator automatically creates a `JsonSerializerContext` for AOT compatibility:
+#### Custom JsonSerializerOptions
+
+Customize serialization behavior by passing `JsonSerializerOptions`:
 
 ```csharp
-// Generated code
-[JsonSerializable(typeof(DocumentContent))]
-internal partial class DocumentJsonContext : JsonSerializerContext
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+var jsonOptions = new JsonSerializerOptions
 {
-}
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    WriteIndented = false
+};
+
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(jsonOptions);
+```
+
+#### AOT-Compatible with JsonSerializerContext
+
+For Native AOT and trimmed applications, use a source-generated `JsonSerializerContext`:
+
+```csharp
+using System.Text.Json.Serialization;
+
+// 1. Define a JsonSerializerContext for your types
+[JsonSerializable(typeof(DocumentContent))]
+internal partial class DocumentJsonContext : JsonSerializerContext { }
+
+// 2. Configure FluentDynamoDbOptions with the context
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(DocumentJsonContext.Default);
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
 ```
 
 ### Newtonsoft.Json (Limited AOT Support)
@@ -350,13 +404,53 @@ internal partial class DocumentJsonContext : JsonSerializerContext
 // 1. Install package
 // dotnet add package Oproto.FluentDynamoDb.NewtonsoftJson
 
-// 2. Configure serializer
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.NewtonsoftJson)]
+// 2. Configure FluentDynamoDbOptions with Newtonsoft.Json
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.NewtonsoftJson;
+
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson();
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
 
 // 3. Use same entity definition as above
 ```
 
+#### Custom JsonSerializerSettings
+
+Customize serialization behavior by passing `JsonSerializerSettings`:
+
+```csharp
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+
+var settings = new JsonSerializerSettings
+{
+    ContractResolver = new CamelCasePropertyNamesContractResolver(),
+    NullValueHandling = NullValueHandling.Include,
+    Formatting = Formatting.None
+};
+
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson(settings);
+```
+
+The default Newtonsoft.Json settings include:
+- `TypeNameHandling.None` - No type metadata (security best practice)
+- `NullValueHandling.Ignore` - Omit null values to reduce storage
+- `DateFormatHandling.IsoDateFormat` - ISO 8601 dates for consistency
+- `ReferenceLoopHandling.Ignore` - Handle circular references gracefully
+
 **Note**: Newtonsoft.Json uses runtime reflection and has limited AOT support. Use System.Text.Json for full AOT compatibility.
+
+### Error Handling
+
+If you use `[JsonBlob]` properties without configuring a JSON serializer, you'll get a clear runtime exception:
+
+```
+InvalidOperationException: Property 'Content' has [JsonBlob] attribute but no JSON serializer is configured. 
+Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.
+```
 
 ## External Blob Storage
 
@@ -561,28 +655,41 @@ await table.Update
 
 ### System.Text.Json AOT Support
 
-The source generator creates `JsonSerializerContext` classes for full AOT compatibility:
+For full AOT compatibility, create a `JsonSerializerContext` and pass it to `WithSystemTextJson()`:
 
 ```csharp
-// Your entity
+using System.Text.Json.Serialization;
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.SystemTextJson;
+
+// 1. Define your entity
 [DynamoDbTable("documents")]
 public partial class Document
 {
+    [PartitionKey]
+    [DynamoDbAttribute("doc_id")]
+    public string DocumentId { get; set; } = string.Empty;
+    
     [JsonBlob]
-    public DocumentContent Content { get; set; }
+    [DynamoDbAttribute("content")]
+    public DocumentContent Content { get; set; } = new();
 }
 
-// Generated context (automatic)
+// 2. Create a JsonSerializerContext for your types
 [JsonSerializable(typeof(DocumentContent))]
-internal partial class DocumentJsonContext : JsonSerializerContext
-{
-}
+internal partial class DocumentJsonContext : JsonSerializerContext { }
 
-// Generated serialization code
-var json = System.Text.Json.JsonSerializer.Serialize(
-    typedEntity.Content,
-    DocumentJsonContext.Default.DocumentContent); // Uses generated context
+// 3. Configure FluentDynamoDbOptions with the context
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(DocumentJsonContext.Default);
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
 ```
+
+This approach:
+- Uses compile-time source generation for serialization
+- Produces no trim warnings
+- Has zero runtime reflection overhead
 
 ### Newtonsoft.Json Limitations
 
@@ -590,10 +697,11 @@ Newtonsoft.Json uses runtime reflection which has limited AOT support:
 
 ```csharp
 // Uses runtime reflection - may cause trim warnings
-var json = Newtonsoft.Json.JsonConvert.SerializeObject(value);
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson();
 ```
 
-**Recommendation**: Use System.Text.Json for projects targeting Native AOT.
+**Recommendation**: Use System.Text.Json with a `JsonSerializerContext` for projects targeting Native AOT.
 
 ## Migration Guide
 
@@ -707,9 +815,9 @@ The source generator validates advanced type usage at compile-time:
 [TimeToLive]
 public string ExpiresAt { get; set; } // Error: Must be DateTime or DateTimeOffset
 
-// DYNDB102: Missing JSON serializer
+// DYNDB102: Missing JSON serializer package
 [JsonBlob]
-public ComplexObject Data { get; set; } // Error: Add SystemTextJson or NewtonsoftJson package
+public ComplexObject Data { get; set; } // Warning: Add SystemTextJson or NewtonsoftJson package
 
 // DYNDB105: Multiple TTL fields
 [TimeToLive]
@@ -719,6 +827,29 @@ public DateTime? DeletedAt { get; set; } // Error: Only one TTL field allowed
 ```
 
 ### Runtime Errors
+
+#### Missing JSON Serializer Configuration
+
+If you use `[JsonBlob]` properties without configuring a JSON serializer via `FluentDynamoDbOptions`, you'll get a clear runtime exception:
+
+```csharp
+// This will throw InvalidOperationException
+var options = new FluentDynamoDbOptions(); // No JSON serializer configured!
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+
+await table.Documents.Put(document).PutAsync();
+// InvalidOperationException: Property 'Content' has [JsonBlob] attribute but no JSON serializer is configured. 
+// Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.
+```
+
+**Solution**: Configure a JSON serializer:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // or .WithNewtonsoftJson()
+```
+
+#### Mapping Errors
 
 ```csharp
 try

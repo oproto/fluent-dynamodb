@@ -52,6 +52,10 @@
         
         <!-- Reference to Geospatial package for integration tests -->
         <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
+        
+        <!-- Reference to JSON serializer packages for JsonBlob integration tests -->
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.SystemTextJson\Oproto.FluentDynamoDb.SystemTextJson.csproj" />
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.NewtonsoftJson\Oproto.FluentDynamoDb.NewtonsoftJson.csproj" />
     </ItemGroup>
 
     <ItemGroup>

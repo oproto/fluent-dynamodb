@@ -8,6 +8,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Breaking Changes
+- **JSON Serializer Runtime Configuration** - `[JsonBlob]` properties now require runtime configuration instead of compile-time assembly attributes
+  - `IDynamoDbEntity` interface methods `ToDynamoDb` and `FromDynamoDb` now accept `FluentDynamoDbOptions?` instead of `IDynamoDbLogger?`
+  - Removed `[assembly: DynamoDbJsonSerializer]` attribute - no longer supported
+  - Removed `JsonSerializerType` enum - no longer needed
+  - `[JsonBlob]` properties now require `.WithSystemTextJson()` or `.WithNewtonsoftJson()` on `FluentDynamoDbOptions` at runtime
+  - Clear runtime exception thrown when `[JsonBlob]` property is used without configured serializer
+  - _Requirements: 1.1, 1.2, 6.1, 6.2_
+  
+  **Migration:**
+  ```csharp
+  // Before: Compile-time assembly attribute (no longer supported)
+  [assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+  
+  // After: Runtime configuration via FluentDynamoDbOptions
+  var options = new FluentDynamoDbOptions()
+      .WithSystemTextJson();  // Or .WithNewtonsoftJson()
+  
+  var table = new DocumentTable(client, "Documents", options);
+  ```
+  
+  **Custom Serializer Options:**
+  ```csharp
+  // System.Text.Json with custom options
+  var options = new FluentDynamoDbOptions()
+      .WithSystemTextJson(new JsonSerializerOptions 
+      { 
+          PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+          WriteIndented = false
+      });
+  
+  // Newtonsoft.Json with custom settings
+  var options = new FluentDynamoDbOptions()
+      .WithNewtonsoftJson(new JsonSerializerSettings 
+      { 
+          NullValueHandling = NullValueHandling.Include,
+          DateFormatString = "yyyy-MM-dd"
+      });
+  
+  // System.Text.Json with AOT-compatible JsonSerializerContext
+  var options = new FluentDynamoDbOptions()
+      .WithSystemTextJson(MyJsonContext.Default);
+  ```
+
 - **Scan Opt-In Pattern** - Scan operations now require explicit opt-in via `[Scannable]` attribute
   - Removed generic `Scan<TEntity>()` method from `DynamoDbTableBase` to prevent accidental table scans
   - Scan operations are expensive and not a recommended DynamoDB access pattern
@@ -31,6 +74,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 ### Added
+- **IJsonBlobSerializer Interface** - New abstraction for JSON serialization of `[JsonBlob]` properties with runtime configuration
+  - `IJsonBlobSerializer` interface in core library with `Serialize<T>` and `Deserialize<T>` methods
+  - `SystemTextJsonBlobSerializer` implementation in `Oproto.FluentDynamoDb.SystemTextJson` package
+  - `NewtonsoftJsonBlobSerializer` implementation in `Oproto.FluentDynamoDb.NewtonsoftJson` package
+  - `WithSystemTextJson()` extension method on `FluentDynamoDbOptions` with overloads for default, custom `JsonSerializerOptions`, and AOT-compatible `JsonSerializerContext`
+  - `WithNewtonsoftJson()` extension method on `FluentDynamoDbOptions` with overloads for default and custom `JsonSerializerSettings`
+  - `JsonSerializer` property on `FluentDynamoDbOptions` for accessing configured serializer
+  - `WithJsonSerializer(IJsonBlobSerializer?)` builder method for custom serializer implementations
+  - Full AOT compatibility when using `JsonSerializerContext` overload
+  - Customizable serializer options (camelCase, null handling, date formats, etc.)
+  - Clear runtime exception with guidance when serializer not configured
+  - Source generator emits diagnostic warning (DYNDB102) when `[JsonBlob]` used without JSON package reference
+  - _Requirements: 2.1, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.2_
+  
+  **Usage Examples:**
+  ```csharp
+  // Default System.Text.Json configuration
+  var options = new FluentDynamoDbOptions()
+      .WithSystemTextJson();
+  
+  // Custom System.Text.Json options
+  var options = new FluentDynamoDbOptions()
+      .WithSystemTextJson(new JsonSerializerOptions 
+      { 
+          PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+      });
+  
+  // AOT-compatible with JsonSerializerContext
+  var options = new FluentDynamoDbOptions()
+      .WithSystemTextJson(MyJsonContext.Default);
+  
+  // Newtonsoft.Json with custom settings
+  var options = new FluentDynamoDbOptions()
+      .WithNewtonsoftJson(new JsonSerializerSettings 
+      { 
+          NullValueHandling = NullValueHandling.Include 
+      });
+  
+  // Use with table
+  var table = new DocumentTable(client, "Documents", options);
+  ```
+
 - **Lambda Expression Where() for Put and Delete** - Type-safe condition expressions for Put and Delete operations
   - Added `Where<TEntity>(Expression<Func<TEntity, bool>>)` extension method for `PutItemRequestBuilder<TEntity>`
   - Added `Where<TEntity>(Expression<Func<TEntity, bool>>)` extension method for `DeleteItemRequestBuilder<TEntity>`
@@ -91,6 +176,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Corrected examples in 20+ documentation files across getting-started, core-features, advanced-topics, examples, and reference sections
   - Created `docs/DOCUMENTATION_CHANGELOG.md` for tracking documentation corrections separately from code changes
   - Updated `.kiro/steering/documentation.md` with documentation changelog requirements
+
+- **Options Propagation in Batch and Transaction Get Operations** - Fixed `FluentDynamoDbOptions` not being passed to entity deserialization
+  - `BatchGetResponse` now accepts and propagates `FluentDynamoDbOptions` to `FromDynamoDb()` calls
+  - `TransactionGetResponse` now accepts and propagates `FluentDynamoDbOptions` to `FromDynamoDb()` calls
+  - `BatchGetBuilder` captures options from request builders and passes to response
+  - `TransactionGetBuilder` captures options from request builders and passes to response
+  - Enables JSON deserialization of `[JsonBlob]` properties in batch/transaction get results
+  - Enables logging during entity hydration in batch/transaction operations
+
+- **Options Propagation in Source-Generated Hydrators** - Fixed `IAsyncEntityHydrator` not receiving options
+  - Added `FluentDynamoDbOptions? options = null` parameter to `IAsyncEntityHydrator<T>` interface methods
+  - Updated `HydratorGenerator` to generate code that accepts and passes options to `FromDynamoDbAsync()`
+  - Updated `EnhancedExecuteAsyncExtensions` to pass options to `HydrateAsync()` and `SerializeAsync()` calls
+  - Enables field encryption and JSON serialization in async hydration scenarios
 
 ### Added
 - **StoreLocator Adaptive Precision** - Multi-precision spatial indexing for the StoreLocator example application

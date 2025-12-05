@@ -633,7 +633,7 @@ await new TransactWriteItemsRequestBuilder(dynamoDbClient)
        throw new ArgumentException("UserId is required");
    }
    
-   await table.Put().WithItem(user).ExecuteAsync();
+   await table.Put().WithItem(user).PutAsync();
    ```
 
 ## Performance Considerations

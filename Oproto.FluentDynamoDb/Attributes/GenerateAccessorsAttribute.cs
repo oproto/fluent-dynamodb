@@ -66,7 +66,7 @@ namespace Oproto.FluentDynamoDb.Attributes;
 ///         ValidateOrder(order);
 ///         
 ///         // Call internal generated method
-///         await Orders.Put(order).ExecuteAsync();
+///         await Orders.Put(order).PutAsync();
 ///     }
 /// }
 /// </code>

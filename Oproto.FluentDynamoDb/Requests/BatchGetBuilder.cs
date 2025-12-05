@@ -28,6 +28,7 @@ public class BatchGetBuilder
     private IAmazonDynamoDB? _explicitClient;
     private ReturnConsumedCapacity? _returnConsumedCapacity;
     private IDynamoDbLogger _logger = NoOpLogger.Instance;
+    private FluentDynamoDbOptions? _options;
 
     /// <summary>
     /// Adds a get operation to the batch.
@@ -45,6 +46,12 @@ public class BatchGetBuilder
         where TEntity : class
     {
         InferClientIfNeeded(builder);
+        
+        // Capture options from first builder that has them
+        if (_options == null && builder is IHasDynamoDbClient clientProvider)
+        {
+            _options = clientProvider.GetOptions();
+        }
         
         var getBuilder = (ITransactableGetBuilder)builder;
         var tableName = getBuilder.GetTableName();
@@ -269,7 +276,7 @@ public class BatchGetBuilder
             }
             
             // Wrap response with table order and requested keys for proper deserialization
-            return new BatchGetResponse(response, _tableOrder, _requestedKeys);
+            return new BatchGetResponse(response, _tableOrder, _requestedKeys, _options);
         }
         catch (Exception ex)
         {

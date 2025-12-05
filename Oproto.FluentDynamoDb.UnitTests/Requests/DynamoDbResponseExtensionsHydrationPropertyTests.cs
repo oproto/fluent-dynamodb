@@ -3,7 +3,7 @@ using Amazon.DynamoDBv2.Model;
 using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
-using Oproto.FluentDynamoDb.Logging;
+
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
@@ -196,15 +196,15 @@ public class TestHydrationEntity : IDynamoDbEntity
     public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => 
         item.TryGetValue("pk", out var pk) ? pk.S : "";
     
-    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) 
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
         where TSelf : IDynamoDbEntity =>
         (TSelf)(object)new TestHydrationEntity { Id = item.TryGetValue("id", out var id) ? id.S : "" };
     
-    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) 
+    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) 
         where TSelf : IDynamoDbEntity =>
         (TSelf)(object)new TestHydrationEntity { Id = items.FirstOrDefault()?.TryGetValue("id", out var id) == true ? id.S : "" };
     
-    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) 
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) 
         where TSelf : IDynamoDbEntity => new()
     {
         ["id"] = new AttributeValue { S = ((TestHydrationEntity)(object)entity).Id }
@@ -229,15 +229,15 @@ public class AnotherTestEntity : IDynamoDbEntity
     public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => 
         item.TryGetValue("pk", out var pk) ? pk.S : "";
     
-    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) 
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
         where TSelf : IDynamoDbEntity =>
         (TSelf)(object)new AnotherTestEntity { Name = item.TryGetValue("name", out var name) ? name.S : "" };
     
-    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) 
+    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) 
         where TSelf : IDynamoDbEntity =>
         (TSelf)(object)new AnotherTestEntity { Name = items.FirstOrDefault()?.TryGetValue("name", out var name) == true ? name.S : "" };
     
-    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) 
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) 
         where TSelf : IDynamoDbEntity => new()
     {
         ["name"] = new AttributeValue { S = ((AnotherTestEntity)(object)entity).Name }

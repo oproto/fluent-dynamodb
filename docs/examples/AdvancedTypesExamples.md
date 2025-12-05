@@ -496,6 +496,12 @@ public partial class CacheEntry
     public DateTime? ExpiresAt { get; set; }
 }
 
+// Configure JSON serialization at runtime
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();
+
+var cacheTable = new CacheTable(dynamoDbClient, "cache", options);
+
 // Cache with 5-minute expiration
 var cacheEntry = new CacheEntry
 {
@@ -503,6 +509,10 @@ var cacheEntry = new CacheEntry
     Value = new { Name = "John", Email = "john@example.com" },
     ExpiresAt = DateTime.UtcNow.AddMinutes(5)
 };
+
+await cacheTable.Put
+    .WithItem(cacheEntry)
+    .PutAsync();
 ```
 
 ## JSON Blob Examples
@@ -511,7 +521,7 @@ var cacheEntry = new CacheEntry
 
 ```csharp
 // Install: dotnet add package Oproto.FluentDynamoDb.SystemTextJson
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+using Oproto.FluentDynamoDb.SystemTextJson;
 
 public class OrderDetails
 {
@@ -539,6 +549,20 @@ public partial class Order
     [JsonBlob]
     public OrderDetails Details { get; set; }
 }
+
+// Configure JSON serialization at runtime
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // Uses default options
+
+// Or with custom options
+var customOptions = new FluentDynamoDbOptions()
+    .WithSystemTextJson(new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    });
+
+var orderTable = new OrderTable(dynamoDbClient, "orders", options);
 
 // Usage
 var order = new Order
@@ -578,6 +602,9 @@ await orderTable.Put
 ### Configuration Storage
 
 ```csharp
+// Install: dotnet add package Oproto.FluentDynamoDb.NewtonsoftJson
+using Oproto.FluentDynamoDb.NewtonsoftJson;
+
 public class AppConfiguration
 {
     public Dictionary<string, string> Settings { get; set; }
@@ -598,6 +625,20 @@ public partial class Configuration
     [JsonBlob]
     public AppConfiguration Config { get; set; }
 }
+
+// Configure JSON serialization with Newtonsoft.Json
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson();  // Uses default settings
+
+// Or with custom settings
+var customOptions = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson(new JsonSerializerSettings
+    {
+        NullValueHandling = NullValueHandling.Ignore,
+        Formatting = Formatting.None
+    });
+
+var configTable = new ConfigurationTable(dynamoDbClient, "configurations", options);
 
 // Store configuration
 var config = new Configuration
@@ -623,6 +664,10 @@ var config = new Configuration
         }
     }
 };
+
+await configTable.Put
+    .WithItem(config)
+    .PutAsync();
 ```
 
 ## Blob Reference Examples
@@ -723,6 +768,9 @@ var image = new Image
 ### Large JSON Object in S3
 
 ```csharp
+using Oproto.FluentDynamoDb.SystemTextJson;
+using Oproto.FluentDynamoDb.BlobStorage.S3;
+
 public class DetailedReport
 {
     public string Title { get; set; }
@@ -750,6 +798,16 @@ public partial class Report
     public DateTime? ExpiresAt { get; set; }
 }
 
+// Configure JSON serialization and blob storage
+var s3Client = new AmazonS3Client();
+var blobProvider = new S3BlobProvider(s3Client, "reports", "data");
+
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson()
+    .WithBlobStorageProvider(blobProvider);
+
+var reportTable = new ReportTable(dynamoDbClient, "reports", options);
+
 // Create report that expires in 30 days
 var report = new Report
 {
@@ -769,9 +827,13 @@ var report = new Report
     ExpiresAt = DateTime.UtcNow.AddDays(30)
 };
 
+await reportTable.Put
+    .WithItem(report)
+    .PutAsync();
+
 // The library will:
-// 1. Serialize Data to JSON
-// 2. Store JSON in S3
+// 1. Serialize Data to JSON using configured serializer
+// 2. Store JSON in S3 via blob provider
 // 3. Store S3 reference in DynamoDB
 // 4. Set TTL for automatic cleanup
 ```
@@ -779,6 +841,9 @@ var report = new Report
 ### E-commerce Product with All Features
 
 ```csharp
+using Oproto.FluentDynamoDb.SystemTextJson;
+using Oproto.FluentDynamoDb.BlobStorage.S3;
+
 [DynamoDbEntity]
 public partial class ProductDetails
 {
@@ -831,6 +896,16 @@ public partial class Product
     public DateTime? ExpiresAt { get; set; }
 }
 
+// Configure all providers
+var s3Client = new AmazonS3Client();
+var blobProvider = new S3BlobProvider(s3Client, "product-images", "uploads");
+
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson()  // For [JsonBlob] properties
+    .WithBlobStorageProvider(blobProvider);  // For [BlobReference] properties
+
+var productTable = new ProductTable(dynamoDbClient, "products", options);
+
 // Complete example
 var product = new Product
 {
@@ -860,6 +935,10 @@ var product = new Product
     MainImage = File.ReadAllBytes("product-image.jpg"),
     ExpiresAt = DateTime.UtcNow.AddDays(90) // Temporary listing
 };
+
+await productTable.Put
+    .WithItem(product)
+    .PutAsync();
 ```
 
 ## See Also

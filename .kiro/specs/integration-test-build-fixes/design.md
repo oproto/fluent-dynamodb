@@ -362,8 +362,8 @@ dotnet build Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.Integr
 await table.Query().PutAsync(entity);
 
 // Correct - separate operations
-await table.Put(entity).ExecuteAsync();
-var results = await table.Query().ExecuteAsync();
+await table.Put(entity).PutAsync();
+var results = await table.Query().ToListAsync();
 ```
 
 ### Pattern 3: Scan Type Inference

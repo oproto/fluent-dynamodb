@@ -56,23 +56,10 @@ internal static class MapperGenerator
         sb.AppendLine("using System.Threading;");
         sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
+        sb.AppendLine("using Oproto.FluentDynamoDb;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Attributes;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
-        
-        // Add JSON serializer using statements if needed
-        var hasJsonBlobProperties = entity.Properties.Any(p => p.AdvancedType?.IsJsonBlob == true);
-        if (hasJsonBlobProperties)
-        {
-            if (entity.JsonSerializerInfo?.SerializerToUse == Analysis.JsonSerializerType.SystemTextJson)
-            {
-                sb.AppendLine("using System.Text.Json;");
-            }
-            else if (entity.JsonSerializerInfo?.SerializerToUse == Analysis.JsonSerializerType.NewtonsoftJson)
-            {
-                sb.AppendLine("using Newtonsoft.Json;");
-            }
-        }
         
         // Add geospatial using statements if needed
         if (entity.HasGeospatialPackage)
@@ -163,10 +150,10 @@ internal static class MapperGenerator
         sb.AppendLine("        /// </summary>");
         sb.AppendLine("        /// <typeparam name=\"TSelf\">The entity type implementing IDynamoDbEntity.</typeparam>");
         sb.AppendLine("        /// <param name=\"entity\">The entity instance to convert.</param>");
-        sb.AppendLine("        /// <param name=\"logger\">Optional logger for DynamoDB operations. If null, no logging is performed.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc. If null, default behavior is used.</param>");
         sb.AppendLine("        /// <returns>A dictionary of DynamoDB AttributeValues representing the entity.</returns>");
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
         // Generate entry logging
@@ -248,7 +235,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// Use ToDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
         if (hasBlobReferences && hasEncryptedProperties)
@@ -280,7 +267,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
         sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         sb.AppendLine($"            throw new NotSupportedException(");
         sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
@@ -295,7 +282,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
         sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         sb.AppendLine($"            throw new NotSupportedException(");
         sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
@@ -316,7 +303,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <param name=\"entity\">The entity instance to convert.</param>");
         sb.AppendLine("        /// <param name=\"blobProvider\">The blob storage provider for handling blob references.</param>");
         sb.AppendLine("        /// <param name=\"fieldEncryptor\">Optional field encryptor for handling encrypted properties.</param>");
-        sb.AppendLine("        /// <param name=\"logger\">Optional logger for DynamoDB operations. If null, no logging is performed.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger. If null, default behavior is used.</param>");
         sb.AppendLine("        /// <param name=\"cancellationToken\">Cancellation token for async operations.</param>");
         sb.AppendLine("        /// <returns>A task that resolves to a dictionary of DynamoDB AttributeValues representing the entity.</returns>");
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
@@ -324,7 +311,7 @@ internal static class MapperGenerator
         sb.AppendLine("            TSelf entity,");
         sb.AppendLine("            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
-        sb.AppendLine("            IDynamoDbLogger? logger = null,");
+        sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
@@ -646,9 +633,15 @@ internal static class MapperGenerator
         }
         else
         {
-            // Complex type - serialize to JSON first, then to stream
+            // Complex type - serialize to JSON first, then to stream using runtime-configured serializer
             sb.AppendLine($"                    // Serialize complex type to JSON");
-            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
+            sb.AppendLine("                    if (options?.JsonSerializer == null)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new InvalidOperationException(");
+            sb.AppendLine($"                            \"Property '{propertyName}' is a complex type stored as blob reference but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                            \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("                    }");
+            sb.AppendLine($"                    var json = options.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
             sb.AppendLine("                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
             sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
         }
@@ -728,23 +721,15 @@ internal static class MapperGenerator
         sb.AppendLine("                try");
         sb.AppendLine("                {");
 
-        // Step 1: Serialize property to JSON
+        // Step 1: Serialize property to JSON using runtime-configured serializer
         sb.AppendLine($"                    // Step 1: Serialize property to JSON");
-        if (serializerType == "SystemTextJson")
-        {
-            // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
-        }
-        else if (serializerType == "NewtonsoftJson")
-        {
-            // Use Newtonsoft.Json
-            sb.AppendLine($"                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{escapedPropertyName});");
-        }
-        else
-        {
-            // Fallback to System.Text.Json without context
-            sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
-        }
+        sb.AppendLine("                    if (options?.JsonSerializer == null)");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        throw new InvalidOperationException(");
+        sb.AppendLine($"                            \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+        sb.AppendLine($"                            \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+        sb.AppendLine("                    }");
+        sb.AppendLine($"                    var json = options.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
 
         // Step 2: Convert JSON string to stream
         sb.AppendLine();
@@ -916,7 +901,6 @@ internal static class MapperGenerator
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
-        var serializerType = property.AdvancedType?.JsonSerializerType;
         var baseType = GetBaseType(property.PropertyType);
 
         sb.AppendLine($"            // Serialize JSON blob property {propertyName}");
@@ -925,30 +909,26 @@ internal static class MapperGenerator
         {
             sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
             sb.AppendLine("            {");
+            // Generate null check for JSON serializer
+            sb.AppendLine("                if (options?.JsonSerializer == null)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    throw new InvalidOperationException(");
+            sb.AppendLine($"                        \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                        \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("                }");
+            sb.AppendLine();
             // Generate logging for JSON blob operation
-            sb.Append(LoggingCodeGenerator.GenerateJsonBlobLogging(propertyName, baseType, serializerType ?? "SystemTextJson", "Serialization"));
+            sb.Append(LoggingCodeGenerator.GenerateJsonBlobLogging(propertyName, baseType, "RuntimeConfigured", "Serialization"));
             sb.AppendLine("                try");
             sb.AppendLine("                {");
-
-            if (serializerType == "SystemTextJson")
-            {
-                // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-                sb.AppendLine($"                    var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
-                sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
-            }
-            else if (serializerType == "NewtonsoftJson")
-            {
-                // Use Newtonsoft.Json
-                sb.AppendLine($"                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{escapedPropertyName});");
-                sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
-            }
-
+            sb.AppendLine($"                    var json = options.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
+            sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
             sb.AppendLine("                }");
             sb.AppendLine("                catch (Exception ex)");
             sb.AppendLine("                {");
             
             // Generate error logging for JSON serialization
-            sb.Append(LoggingCodeGenerator.GenerateJsonSerializationErrorLogging(propertyName, baseType, serializerType ?? "SystemTextJson", "ex"));
+            sb.Append(LoggingCodeGenerator.GenerateJsonSerializationErrorLogging(propertyName, baseType, "RuntimeConfigured", "ex"));
             
             sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
             sb.AppendLine($"                        typeof({entity.ClassName}),");
@@ -956,7 +936,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                        new AttributeValue {{ S = \"<json serialization failed>\" }},");
             sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
             sb.AppendLine("                        ex)");
-            sb.AppendLine($"                        .WithContext(\"SerializerType\", \"{serializerType}\")");
+            sb.AppendLine($"                        .WithContext(\"SerializerType\", \"RuntimeConfigured\")");
             sb.AppendLine($"                        .WithContext(\"PropertyType\", \"{baseType}\")");
             sb.AppendLine($"                        .WithContext(\"Operation\", \"JsonSerialization\");");
             sb.AppendLine("                }");
@@ -964,28 +944,24 @@ internal static class MapperGenerator
         }
         else
         {
+            // Generate null check for JSON serializer
+            sb.AppendLine("            if (options?.JsonSerializer == null)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                throw new InvalidOperationException(");
+            sb.AppendLine($"                    \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("            }");
+            sb.AppendLine();
             sb.AppendLine("            try");
             sb.AppendLine("            {");
-
-            if (serializerType == "SystemTextJson")
-            {
-                // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-                sb.AppendLine($"                var json = System.Text.Json.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
-                sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
-            }
-            else if (serializerType == "NewtonsoftJson")
-            {
-                // Use Newtonsoft.Json
-                sb.AppendLine($"                var json = Newtonsoft.Json.JsonConvert.SerializeObject(typedEntity.{escapedPropertyName});");
-                sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
-            }
-
+            sb.AppendLine($"                var json = options.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = json }};");
             sb.AppendLine("            }");
             sb.AppendLine("            catch (Exception ex)");
             sb.AppendLine("            {");
             
             // Generate error logging for JSON serialization
-            sb.Append(LoggingCodeGenerator.GenerateJsonSerializationErrorLogging(propertyName, baseType, serializerType ?? "SystemTextJson", "ex"));
+            sb.Append(LoggingCodeGenerator.GenerateJsonSerializationErrorLogging(propertyName, baseType, "RuntimeConfigured", "ex"));
             
             sb.AppendLine("                throw DynamoDbMappingException.PropertyConversionFailed(");
             sb.AppendLine($"                    typeof({entity.ClassName}),");
@@ -993,7 +969,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                    new AttributeValue {{ S = \"<json serialization failed>\" }},");
             sb.AppendLine($"                    typeof({GetTypeForMetadata(property.PropertyType)}),");
             sb.AppendLine("                    ex)");
-            sb.AppendLine($"                    .WithContext(\"SerializerType\", \"{serializerType}\")");
+            sb.AppendLine($"                    .WithContext(\"SerializerType\", \"RuntimeConfigured\")");
             sb.AppendLine($"                    .WithContext(\"PropertyType\", \"{baseType}\")");
             sb.AppendLine($"                    .WithContext(\"Operation\", \"JsonSerialization\");");
             sb.AppendLine("            }");
@@ -1051,34 +1027,30 @@ internal static class MapperGenerator
         var escapedPropertyName = EscapePropertyName(propertyName);
         var propertyType = property.PropertyType;
         var baseType = GetBaseType(propertyType);
-        var serializerType = property.AdvancedType?.JsonSerializerType;
 
         sb.AppendLine($"            // Deserialize JSON blob property {propertyName}");
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
+        // Generate null check for JSON serializer
+        sb.AppendLine("                if (options?.JsonSerializer == null)");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    throw new InvalidOperationException(");
+        sb.AppendLine($"                        \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+        sb.AppendLine($"                        \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+        sb.AppendLine("                }");
+        sb.AppendLine();
         sb.AppendLine("                try");
         sb.AppendLine("                {");
         sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.S != null)");
         sb.AppendLine("                    {");
-
-        if (serializerType == "SystemTextJson")
-        {
-            // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>({propertyName.ToLowerInvariant()}Value.S);");
-        }
-        else if (serializerType == "NewtonsoftJson")
-        {
-            // Use Newtonsoft.Json
-            sb.AppendLine($"                        entity.{escapedPropertyName} = Newtonsoft.Json.JsonConvert.DeserializeObject<{baseType}>({propertyName.ToLowerInvariant()}Value.S);");
-        }
-
+        sb.AppendLine($"                        entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>({propertyName.ToLowerInvariant()}Value.S);");
         sb.AppendLine("                    }");
         sb.AppendLine("                }");
         sb.AppendLine("                catch (Exception ex)");
         sb.AppendLine("                {");
         
         // Generate error logging for JSON deserialization
-        sb.Append(LoggingCodeGenerator.GenerateJsonSerializationErrorLogging(propertyName, baseType, serializerType ?? "SystemTextJson", "ex"));
+        sb.Append(LoggingCodeGenerator.GenerateJsonSerializationErrorLogging(propertyName, baseType, "RuntimeConfigured", "ex"));
         
         sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
         sb.AppendLine($"                        typeof({entity.ClassName}),");
@@ -1086,7 +1058,7 @@ internal static class MapperGenerator
         sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
         sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
         sb.AppendLine("                        ex)");
-        sb.AppendLine($"                        .WithContext(\"SerializerType\", \"{serializerType}\")");
+        sb.AppendLine($"                        .WithContext(\"SerializerType\", \"RuntimeConfigured\")");
         sb.AppendLine($"                        .WithContext(\"PropertyType\", \"{baseType}\")");
         sb.AppendLine($"                        .WithContext(\"Operation\", \"JsonDeserialization\");");
         sb.AppendLine("                }");
@@ -1691,11 +1663,11 @@ internal static class MapperGenerator
         sb.AppendLine("        /// </summary>");
         sb.AppendLine("        /// <typeparam name=\"TSelf\">The entity type implementing IDynamoDbEntity.</typeparam>");
         sb.AppendLine("        /// <param name=\"item\">The DynamoDB item to map from.</param>");
-        sb.AppendLine("        /// <param name=\"logger\">Optional logger for DynamoDB operations. If null, no logging is performed.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc. If null, default behavior is used.</param>");
         sb.AppendLine("        /// <returns>A mapped entity instance.</returns>");
         sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when the type parameter doesn't match the entity type.</exception>");
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
         // Generate entry logging
@@ -1762,7 +1734,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <param name=\"item\">The DynamoDB item to map from.</param>");
         sb.AppendLine("        /// <param name=\"blobProvider\">The blob storage provider for handling blob references.</param>");
         sb.AppendLine("        /// <param name=\"fieldEncryptor\">Optional field encryptor for handling encrypted properties.</param>");
-        sb.AppendLine("        /// <param name=\"logger\">Optional logger for DynamoDB operations. If null, no logging is performed.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger. If null, default behavior is used.</param>");
         sb.AppendLine("        /// <param name=\"cancellationToken\">Cancellation token for async operations.</param>");
         sb.AppendLine("        /// <returns>A task that resolves to a mapped entity instance.</returns>");
         sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when the type parameter doesn't match the entity type.</exception>");
@@ -1771,7 +1743,7 @@ internal static class MapperGenerator
         sb.AppendLine("            Dictionary<string, AttributeValue> item,");
         sb.AppendLine("            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
-        sb.AppendLine("            IDynamoDbLogger? logger = null,");
+        sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
@@ -1843,7 +1815,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <param name=\"items\">The collection of DynamoDB items to map from.</param>");
         sb.AppendLine("        /// <param name=\"blobProvider\">The blob storage provider for handling blob references.</param>");
         sb.AppendLine("        /// <param name=\"fieldEncryptor\">Optional field encryptor for handling encrypted properties.</param>");
-        sb.AppendLine("        /// <param name=\"logger\">Optional logger for DynamoDB operations. If null, no logging is performed.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger. If null, default behavior is used.</param>");
         sb.AppendLine("        /// <param name=\"cancellationToken\">Cancellation token for async operations.</param>");
         sb.AppendLine("        /// <returns>A task that resolves to a mapped entity instance.</returns>");
         sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when items collection is null or empty.</exception>");
@@ -1852,7 +1824,7 @@ internal static class MapperGenerator
         sb.AppendLine("            IList<Dictionary<string, AttributeValue>> items,");
         sb.AppendLine("            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
-        sb.AppendLine("            IDynamoDbLogger? logger = null,");
+        sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         sb.AppendLine("            if (items == null || items.Count == 0)");
@@ -1868,12 +1840,12 @@ internal static class MapperGenerator
         {
             sb.AppendLine("                // Multi-item entity: combine all items into a single entity");
             sb.AppendLine("                // Note: Multi-item entities with blob references not yet fully supported");
-            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, logger, cancellationToken);");
+            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken);");
         }
         else
         {
             sb.AppendLine("                // Single-item entity: use the first item");
-            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, logger, cancellationToken);");
+            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken);");
         }
 
         sb.AppendLine("            }");
@@ -2101,11 +2073,17 @@ internal static class MapperGenerator
         }
         else
         {
-            // Complex type - deserialize from JSON
+            // Complex type - deserialize from JSON using runtime-configured serializer
             sb.AppendLine("                        // Deserialize complex type from JSON");
+            sb.AppendLine("                        if (options?.JsonSerializer == null)");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            throw new InvalidOperationException(");
+            sb.AppendLine($"                                \"Property '{propertyName}' is a complex type stored as blob reference but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                                \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("                        }");
             sb.AppendLine("                        using var reader = new StreamReader(stream);");
             sb.AppendLine("                        var json = await reader.ReadToEndAsync();");
-            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>(json);");
         }
 
         sb.AppendLine("                    }");
@@ -2157,23 +2135,15 @@ internal static class MapperGenerator
         sb.AppendLine("                        var json = await reader.ReadToEndAsync();");
         sb.AppendLine();
 
-        // Step 3: Deserialize JSON to property type
+        // Step 3: Deserialize JSON to property type using runtime-configured serializer
         sb.AppendLine($"                        // Step 3: Deserialize JSON to property type");
-        if (serializerType == "SystemTextJson")
-        {
-            // Use System.Text.Json (AOT-compatible when user provides JsonSerializerContext)
-            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
-        }
-        else if (serializerType == "NewtonsoftJson")
-        {
-            // Use Newtonsoft.Json
-            sb.AppendLine($"                        entity.{escapedPropertyName} = Newtonsoft.Json.JsonConvert.DeserializeObject<{baseType}>(json);");
-        }
-        else
-        {
-            // Fallback to System.Text.Json without context
-            sb.AppendLine($"                        entity.{escapedPropertyName} = System.Text.Json.JsonSerializer.Deserialize<{baseType}>(json);");
-        }
+        sb.AppendLine("                        if (options?.JsonSerializer == null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine($"                            throw new InvalidOperationException(");
+        sb.AppendLine($"                                \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+        sb.AppendLine($"                                \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+        sb.AppendLine("                        }");
+        sb.AppendLine($"                        entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>(json);");
 
         sb.AppendLine("                    }");
         sb.AppendLine("                }");
@@ -2241,7 +2211,7 @@ internal static class MapperGenerator
             // The nested type must also be marked with [DynamoDbEntity] to have its own mapping generated
             var simpleTypeName = GetSimpleTypeName(propertyType);
             sb.AppendLine($"                    // Convert map back to nested entity using its generated FromDynamoDb method");
-            sb.AppendLine($"                    entity.{escapedPropertyName} = {simpleTypeName}.FromDynamoDb<{simpleTypeName}>({propertyName.ToLowerInvariant()}Value.M, logger);");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = {simpleTypeName}.FromDynamoDb<{simpleTypeName}>({propertyName.ToLowerInvariant()}Value.M, options);");
         }
 
         sb.AppendLine("                }");
@@ -2535,16 +2505,16 @@ internal static class MapperGenerator
         sb.AppendLine("        /// </summary>");
         sb.AppendLine("        /// <typeparam name=\"TSelf\">The entity type implementing IDynamoDbEntity.</typeparam>");
         sb.AppendLine("        /// <param name=\"items\">The collection of DynamoDB items to map from.</param>");
-        sb.AppendLine("        /// <param name=\"logger\">Optional logger for DynamoDB operations. If null, no logging is performed.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc. If null, default behavior is used.</param>");
         sb.AppendLine("        /// <returns>A mapped entity instance.</returns>");
         sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when items collection is null or empty.</exception>");
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
         // Generate entry logging for multi-item
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            logger?.LogTrace(LogEventIds.MappingFromDynamoDbStart,");
+        sb.AppendLine("            options?.Logger?.LogTrace(LogEventIds.MappingFromDynamoDbStart,");
         sb.AppendLine($"                \"Starting FromDynamoDb mapping for {{EntityType}} with {{ItemCount}} items\",");
         sb.AppendLine($"                \"{entity.ClassName}\", items?.Count ?? 0);");
         sb.AppendLine("            #endif");
@@ -2563,7 +2533,7 @@ internal static class MapperGenerator
         else
         {
             sb.AppendLine("                // Single-item entity: use the first item");
-            sb.AppendLine("                return FromDynamoDb<TSelf>(items[0], logger);");
+            sb.AppendLine("                return FromDynamoDb<TSelf>(items[0], options);");
         }
 
         sb.AppendLine("            }");
@@ -3216,7 +3186,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                        // Map to specific entity type: {relationship.EntityType}");
             sb.AppendLine($"                        if ({relationship.EntityType}.MatchesEntity(item))");
             sb.AppendLine("                        {");
-            sb.AppendLine($"                            var relatedEntity = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, logger);");
+            sb.AppendLine($"                            var relatedEntity = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, options);");
             sb.AppendLine($"                            {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
             sb.AppendLine("                        }");
         }
@@ -3256,7 +3226,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                        // Map to specific entity type: {relationship.EntityType}");
             sb.AppendLine($"                        if ({relationship.EntityType}.MatchesEntity(item))");
             sb.AppendLine("                        {");
-            sb.AppendLine($"                            entity.{relationship.PropertyName} = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, logger);");
+            sb.AppendLine($"                            entity.{relationship.PropertyName} = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, options);");
             sb.AppendLine("                            break; // Found the related entity");
             sb.AppendLine("                        }");
         }

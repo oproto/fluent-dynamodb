@@ -212,12 +212,39 @@ entity.ExpiresAt = DateTime.UtcNow.AddHours(1);
 ### JSON Blob
 
 ```csharp
-// Configure at assembly level
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+// 1. Define entity with [JsonBlob] property
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Id { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("content")]
+    [JsonBlob]
+    public ComplexObject Content { get; set; } = new();
+}
 
-[DynamoDbAttribute("content")]
-[JsonBlob]
-public ComplexObject Content { get; set; }
+// 2. Configure FluentDynamoDbOptions with JSON serializer
+using Oproto.FluentDynamoDb.SystemTextJson; // or NewtonsoftJson
+
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // or .WithNewtonsoftJson()
+
+// 3. Create table with options
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+
+// Custom serializer options
+var jsonOptions = new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+};
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(jsonOptions);
+
+// AOT-compatible with JsonSerializerContext
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(MyJsonContext.Default);
 ```
 
 **Details:** [Advanced Types - JSON Blobs](advanced-topics/AdvancedTypes.md#json-blob-serialization)
@@ -1023,7 +1050,7 @@ await batchBuilder.ExecuteAsync();
 // ❌ Avoid - multiple individual requests
 foreach (var entity in entities)
 {
-    await table.Put().WithItem(entity).ExecuteAsync();
+    await table.Put().WithItem(entity).PutAsync();
 }
 ```
 

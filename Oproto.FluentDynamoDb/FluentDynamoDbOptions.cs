@@ -40,6 +40,13 @@ public sealed class FluentDynamoDbOptions
         = DefaultEntityHydratorRegistry.Instance;
 
     /// <summary>
+    /// Gets the JSON serializer for [JsonBlob] properties.
+    /// Null if JSON blob serialization is not configured.
+    /// Configure using .WithSystemTextJson() or .WithNewtonsoftJson() extension methods.
+    /// </summary>
+    public IJsonBlobSerializer? JsonSerializer { get; private init; }
+
+    /// <summary>
     /// Creates a new options instance with the specified logger.
     /// </summary>
     /// <param name="logger">The logger to use. If null, uses NoOpLogger.Instance.</param>
@@ -51,7 +58,8 @@ public sealed class FluentDynamoDbOptions
             GeospatialProvider = GeospatialProvider,
             BlobStorageProvider = BlobStorageProvider,
             FieldEncryptor = FieldEncryptor,
-            HydratorRegistry = HydratorRegistry
+            HydratorRegistry = HydratorRegistry,
+            JsonSerializer = JsonSerializer
         };
     
     /// <summary>
@@ -66,7 +74,8 @@ public sealed class FluentDynamoDbOptions
             GeospatialProvider = GeospatialProvider,
             BlobStorageProvider = provider,
             FieldEncryptor = FieldEncryptor,
-            HydratorRegistry = HydratorRegistry
+            HydratorRegistry = HydratorRegistry,
+            JsonSerializer = JsonSerializer
         };
     
     /// <summary>
@@ -81,7 +90,8 @@ public sealed class FluentDynamoDbOptions
             GeospatialProvider = GeospatialProvider,
             BlobStorageProvider = BlobStorageProvider,
             FieldEncryptor = encryptor,
-            HydratorRegistry = HydratorRegistry
+            HydratorRegistry = HydratorRegistry,
+            JsonSerializer = JsonSerializer
         };
     
     /// <summary>
@@ -97,7 +107,8 @@ public sealed class FluentDynamoDbOptions
             GeospatialProvider = provider,
             BlobStorageProvider = BlobStorageProvider,
             FieldEncryptor = FieldEncryptor,
-            HydratorRegistry = HydratorRegistry
+            HydratorRegistry = HydratorRegistry,
+            JsonSerializer = JsonSerializer
         };
     
     /// <summary>
@@ -113,6 +124,23 @@ public sealed class FluentDynamoDbOptions
             GeospatialProvider = GeospatialProvider,
             BlobStorageProvider = BlobStorageProvider,
             FieldEncryptor = FieldEncryptor,
-            HydratorRegistry = registry
+            HydratorRegistry = registry,
+            JsonSerializer = JsonSerializer
+        };
+
+    /// <summary>
+    /// Creates a new options instance with the specified JSON serializer.
+    /// </summary>
+    /// <param name="serializer">The JSON serializer to use for [JsonBlob] properties.</param>
+    /// <returns>A new FluentDynamoDbOptions instance with the specified JSON serializer.</returns>
+    public FluentDynamoDbOptions WithJsonSerializer(IJsonBlobSerializer? serializer)
+        => new() 
+        { 
+            Logger = Logger,
+            GeospatialProvider = GeospatialProvider,
+            BlobStorageProvider = BlobStorageProvider,
+            FieldEncryptor = FieldEncryptor,
+            HydratorRegistry = HydratorRegistry,
+            JsonSerializer = serializer
         };
 }

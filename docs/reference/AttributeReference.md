@@ -1188,7 +1188,7 @@ Marks a property for JSON serialization before storing in DynamoDB.
 
 ### Purpose
 
-Serializes complex objects to JSON strings for storage in DynamoDB string attributes. Supports both System.Text.Json (AOT-compatible) and Newtonsoft.Json.
+Serializes complex objects to JSON strings for storage in DynamoDB string attributes. Supports both System.Text.Json (AOT-compatible) and Newtonsoft.Json via runtime configuration.
 
 ### Parameters
 
@@ -1200,12 +1200,42 @@ None
 |----------|------|---------|-------------|
 | `InlineThreshold` | `int?` | `null` | Maximum size (bytes) before using external blob storage |
 
+### Configuration
+
+JSON serialization is configured at runtime via `FluentDynamoDbOptions`:
+
+```csharp
+// Using System.Text.Json (recommended for AOT)
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();
+
+// With custom options
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    });
+
+// For AOT scenarios with JsonSerializerContext
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(MyJsonContext.Default);
+
+// Using Newtonsoft.Json
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson();
+
+// With custom settings
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson(new JsonSerializerSettings
+    {
+        NullValueHandling = NullValueHandling.Ignore
+    });
+```
+
 ### Example
 
 ```csharp
-// Configure serializer at assembly level
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
-
 public class DocumentContent
 {
     public string Title { get; set; }
@@ -1223,19 +1253,32 @@ public partial class Document
     [JsonBlob]
     public DocumentContent Content { get; set; }
 }
+
+// Usage with configured options
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+
+// Save document - JSON serialization happens automatically
+await table.Documents.Put(document).PutAsync();
+
+// Load document - JSON deserialization happens automatically
+var loaded = await table.Documents.Get(documentId).GetItemAsync();
 ```
 
 ### Package Requirements
 
 Must reference one of:
 - `Oproto.FluentDynamoDb.SystemTextJson` (recommended for AOT)
-- `Oproto.FluentDynamoDb.NewtonsoftJson` (limited AOT support)
+- `Oproto.FluentDynamoDb.NewtonsoftJson`
 
 ### Important Notes
 
-- Requires JSON serializer package reference (DYNDB102 error if missing)
-- System.Text.Json generates `JsonSerializerContext` for full AOT support
-- Newtonsoft.Json uses runtime reflection with limited AOT support
+- Requires JSON serializer package reference (DYNDB102 warning if missing)
+- Must configure serializer via `FluentDynamoDbOptions` at runtime
+- If no serializer is configured, a clear runtime exception is thrown
+- System.Text.Json supports AOT via `JsonSerializerContext`
 - Can be combined with `[BlobReference]` for large objects
 - Cannot be combined with `[TimeToLive]` (DYNDB104 error)
 
@@ -1313,52 +1356,6 @@ Must reference a blob provider package:
 
 ---
 
-## [DynamoDbJsonSerializer]
-
-Assembly-level attribute to configure the JSON serializer for `[JsonBlob]` properties.
-
-### Purpose
-
-Specifies which JSON serializer to use when multiple serializer packages are referenced.
-
-### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `serializerType` | `JsonSerializerType` | Yes | SystemTextJson or NewtonsoftJson |
-
-### Example
-
-```csharp
-// At assembly level (typically in a separate file or at top of Program.cs)
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
-
-namespace MyApp
-{
-    // Your entities...
-}
-```
-
-### Serializer Types
-
-| Type | AOT Support | Notes |
-|------|-------------|-------|
-| `SystemTextJson` | ✅ Full | Recommended for AOT projects |
-| `NewtonsoftJson` | ⚠️ Limited | Uses runtime reflection |
-
-### Important Notes
-
-- Only needed when both serializer packages are referenced
-- If only one package is referenced, it's used automatically
-- Applies to all `[JsonBlob]` properties in the assembly
-
-### See Also
-
-- [Advanced Types Guide](../advanced-topics/AdvancedTypes.md#json-blob-serialization)
-- [AOT Compatibility](../advanced-topics/AdvancedTypes.md#aot-compatibility)
-
----
-
 ## Summary
 
 These attributes work together to define your DynamoDB entity schema:
@@ -1376,12 +1373,11 @@ These attributes work together to define your DynamoDB entity schema:
 ### Advanced Type Attributes
 7. **[TimeToLive]**: Automatic item expiration
 8. **[DynamoDbMap]**: Nested object mapping
-9. **[JsonBlob]**: JSON serialization
+9. **[JsonBlob]**: JSON serialization (configured via `FluentDynamoDbOptions`)
 10. **[BlobReference]**: External blob storage
-11. **[DynamoDbJsonSerializer]**: Configure JSON serializer (assembly-level)
 
 ### Metadata Attributes
-12. **[Queryable]**: Document query capabilities
+11. **[Queryable]**: Document query capabilities
 
 The source generator reads these attributes at compile time and generates type-safe code for working with DynamoDB.
 

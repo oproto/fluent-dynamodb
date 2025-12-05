@@ -353,7 +353,7 @@ public partial class EcommerceTable
             throw new ArgumentException("Quantity must be positive");
         
         // Use internal accessor
-        await OrderLines.Put(line).ExecuteAsync();
+        await OrderLines.Put(line).PutAsync();
     }
 }
 ```
@@ -450,7 +450,7 @@ var items = await table.ReadOnlyEntities.Query()
     .ExecuteAsync();
 
 // ❌ Compile error - Put() not generated
-// await table.ReadOnlyEntities.Put(item).ExecuteAsync();
+// await table.ReadOnlyEntities.Put(item).PutAsync();
 ```
 
 ### Disabling Specific Operations
@@ -573,7 +573,7 @@ public partial class EcommerceTable
             throw new ArgumentException("Price cannot be negative");
         
         // Use internal operation
-        await OrderLines.Put(line).ExecuteAsync();  // Internal
+        await OrderLines.Put(line).PutAsync();  // Internal
     }
 }
 ```
@@ -736,7 +736,7 @@ public partial class EcommerceTable
             Price = price
         };
         
-        await OrderLines.Put(line).ExecuteAsync();  // Internal accessor
+        await OrderLines.Put(line).PutAsync();  // Internal accessor
         
         return line;
     }
@@ -793,7 +793,7 @@ await table.UpdateOrderLineQuantityAsync("customer123", "order456", 1, newQuanti
 await table.RemoveOrderLineAsync("customer123", "order456", 1);
 
 // ❌ Compile error - internal accessor not accessible
-// await table.OrderLines.Put(line).ExecuteAsync();
+// await table.OrderLines.Put(line).PutAsync();
 ```
 
 ### Advanced Pattern: Business Logic Encapsulation
@@ -1217,7 +1217,7 @@ await ecommerce.ProcessPaymentAsync("customer123", orderId, "credit_card", order
 
 // Internal accessors are not accessible
 // ❌ Compile error
-// await ecommerce.OrderLines.Put(line).ExecuteAsync();
+// await ecommerce.OrderLines.Put(line).PutAsync();
 // await ecommerce.Payments.Query()...
 ```
 
@@ -1238,7 +1238,7 @@ public partial class AppTable
     public async Task<Result> DoSomethingAsync()
     {
         // Use internal accessor
-        await InternalEntities.Put(item).ExecuteAsync();
+        await InternalEntities.Put(item).PutAsync();
     }
 }
 
@@ -1264,7 +1264,7 @@ public partial class EcommerceTable
         if (line.Price < 0)
             throw new ArgumentException("Price cannot be negative");
         
-        await OrderLines.Put(line).ExecuteAsync();
+        await OrderLines.Put(line).PutAsync();
     }
 }
 ```
@@ -1357,7 +1357,7 @@ public partial class MyTable
     public async Task<Result> PublicMethodAsync()
     {
         // Use internal accessor
-        await Entities.Put(item).ExecuteAsync();
+        await Entities.Put(item).PutAsync();
     }
 }
 ```

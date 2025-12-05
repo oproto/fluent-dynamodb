@@ -34,7 +34,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            logger?.LogTrace(LogEventIds.MappingToDynamoDbStart,");
+        sb.AppendLine("            options?.Logger?.LogTrace(LogEventIds.MappingToDynamoDbStart,");
         sb.AppendLine($"                \"Starting ToDynamoDb mapping for {{EntityType}}\",");
         sb.AppendLine($"                \"{entityTypeName}\");");
         sb.AppendLine("            #endif");
@@ -54,7 +54,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            logger?.LogTrace(LogEventIds.MappingToDynamoDbComplete,");
+        sb.AppendLine("            options?.Logger?.LogTrace(LogEventIds.MappingToDynamoDbComplete,");
         sb.AppendLine($"                \"Completed ToDynamoDb mapping for {{EntityType}} with {{AttributeCount}} attributes\",");
         sb.AppendLine($"                \"{entityTypeName}\", {itemVariableName}.Count);");
         sb.AppendLine("            #endif");
@@ -74,7 +74,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            logger?.LogTrace(LogEventIds.MappingFromDynamoDbStart,");
+        sb.AppendLine("            options?.Logger?.LogTrace(LogEventIds.MappingFromDynamoDbStart,");
         sb.AppendLine($"                \"Starting FromDynamoDb mapping for {{EntityType}} with {{AttributeCount}} attributes\",");
         sb.AppendLine($"                \"{entityTypeName}\", {itemVariableName}.Count);");
         sb.AppendLine("            #endif");
@@ -93,7 +93,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            logger?.LogTrace(LogEventIds.MappingFromDynamoDbComplete,");
+        sb.AppendLine("            options?.Logger?.LogTrace(LogEventIds.MappingFromDynamoDbComplete,");
         sb.AppendLine($"                \"Completed FromDynamoDb mapping for {{EntityType}}\",");
         sb.AppendLine($"                \"{entityTypeName}\");");
         sb.AppendLine("            #endif");
@@ -114,9 +114,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.MappingPropertyStart,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.MappingPropertyStart,");
         sb.AppendLine($"                    \"Mapping property {{PropertyName}} of type {{PropertyType}} ({direction})\",");
         sb.AppendLine($"                    \"{propertyName}\", \"{propertyType}\");");
         sb.AppendLine("            }");
@@ -137,7 +137,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            logger?.LogDebug(LogEventIds.MappingPropertySkipped,");
+        sb.AppendLine("            options?.Logger?.LogDebug(LogEventIds.MappingPropertySkipped,");
         sb.AppendLine($"                \"Skipping property {{PropertyName}}: {{Reason}}\",");
         sb.AppendLine($"                \"{propertyName}\", \"{reason}\");");
         sb.AppendLine("            #endif");
@@ -158,9 +158,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ConvertingMap,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ConvertingMap,");
         sb.AppendLine($"                    \"Converting {{PropertyName}} to Map with {{ElementCount}} elements ({direction})\",");
         sb.AppendLine($"                    \"{propertyName}\", {elementCountExpression});");
         sb.AppendLine("            }");
@@ -183,9 +183,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ConvertingSet,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ConvertingSet,");
         sb.AppendLine($"                    \"Converting {{PropertyName}} to {{SetType}} with {{ElementCount}} elements ({direction})\",");
         sb.AppendLine($"                    \"{propertyName}\", \"{setType}\", {elementCountExpression});");
         sb.AppendLine("            }");
@@ -207,9 +207,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ConvertingList,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ConvertingList,");
         sb.AppendLine($"                    \"Converting {{PropertyName}} to List with {{ElementCount}} elements ({direction})\",");
         sb.AppendLine($"                    \"{propertyName}\", {elementCountExpression});");
         sb.AppendLine("            }");
@@ -230,9 +230,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ConvertingTtl,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ConvertingTtl,");
         sb.AppendLine($"                    \"Converting TTL property {{PropertyName}} ({direction})\",");
         sb.AppendLine($"                    \"{propertyName}\");");
         sb.AppendLine("            }");
@@ -247,7 +247,7 @@ internal static class LoggingCodeGenerator
     /// </summary>
     /// <param name="propertyName">The name of the JSON blob property.</param>
     /// <param name="propertyType">The type of the property being serialized/deserialized.</param>
-    /// <param name="serializerType">The JSON serializer being used (e.g., "SystemTextJson", "NewtonsoftJson").</param>
+    /// <param name="serializerType">The JSON serializer being used (e.g., "RuntimeConfigured").</param>
     /// <param name="direction">The operation direction ("Serialization" or "Deserialization").</param>
     /// <returns>Generated logging code wrapped in conditional compilation directives.</returns>
     public static string GenerateJsonBlobLogging(string propertyName, string propertyType, string serializerType, string direction = "Serialization")
@@ -255,9 +255,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ConvertingJsonBlob,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ConvertingJsonBlob,");
         sb.AppendLine($"                    \"JSON {direction} for {{PropertyName}} of type {{PropertyType}} using {{SerializerType}}\",");
         sb.AppendLine($"                    \"{propertyName}\", \"{propertyType}\", \"{serializerType}\");");
         sb.AppendLine("            }");
@@ -279,9 +279,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ConvertingBlobReference,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ConvertingBlobReference,");
         sb.AppendLine($"                    \"{operation} blob reference for {{PropertyName}} with key {{ReferenceKey}}\",");
         sb.AppendLine($"                    \"{propertyName}\", {referenceKeyExpression});");
         sb.AppendLine("            }");
@@ -303,9 +303,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ApplyingFormatString,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ApplyingFormatString,");
         sb.AppendLine($"                    \"Applying format string '{{FormatString}}' to property {{PropertyName}} of type {{PropertyType}}\",");
         sb.AppendLine($"                    \"{formatString}\", \"{propertyName}\", \"{propertyType}\");");
         sb.AppendLine("            }");
@@ -327,9 +327,9 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            if (logger?.IsEnabled(LogLevel.Debug) == true)");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
         sb.AppendLine("            {");
-        sb.AppendLine("                logger.LogDebug(LogEventIds.ParsingFormattedValue,");
+        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ParsingFormattedValue,");
         sb.AppendLine($"                    \"Parsing formatted value for property {{PropertyName}} of type {{PropertyType}} using format '{{FormatString}}'\",");
         sb.AppendLine($"                    \"{propertyName}\", \"{propertyType}\", \"{formatString}\");");
         sb.AppendLine("            }");
@@ -353,13 +353,13 @@ internal static class LoggingCodeGenerator
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
         if (!string.IsNullOrEmpty(propertyName))
         {
-            sb.AppendLine("            logger?.LogError(LogEventIds.MappingError, ex,");
+            sb.AppendLine("            options?.Logger?.LogError(LogEventIds.MappingError, ex,");
             sb.AppendLine($"                \"Failed to map property {{PropertyName}} for {{EntityType}}\",");
             sb.AppendLine($"                \"{propertyName}\", \"{entityTypeName}\");");
         }
         else
         {
-            sb.AppendLine("            logger?.LogError(LogEventIds.MappingError, ex,");
+            sb.AppendLine("            options?.Logger?.LogError(LogEventIds.MappingError, ex,");
             sb.AppendLine($"                \"Failed to map {{EntityType}}\",");
             sb.AppendLine($"                \"{entityTypeName}\");");
         }
@@ -382,7 +382,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine($"            logger?.LogError(LogEventIds.ConversionError, {exceptionVariableName},");
+        sb.AppendLine($"            options?.Logger?.LogError(LogEventIds.ConversionError, {exceptionVariableName},");
         sb.AppendLine($"                \"Failed to convert {{PropertyName}} from {{SourceType}} to {{TargetType}}\",");
         sb.AppendLine($"                \"{propertyName}\", \"{sourceType}\", \"{targetType}\");");
         sb.AppendLine("            #endif");
@@ -404,7 +404,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine($"            logger?.LogError(LogEventIds.JsonSerializationError, {exceptionVariableName},");
+        sb.AppendLine($"            options?.Logger?.LogError(LogEventIds.JsonSerializationError, {exceptionVariableName},");
         sb.AppendLine($"                \"JSON serialization failed for {{PropertyName}} of type {{PropertyType}} using {{SerializerType}}\",");
         sb.AppendLine($"                \"{propertyName}\", \"{propertyType}\", \"{serializerType}\");");
         sb.AppendLine("            #endif");
@@ -426,7 +426,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine($"            logger?.LogError(LogEventIds.BlobStorageError, {exceptionVariableName},");
+        sb.AppendLine($"            options?.Logger?.LogError(LogEventIds.BlobStorageError, {exceptionVariableName},");
         sb.AppendLine($"                \"Blob storage {operation} failed for {{PropertyName}} with key {{ReferenceKey}}\",");
         sb.AppendLine($"                \"{propertyName}\", {referenceKeyExpression});");
         sb.AppendLine("            #endif");
@@ -482,7 +482,7 @@ internal static class LoggingCodeGenerator
         var sb = new StringBuilder();
         
         sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine($"            if (logger?.IsEnabled(LogLevel.{logLevel}) == true)");
+        sb.AppendLine($"            if (options?.Logger?.IsEnabled(LogLevel.{logLevel}) == true)");
         sb.AppendLine("            {");
         
         // Generate redaction code
@@ -492,7 +492,7 @@ internal static class LoggingCodeGenerator
         sb.AppendLine();
         
         // Generate logging call
-        sb.AppendLine($"                logger.Log{logLevel}({eventId},");
+        sb.AppendLine($"                options.Logger.Log{logLevel}({eventId},");
         sb.AppendLine($"                    \"{message}\",");
         
         // Add item as first argument
