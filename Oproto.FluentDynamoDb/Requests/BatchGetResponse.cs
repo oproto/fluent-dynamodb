@@ -30,6 +30,7 @@ public class BatchGetResponse
     private readonly BatchGetItemResponse _response;
     private readonly List<Dictionary<string, AttributeValue>?> _items;
     private readonly Dictionary<string, KeysAndAttributes> _unprocessedKeys;
+    private readonly FluentDynamoDbOptions? _options;
 
     /// <summary>
     /// Initializes a new instance of the BatchGetResponse class.
@@ -37,12 +38,15 @@ public class BatchGetResponse
     /// <param name="response">The underlying AWS SDK response.</param>
     /// <param name="tableOrder">The order of tables as items were added to the batch.</param>
     /// <param name="requestedKeys">The keys that were requested, in order.</param>
+    /// <param name="options">Optional configuration options for entity deserialization (JSON, logging, etc.).</param>
     internal BatchGetResponse(
         BatchGetItemResponse response, 
         List<string> tableOrder,
-        List<Dictionary<string, AttributeValue>> requestedKeys)
+        List<Dictionary<string, AttributeValue>> requestedKeys,
+        FluentDynamoDbOptions? options = null)
     {
         _response = response ?? throw new ArgumentNullException(nameof(response));
+        _options = options;
         _unprocessedKeys = response.UnprocessedKeys ?? new Dictionary<string, KeysAndAttributes>();
         
         // Flatten items in the order they were requested by matching keys
@@ -163,7 +167,7 @@ public class BatchGetResponse
         try
         {
             // Call the static abstract FromDynamoDb method directly (AOT-safe)
-            return TEntity.FromDynamoDb<TEntity>(item, options: null);
+            return TEntity.FromDynamoDb<TEntity>(item, _options);
         }
         catch (DynamoDbMappingException)
         {

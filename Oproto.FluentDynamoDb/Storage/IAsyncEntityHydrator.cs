@@ -14,11 +14,13 @@ public interface IAsyncEntityHydrator<TEntity> where TEntity : class
     /// </summary>
     /// <param name="item">The DynamoDB item attributes.</param>
     /// <param name="blobProvider">The blob storage provider for loading blob references.</param>
+    /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The hydrated entity.</returns>
     Task<TEntity> HydrateAsync(
         Dictionary<string, AttributeValue> item,
         IBlobStorageProvider blobProvider,
+        FluentDynamoDbOptions? options = null,
         CancellationToken cancellationToken = default);
     
     /// <summary>
@@ -26,11 +28,13 @@ public interface IAsyncEntityHydrator<TEntity> where TEntity : class
     /// </summary>
     /// <param name="items">The list of DynamoDB item attributes.</param>
     /// <param name="blobProvider">The blob storage provider for loading blob references.</param>
+    /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The hydrated entity.</returns>
     Task<TEntity> HydrateAsync(
         IList<Dictionary<string, AttributeValue>> items,
         IBlobStorageProvider blobProvider,
+        FluentDynamoDbOptions? options = null,
         CancellationToken cancellationToken = default);
     
     /// <summary>
@@ -38,10 +42,12 @@ public interface IAsyncEntityHydrator<TEntity> where TEntity : class
     /// </summary>
     /// <param name="entity">The entity to serialize.</param>
     /// <param name="blobProvider">The blob storage provider for storing blob references.</param>
+    /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The DynamoDB attributes.</returns>
     Task<Dictionary<string, AttributeValue>> SerializeAsync(
         TEntity entity,
         IBlobStorageProvider blobProvider,
+        FluentDynamoDbOptions? options = null,
         CancellationToken cancellationToken = default);
 }

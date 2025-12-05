@@ -22,14 +22,17 @@ public class TransactionGetResponse
 {
     private readonly TransactGetItemsResponse _response;
     private readonly List<Dictionary<string, AttributeValue>?> _items;
+    private readonly FluentDynamoDbOptions? _options;
 
     /// <summary>
     /// Initializes a new instance of the TransactionGetResponse class.
     /// </summary>
     /// <param name="response">The underlying AWS SDK response.</param>
-    internal TransactionGetResponse(TransactGetItemsResponse response)
+    /// <param name="options">Optional configuration options for entity deserialization (JSON, logging, etc.).</param>
+    internal TransactionGetResponse(TransactGetItemsResponse response, FluentDynamoDbOptions? options = null)
     {
         _response = response ?? throw new ArgumentNullException(nameof(response));
+        _options = options;
         _items = response.Responses?.Select(r => r?.Item).ToList() ?? new List<Dictionary<string, AttributeValue>?>();
     }
 
@@ -80,7 +83,7 @@ public class TransactionGetResponse
         try
         {
             // Call the static abstract FromDynamoDb method directly (AOT-safe)
-            return TEntity.FromDynamoDb<TEntity>(item, options: null);
+            return TEntity.FromDynamoDb<TEntity>(item, _options);
         }
         catch (DynamoDbMappingException)
         {

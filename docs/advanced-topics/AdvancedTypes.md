@@ -358,7 +358,7 @@ var document = new Document
     }
 };
 
-await table.Documents.Put(document).ExecuteAsync();
+await table.Documents.Put(document).PutAsync();
 ```
 
 #### Custom JsonSerializerOptions
@@ -837,7 +837,7 @@ If you use `[JsonBlob]` properties without configuring a JSON serializer via `Fl
 var options = new FluentDynamoDbOptions(); // No JSON serializer configured!
 var table = new DocumentTable(dynamoDbClient, "documents", options);
 
-await table.Documents.Put(document).ExecuteAsync();
+await table.Documents.Put(document).PutAsync();
 // InvalidOperationException: Property 'Content' has [JsonBlob] attribute but no JSON serializer is configured. 
 // Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.
 ```

@@ -143,7 +143,7 @@ public class OrderService
     
     public async Task SaveOrderAsync(Order order)
     {
-        await _table.Orders.Put(order).ExecuteAsync();
+        await _table.Orders.Put(order).PutAsync();
     }
 }
 ```

@@ -1050,7 +1050,7 @@ await batchBuilder.ExecuteAsync();
 // ❌ Avoid - multiple individual requests
 foreach (var entity in entities)
 {
-    await table.Put().WithItem(entity).ExecuteAsync();
+    await table.Put().WithItem(entity).PutAsync();
 }
 ```
 

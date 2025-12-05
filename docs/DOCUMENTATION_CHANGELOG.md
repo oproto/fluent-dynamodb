@@ -59,6 +59,44 @@ Entries may be categorized as:
 
 ## [2025-12-04]
 
+### File: Multiple documentation files - Put().ExecuteAsync() → PutAsync() corrections
+
+**Category:** API Correction
+
+**Summary:** Corrected remaining `Put().ExecuteAsync()` patterns to use the correct `PutAsync()` method across documentation and source files.
+
+**Files corrected:**
+- `docs/advanced-topics/AdvancedTypes.md` (2 occurrences)
+- `docs/advanced-topics/TableGenerationCustomization.md` (10 occurrences)
+- `docs/reference/AttributeReference.md` (1 occurrence)
+- `docs/DOCUMENTATION_CHANGELOG.md` (1 occurrence - example code)
+- `Oproto.FluentDynamoDb.SystemTextJson/README.md` (1 occurrence)
+- `Oproto.FluentDynamoDb.NewtonsoftJson/README.md` (1 occurrence)
+- `Oproto.FluentDynamoDb/Attributes/GenerateAccessorsAttribute.cs` (1 occurrence - XML documentation)
+- `.kiro/specs/integration-test-build-fixes/design.md` (1 occurrence)
+
+---
+
+**Before:**
+```csharp
+await table.Documents.Put(document).ExecuteAsync();
+await table.Orders.Put(order).ExecuteAsync();
+await OrderLines.Put(line).ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Documents.Put(document).PutAsync();
+await table.Orders.Put(order).PutAsync();
+await OrderLines.Put(line).PutAsync();
+```
+
+**Reason:** `ExecuteAsync()` does not exist on `PutItemRequestBuilder`. The correct method is `PutAsync()`. This is consistent with other request builders: `GetItemAsync()`, `UpdateAsync()`, `DeleteAsync()`.
+
+---
+
+## [2025-12-04]
+
 ### File: docs/DOCUMENTATION_CHANGELOG.md, docs/examples/ProjectionModelsExamples.md, docs/core-features/ProjectionModels.md, docs/advanced-topics/FieldLevelSecurity.md
 
 **Category:** Pattern Update - Example Entity Cleanup
@@ -1265,7 +1303,7 @@ public ComplexObject Data { get; set; } // Warning: Add SystemTextJson or Newton
 var options = new FluentDynamoDbOptions(); // No JSON serializer configured!
 var table = new DocumentTable(dynamoDbClient, "documents", options);
 
-await table.Documents.Put(document).ExecuteAsync();
+await table.Documents.Put(document).PutAsync();
 // InvalidOperationException: Property 'Content' has [JsonBlob] attribute but no JSON serializer is configured. 
 // Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.
 ```

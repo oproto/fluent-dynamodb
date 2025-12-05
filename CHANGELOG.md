@@ -177,6 +177,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Created `docs/DOCUMENTATION_CHANGELOG.md` for tracking documentation corrections separately from code changes
   - Updated `.kiro/steering/documentation.md` with documentation changelog requirements
 
+- **Options Propagation in Batch and Transaction Get Operations** - Fixed `FluentDynamoDbOptions` not being passed to entity deserialization
+  - `BatchGetResponse` now accepts and propagates `FluentDynamoDbOptions` to `FromDynamoDb()` calls
+  - `TransactionGetResponse` now accepts and propagates `FluentDynamoDbOptions` to `FromDynamoDb()` calls
+  - `BatchGetBuilder` captures options from request builders and passes to response
+  - `TransactionGetBuilder` captures options from request builders and passes to response
+  - Enables JSON deserialization of `[JsonBlob]` properties in batch/transaction get results
+  - Enables logging during entity hydration in batch/transaction operations
+
+- **Options Propagation in Source-Generated Hydrators** - Fixed `IAsyncEntityHydrator` not receiving options
+  - Added `FluentDynamoDbOptions? options = null` parameter to `IAsyncEntityHydrator<T>` interface methods
+  - Updated `HydratorGenerator` to generate code that accepts and passes options to `FromDynamoDbAsync()`
+  - Updated `EnhancedExecuteAsyncExtensions` to pass options to `HydrateAsync()` and `SerializeAsync()` calls
+  - Enables field encryption and JSON serialization in async hydration scenarios
+
 ### Added
 - **StoreLocator Adaptive Precision** - Multi-precision spatial indexing for the StoreLocator example application
   - Automatic precision selection based on search radius for optimal query performance

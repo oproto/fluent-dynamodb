@@ -101,7 +101,7 @@ public static class EnhancedExecuteAsyncExtensions
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
-                return await hydrator.HydrateAsync(response.Item, blobProvider, cancellationToken);
+                return await hydrator.HydrateAsync(response.Item, blobProvider, builder.GetOptions(), cancellationToken);
             }
             else
             {
@@ -228,17 +228,17 @@ public static class EnhancedExecuteAsyncExtensions
             var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Check if a hydrator is registered for this entity type (AOT-safe)
-            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
-                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, cancellationToken));
+                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, options, cancellationToken));
                 return (await Task.WhenAll(tasks)).ToList();
             }
             else
             {
                 // Entity doesn't have blob references - use synchronous method
-                var options = builder.GetOptions();
                 return matchingItems.Select(item => T.FromDynamoDb<T>(item, options)).ToList();
             }
         }
@@ -360,7 +360,8 @@ public static class EnhancedExecuteAsyncExtensions
             var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
 
             // Check if a hydrator is registered for this entity type (AOT-safe)
-            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
@@ -368,11 +369,11 @@ public static class EnhancedExecuteAsyncExtensions
                 {
                     if (group.Count() == 1)
                     {
-                        return await hydrator.HydrateAsync(group.First(), blobProvider, cancellationToken);
+                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken);
                     }
                     else
                     {
-                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, cancellationToken);
+                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken);
                     }
                 });
 
@@ -381,7 +382,6 @@ public static class EnhancedExecuteAsyncExtensions
             else
             {
                 // Entity doesn't have blob references - use synchronous methods
-                var options = builder.GetOptions();
                 return groups.Select(group => group.Count() == 1
                     ? T.FromDynamoDb<T>(group.First(), options)
                     : T.FromDynamoDb<T>(group.ToList(), options))
@@ -499,16 +499,17 @@ public static class EnhancedExecuteAsyncExtensions
                 return null;
 
             // Check if a hydrator is registered for this entity type (AOT-safe)
-            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
-                return await hydrator.HydrateAsync(matchingItems, blobProvider, cancellationToken);
+                return await hydrator.HydrateAsync(matchingItems, blobProvider, options, cancellationToken);
             }
             else
             {
                 // Entity doesn't have blob references - use synchronous method
-                return T.FromDynamoDb<T>(matchingItems, builder.GetOptions());
+                return T.FromDynamoDb<T>(matchingItems, options);
             }
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
@@ -574,16 +575,17 @@ public static class EnhancedExecuteAsyncExtensions
             Dictionary<string, AttributeValue> attributeDict;
 
             // Check if a hydrator is registered for this entity type (AOT-safe)
-            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator's serialize method (no reflection)
-                attributeDict = await hydrator.SerializeAsync(item, blobProvider, cancellationToken);
+                attributeDict = await hydrator.SerializeAsync(item, blobProvider, options, cancellationToken);
             }
             else
             {
                 // Entity doesn't have blob references - use synchronous method
-                attributeDict = T.ToDynamoDb(item, builder.GetOptions());
+                attributeDict = T.ToDynamoDb(item, options);
             }
 
             return builder.WithItem(attributeDict);
@@ -698,17 +700,17 @@ public static class EnhancedExecuteAsyncExtensions
             var matchingItems = items.Where(T.MatchesEntity).ToList();
 
             // Check if a hydrator is registered for this entity type (AOT-safe)
-            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
-                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, cancellationToken));
+                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, options, cancellationToken));
                 return (await Task.WhenAll(tasks)).ToList();
             }
             else
             {
                 // Entity doesn't have blob references - use synchronous method
-                var options = builder.GetOptions();
                 return matchingItems.Select(item => T.FromDynamoDb<T>(item, options)).ToList();
             }
         }
@@ -829,7 +831,8 @@ public static class EnhancedExecuteAsyncExtensions
             var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
 
             // Check if a hydrator is registered for this entity type (AOT-safe)
-            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
@@ -837,11 +840,11 @@ public static class EnhancedExecuteAsyncExtensions
                 {
                     if (group.Count() == 1)
                     {
-                        return await hydrator.HydrateAsync(group.First(), blobProvider, cancellationToken);
+                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken);
                     }
                     else
                     {
-                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, cancellationToken);
+                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken);
                     }
                 });
 
@@ -850,7 +853,6 @@ public static class EnhancedExecuteAsyncExtensions
             else
             {
                 // Entity doesn't have blob references - use synchronous methods
-                var options = builder.GetOptions();
                 return groups.Select(group => group.Count() == 1
                     ? T.FromDynamoDb<T>(group.First(), options)
                     : T.FromDynamoDb<T>(group.ToList(), options))

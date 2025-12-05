@@ -1261,7 +1261,7 @@ var options = new FluentDynamoDbOptions()
 var table = new DocumentTable(dynamoDbClient, "documents", options);
 
 // Save document - JSON serialization happens automatically
-await table.Documents.Put(document).ExecuteAsync();
+await table.Documents.Put(document).PutAsync();
 
 // Load document - JSON deserialization happens automatically
 var loaded = await table.Documents.Get(documentId).GetItemAsync();
