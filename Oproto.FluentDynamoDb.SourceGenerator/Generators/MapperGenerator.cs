@@ -2566,25 +2566,11 @@ internal static class MapperGenerator
         sb.AppendLine($"            var entity = new {entity.ClassName}();");
         sb.AppendLine();
 
-        // First, populate non-collection properties from the first item (or any item that has them)
+        // First, identify and populate from the primary entity item (not related items)
         var nonCollectionProperties = entity.Properties.Where(p => p.HasAttributeMapping && !p.IsCollection).ToArray();
         if (nonCollectionProperties.Length > 0)
         {
-            sb.AppendLine("            // Populate non-collection properties from first available item");
-            sb.AppendLine("            foreach (var item in items)");
-            sb.AppendLine("            {");
-
-            foreach (var property in nonCollectionProperties)
-            {
-                sb.AppendLine($"                if (item.TryGetValue(\"{property.AttributeName}\", out var {property.PropertyName.ToLowerInvariant()}Value))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    entity.{property.PropertyName} = {GetFromAttributeValueExpression(property, $"{property.PropertyName.ToLowerInvariant()}Value")};");
-                sb.AppendLine("                }");
-            }
-
-            sb.AppendLine("                break; // Use first item for non-collection properties");
-            sb.AppendLine("            }");
-            sb.AppendLine();
+            GeneratePrimaryEntityIdentification(sb, entity, nonCollectionProperties);
         }
 
         // Then, populate collection properties by grouping items
@@ -2601,6 +2587,127 @@ internal static class MapperGenerator
         }
 
         sb.AppendLine("            return (TSelf)(object)entity;");
+    }
+
+    /// <summary>
+    /// Generates code to identify the primary entity item from a list of items.
+    /// The primary entity item is identified by matching the entity's sort key pattern,
+    /// which is distinct from related entity patterns.
+    /// </summary>
+    private static void GeneratePrimaryEntityIdentification(StringBuilder sb, EntityModel entity, PropertyModel[] nonCollectionProperties)
+    {
+        var sortKeyProperty = entity.SortKeyProperty;
+        
+        sb.AppendLine("            // Find the primary entity item based on sort key pattern");
+        sb.AppendLine("            Dictionary<string, AttributeValue>? primaryItem = null;");
+        sb.AppendLine();
+        
+        if (sortKeyProperty != null && entity.Relationships.Length > 0)
+        {
+            // Entity has relationships - need to distinguish primary from related items
+            var sortKeyPrefix = sortKeyProperty.KeyFormat?.Prefix;
+            var separator = sortKeyProperty.KeyFormat?.Separator ?? "#";
+            
+            sb.AppendLine("            foreach (var item in items)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                if (item.TryGetValue(\"{sortKeyProperty.AttributeName}\", out var sortKeyValue))");
+            sb.AppendLine("                {");
+            sb.AppendLine("                    var sortKey = sortKeyValue.S ?? string.Empty;");
+            
+            // Generate pattern matching to identify primary entity
+            // Primary entity has sort key like "PREFIX#value" but NOT "PREFIX#value#RELATED#..."
+            // We need to exclude items that match any related entity pattern
+            GeneratePrimaryEntityPatternMatching(sb, entity, sortKeyProperty);
+            
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+        }
+        else
+        {
+            // No relationships or no sort key - use first item
+            sb.AppendLine("            // No relationships defined - use first item as primary");
+            sb.AppendLine("            primaryItem = items.FirstOrDefault();");
+        }
+        
+        sb.AppendLine();
+        sb.AppendLine("            // Return null if no primary entity item found");
+        sb.AppendLine("            if (primaryItem == null)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                return default!;");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        
+        // Populate non-collection properties from primary item
+        sb.AppendLine("            // Populate non-collection properties from primary entity item");
+        foreach (var property in nonCollectionProperties)
+        {
+            var varName = property.PropertyName.ToLowerInvariant() + "Value";
+            sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                entity.{property.PropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+            sb.AppendLine("            }");
+        }
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Generates pattern matching code to identify the primary entity item.
+    /// The primary entity is identified by having a sort key that matches the entity's
+    /// sort key pattern but does NOT match any related entity patterns.
+    /// </summary>
+    private static void GeneratePrimaryEntityPatternMatching(StringBuilder sb, EntityModel entity, PropertyModel sortKeyProperty)
+    {
+        var sortKeyPrefix = sortKeyProperty.KeyFormat?.Prefix;
+        var separator = sortKeyProperty.KeyFormat?.Separator ?? "#";
+        
+        // Build conditions to exclude related entity patterns
+        var relatedPatterns = entity.Relationships
+            .Select(r => r.SortKeyPattern)
+            .Where(p => !string.IsNullOrEmpty(p))
+            .ToArray();
+        
+        if (relatedPatterns.Length > 0)
+        {
+            // Check if item matches primary entity pattern (has prefix) but NOT any related pattern
+            sb.AppendLine("                    // Check if this is the primary entity (not a related entity)");
+            sb.AppendLine("                    var isPrimaryEntity = true;");
+            sb.AppendLine();
+            
+            // Check each related entity pattern
+            foreach (var pattern in relatedPatterns)
+            {
+                var regexPattern = ConvertWildcardPatternToRegex(pattern);
+                sb.AppendLine($"                    // Exclude items matching related pattern: {pattern}");
+                sb.AppendLine($"                    if (System.Text.RegularExpressions.Regex.IsMatch(sortKey, @\"{regexPattern}\"))");
+                sb.AppendLine("                    {");
+                sb.AppendLine("                        isPrimaryEntity = false;");
+                sb.AppendLine("                    }");
+            }
+            
+            sb.AppendLine();
+            sb.AppendLine("                    if (isPrimaryEntity)");
+            sb.AppendLine("                    {");
+            sb.AppendLine("                        primaryItem = item;");
+            sb.AppendLine("                        break; // Found primary entity");
+            sb.AppendLine("                    }");
+        }
+        else if (!string.IsNullOrEmpty(sortKeyPrefix))
+        {
+            // No related patterns but has prefix - match by prefix
+            sb.AppendLine($"                    // Match by sort key prefix: {sortKeyPrefix}");
+            sb.AppendLine($"                    if (sortKey.StartsWith(\"{sortKeyPrefix}{separator}\"))");
+            sb.AppendLine("                    {");
+            sb.AppendLine("                        primaryItem = item;");
+            sb.AppendLine("                        break; // Found primary entity");
+            sb.AppendLine("                    }");
+        }
+        else
+        {
+            // No prefix and no related patterns - use first item
+            sb.AppendLine("                    // No specific pattern - use first item");
+            sb.AppendLine("                    primaryItem = item;");
+            sb.AppendLine("                    break;");
+        }
     }
 
     private static void GenerateCollectionPropertyFromItems(StringBuilder sb, EntityModel entity, PropertyModel collectionProperty)
@@ -3254,15 +3361,57 @@ internal static class MapperGenerator
     {
         if (sortKeyPattern.Contains("*"))
         {
-            // Wildcard pattern matching
-            var prefix = sortKeyPattern.Replace("*", "");
-            sb.AppendLine($"                    if (sortKey.StartsWith(\"{prefix}\"))");
+            // Wildcard pattern matching - convert pattern to regex
+            // Pattern like "INVOICE#*#LINE#*" should match "INVOICE#INV-001#LINE#1"
+            // Each * matches any characters (including empty) up to the next delimiter or end
+            var regexPattern = ConvertWildcardPatternToRegex(sortKeyPattern);
+            sb.AppendLine($"                    if (System.Text.RegularExpressions.Regex.IsMatch(sortKey, @\"{regexPattern}\"))");
         }
         else
         {
             // Exact pattern matching
             sb.AppendLine($"                    if (sortKey == \"{sortKeyPattern}\" || sortKey.StartsWith(\"{sortKeyPattern}#\"))");
         }
+    }
+
+    /// <summary>
+    /// Converts a wildcard pattern (using * as wildcard) to a regex pattern.
+    /// For example: "INVOICE#*#LINE#*" becomes "^INVOICE#[^#]*#LINE#[^#]*$"
+    /// The delimiter is inferred from the pattern (defaults to # if not found).
+    /// </summary>
+    internal static string ConvertWildcardPatternToRegex(string wildcardPattern)
+    {
+        // Infer the delimiter from the pattern by looking at the character before the first *
+        var delimiter = InferDelimiterFromPattern(wildcardPattern);
+        var escapedDelimiter = System.Text.RegularExpressions.Regex.Escape(delimiter);
+        
+        // Escape regex special characters except *
+        var escaped = System.Text.RegularExpressions.Regex.Escape(wildcardPattern);
+        
+        // Replace escaped \* with regex pattern that matches any characters except the delimiter
+        // This ensures each wildcard matches a single segment
+        var regexPattern = escaped.Replace("\\*", $"[^{escapedDelimiter}]*");
+        
+        // Anchor the pattern to match the entire string
+        return "^" + regexPattern + "$";
+    }
+
+    /// <summary>
+    /// Infers the delimiter character from a wildcard pattern.
+    /// Looks for the character immediately before the first * in the pattern.
+    /// Defaults to '#' if no delimiter can be inferred.
+    /// </summary>
+    internal static string InferDelimiterFromPattern(string pattern)
+    {
+        var wildcardIndex = pattern.IndexOf('*');
+        if (wildcardIndex > 0)
+        {
+            // The character before * is likely the delimiter
+            return pattern[wildcardIndex - 1].ToString();
+        }
+        
+        // Default to # if we can't infer
+        return "#";
     }
 
     private static void GenerateComputedKeyLogic(StringBuilder sb, PropertyModel computedProperty)

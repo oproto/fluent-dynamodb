@@ -925,4 +925,91 @@ namespace TestNamespace
         // Should not report Lambda package error when attribute is not present
         analyzer.Diagnostics.Should().NotContain(d => d.Id == "SEC002");
     }
+
+    [Fact]
+    public void AnalyzeEntity_WithRelatedEntity_SetsIsMultiItemEntityToTrue()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+using System.Collections.Generic;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string SortKey { get; set; } = string.Empty;
+        
+        [RelatedEntity(""line#*"", EntityType = typeof(LineItem))]
+        public List<LineItem>? Lines { get; set; }
+    }
+    
+    [DynamoDbTable(""test-table"")]
+    public partial class LineItem
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Pk { get; set; } = string.Empty;
+        
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string Sk { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.IsMultiItemEntity.Should().BeTrue("entity has [RelatedEntity] attribute");
+        result.Relationships.Should().NotBeEmpty("entity has [RelatedEntity] attribute");
+    }
+
+    [Fact]
+    public void AnalyzeEntity_WithoutRelatedEntity_SetsIsMultiItemEntityToFalse()
+    {
+        // Arrange
+        var source = @"
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class TestEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string SortKey { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""data"")]
+        public string Data { get; set; } = string.Empty;
+    }
+}";
+
+        var (classDecl, semanticModel) = ParseSource(source);
+        var analyzer = new EntityAnalyzer();
+
+        // Act
+        var result = analyzer.AnalyzeEntity(classDecl, semanticModel);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.IsMultiItemEntity.Should().BeFalse("entity does not have [RelatedEntity] attribute");
+        result.Relationships.Should().BeEmpty("entity does not have [RelatedEntity] attribute");
+    }
 }

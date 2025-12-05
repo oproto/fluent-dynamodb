@@ -13,15 +13,16 @@ This example demonstrates DynamoDB transactions using FluentDynamoDb and compare
 
 ### Transaction API
 
-FluentDynamoDb provides a fluent API for building transactions:
+FluentDynamoDb provides a fluent API for building transactions using generated entity accessors:
 
 ```csharp
-// FluentDynamoDb approach - concise and type-safe
-await DynamoDbTransactions.Write
-    .Add(table.Put(account1))
-    .Add(table.Put(account2))
-    .Add(table.Put(transactionRecord))
-    .ExecuteAsync();
+// FluentDynamoDb approach - concise and type-safe using entity accessors
+var transaction = DynamoDbTransactions.Write
+    .Add(table.Accounts.Put(account1))
+    .Add(table.Accounts.Put(account2))
+    .Add(table.Transactions.Put(transactionRecord));
+
+await transaction.ExecuteAsync();
 ```
 
 Compare this to the raw SDK approach:
@@ -61,8 +62,56 @@ DynamoDB transactions provide ACID guarantees:
 
 ### Entity Design
 
-The demo uses two entity types in a single table:
+The demo uses two entity types in a single table with the `[PartitionKey(Prefix = "...")]` pattern:
 
+```csharp
+// Account entity - uses [PartitionKey(Prefix = "ACCOUNT")] for automatic key formatting
+[DynamoDbTable("transaction-demo", IsDefault = true)]
+[GenerateEntityProperty(Name = "Accounts")]
+[Scannable]
+public partial class Account
+{
+    [PartitionKey(Prefix = "ACCOUNT")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("accountId")]
+    public string AccountId { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("balance")]
+    public decimal Balance { get; set; }
+
+    public const string ProfileSk = "PROFILE";
+}
+
+// TransactionRecord entity - shares partition key space with Account
+[DynamoDbTable("transaction-demo")]
+[GenerateEntityProperty(Name = "Transactions")]
+public partial class TransactionRecord
+{
+    [PartitionKey(Prefix = "ACCOUNT")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("txnId")]
+    public string TxnId { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("amount")]
+    public decimal Amount { get; set; }
+
+    public const string TxnSkPrefix = "TXN#";
+}
+```
+
+Key structure in DynamoDB:
 ```
 Account:
   pk: "ACCOUNT#{accountId}"
@@ -71,6 +120,33 @@ Account:
 TransactionRecord:
   pk: "ACCOUNT#{accountId}"
   sk: "TXN#{timestamp}#{txnId}"
+```
+
+### Key Construction
+
+The source generator creates a `Keys` class for each entity with methods to construct properly formatted keys:
+
+```csharp
+// Use the generated Keys class - NOT manual CreatePk() methods
+var pk = Account.Keys.Pk(accountId);           // Returns "ACCOUNT#123"
+var pk = TransactionRecord.Keys.Pk(accountId); // Returns "ACCOUNT#123"
+
+// Creating entities with proper keys
+var account = new Account
+{
+    Pk = Account.Keys.Pk(accountId),
+    Sk = Account.ProfileSk,
+    AccountId = accountId,
+    Balance = 1000m
+};
+
+var txnRecord = new TransactionRecord
+{
+    Pk = TransactionRecord.Keys.Pk(accountId),
+    Sk = $"TXN#{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}",
+    TxnId = txnId,
+    Amount = 100m
+};
 ```
 
 ## Running the Example
@@ -117,13 +193,12 @@ The FluentDynamoDb approach typically reduces code by approximately 60-70% compa
 ```
 TransactionDemo/
 ├── Entities/
-│   ├── Account.cs           # Account entity with balance
-│   └── TransactionRecord.cs # Transaction record entity
-├── Tables/
-│   └── TransactionDemoTable.cs  # Table operations
-├── TransactionComparison.cs     # Comparison logic
-├── Program.cs                   # Interactive menu
-└── README.md                    # This file
+│   ├── Account.cs              # Account entity with balance
+│   ├── TransactionRecord.cs    # Transaction record entity
+│   └── TransactionDemoTable.cs # Table class with entity accessors
+├── TransactionComparison.cs    # Comparison logic
+├── Program.cs                  # Interactive menu
+└── README.md                   # This file
 ```
 
 ## Learn More

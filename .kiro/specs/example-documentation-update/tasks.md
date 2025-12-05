@@ -1,0 +1,91 @@
+# Implementation Plan
+
+- [x] 1. Update TodoList README
+  - [x] 1.1 Fix project structure section to show Entities folder containing TodoItem.cs and TodoItemsTable.cs (no Tables folder)
+    - Remove reference to non-existent `Tables/` folder
+    - Update structure to match actual layout
+    - _Requirements: 1.1_
+  - [x] 1.2 Update entity definition code example to use correct attributes
+    - Remove `[DynamoDbEntity]` attribute
+    - Remove `: IDynamoDbEntity` interface
+    - Show `[DynamoDbTable]` with `[GenerateEntityProperty]` and `[Scannable]`
+    - _Requirements: 1.2_
+  - [x] 1.3 Update CRUD operation examples to use generated entity accessor pattern
+    - Change `table.AddAsync()` to `table.TodoItems.PutAsync()`
+    - Change `table.GetAllAsync()` to `table.TodoItems.Scan().ToListAsync()`
+    - Change `table.MarkCompleteAsync()` to `table.TodoItems.Update().Set().UpdateAsync()`
+    - Change `table.DeleteAsync()` to `table.TodoItems.DeleteAsync()`
+    - _Requirements: 1.3_
+  - [x] 1.4 Update update expression examples to show lambda pattern with update models
+    - Show `table.TodoItems.Update(id).Set(x => new TodoItemUpdateModel { ... }).UpdateAsync()`
+    - _Requirements: 1.4_
+
+- [x] 2. Update TransactionDemo README
+  - [x] 2.1 Fix project structure section to show Entities folder containing Account.cs, TransactionRecord.cs, and TransactionDemoTable.cs
+    - Remove reference to non-existent `Tables/` folder
+    - Update structure to match actual layout
+    - _Requirements: 2.1_
+  - [x] 2.2 Update entity definition code examples to use correct key prefix pattern
+    - Show `[PartitionKey(Prefix = "ACCOUNT")]` attribute
+    - Remove any manual `CreatePk()` method examples
+    - _Requirements: 2.2_
+  - [x] 2.3 Update key construction examples to use generated Keys class
+    - Change `Account.CreatePk(accountId)` to `Account.Keys.Pk(accountId)`
+    - _Requirements: 2.3_
+  - [x] 2.4 Update transaction API examples to use entity accessor Put methods
+    - Show `DynamoDbTransactions.Write.Add(table.Accounts.Put(account)).ExecuteAsync()`
+    - _Requirements: 2.4_
+
+- [x] 3. Update InvoiceManager README
+  - [x] 3.1 Fix project structure section to show Entities folder containing Customer.cs, Invoice.cs, InvoiceLine.cs, and InvoicesTable.cs
+    - Remove reference to non-existent `Tables/` folder
+    - Update structure to match actual layout
+    - _Requirements: 3.1_
+  - [x] 3.2 Update entity definition code examples to use correct key prefix pattern
+    - Show `[PartitionKey(Prefix = "CUSTOMER")]` and `[SortKey(Prefix = "INVOICE")]` attributes
+    - Remove any manual key method examples
+    - _Requirements: 3.2_
+  - [x] 3.3 Update key construction examples to use generated Keys class
+    - Change `Customer.CreatePk(customerId)` to `Customer.Keys.Pk(customerId)`
+    - Change `Invoice.CreateSkPrefix(invoiceNumber)` to `Invoice.Keys.Sk(invoiceNumber)`
+    - _Requirements: 3.3_
+  - [x] 3.4 Update query examples to use generated entity accessor pattern
+    - Show `table.Invoices.Query().Where(...).ToListAsync()`
+    - Show `table.Customers.Scan().ToListAsync()`
+    - _Requirements: 3.4_
+
+- [x] 4. Update StoreLocator README
+  - [x] 4.1 Fix project structure section to show Entities folder with store entities and table classes, plus Data folder
+    - Update structure to show StoreGeoHash.cs, StoreS2.cs, StoreH3.cs, and corresponding table classes
+    - Add Data folder with StoreSeedData.cs
+    - _Requirements: 4.1_
+  - [x] 4.2 Update entity definition examples to show correct geospatial attributes
+    - Show `[GlobalSecondaryIndex]` with `IsPartitionKey = true`
+    - Show `[StoreCoordinates]` attribute
+    - Show `[DynamoDbAttribute]` with `GeoHashPrecision`, `SpatialIndexType`, `S2Level`, `H3Resolution`
+    - _Requirements: 4.2_
+  - [x] 4.3 Update table schema section to show correct key design
+    - PK: StoreId (not composite spatial key)
+    - SK: Category
+    - GSI: spatial cell as partition key
+    - _Requirements: 4.3_
+  - [x] 4.4 Update query examples to use generated entity accessor pattern
+    - Show `table.Stores.Query().Where(...).ToListAsync()`
+    - Show spatial query extensions usage
+    - _Requirements: 4.4_
+
+- [x] 5. Update documentation index files
+  - [x] 5.1 Add example applications section to docs/examples/README.md
+    - Add TodoList with description of CRUD and Scannable patterns
+    - Add TransactionDemo with description of transaction patterns
+    - Add InvoiceManager with description of single-table design
+    - Add StoreLocator with description of geospatial patterns
+    - _Requirements: 5.1_
+  - [x] 5.2 Add examples navigation to docs/README.md
+    - Add "Example Applications" section under documentation structure
+    - Include brief descriptions and links to each example
+    - _Requirements: 5.2_
+  - [x] 5.3 Verify all links resolve correctly
+    - Test relative paths from docs to examples folder
+    - Ensure consistent link format
+    - _Requirements: 5.3_

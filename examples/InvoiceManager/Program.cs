@@ -3,7 +3,7 @@
 
 using Examples.Shared;
 using InvoiceManager.Entities;
-using InvoiceManager.Tables;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║         InvoiceManager - FluentDynamoDb Example            ║");
@@ -21,21 +21,21 @@ var client = DynamoDbSetup.CreateLocalClient();
 ConsoleHelpers.ShowInfo("Ensuring table exists...");
 var created = await DynamoDbSetup.EnsureTableExistsAsync(
     client,
-    InvoiceTable.TableName,
+    InvoicesTable.TableName,
     "pk",
     "sk");  // This table has a sort key for single-table design
 
 if (created)
 {
-    ConsoleHelpers.ShowSuccess($"Created table '{InvoiceTable.TableName}'");
+    ConsoleHelpers.ShowSuccess($"Created table '{InvoicesTable.TableName}'");
 }
 else
 {
-    ConsoleHelpers.ShowInfo($"Table '{InvoiceTable.TableName}' already exists");
+    ConsoleHelpers.ShowInfo($"Table '{InvoicesTable.TableName}' already exists");
 }
 
 // Create table instance
-var table = new InvoiceTable(client);
+var table = new InvoicesTable(client);
 
 // Main menu loop
 while (true)
@@ -86,10 +86,11 @@ while (true)
     }
 }
 
+
 /// <summary>
-/// Creates a new customer.
+/// Creates a new customer using the generated entity accessor.
 /// </summary>
-static async Task CreateCustomerAsync(InvoiceTable table)
+static async Task CreateCustomerAsync(InvoicesTable table)
 {
     ConsoleHelpers.ShowSection("Create New Customer");
     
@@ -105,21 +106,31 @@ static async Task CreateCustomerAsync(InvoiceTable table)
     if (string.IsNullOrWhiteSpace(email))
         return;
 
-    var customer = await table.CreateCustomerAsync(customerId, name, email);
+    var customer = new Customer
+    {
+        Pk = Customer.Keys.Pk(customerId),
+        Sk = Customer.ProfileSk,
+        CustomerId = customerId,
+        Name = name,
+        Email = email
+    };
+
+    // PREFERRED: Using the generated entity accessor PutAsync method
+    await table.Customers.PutAsync(customer);
     
     ConsoleHelpers.ShowSuccess($"Created customer '{customer.Name}'");
     Console.WriteLine($"  Key design: pk = \"{customer.Pk}\", sk = \"{customer.Sk}\"");
 }
 
 /// <summary>
-/// Creates a new invoice for a customer.
+/// Creates a new invoice for a customer using the generated entity accessor.
 /// </summary>
-static async Task CreateInvoiceAsync(InvoiceTable table)
+static async Task CreateInvoiceAsync(InvoicesTable table)
 {
     ConsoleHelpers.ShowSection("Create New Invoice");
     
-    // Show existing customers
-    var customers = await table.GetAllCustomersAsync();
+    // Show existing customers using generated Scan accessor
+    var customers = await table.Customers.Scan().ToListAsync();
     if (customers.Count == 0)
     {
         ConsoleHelpers.ShowInfo("No customers found. Create a customer first.");
@@ -137,8 +148,8 @@ static async Task CreateInvoiceAsync(InvoiceTable table)
     if (string.IsNullOrWhiteSpace(customerId))
         return;
 
-    // Verify customer exists
-    var customer = await table.GetCustomerAsync(customerId);
+    // Verify customer exists using generated entity accessor GetAsync
+    var customer = await table.Customers.GetAsync(Customer.Keys.Pk(customerId), Customer.ProfileSk);
     if (customer == null)
     {
         ConsoleHelpers.ShowError($"Customer '{customerId}' not found");
@@ -149,16 +160,28 @@ static async Task CreateInvoiceAsync(InvoiceTable table)
     if (string.IsNullOrWhiteSpace(invoiceNumber))
         return;
 
-    var invoice = await table.CreateInvoiceAsync(customerId, invoiceNumber);
+    var invoice = new Invoice
+    {
+        Pk = Invoice.Keys.Pk(customerId),
+        Sk = Invoice.Keys.Sk(invoiceNumber),
+        InvoiceNumber = invoiceNumber,
+        Date = DateTime.UtcNow,
+        Status = "Draft",
+        CustomerId = customerId
+    };
+
+    // PREFERRED: Using the generated entity accessor PutAsync method
+    await table.Invoices.PutAsync(invoice);
     
     ConsoleHelpers.ShowSuccess($"Created invoice '{invoice.InvoiceNumber}' for customer '{customer.Name}'");
     Console.WriteLine($"  Key design: pk = \"{invoice.Pk}\", sk = \"{invoice.Sk}\"");
 }
 
+
 /// <summary>
-/// Adds a line item to an existing invoice.
+/// Adds a line item to an existing invoice using the generated entity accessor.
 /// </summary>
-static async Task AddLineItemAsync(InvoiceTable table)
+static async Task AddLineItemAsync(InvoicesTable table)
 {
     ConsoleHelpers.ShowSection("Add Line Item to Invoice");
     
@@ -166,8 +189,12 @@ static async Task AddLineItemAsync(InvoiceTable table)
     if (string.IsNullOrWhiteSpace(customerId))
         return;
 
-    // Show customer's invoices
-    var invoices = await table.GetCustomerInvoicesAsync(customerId);
+    // Show customer's invoices using generated entity accessor Query with lambda
+    var pk = Customer.Keys.Pk(customerId);
+    var invoices = await table.Invoices.Query()
+        .Where(x => x.Pk == pk && x.Sk.StartsWith("INVOICE#"))
+        .ToListAsync();
+    
     if (invoices.Count == 0)
     {
         ConsoleHelpers.ShowInfo($"No invoices found for customer '{customerId}'");
@@ -197,27 +224,41 @@ static async Task AddLineItemAsync(InvoiceTable table)
     if (!unitPrice.HasValue)
         return;
 
-    // Get next line number automatically
-    var lineNumber = await table.GetNextLineNumberAsync(customerId, invoiceNumber);
+    // Get next line number by querying existing lines
+    var skPrefix = Invoice.Keys.Sk(invoiceNumber);
+    var existingInvoice = await table.Invoices.Query()
+        .Where(x => x.Pk == pk && x.Sk.StartsWith(skPrefix))
+        .ToCompositeEntityAsync<Invoice>();
+    
+    var lineNumber = existingInvoice?.Lines.Count > 0 
+        ? existingInvoice.Lines.Max(l => l.LineNumber) + 1 
+        : 1;
 
-    var line = await table.AddLineItemAsync(
-        customerId,
-        invoiceNumber,
-        lineNumber,
-        description,
-        quantity.Value,
-        unitPrice.Value);
+    var line = new InvoiceLine
+    {
+        Pk = InvoiceLine.Keys.Pk(customerId),
+        // Complex sort key pattern - manual construction required
+        Sk = $"INVOICE#{invoiceNumber}#LINE#{lineNumber}",
+        LineNumber = lineNumber,
+        Description = description,
+        Quantity = quantity.Value,
+        UnitPrice = unitPrice.Value
+    };
+
+    // PREFERRED: Using the generated entity accessor PutAsync method
+    await table.InvoiceLines.PutAsync(line);
     
     ConsoleHelpers.ShowSuccess($"Added line item #{line.LineNumber}: {description}");
     Console.WriteLine($"  Key design: pk = \"{line.Pk}\", sk = \"{line.Sk}\"");
     Console.WriteLine($"  Amount: {line.Amount:C}");
 }
 
+
 /// <summary>
 /// Views a complete invoice with all line items using ToCompositeEntityAsync.
 /// This demonstrates fetching related entities in a single query.
 /// </summary>
-static async Task ViewInvoiceAsync(InvoiceTable table)
+static async Task ViewInvoiceAsync(InvoicesTable table)
 {
     ConsoleHelpers.ShowSection("View Complete Invoice");
     
@@ -229,15 +270,15 @@ static async Task ViewInvoiceAsync(InvoiceTable table)
     if (string.IsNullOrWhiteSpace(invoiceNumber))
         return;
 
-    // This single call fetches the invoice AND all its line items
-    // using ToCompositeEntityAsync with the [RelatedEntity] attribute
-    // PREFERRED: Lambda expression approach - type-safe with IntelliSense
-    var invoice = await table.GetCompleteInvoiceAsync(customerId, invoiceNumber);
+    var pk = Customer.Keys.Pk(customerId);
+    var skPrefix = Invoice.Keys.Sk(invoiceNumber);
 
-    // ALTERNATIVE: The table method internally uses:
-    // var invoice = await Query<Invoice>()
-    //     .Where(x => x.Pk == pk && x.Sk.StartsWith(skPrefix))
-    //     .ToCompositeEntityAsync();
+    // PREFERRED: Using the generated entity accessor Query with lambda and ToCompositeEntityAsync
+    // This single call fetches the invoice AND all its line items
+    // The [RelatedEntity] attribute on Invoice.Lines tells the framework to populate the collection
+    var invoice = await table.Invoices.Query()
+        .Where(x => x.Pk == pk && x.Sk.StartsWith(skPrefix))
+        .ToCompositeEntityAsync<Invoice>();
 
     if (invoice == null)
     {
@@ -245,8 +286,8 @@ static async Task ViewInvoiceAsync(InvoiceTable table)
         return;
     }
 
-    // Get customer info for display
-    var customer = await table.GetCustomerAsync(customerId);
+    // Get customer info for display using generated entity accessor GetAsync
+    var customer = await table.Customers.GetAsync(Customer.Keys.Pk(customerId), Customer.ProfileSk);
 
     // Display invoice header
     Console.WriteLine();
@@ -291,10 +332,11 @@ static async Task ViewInvoiceAsync(InvoiceTable table)
     Console.WriteLine($"  • ToCompositeEntityAsync automatically assembled the Invoice with its Lines");
 }
 
+
 /// <summary>
-/// Lists all invoices for a customer (without line items).
+/// Lists all invoices for a customer (without line items) using the generated entity accessor.
 /// </summary>
-static async Task ListCustomerInvoicesAsync(InvoiceTable table)
+static async Task ListCustomerInvoicesAsync(InvoicesTable table)
 {
     ConsoleHelpers.ShowSection("List Customer Invoices");
     
@@ -302,14 +344,13 @@ static async Task ListCustomerInvoicesAsync(InvoiceTable table)
     if (string.IsNullOrWhiteSpace(customerId))
         return;
 
-    // PREFERRED: Lambda expression approach - type-safe with IntelliSense
-    // ToListAsync returns only Invoice entities, filtering out InvoiceLine items
-    var invoices = await table.GetCustomerInvoicesAsync(customerId);
+    var pk = Customer.Keys.Pk(customerId);
 
-    // ALTERNATIVE: The table method internally uses:
-    // var invoices = await Query<Invoice>()
-    //     .Where(x => x.Pk == pk && x.Sk.StartsWith("INVOICE#"))
-    //     .ToListAsync();
+    // PREFERRED: Using the generated entity accessor Query with lambda
+    // ToListAsync returns only Invoice entities, filtering out InvoiceLine items
+    var invoices = await table.Invoices.Query()
+        .Where(x => x.Pk == pk && x.Sk.StartsWith("INVOICE#"))
+        .ToListAsync();
 
     if (invoices.Count == 0)
     {
@@ -317,9 +358,12 @@ static async Task ListCustomerInvoicesAsync(InvoiceTable table)
         return;
     }
 
+    // Sort by date descending
+    var sortedInvoices = invoices.OrderByDescending(i => i.Date).ToList();
+
     Console.WriteLine($"Invoices for customer '{customerId}':");
     ConsoleHelpers.DisplayTable(
-        invoices,
+        sortedInvoices,
         ("Invoice #", i => i.InvoiceNumber),
         ("Date", i => i.Date.ToString("yyyy-MM-dd")),
         ("Status", i => i.Status));
@@ -329,13 +373,14 @@ static async Task ListCustomerInvoicesAsync(InvoiceTable table)
 }
 
 /// <summary>
-/// Lists all customers.
+/// Lists all customers using the generated entity accessor Scan method.
 /// </summary>
-static async Task ListAllCustomersAsync(InvoiceTable table)
+static async Task ListAllCustomersAsync(InvoicesTable table)
 {
     ConsoleHelpers.ShowSection("All Customers");
     
-    var customers = await table.GetAllCustomersAsync();
+    // PREFERRED: Using the generated entity accessor Scan method
+    var customers = await table.Customers.Scan().ToListAsync();
     
     if (customers.Count == 0)
     {
