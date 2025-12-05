@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Breaking Changes
+- **Namespace Reorganization** - Internal types moved from `Oproto.FluentDynamoDb.Storage` to dedicated namespaces for better separation of concerns
+  - `IDynamoDbEntity`, `IProjectionModel`, `IDiscriminatedProjection` moved to `Oproto.FluentDynamoDb.Entities`
+  - `EntityMetadata`, `PropertyMetadata`, `RelationshipMetadata`, `IndexMetadata`, `IEntityMetadataProvider` moved to `Oproto.FluentDynamoDb.Metadata`
+  - `IAsyncEntityHydrator`, `IEntityHydratorRegistry`, `DefaultEntityHydratorRegistry` moved to `Oproto.FluentDynamoDb.Hydration`
+  - `IFieldEncryptor`, `FieldEncryptionContext` moved to `Oproto.FluentDynamoDb.Providers.Encryption`
+  - `IBlobStorageProvider`, `IJsonBlobSerializer` moved to `Oproto.FluentDynamoDb.Providers.BlobStorage`
+  - `MappingErrorHandler`, `DynamoDbMappingException`, `DiscriminatorMismatchException`, `ProjectionValidationException`, `FieldEncryptionException` moved to `Oproto.FluentDynamoDb.Mapping`
+  - `DynamoDbOperationContext`, `DynamoDbOperationContextDiagnostics`, `OperationContextData` moved to `Oproto.FluentDynamoDb.Context`
+  - `Oproto.FluentDynamoDb.Storage` namespace now contains only physical storage abstractions: `DynamoDbTableBase`, `DynamoDbIndex`, `IDynamoDbTable`
+  - _Requirements: 1.1, 2.1-2.3, 3.1-3.3, 4.1-4.3, 5.1-5.3, 6.1-6.3, 7.1-7.3, 8.1-8.3, 9.1-9.4, 10.1-10.3, 11.1_
+  
+  **Migration:**
+  ```csharp
+  // Before: All types in Storage namespace
+  using Oproto.FluentDynamoDb.Storage;
+  
+  // After: Import specific namespaces as needed
+  using Oproto.FluentDynamoDb.Entities;           // IDynamoDbEntity, IProjectionModel, IDiscriminatedProjection
+  using Oproto.FluentDynamoDb.Metadata;           // EntityMetadata, PropertyMetadata, etc.
+  using Oproto.FluentDynamoDb.Hydration;          // IAsyncEntityHydrator, IEntityHydratorRegistry
+  using Oproto.FluentDynamoDb.Providers.Encryption; // IFieldEncryptor, FieldEncryptionContext
+  using Oproto.FluentDynamoDb.Providers.BlobStorage; // IBlobStorageProvider, IJsonBlobSerializer
+  using Oproto.FluentDynamoDb.Mapping;            // MappingErrorHandler, exceptions
+  using Oproto.FluentDynamoDb.Context;            // DynamoDbOperationContext
+  using Oproto.FluentDynamoDb.Storage;            // DynamoDbTableBase, DynamoDbIndex (unchanged)
+  ```
+
 - **JSON Serializer Runtime Configuration** - `[JsonBlob]` properties now require runtime configuration instead of compile-time assembly attributes
   - `IDynamoDbEntity` interface methods `ToDynamoDb` and `FromDynamoDb` now accept `FluentDynamoDbOptions?` instead of `IDynamoDbLogger?`
   - Removed `[assembly: DynamoDbJsonSerializer]` attribute - no longer supported

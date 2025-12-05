@@ -1,6 +1,5 @@
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 

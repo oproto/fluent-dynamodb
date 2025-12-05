@@ -1,8 +1,8 @@
 using AwesomeAssertions;
-using Oproto.FluentDynamoDb.Expressions;
-using Oproto.FluentDynamoDb.Requests;
-using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Attributes;
+using Oproto.FluentDynamoDb.Expressions;
+using Oproto.FluentDynamoDb.Metadata;
+using Oproto.FluentDynamoDb.Requests;
 using System.Linq.Expressions;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Expressions;

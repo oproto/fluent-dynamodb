@@ -1,10 +1,7 @@
-using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 using Oproto.FluentDynamoDb.Requests;
-using Oproto.FluentDynamoDb.Requests.Extensions;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 

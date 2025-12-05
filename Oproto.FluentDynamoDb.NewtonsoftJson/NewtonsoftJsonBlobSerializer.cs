@@ -1,5 +1,5 @@
 using Newtonsoft.Json;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.NewtonsoftJson;
 

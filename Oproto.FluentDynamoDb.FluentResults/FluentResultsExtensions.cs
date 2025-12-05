@@ -1,7 +1,8 @@
 using FluentResults;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.FluentResults;
 

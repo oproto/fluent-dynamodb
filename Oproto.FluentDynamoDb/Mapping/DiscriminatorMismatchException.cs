@@ -1,6 +1,6 @@
 using System;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Mapping;
 
 /// <summary>
 /// Exception thrown when a DynamoDB item's discriminator value doesn't match the expected entity type.

@@ -57,6 +57,65 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-05]
+
+### File: Multiple documentation files - Namespace Reorganization
+
+**Category:** Documentation Restructuring
+
+**Summary:** Updated all documentation references to reflect the namespace reorganization from the monolithic `Oproto.FluentDynamoDb.Storage` namespace to the new organized namespace structure.
+
+**Namespace Changes:**
+
+| Old Namespace | New Namespace | Types |
+|---------------|---------------|-------|
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Storage` | DynamoDbTableBase, DynamoDbIndex, IDynamoDbTable (unchanged) |
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Entities` | IDynamoDbEntity, IProjectionModel, IDiscriminatedProjection |
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Metadata` | EntityMetadata, PropertyMetadata, RelationshipMetadata, IndexMetadata, IEntityMetadataProvider |
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Hydration` | IAsyncEntityHydrator, IEntityHydratorRegistry, DefaultEntityHydratorRegistry |
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Providers.Encryption` | IFieldEncryptor, FieldEncryptionContext |
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Providers.BlobStorage` | IBlobStorageProvider, IJsonBlobSerializer |
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Mapping` | MappingErrorHandler, DynamoDbMappingException, DiscriminatorMismatchException, ProjectionValidationException, FieldEncryptionException |
+| `Oproto.FluentDynamoDb.Storage` | `Oproto.FluentDynamoDb.Context` | DynamoDbOperationContext, DynamoDbOperationContextDiagnostics, OperationContextData |
+
+---
+
+**Before:**
+```csharp
+using Oproto.FluentDynamoDb.Storage;
+
+// All types were in the Storage namespace
+public class MyEntity : IDynamoDbEntity { }
+var metadata = new EntityMetadata();
+var context = DynamoDbOperationContext.Current;
+```
+
+**After:**
+```csharp
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Metadata;
+using Oproto.FluentDynamoDb.Context;
+
+// Types are now in dedicated namespaces
+public class MyEntity : IDynamoDbEntity { }
+var metadata = new EntityMetadata();
+var context = DynamoDbOperationContext.Current;
+```
+
+**Reason:** The `Storage/` folder previously contained a mix of concerns (physical storage, entity contracts, metadata, hydration, providers, mapping, and context). This reorganization separates these concerns into distinct folders and namespaces, improving code organization, discoverability, and maintainability. This is a breaking change for users who import types from `Oproto.FluentDynamoDb.Storage` that have been moved to new namespaces.
+
+**Migration Guide:**
+1. Update `using Oproto.FluentDynamoDb.Storage;` to the appropriate new namespace(s) based on the types you use
+2. For entity interfaces (`IDynamoDbEntity`, `IProjectionModel`, `IDiscriminatedProjection`): use `Oproto.FluentDynamoDb.Entities`
+3. For metadata classes: use `Oproto.FluentDynamoDb.Metadata`
+4. For hydration interfaces: use `Oproto.FluentDynamoDb.Hydration`
+5. For encryption providers: use `Oproto.FluentDynamoDb.Providers.Encryption`
+6. For blob storage providers: use `Oproto.FluentDynamoDb.Providers.BlobStorage`
+7. For mapping exceptions: use `Oproto.FluentDynamoDb.Mapping`
+8. For operation context: use `Oproto.FluentDynamoDb.Context`
+
+---
+
 ## [2025-12-04]
 
 ### File: Multiple documentation files - Put().ExecuteAsync() → PutAsync() corrections

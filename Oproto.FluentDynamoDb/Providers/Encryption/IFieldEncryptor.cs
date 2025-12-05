@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Providers.Encryption;
 
 /// <summary>
 /// Provides field-level encryption and decryption capabilities for DynamoDB entity properties.

@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Entities;
 
 /// <summary>
 /// Interface for projection models with discriminator support.

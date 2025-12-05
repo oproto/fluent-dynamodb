@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 

@@ -1,11 +1,9 @@
-using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
 using Oproto.FluentDynamoDb.Geospatial.S2;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 using Oproto.FluentDynamoDb.Pagination;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 

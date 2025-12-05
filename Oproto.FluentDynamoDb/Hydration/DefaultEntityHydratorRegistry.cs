@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Hydration;
 
 /// <summary>
 /// Default implementation of <see cref="IEntityHydratorRegistry"/>.

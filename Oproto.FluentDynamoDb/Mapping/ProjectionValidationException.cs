@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Mapping;
 
 /// <summary>
 /// Exception thrown when GSI projection constraints are violated.

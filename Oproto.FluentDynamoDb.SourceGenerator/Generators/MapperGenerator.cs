@@ -59,7 +59,13 @@ internal static class MapperGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Attributes;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
-        sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Hydration;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.Encryption;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.BlobStorage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Mapping;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Context;");
         
         // Add geospatial using statements if needed
         if (entity.HasGeospatialPackage)

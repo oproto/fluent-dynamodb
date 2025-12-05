@@ -56,7 +56,9 @@ internal static class HydratorGenerator
         sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
         sb.AppendLine("using Oproto.FluentDynamoDb;");
-        sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Hydration;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.BlobStorage;");
         sb.AppendLine();
 
         // Namespace

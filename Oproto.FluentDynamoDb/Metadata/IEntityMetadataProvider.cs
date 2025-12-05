@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Metadata;
 
 /// <summary>
 /// Interface for entities that provide their own metadata.

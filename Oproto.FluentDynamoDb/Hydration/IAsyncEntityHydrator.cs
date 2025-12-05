@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Hydration;
 
 /// <summary>
 /// Interface for async entity hydration and serialization with blob storage support.

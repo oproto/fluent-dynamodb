@@ -1,6 +1,9 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Mapping;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -58,7 +61,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     private UpdateExpressionSource? _updateExpressionSource;
     private Expressions.ExpressionContext? _expressionContext;
-    private Storage.IFieldEncryptor? _fieldEncryptor;
+    private IFieldEncryptor? _fieldEncryptor;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -153,7 +156,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// </summary>
     /// <param name="fieldEncryptor">The field encryptor to use for encrypting sensitive parameters.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    internal UpdateItemRequestBuilder<TEntity> SetFieldEncryptor(Storage.IFieldEncryptor? fieldEncryptor)
+    internal UpdateItemRequestBuilder<TEntity> SetFieldEncryptor(IFieldEncryptor? fieldEncryptor)
     {
         _fieldEncryptor = fieldEncryptor;
         return this;
@@ -292,7 +295,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous encryption operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when encryption is required but no IFieldEncryptor is configured.</exception>
-    /// <exception cref="Storage.FieldEncryptionException">Thrown when encryption fails.</exception>
+    /// <exception cref="FieldEncryptionException">Thrown when encryption fails.</exception>
     private async Task EncryptParametersAsync(UpdateItemRequest request, CancellationToken cancellationToken)
     {
         if (_expressionContext == null || _expressionContext.ParameterMetadata.Count == 0)
@@ -340,9 +343,9 @@ public class UpdateItemRequestBuilder<TEntity> :
                 var plaintext = System.Text.Encoding.UTF8.GetBytes(attributeValue.S);
 
                 // Create encryption context
-                var encryptionContext = new Storage.FieldEncryptionContext
+                var encryptionContext = new FieldEncryptionContext
                 {
-                    ContextId = Storage.DynamoDbOperationContext.EncryptionContextId
+                    ContextId = DynamoDbOperationContext.EncryptionContextId
                 };
 
                 // Encrypt using property name for consistency with source generator
@@ -377,7 +380,7 @@ public class UpdateItemRequestBuilder<TEntity> :
                     ? $"property '{param.PropertyName}' (DynamoDB attribute: '{param.AttributeName}')"
                     : $"property '{param.PropertyName ?? param.AttributeName ?? "unknown"}'";
                 
-                throw new Storage.FieldEncryptionException(
+                throw new FieldEncryptionException(
                     $"Failed to encrypt {propertyInfo} (parameter: {param.ParameterName}). " +
                     $"Error: {ex.Message}. " +
                     $"Troubleshooting steps: " +

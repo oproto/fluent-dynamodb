@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Context;
 
 /// <summary>
 /// Provides thread-safe ambient context for DynamoDB operation metadata.

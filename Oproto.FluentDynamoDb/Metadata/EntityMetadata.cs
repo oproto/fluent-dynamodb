@@ -1,6 +1,6 @@
 using Oproto.FluentDynamoDb.Attributes;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Metadata;
 
 /// <summary>
 /// Comprehensive metadata about a DynamoDB entity for future LINQ expression support.

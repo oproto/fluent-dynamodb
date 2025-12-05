@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Mapping;
 
 /// <summary>
 /// Exception thrown when field-level encryption or decryption operations fail.

@@ -6,7 +6,7 @@
 using Amazon.DynamoDBv2.Model;
 using System.Text.Json;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Mapping;
 
 /// <summary>
 /// Exception thrown when entity mapping operations fail.

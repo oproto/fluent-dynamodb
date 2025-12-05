@@ -1080,7 +1080,7 @@ Unit test frameworks (e.g., xUnit) restore the original execution context when a
 Subscribe to the internal diagnostics event before invoking the operation and capture the context inside the same asynchronous flow. Remember to unsubscribe in a `finally` block.
 
 ```csharp
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Context;
 
 OperationContextData? captured = null;
 void Handler(OperationContextData? ctx) => captured = ctx;

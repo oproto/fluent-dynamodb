@@ -546,7 +546,7 @@ CS0246: The type or namespace name 'DynamoDbTableAttribute' could not be found
 Add required using statements:
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;  // ✅ For attributes
-using Oproto.FluentDynamoDb.Storage;     // ✅ For IDynamoDbEntity
+using Oproto.FluentDynamoDb.Entities;    // ✅ For IDynamoDbEntity
 ```
 
 Or enable global usings in `.csproj`:

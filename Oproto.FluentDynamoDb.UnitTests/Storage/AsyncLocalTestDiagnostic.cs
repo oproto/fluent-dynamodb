@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Context;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 

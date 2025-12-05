@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Metadata;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Entities;
 
 /// <summary>
 /// Interface that DynamoDB entities must implement to support automatic mapping.

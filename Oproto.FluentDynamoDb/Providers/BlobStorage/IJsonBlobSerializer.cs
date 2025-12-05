@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 /// <summary>
 /// Interface for JSON serialization of [JsonBlob] properties.

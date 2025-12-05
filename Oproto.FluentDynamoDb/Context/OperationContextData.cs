@@ -1,7 +1,9 @@
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Mapping;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Context;
 
 /// <summary>
 /// Contains metadata and response details from a DynamoDB operation.

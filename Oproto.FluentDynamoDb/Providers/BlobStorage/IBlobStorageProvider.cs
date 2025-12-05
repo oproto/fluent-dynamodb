@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 /// <summary>
 /// Interface for blob storage providers that handle external storage of large data.

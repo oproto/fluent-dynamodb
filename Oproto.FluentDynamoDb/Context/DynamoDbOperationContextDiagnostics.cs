@@ -1,6 +1,6 @@
 using System;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Context;
 
 /// <summary>
 /// Internal diagnostics hook that allows tests to observe operation context assignments.

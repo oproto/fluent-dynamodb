@@ -1,4 +1,4 @@
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.Encryption.Kms;
 

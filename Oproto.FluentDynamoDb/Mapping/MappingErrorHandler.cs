@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2.Model;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Mapping;
 
 /// <summary>
 /// Provides centralized error handling utilities for DynamoDB entity mapping operations.

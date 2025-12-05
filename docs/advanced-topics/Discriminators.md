@@ -316,7 +316,7 @@ var response = await table.Query<User>()
 ### Exception Handling
 
 ```csharp
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Mapping;
 
 try
 {

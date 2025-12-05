@@ -62,6 +62,7 @@ All support classes are generated as nested classes within your entity for bette
 ```csharp
 using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 

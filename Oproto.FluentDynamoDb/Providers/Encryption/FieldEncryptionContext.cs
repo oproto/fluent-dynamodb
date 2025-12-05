@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Providers.Encryption;
 
 /// <summary>
 /// Provides context information for field encryption and decryption operations.

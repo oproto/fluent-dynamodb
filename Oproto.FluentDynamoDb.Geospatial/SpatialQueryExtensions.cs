@@ -1,12 +1,13 @@
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Attributes;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Geospatial.GeoHash;
 using Oproto.FluentDynamoDb.Geospatial.H3;
 using Oproto.FluentDynamoDb.Geospatial.S2;
 using Oproto.FluentDynamoDb.Pagination;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
-using Oproto.FluentDynamoDb.Storage; // Still needed for IDynamoDbEntity, DynamoDbTableBase, DynamoDbIndex
+using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.Geospatial;
 

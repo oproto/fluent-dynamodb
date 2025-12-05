@@ -1,6 +1,10 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Context;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Hydration;
+using Oproto.FluentDynamoDb.Mapping;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 

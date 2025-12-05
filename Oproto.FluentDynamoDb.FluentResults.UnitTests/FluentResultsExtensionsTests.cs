@@ -2,8 +2,10 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using FluentResults;
 using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.FluentResults;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Storage;
 

@@ -411,7 +411,7 @@ public class EncryptionCodeGeneratorTests
         sb.AppendLine("using System.Threading;");
         sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
-        sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.Encryption;");
         sb.AppendLine();
         
         sb.AppendLine($"namespace {entity.Namespace}");

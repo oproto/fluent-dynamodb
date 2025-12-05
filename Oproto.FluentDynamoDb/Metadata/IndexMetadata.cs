@@ -1,4 +1,4 @@
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Metadata;
 
 /// <summary>
 /// Metadata about a Global Secondary Index in a DynamoDB table.

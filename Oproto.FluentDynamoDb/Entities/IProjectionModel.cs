@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2.Model;
 
-namespace Oproto.FluentDynamoDb.Storage;
+namespace Oproto.FluentDynamoDb.Entities;
 
 /// <summary>
 /// Interface for projection models that provide their projection expression.
