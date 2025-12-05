@@ -6,6 +6,8 @@
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <!-- Suppress AOT warnings in test projects - tests use reflection-based serialization intentionally -->
+        <NoWarn>$(NoWarn);IL2026;IL3050</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
