@@ -431,13 +431,13 @@ public partial class Session
 // Migration: Add TTL to existing sessions
 public async Task AddTtlToExistingSessions(TimeSpan sessionDuration)
 {
-    var sessions = await _table.Scan.ExecuteAsync<Session>();
+    var sessions = await _table.Scan<Session>().ExecuteAsync();
     
     foreach (var session in sessions.Items)
     {
         if (session.ExpiresAt == null)
         {
-            await _table.Update
+            await _table.Update<Session>()
                 .WithKey("session_id", session.SessionId)
                 .Set("SET ttl = {0}", DateTime.UtcNow.Add(sessionDuration))
                 .ExecuteAsync();
@@ -634,21 +634,21 @@ public async Task Migration_RoundTrip_PreservesData()
         TagsString = "tag1,tag2"
     };
     
-    await _table.Put.WithItem(oldProduct).ExecuteAsync();
+    await _table.Put<Product>().WithItem(oldProduct).ExecuteAsync();
     
     // Act - Migrate
-    var loaded = await _table.Get
+    var loaded = await _table.Get<Product>()
         .WithKey("pk", "test-1")
-        .ExecuteAsync<Product>();
+        .ExecuteAsync();
     
     MigrateProduct(loaded.Item);
     
-    await _table.Put.WithItem(loaded.Item).ExecuteAsync();
+    await _table.Put<Product>().WithItem(loaded.Item).ExecuteAsync();
     
     // Assert - Verify new format
-    var migrated = await _table.Get
+    var migrated = await _table.Get<Product>()
         .WithKey("pk", "test-1")
-        .ExecuteAsync<Product>();
+        .ExecuteAsync();
     
     migrated.Item.Tags.Should().HaveCount(2);
     migrated.Item.Tags.Should().Contain("tag1");

@@ -48,7 +48,7 @@ Tests will be migrated in the following order based on impact and brittleness:
 
 **Priority 1 (High Impact)**:
 - `MapperGeneratorTests.cs` - Core mapping logic, frequently breaks
-- `AdvancedTypeGenerationTests.cs` - Complex type handling, critical functionality
+- `ComplexTypeGenerationTests.cs` - Complex type handling, critical functionality
 - `KeysGeneratorTests.cs` - Key generation logic
 
 **Priority 2 (Medium Impact)**:
@@ -359,7 +359,7 @@ To prevent regressions during migration:
 
 The implementation will follow this high-level approach:
 
-### Phase 1: High-Priority Tests (MapperGeneratorTests.cs, AdvancedTypeGenerationTests.cs, KeysGeneratorTests.cs)
+### Phase 1: High-Priority Tests (MapperGeneratorTests.cs, ComplexTypeGenerationTests.cs, KeysGeneratorTests.cs)
 
 1. Analyze current test patterns
 2. Add compilation verification to all tests

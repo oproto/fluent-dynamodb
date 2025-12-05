@@ -2,8 +2,8 @@
 // This example shows how to use the Scannable table pattern for small datasets
 
 using Examples.Shared;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 using TodoList.Entities;
-using TodoList.Tables;
 
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║           TodoList - FluentDynamoDb Example                ║");
@@ -20,20 +20,20 @@ var client = DynamoDbSetup.CreateLocalClient();
 ConsoleHelpers.ShowInfo("Ensuring table exists...");
 var created = await DynamoDbSetup.EnsureTableExistsAsync(
     client,
-    TodoTable.TableName,
+    TodoItemsTable.TableName,
     "pk");
 
 if (created)
 {
-    ConsoleHelpers.ShowSuccess($"Created table '{TodoTable.TableName}'");
+    ConsoleHelpers.ShowSuccess($"Created table '{TodoItemsTable.TableName}'");
 }
 else
 {
-    ConsoleHelpers.ShowInfo($"Table '{TodoTable.TableName}' already exists");
+    ConsoleHelpers.ShowInfo($"Table '{TodoItemsTable.TableName}' already exists");
 }
 
 // Create table instance
-var table = new TodoTable(client);
+var table = new TodoItemsTable(client);
 
 // Main menu loop
 while (true)
@@ -81,9 +81,9 @@ while (true)
 }
 
 /// <summary>
-/// Adds a new todo item.
+/// Adds a new todo item using the generated entity accessor.
 /// </summary>
-static async Task AddTodoAsync(TodoTable table)
+static async Task AddTodoAsync(TodoItemsTable table)
 {
     ConsoleHelpers.ShowSection("Add New Todo");
     
@@ -91,18 +91,31 @@ static async Task AddTodoAsync(TodoTable table)
     if (string.IsNullOrWhiteSpace(description))
         return;
 
-    var item = await table.AddAsync(description);
+    var item = new TodoItem
+    {
+        Id = Guid.NewGuid().ToString(),
+        Description = description,
+        IsComplete = false,
+        CreatedAt = DateTime.UtcNow,
+        CompletedAt = null
+    };
+
+    // PREFERRED: Using the generated entity accessor PutAsync method
+    await table.TodoItems.PutAsync(item);
+    
     ConsoleHelpers.ShowSuccess($"Created todo with ID: {item.Id}");
 }
 
 /// <summary>
-/// Lists all todo items, showing incomplete items first, then completed, sorted by creation date.
+/// Lists all todo items using the generated Scan accessor.
+/// Shows incomplete items first, then completed, sorted by creation date.
 /// </summary>
-static async Task ListTodosAsync(TodoTable table)
+static async Task ListTodosAsync(TodoItemsTable table)
 {
     ConsoleHelpers.ShowSection("All Todos");
     
-    var items = await table.GetAllAsync();
+    // PREFERRED: Using the generated entity accessor Scan method
+    var items = await table.TodoItems.Scan().ToListAsync();
     
     if (items.Count == 0)
     {
@@ -111,16 +124,11 @@ static async Task ListTodosAsync(TodoTable table)
     }
 
     // Sort: incomplete items first, then completed, each group sorted by creation date
-    // PREFERRED: Lambda expression approach - type-safe with IntelliSense
+    // Note: DynamoDB doesn't support ORDER BY, so sorting must be done client-side
     var sortedItems = items
         .OrderBy(x => x.IsComplete)           // false (incomplete) comes before true (complete)
         .ThenBy(x => x.CreatedAt)             // Within each group, sort by creation date
         .ToList();
-
-    // ALTERNATIVE: Using format string approach for the query itself
-    // Note: DynamoDB doesn't support ORDER BY, so sorting must be done client-side
-    // For server-side sorting, you would need to design your keys appropriately
-    // (e.g., using a GSI with sort key = createdAt)
 
     ConsoleHelpers.DisplayTable(
         sortedItems,
@@ -130,18 +138,20 @@ static async Task ListTodosAsync(TodoTable table)
         ("Created", item => item.CreatedAt.ToString("yyyy-MM-dd HH:mm")),
         ("Completed", item => item.CompletedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-"));
 
-    ConsoleHelpers.ShowInfo($"Total: {items.Count} items ({items.Count(x => !x.IsComplete)} pending, {items.Count(x => x.IsComplete)} complete)");
+    var pendingCount = items.Count(x => !x.IsComplete);
+    var completeCount = items.Count(x => x.IsComplete);
+    ConsoleHelpers.ShowInfo($"Total: {items.Count} items ({pendingCount} pending, {completeCount} complete)");
 }
 
 /// <summary>
-/// Marks a todo item as complete.
+/// Marks a todo item as complete using the generated entity accessor Update method.
 /// </summary>
-static async Task MarkCompleteAsync(TodoTable table)
+static async Task MarkCompleteAsync(TodoItemsTable table)
 {
     ConsoleHelpers.ShowSection("Mark Todo Complete");
     
-    // Show incomplete items for reference
-    var items = await table.GetAllAsync();
+    // Show incomplete items for reference using generated Scan accessor
+    var items = await table.TodoItems.Scan().ToListAsync();
     var incompleteItems = items.Where(x => !x.IsComplete).ToList();
     
     if (incompleteItems.Count == 0)
@@ -174,26 +184,33 @@ static async Task MarkCompleteAsync(TodoTable table)
         return;
     }
 
-    var success = await table.MarkCompleteAsync(matchingItem.Id);
-    if (success)
+    try
     {
+        // PREFERRED: Using the generated entity accessor Update method with lambda expression
+        await table.TodoItems.Update(matchingItem.Id)
+            .Set(x => new TodoItemUpdateModel { 
+                IsComplete = true,
+                CompletedAt = DateTime.UtcNow
+            })
+            .UpdateAsync();
+
         ConsoleHelpers.ShowSuccess($"Marked '{TruncateString(matchingItem.Description, 30)}' as complete");
     }
-    else
+    catch (Amazon.DynamoDBv2.Model.ConditionalCheckFailedException)
     {
         ConsoleHelpers.ShowError("Failed to mark todo as complete");
     }
 }
 
 /// <summary>
-/// Edits the description of a todo item.
+/// Edits the description of a todo item using the generated entity accessor Update method.
 /// </summary>
-static async Task EditDescriptionAsync(TodoTable table)
+static async Task EditDescriptionAsync(TodoItemsTable table)
 {
     ConsoleHelpers.ShowSection("Edit Todo Description");
     
-    // Show all items for reference
-    var items = await table.GetAllAsync();
+    // Show all items for reference using generated Scan accessor
+    var items = await table.TodoItems.Scan().ToListAsync();
     
     if (items.Count == 0)
     {
@@ -224,26 +241,31 @@ static async Task EditDescriptionAsync(TodoTable table)
     if (string.IsNullOrWhiteSpace(newDescription))
         return;
 
-    var success = await table.EditDescriptionAsync(matchingItem.Id, newDescription);
-    if (success)
+    try
     {
+        await table.TodoItems.Update(matchingItem.Id)
+            .Set(x => new TodoItemUpdateModel { 
+                Description = newDescription
+            })
+            .UpdateAsync();
+
         ConsoleHelpers.ShowSuccess("Description updated successfully");
     }
-    else
+    catch (Amazon.DynamoDBv2.Model.ConditionalCheckFailedException)
     {
         ConsoleHelpers.ShowError("Failed to update description");
     }
 }
 
 /// <summary>
-/// Deletes a todo item.
+/// Deletes a todo item using the generated entity accessor DeleteAsync method.
 /// </summary>
-static async Task DeleteTodoAsync(TodoTable table)
+static async Task DeleteTodoAsync(TodoItemsTable table)
 {
     ConsoleHelpers.ShowSection("Delete Todo");
     
-    // Show all items for reference
-    var items = await table.GetAllAsync();
+    // Show all items for reference using generated Scan accessor
+    var items = await table.TodoItems.Scan().ToListAsync();
     
     if (items.Count == 0)
     {
@@ -278,7 +300,8 @@ static async Task DeleteTodoAsync(TodoTable table)
         return;
     }
 
-    await table.DeleteAsync(matchingItem.Id);
+    // PREFERRED: Using the generated entity accessor DeleteAsync method
+    await table.TodoItems.DeleteAsync(matchingItem.Id);
     ConsoleHelpers.ShowSuccess("Todo deleted successfully");
 }
 

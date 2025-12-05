@@ -27,8 +27,8 @@ namespace StoreLocator.Entities;
 /// </para>
 /// </remarks>
 [DynamoDbTable("stores-geohash", IsDefault = true)]
+[GenerateEntityProperty(Name = "Stores")]
 [Scannable]
-[GenerateAccessors]
 public partial class StoreGeoHash
 {
     /// <summary>

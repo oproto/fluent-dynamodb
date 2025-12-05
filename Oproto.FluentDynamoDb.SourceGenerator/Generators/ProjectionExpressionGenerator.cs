@@ -168,7 +168,7 @@ internal static class ProjectionExpressionGenerator
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.IO;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
-        sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
         sb.AppendLine();
         
         // Namespace

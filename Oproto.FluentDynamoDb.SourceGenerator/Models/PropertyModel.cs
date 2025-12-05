@@ -98,9 +98,9 @@ internal class PropertyModel
     public bool IsReadOnly => IsComputed || IsExtracted;
 
     /// <summary>
-    /// Gets or sets the advanced type information for this property.
+    /// Gets or sets the complex type information for this property.
     /// </summary>
-    public AdvancedTypeInfo? AdvancedType { get; set; }
+    public ComplexTypeInfo? ComplexType { get; set; }
 
     /// <summary>
     /// Gets or sets the security information for this property.

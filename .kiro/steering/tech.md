@@ -41,6 +41,14 @@ dotnet pack
 dotnet restore
 ```
 
+### Source Generator
+When modifying the source generator, Dotnet will cache the old version in memory.  You must restart it with the following:
+```bash
+dotnet build-server shutdown
+```
+
+By default, the source generator WILL NOT write files to disk.  This has to be enabled in the csproj if you need to inspect the output.
+
 ## Project Configuration
 - **ImplicitUsings**: Enabled for cleaner code
 - **Nullable**: Enabled for null safety

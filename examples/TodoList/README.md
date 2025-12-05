@@ -7,7 +7,7 @@ A simple todo list application demonstrating basic CRUD operations with FluentDy
 - **CRUD Operations**: Create, Read, Update, and Delete todo items
 - **Scannable Tables**: Using the `[Scannable]` attribute for small datasets
 - **Entity Mapping**: Automatic mapping between C# objects and DynamoDB items
-- **Format String Expressions**: Using `{0}`, `{1:o}` syntax for update expressions
+- **Lambda Expression Updates**: Using type-safe lambda expressions with update models
 
 ## Key Concepts
 
@@ -19,10 +19,10 @@ The `[Scannable]` attribute enables full table scan operations. This is appropri
 - Development and testing scenarios
 
 ```csharp
-[DynamoDbEntity]
 [DynamoDbTable("todo-items", IsDefault = true)]
 [Scannable]  // Enables Scan() operations
-public partial class TodoItem : IDynamoDbEntity
+[GenerateEntityProperty(Name = "TodoItems")]
+public partial class TodoItem
 {
     // ...
 }
@@ -36,18 +36,19 @@ This example uses a simple partition key design (no sort key):
 ### CRUD Operations
 
 ```csharp
-// Create
-var item = await table.AddAsync("Buy groceries");
+// Create - using generated entity accessor
+await table.TodoItems.PutAsync(item);
 
-// Read all
-var items = await table.GetAllAsync();
+// Read all - using generated Scan accessor
+var items = await table.TodoItems.Scan().ToListAsync();
 
-// Update
-await table.MarkCompleteAsync(itemId);
-await table.EditDescriptionAsync(itemId, "New description");
+// Update - using lambda expression with update model
+await table.TodoItems.Update(itemId)
+    .Set(x => new TodoItemUpdateModel { IsComplete = true, CompletedAt = DateTime.UtcNow })
+    .UpdateAsync();
 
-// Delete
-await table.DeleteAsync(itemId);
+// Delete - using generated entity accessor
+await table.TodoItems.DeleteAsync(itemId);
 ```
 
 ## Running the Example
@@ -85,12 +86,11 @@ The application provides an interactive menu:
 ```
 TodoList/
 ├── Entities/
-│   └── TodoItem.cs      # Entity with DynamoDB attributes
-├── Tables/
-│   └── TodoTable.cs     # Table class with CRUD operations
-├── Program.cs           # Interactive console application
-├── TodoList.csproj      # Project file
-└── README.md            # This file
+│   ├── TodoItem.cs          # Entity with DynamoDB attributes
+│   └── TodoItemsTable.cs    # Table class with generated entity accessor
+├── Program.cs               # Interactive console application
+├── TodoList.csproj          # Project file
+└── README.md                # This file
 ```
 
 ## Code Highlights
@@ -98,18 +98,17 @@ TodoList/
 ### Entity Definition
 
 ```csharp
-[DynamoDbEntity]
 [DynamoDbTable("todo-items", IsDefault = true)]
 [Scannable]
 [GenerateEntityProperty(Name = "TodoItems")]
-public partial class TodoItem : IDynamoDbEntity
+public partial class TodoItem
 {
     [PartitionKey]
     [DynamoDbAttribute("pk")]
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 
     [DynamoDbAttribute("description")]
-    public string Description { get; set; }
+    public string Description { get; set; } = string.Empty;
 
     [DynamoDbAttribute("isComplete")]
     public bool IsComplete { get; set; }
@@ -122,13 +121,15 @@ public partial class TodoItem : IDynamoDbEntity
 }
 ```
 
-### Update with Format Strings
+### Update with Lambda Expressions
 
 ```csharp
-// Format string approach - concise and readable
-await Update<TodoItem>()
-    .WithKey("pk", id)
-    .Set("SET isComplete = {0}, completedAt = {1:o}", true, DateTime.UtcNow)
+// PREFERRED: Lambda expression approach - type-safe with IntelliSense
+await table.TodoItems.Update(id)
+    .Set(x => new TodoItemUpdateModel { 
+        IsComplete = true, 
+        CompletedAt = DateTime.UtcNow 
+    })
     .UpdateAsync();
 ```
 

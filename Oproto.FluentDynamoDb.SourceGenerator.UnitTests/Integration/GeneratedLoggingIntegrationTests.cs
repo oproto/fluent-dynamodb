@@ -33,7 +33,7 @@ public class GeneratedLoggingIntegrationTests
 using System;
 using System.Collections.Generic;
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Entities;
 
 namespace TestNamespace
 {
@@ -392,7 +392,7 @@ namespace TestNamespace
 using System;
 using System.Collections.Generic;
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Entities;
 
 namespace TestNamespace
 {
@@ -457,7 +457,7 @@ namespace TestNamespace
 using System;
 using System.Collections.Generic;
 using Oproto.FluentDynamoDb.Attributes;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Entities;
 
 namespace TestNamespace
 {

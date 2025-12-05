@@ -51,7 +51,7 @@ var product = new Product
     }
 };
 
-await table.Put.WithItem(product).ExecuteAsync();
+await table.Products.PutAsync(product);
 ```
 
 #### Dictionary<string, AttributeValue>
@@ -155,9 +155,9 @@ var product = new Product
 };
 
 // Query with set operations
-await table.Query
+await table.Query<Product>()
     .Where("contains(tags, {0})", "sale")
-    .ExecuteAsync<Product>();
+    .ToListAsync();
 ```
 
 #### Number Sets (NS)
@@ -232,9 +232,9 @@ var order = new Order
 };
 
 // Lists maintain order
-var loaded = await table.Get
+var loaded = await table.Get<Order>()
     .WithKey("pk", "order-123")
-    .ExecuteAsync<Order>();
+    .GetItemAsync();
     
 // ItemIds[0] is guaranteed to be "item-1"
 ```
@@ -262,7 +262,7 @@ var session = new Session
     ExpiresAt = DateTime.UtcNow.AddDays(7)
 };
 
-await table.Put.WithItem(session).ExecuteAsync();
+await table.Sessions.PutAsync(session);
 ```
 
 **Important Notes**:
@@ -544,7 +544,7 @@ var product = new Product
     Tags = new HashSet<string>() // Empty set
 };
 
-await table.Put.WithItem(product).ExecuteAsync();
+await table.Products.PutAsync(product);
 
 // The 'tags' attribute is automatically omitted from the DynamoDB item
 ```
@@ -555,9 +555,9 @@ await table.Put.WithItem(product).ExecuteAsync();
 var emptyTags = new HashSet<string>();
 
 // This will throw ArgumentException with clear message
-await table.Query
+await table.Query<Product>()
     .Where("tags = {0}", emptyTags)
-    .ExecuteAsync<Product>();
+    .ToListAsync();
 
 // Error: "Cannot use empty collection in format string. 
 //         DynamoDB does not support empty Maps, Sets, or Lists."
@@ -569,18 +569,18 @@ await table.Query
 // Check before using in expressions
 if (tags != null && tags.Count > 0)
 {
-    await table.Update
+    await table.Update<Product>()
         .WithKey("pk", productId)
         .Set("SET tags = {0}", tags)
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 else
 {
     // Use REMOVE to delete the attribute
-    await table.Update
+    await table.Update<Product>()
         .WithKey("pk", productId)
         .Remove("REMOVE tags")
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 ```
 
@@ -600,15 +600,15 @@ var metadata = new Dictionary<string, string>
 var tags = new HashSet<string> { "sale", "featured" };
 
 // Use directly in format strings
-await table.Update
+await table.Update<Product>()
     .WithKey("pk", "prod-123")
     .Set("SET metadata = {0}, tags = {1}", metadata, tags)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Query with collections
-await table.Query
+await table.Query<Product>()
     .Where("tags = {0}", tags)
-    .ExecuteAsync<Product>();
+    .ToListAsync();
 ```
 
 ### TTL in Expressions
@@ -616,10 +616,10 @@ await table.Query
 ```csharp
 var expiresAt = DateTime.UtcNow.AddDays(30);
 
-await table.Update
+await table.Update<Session>()
     .WithKey("pk", "sess-123")
     .Set("SET expires_at = {0}", expiresAt)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Update Operations
@@ -627,17 +627,17 @@ await table.Update
 ```csharp
 // ADD elements to a set
 var newTags = new HashSet<string> { "clearance" };
-await table.Update
+await table.Update<Product>()
     .WithKey("pk", "prod-123")
     .Set("ADD tags {0}", newTags)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // DELETE elements from a set
 var removeTags = new HashSet<string> { "old-tag" };
-await table.Update
+await table.Update<Product>()
     .WithKey("pk", "prod-123")
     .Set("DELETE tags {0}", removeTags)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## AOT Compatibility
@@ -758,16 +758,16 @@ public partial class Product
 Existing items without the new attributes will load with null values:
 
 ```csharp
-var product = await table.Get
+var product = await table.Get<Product>()
     .WithKey("pk", "old-product")
-    .ExecuteAsync<Product>();
+    .GetItemAsync();
 
 // product.Tags will be null for old items
 // Initialize if needed
 product.Tags ??= new HashSet<string>();
 product.Tags.Add("migrated");
 
-await table.Put.WithItem(product).ExecuteAsync();
+await table.Products.PutAsync(product);
 ```
 
 ### Migrating from Manual Attribute Handling
@@ -801,7 +801,7 @@ var product = new Product
     Metadata = new Dictionary<string, string> { ["color"] = "blue" }
 };
 
-await table.Put.WithItem(product).ExecuteAsync();
+await table.Products.PutAsync(product);
 ```
 
 ## Error Handling
@@ -854,7 +854,7 @@ var options = new FluentDynamoDbOptions()
 ```csharp
 try
 {
-    await table.Put.WithItem(product).ExecuteAsync();
+    await table.Products.PutAsync(product);
 }
 catch (DynamoDbMappingException ex)
 {

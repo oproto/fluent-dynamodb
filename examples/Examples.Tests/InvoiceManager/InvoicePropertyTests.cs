@@ -239,14 +239,19 @@ public class InvoicePropertyTests
     }
 
     /// <summary>
-    /// **Feature: example-applications, Property 12: Complex Entity Assembly**
-    /// **Validates: Requirements 3.5**
+    /// **Feature: composite-entity-assembly, Property 2: Composite Entity Assembly Preserves Item Count**
+    /// **Validates: Requirements 1.2, 3.1, 3.3, 5.3**
     /// 
-    /// For any invoice with line items, ToCompositeEntityAsync should produce an Invoice object
-    /// where Lines.Count equals the number of stored line items.
+    /// For any invoice with N line items, ToCompositeEntityAsync should produce an Invoice object
+    /// where Lines.Count equals exactly N items.
+    /// 
+    /// This property test validates that:
+    /// - The [RelatedEntity] attribute correctly identifies related InvoiceLine entities
+    /// - The FromDynamoDb multi-item method properly populates the Lines collection
+    /// - The count of items in the collection matches the number of stored line items
     /// </summary>
     [Property(MaxTest = 50)]
-    public Property ComplexEntityAssembly_PopulatesLinesCorrectly()
+    public Property CompositeEntityAssembly_PreservesItemCount()
     {
         return Prop.ForAll(
             GenerateCustomerId(),
@@ -514,37 +519,17 @@ public class InvoicePropertyTests
             var pk = Customer.Keys.Pk(customerId);
             var skPrefix = Invoice.Keys.Sk(invoiceNumber);
 
-            // Query all items where sk begins with the invoice prefix
-            var response = await Query<Customer>()
+            // Use ToCompositeEntityAsync to automatically assemble the invoice with its line items
+            // The [RelatedEntity] attribute on Invoice.Lines tells the framework to populate
+            // the Lines collection from InvoiceLine entities matching the sort key pattern
+            var invoice = await Query<Invoice>()
                 .Where(x => x.Pk == pk && x.Sk.StartsWith(skPrefix))
-                .ToDynamoDbResponseAsync();
+                .ToCompositeEntityAsync();
 
-            if (response.Items == null || response.Items.Count == 0)
-            {
-                return null;
-            }
-
-            // Manual assembly until [RelatedEntity] support is complete
-            Invoice? invoice = null;
-            var lines = new List<InvoiceLine>();
-
-            foreach (var item in response.Items)
-            {
-                var sk = item["sk"].S;
-                
-                if (sk == Invoice.Keys.Sk(invoiceNumber))
-                {
-                    invoice = Invoice.FromDynamoDb<Invoice>(item);
-                }
-                else if (sk.Contains("#LINE#"))
-                {
-                    lines.Add(InvoiceLine.FromDynamoDb<InvoiceLine>(item));
-                }
-            }
-
+            // Sort lines by line number for consistent ordering
             if (invoice != null)
             {
-                invoice.Lines = lines.OrderBy(l => l.LineNumber).ToList();
+                invoice.Lines = invoice.Lines.OrderBy(l => l.LineNumber).ToList();
             }
 
             return invoice;

@@ -5,6 +5,8 @@ using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Storage;
 

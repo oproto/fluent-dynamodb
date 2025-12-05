@@ -1297,7 +1297,7 @@ See [Batch Operations](BatchOperations.md) for detailed batch operation patterns
    // ❌ Avoid - multiple requests
    foreach (var id in ids)
    {
-       await table.Get.WithKey(...).GetItemAsync();
+       await table.Get().WithKey(...).GetItemAsync();
    }
    ```
 
@@ -1307,7 +1307,7 @@ See [Batch Operations](BatchOperations.md) for detailed batch operation patterns
    .Where($"attribute_not_exists({UserFields.UserId})")
    
    // ❌ Avoid - always writes, even if unchanged
-   await table.Put.WithItem(user).PutAsync();
+   await table.Put().WithItem(user).PutAsync();
    ```
 
 ## Error Handling
@@ -1319,7 +1319,7 @@ using Amazon.DynamoDBv2.Model;
 
 try
 {
-    await table.Put.WithItem(user).PutAsync();
+    await table.Put().WithItem(user).PutAsync();
 }
 catch (ConditionalCheckFailedException ex)
 {
@@ -1373,7 +1373,7 @@ public async Task<T> ExecuteWithRetry<T>(
 
 // Usage
 var response = await ExecuteWithRetry(() => 
-    table.Get.WithKey(UserFields.UserId, UserKeys.Pk("user123")).GetItemAsync()
+    table.Get().WithKey(UserFields.UserId, UserKeys.Pk("user123")).GetItemAsync()
 );
 ```
 

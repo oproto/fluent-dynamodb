@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Mapping;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -397,7 +398,7 @@ public class TransactionWriteBuilder
                     $"Ensure all tables with encrypted fields have an IFieldEncryptor configured before adding update operations to transactions.",
                     ex);
             }
-            catch (Storage.FieldEncryptionException ex)
+            catch (FieldEncryptionException ex)
             {
                 // Log encryption error
                 _logger.LogError(
@@ -406,7 +407,7 @@ public class TransactionWriteBuilder
                     "Transaction execution failed due to field encryption error");
                 
                 // Re-throw encryption errors with transaction context
-                throw new Storage.FieldEncryptionException(
+                throw new FieldEncryptionException(
                     $"Transaction execution failed due to field encryption error: {ex.Message} " +
                     $"Review the update operations in this transaction and verify encryption configuration.",
                     ex);

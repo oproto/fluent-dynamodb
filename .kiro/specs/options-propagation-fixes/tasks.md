@@ -115,8 +115,8 @@
 ### Task 4.3: Update hydrator callers
 - [x] Search for usages of `IAsyncEntityHydrator<T>.HydrateAsync`
 - [x] Update callers to pass available options
-- [x] Verify `EnhancedExecuteAsyncExtensions` passes options
-- **File**: `Oproto.FluentDynamoDb/Requests/Extensions/EnhancedExecuteAsyncExtensions.cs`
+- [x] Verify `EntityExecuteAsyncExtensions` passes options
+- **File**: `Oproto.FluentDynamoDb/Requests/Extensions/EntityExecuteAsyncExtensions.cs`
 - **Requirement**: 4.3
 
 ## Phase 5: Changelog Updates

@@ -31,10 +31,10 @@ Install the required NuGet packages:
 
 ```bash
 dotnet add package Oproto.FluentDynamoDb
-dotnet add package Oproto.FluentDynamoDb.SourceGenerator
-dotnet add package Oproto.FluentDynamoDb.Attributes
 dotnet add package AWSSDK.DynamoDBv2
 ```
+
+> **Note:** The source generator and attributes are bundled in the main package. No additional packages are required for basic usage.
 
 For detailed installation instructions, see [Installation Guide](Installation.md).
 
@@ -367,7 +367,7 @@ If the generated code (UserFields, UserKeys, UserMapper) is not available:
 1. Ensure your class is marked as `partial`
 2. Rebuild the project (`dotnet build`)
 3. Restart your IDE
-4. Check that `Oproto.FluentDynamoDb.SourceGenerator` package is installed
+4. Check that `Oproto.FluentDynamoDb` package is installed (source generator is bundled)
 
 See [Troubleshooting Guide](../reference/Troubleshooting.md) for more help.
 

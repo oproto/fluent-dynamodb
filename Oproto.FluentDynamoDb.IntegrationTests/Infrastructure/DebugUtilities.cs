@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Amazon.DynamoDBv2.Model;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Entities;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 

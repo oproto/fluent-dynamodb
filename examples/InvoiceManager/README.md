@@ -9,6 +9,7 @@ A multi-entity invoice management application demonstrating single-table design 
 - **ToCompositeEntityAsync**: Automatic assembly of complex entities from query results
 - **RelatedEntity Attribute**: Declarative configuration for entity relationships
 - **Lambda Expression Queries**: Type-safe query building with IntelliSense
+- **Generated Entity Accessors**: Type-safe table operations via `table.Customers`, `table.Invoices`
 
 ## Key Concepts
 
@@ -46,9 +47,9 @@ The `ToCompositeEntityAsync` method automatically assembles complex entities fro
 ```csharp
 // Single query fetches invoice + all line items
 // Framework automatically populates Invoice.Lines collection
-var invoice = await Query<Invoice>()
+var invoice = await table.Invoices.Query()
     .Where(x => x.Pk == pk && x.Sk.StartsWith(skPrefix))
-    .ToCompositeEntityAsync();
+    .ToCompositeEntityAsync<Invoice>();
 ```
 
 ### RelatedEntity Attribute
@@ -56,8 +57,8 @@ var invoice = await Query<Invoice>()
 The `[RelatedEntity]` attribute tells the framework how to populate related collections:
 
 ```csharp
-[DynamoDbEntity]
-public partial class Invoice : IDynamoDbEntity
+[DynamoDbTable("invoices")]
+public partial class Invoice
 {
     // ... other properties ...
 
@@ -105,9 +106,8 @@ InvoiceManager/
 ├── Entities/
 │   ├── Customer.cs       # Customer entity (pk=CUSTOMER#id, sk=PROFILE)
 │   ├── Invoice.cs        # Invoice entity with [RelatedEntity] Lines
-│   └── InvoiceLine.cs    # Line item entity
-├── Tables/
-│   └── InvoiceTable.cs   # Table class with query operations
+│   ├── InvoiceLine.cs    # Line item entity
+│   └── InvoicesTable.cs  # Table class with generated entity accessors
 ├── Program.cs            # Interactive console application
 ├── InvoiceManager.csproj # Project file
 └── README.md             # This file
@@ -118,34 +118,48 @@ InvoiceManager/
 ### Entity Definitions
 
 ```csharp
-// Customer entity
-[DynamoDbEntity]
-[DynamoDbTable("invoices", IsDefault = true)]
-public partial class Customer : IDynamoDbEntity
+// Customer entity - uses [DynamoDbTable] with key prefix attributes
+[DynamoDbTable("invoices")]
+[GenerateEntityProperty(Name = "Customers")]
+[Scannable]
+public partial class Customer
 {
-    [PartitionKey]
+    // Key prefix generates "CUSTOMER#{value}" automatically
+    [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
-    public string Pk { get; set; }  // "CUSTOMER#{customerId}"
+    public string Pk { get; set; } = string.Empty;
 
     [SortKey]
     [DynamoDbAttribute("sk")]
-    public string Sk { get; set; }  // "PROFILE"
+    public string Sk { get; set; } = string.Empty;
     
-    // ... other properties
+    [DynamoDbAttribute("customerId")]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("customerName")]
+    public string Name { get; set; } = string.Empty;
+    
+    // Constant for the profile sort key value
+    public const string ProfileSk = "PROFILE";
 }
 
 // Invoice entity with related lines
-[DynamoDbEntity]
-[DynamoDbTable("invoices")]
-public partial class Invoice : IDynamoDbEntity
+[DynamoDbTable("invoices", IsDefault = true)]
+[GenerateEntityProperty(Name = "Invoices")]
+public partial class Invoice
 {
-    [PartitionKey]
+    // Same partition key prefix as Customer - enables single-query retrieval
+    [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
-    public string Pk { get; set; }  // "CUSTOMER#{customerId}"
+    public string Pk { get; set; } = string.Empty;
 
-    [SortKey]
+    // Sort key prefix generates "INVOICE#{value}"
+    [SortKey(Prefix = "INVOICE")]
     [DynamoDbAttribute("sk")]
-    public string Sk { get; set; }  // "INVOICE#{invoiceNumber}"
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
 
     // Automatically populated by ToCompositeEntityAsync
     [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
@@ -156,35 +170,88 @@ public partial class Invoice : IDynamoDbEntity
 }
 ```
 
-### Query with Lambda Expressions
+### Key Construction with Generated Keys Class
+
+The source generator creates a `Keys` class for each entity with `Pk()` and `Sk()` methods:
+
+```csharp
+// Use the generated Keys class for key construction
+var customerPk = Customer.Keys.Pk(customerId);    // Returns "CUSTOMER#{customerId}"
+var invoiceSk = Invoice.Keys.Sk(invoiceNumber);   // Returns "INVOICE#{invoiceNumber}"
+
+// Creating entities with proper keys
+var customer = new Customer
+{
+    Pk = Customer.Keys.Pk(customerId),
+    Sk = Customer.ProfileSk,
+    CustomerId = customerId,
+    Name = name
+};
+
+var invoice = new Invoice
+{
+    Pk = Invoice.Keys.Pk(customerId),
+    Sk = Invoice.Keys.Sk(invoiceNumber),
+    InvoiceNumber = invoiceNumber,
+    CustomerId = customerId
+};
+```
+
+### Query with Generated Entity Accessors
 
 ```csharp
 // Get complete invoice with all lines in a single query
-public async Task<Invoice?> GetCompleteInvoiceAsync(string customerId, string invoiceNumber)
+public async Task<Invoice?> GetCompleteInvoiceAsync(InvoicesTable table, string customerId, string invoiceNumber)
 {
-    var pk = Customer.CreatePk(customerId);
-    var skPrefix = Invoice.CreateSkPrefix(invoiceNumber);
+    var pk = Customer.Keys.Pk(customerId);
+    var skPrefix = Invoice.Keys.Sk(invoiceNumber);
 
-    // Lambda expression approach - type-safe with IntelliSense
-    var invoice = await Query<Invoice>()
+    // PREFERRED: Lambda expression with generated entity accessor
+    var invoice = await table.Invoices.Query()
         .Where(x => x.Pk == pk && x.Sk.StartsWith(skPrefix))
-        .ToCompositeEntityAsync();
+        .ToCompositeEntityAsync<Invoice>();
 
     return invoice;
 }
 
 // List invoices (without line items)
-public async Task<List<Invoice>> GetCustomerInvoicesAsync(string customerId)
+public async Task<List<Invoice>> GetCustomerInvoicesAsync(InvoicesTable table, string customerId)
 {
-    var pk = Customer.CreatePk(customerId);
+    var pk = Customer.Keys.Pk(customerId);
 
     // ToListAsync returns only Invoice entities
-    var invoices = await Query<Invoice>()
+    var invoices = await table.Invoices.Query()
         .Where(x => x.Pk == pk && x.Sk.StartsWith("INVOICE#"))
         .ToListAsync();
 
     return invoices.OrderByDescending(i => i.Date).ToList();
 }
+
+// List all customers using Scan
+public async Task<List<Customer>> GetAllCustomersAsync(InvoicesTable table)
+{
+    // PREFERRED: Using the generated entity accessor Scan method
+    var customers = await table.Customers.Scan().ToListAsync();
+    return customers;
+}
+```
+
+### CRUD Operations with Entity Accessors
+
+```csharp
+// Create a customer
+await table.Customers.PutAsync(customer);
+
+// Get a customer by key
+var customer = await table.Customers.GetAsync(
+    Customer.Keys.Pk(customerId), 
+    Customer.ProfileSk);
+
+// Create an invoice
+await table.Invoices.PutAsync(invoice);
+
+// Add a line item
+await table.InvoiceLines.PutAsync(line);
 ```
 
 ## Access Patterns
@@ -194,6 +261,7 @@ public async Task<List<Invoice>> GetCustomerInvoicesAsync(string customerId)
 | Get customer | `pk = CUSTOMER#{id}`, `sk = PROFILE` |
 | Get invoice with lines | `pk = CUSTOMER#{id}`, `sk begins_with INVOICE#{num}` |
 | List customer invoices | `pk = CUSTOMER#{id}`, `sk begins_with INVOICE#` |
+| List all customers | Scan with `[Scannable]` attribute |
 
 ## Learn More
 

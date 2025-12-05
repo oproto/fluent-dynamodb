@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.SystemTextJson;
 
@@ -133,7 +133,9 @@ public sealed class SystemTextJsonBlobSerializer : IJsonBlobSerializer
             return JsonSerializer.Serialize(value, typeof(T), _context);
         }
 
+#pragma warning disable IL2026, IL3050 // Reflection-based serialization fallback when no JsonSerializerContext provided
         return JsonSerializer.Serialize(value, _options);
+#pragma warning restore IL2026, IL3050
     }
 
     /// <inheritdoc />
@@ -153,6 +155,8 @@ public sealed class SystemTextJsonBlobSerializer : IJsonBlobSerializer
             return (T?)JsonSerializer.Deserialize(json, typeof(T), _context);
         }
 
+#pragma warning disable IL2026, IL3050 // Reflection-based deserialization fallback when no JsonSerializerContext provided
         return JsonSerializer.Deserialize<T>(json, _options);
+#pragma warning restore IL2026, IL3050
     }
 }

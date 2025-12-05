@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Storage;
 

@@ -46,6 +46,8 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
         sb.AppendLine();
         
@@ -134,6 +136,8 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
         sb.AppendLine();
         

@@ -49,10 +49,13 @@ public class NoReflectionPropertyTests
     };
 
     // Paths to exclude from reflection checks - only build artifacts, not source code
+    // Include both forward and back slashes for cross-platform compatibility (Linux/macOS vs Windows)
     private static readonly string[] ExcludedBuildArtifactPaths = new[]
     {
         "/obj/",
-        "/bin/"
+        "/bin/",
+        "\\obj\\",
+        "\\bin\\"
     };
     
     // Files with AOT-UNSAFE reflection that need architectural changes to fix
@@ -61,7 +64,7 @@ public class NoReflectionPropertyTests
     // - UpdateExpressionTranslator.cs: Now uses ICollectionFormatterRegistry instead of Activator.CreateInstance
     // - DynamoDbResponseExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
     // - MappingErrorHandler.cs: Removed unused ValidateRequiredProperties method that used GetProperty()
-    // - EnhancedExecuteAsyncExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
+    // - EntityExecuteAsyncExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
     // - ExpressionTranslator.cs: Now uses MemberExpression.Member directly (AOT-safe) and IGeospatialProvider
     //
     // ALL MAIN LIBRARY FILES ARE NOW AOT-SAFE!

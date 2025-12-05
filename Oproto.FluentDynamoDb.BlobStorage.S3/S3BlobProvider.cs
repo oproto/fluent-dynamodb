@@ -1,6 +1,6 @@
 using Amazon.S3;
 using Amazon.S3.Model;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.BlobStorage.S3;
 

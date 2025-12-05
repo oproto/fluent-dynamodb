@@ -41,7 +41,7 @@ public partial class OrdersTable : DynamoDbTableBase
     /// Initializes a new instance of the OrdersTable class.
     /// </summary>
     /// <param name="client">The DynamoDB client.</param>
-    public OrdersTable(IAmazonDynamoDB client) : base(client, TableName)
+    public OrdersTable(IAmazonDynamoDB client) : this(client, TableName)
     {
     }
 

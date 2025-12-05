@@ -1,8 +1,3 @@
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.Model;
-using Oproto.FluentDynamoDb.Storage;
-using Xunit;
-
 namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 
 /// <summary>

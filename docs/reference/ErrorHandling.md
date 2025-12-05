@@ -38,7 +38,7 @@ using Amazon.DynamoDBv2.Model;
 // Scenario 1: Preventing duplicate items
 try
 {
-    await table.Put
+    await table.Put()
         .WithItem(user)
         .WithCondition($"attribute_not_exists({UserFields.UserId})")
         .PutAsync();
@@ -54,7 +54,7 @@ catch (ConditionalCheckFailedException)
 // Scenario 2: Optimistic locking
 try
 {
-    await table.Update
+    await table.Update()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
         .Set($"SET {UserFields.Name} = {{0}}, {UserFields.Version} = {UserFields.Version} + {{1}}", 
              "New Name", 1)
@@ -70,7 +70,7 @@ catch (ConditionalCheckFailedException)
 // Scenario 3: Conditional delete
 try
 {
-    await table.Delete
+    await table.Delete()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
         .WithCondition($"{UserFields.Status} = {{0}}", "inactive")
         .DeleteAsync();
@@ -104,13 +104,13 @@ catch (ConditionalCheckFailedException)
 // Basic handling with retry
 try
 {
-    await table.Put.WithItem(user).ExecuteAsync();
+    await table.Put().WithItem(user).PutAsync();
 }
 catch (ProvisionedThroughputExceededException)
 {
     // Implement exponential backoff
     await Task.Delay(TimeSpan.FromMilliseconds(100));
-    await table.Put.WithItem(user).ExecuteAsync(); // Retry
+    await table.Put().WithItem(user).PutAsync(); // Retry
 }
 
 // Exponential backoff with multiple retries
@@ -140,9 +140,9 @@ public async Task<T> ExecuteWithRetry<T>(
 // Usage
 var user = await ExecuteWithRetry(async () =>
 {
-    var response = await table.Get
+    var response = await table.Get()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-        .ExecuteAsync<User>();
+        .GetItemAsync<User>();
     return response.Item;
 });
 ```
@@ -168,9 +168,9 @@ var user = await ExecuteWithRetry(async () =>
 ```csharp
 try
 {
-    await table.Get
+    await table.Get()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-        .ExecuteAsync<User>();
+        .GetItemAsync<User>();
 }
 catch (ResourceNotFoundException ex)
 {
@@ -292,10 +292,10 @@ public async Task TransferFundsAsync(string fromAccount, string toAccount, decim
 try
 {
     // Invalid expression syntax
-    await table.Query
+    await table.Query()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
         .Where($"{UserFields.Status} == {{0}}", "active") // Wrong: == instead of =
-        .ExecuteAsync<User>();
+        .ToListAsync<User>();
 }
 catch (ValidationException ex)
 {
@@ -307,7 +307,7 @@ catch (ValidationException ex)
 try
 {
     var largeItem = new Document { Content = new string('x', 500_000) }; // > 400KB
-    await table.Put.WithItem(largeItem).ExecuteAsync();
+    await table.Put().WithItem(largeItem).PutAsync();
 }
 catch (ValidationException ex) when (ex.Message.Contains("Item size"))
 {
@@ -336,7 +336,7 @@ catch (ValidationException ex) when (ex.Message.Contains("Item size"))
 ```csharp
 try
 {
-    await table.Put.WithItem(orderItem).ExecuteAsync();
+    await table.Put().WithItem(orderItem).PutAsync();
 }
 catch (ItemCollectionSizeLimitExceededException)
 {
@@ -417,9 +417,9 @@ var retryPolicy = new RetryPolicy(maxRetries: 5, baseDelayMs: 100);
 
 var user = await retryPolicy.ExecuteAsync(async () =>
 {
-    var response = await table.Get
+    var response = await table.Get()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-        .ExecuteAsync<User>();
+        .GetItemAsync<User>();
     return response.Item;
 });
 ```
@@ -502,18 +502,18 @@ public class CircuitBreaker
 - Type conversion errors
 - Missing required attributes
 
-**Exception Type:** `Oproto.FluentDynamoDb.Storage.DynamoDbMappingException`
+**Exception Type:** `Oproto.FluentDynamoDb.Mapping.DynamoDbMappingException`
 
 **Example Scenarios:**
 
 ```csharp
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Mapping;
 
 try
 {
-    var response = await table.Get
+    var response = await table.Get()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-        .ExecuteAsync<User>();
+        .GetItemAsync<User>();
     
     var user = response.Item;
 }
@@ -528,9 +528,9 @@ public async Task<User?> GetUserSafeAsync(string userId)
 {
     try
     {
-        var response = await table.Get
+        var response = await table.Get()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-            .ExecuteAsync<User>();
+            .GetItemAsync<User>();
         
         return response.Item;
     }
@@ -564,10 +564,10 @@ public async Task<Result<User>> CreateUserAsync(User user)
 {
     try
     {
-        await table.Put
+        await table.Put()
             .WithItem(user)
             .WithCondition($"attribute_not_exists({UserFields.UserId})")
-            .ExecuteAsync();
+            .PutAsync();
         
         return Result.Ok(user);
     }
@@ -627,7 +627,7 @@ Always catch specific exceptions rather than generic `Exception`:
 // ✅ Good - specific exception handling
 try
 {
-    await table.Put.WithItem(user).ExecuteAsync();
+    await table.Put().WithItem(user).PutAsync();
 }
 catch (ConditionalCheckFailedException)
 {
@@ -646,7 +646,7 @@ catch (ValidationException ex)
 // ❌ Bad - catching all exceptions
 try
 {
-    await table.Put.WithItem(user).ExecuteAsync();
+    await table.Put().WithItem(user).PutAsync();
 }
 catch (Exception ex)
 {
@@ -671,10 +671,10 @@ public async Task CreateUserAsync(User user)
 {
     try
     {
-        await table.Put
+        await table.Put()
             .WithItem(user)
             .WithCondition($"attribute_not_exists({UserFields.UserId})")
-            .ExecuteAsync();
+            .PutAsync();
     }
     catch (ConditionalCheckFailedException)
     {
@@ -699,9 +699,9 @@ public class UserRepository
     {
         try
         {
-            var response = await _table.Get
+            var response = await _table.Get()
                 .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-                .ExecuteAsync<User>();
+                .GetItemAsync<User>();
             
             return response.Item;
         }
@@ -734,9 +734,9 @@ public async Task SaveUserAsync(User user)
 {
     user.UpdatedAt = DateTime.UtcNow;
     
-    await table.Put
+    await table.Put()
         .WithItem(user)
-        .ExecuteAsync();
+        .PutAsync();
     
     // Safe to retry - will just update the timestamp
 }
@@ -748,13 +748,13 @@ public async Task IncrementCounterAsync(string userId)
     
     try
     {
-        await table.Update
+        await table.Update()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
             .Set($"SET {UserFields.Counter} = {UserFields.Counter} + {{0}}, " +
                  $"{UserFields.LastRequestId} = {{1}}", 
                  1, requestId)
             .WithCondition($"{UserFields.LastRequestId} <> {{0}}", requestId)
-            .ExecuteAsync();
+            .UpdateAsync();
     }
     catch (ConditionalCheckFailedException)
     {
@@ -778,9 +778,9 @@ public class MetricsTrackingRepository
         
         try
         {
-            var response = await _table.Get
+            var response = await _table.Get()
                 .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-                .ExecuteAsync<User>();
+                .GetItemAsync<User>();
             
             _metrics.RecordSuccess("GetUser", stopwatch.ElapsedMilliseconds);
             return response.Item;

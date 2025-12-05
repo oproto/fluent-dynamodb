@@ -1,6 +1,10 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Context;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Mapping;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb.Storage;
@@ -267,8 +271,8 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
         where TEntity : class, IDynamoDbEntity
     {
         var builder = Put<TEntity>();
-        builder = Requests.Extensions.EnhancedExecuteAsyncExtensions.WithItem(builder, entity);
-        await Requests.Extensions.EnhancedExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
+        builder = Requests.Extensions.EntityExecuteAsyncExtensions.WithItem(builder, entity);
+        await Requests.Extensions.EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
     }
 
     /// <summary>
@@ -296,7 +300,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
         where TEntity : class
     {
         var builder = Put<TEntity>().WithItem(item);
-        await Requests.Extensions.EnhancedExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
+        await Requests.Extensions.EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
     }
 
 

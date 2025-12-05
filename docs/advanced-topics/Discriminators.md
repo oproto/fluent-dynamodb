@@ -303,7 +303,7 @@ Discriminator validation occurs automatically during entity hydration:
 
 ```csharp
 // Query returns items from multi-entity table
-var response = await table.Query<User>()
+var users = await table.Query<User>()
     .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
     .ToListAsync();
 
@@ -316,15 +316,13 @@ var response = await table.Query<User>()
 ### Exception Handling
 
 ```csharp
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Mapping;
 
 try
 {
-    var response = await table.Query<User>()
+    var users = await table.Query<User>()
         .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
         .ToListAsync();
-    
-    var users = response.Items;
 }
 catch (DiscriminatorMismatchException ex)
 {
@@ -340,7 +338,7 @@ Discriminator properties are automatically included in projection expressions:
 
 ```csharp
 // Generated projection expression includes discriminator
-var response = await table.Query
+var users = await table.Query<User>()
     .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
     .WithProjectionExpression($"{UserFields.Name}, {UserFields.Email}")
     .ToListAsync();
@@ -474,16 +472,16 @@ catch (DiscriminatorMismatchException ex)
 public async Task Query_WithDiscriminator_ReturnsOnlyMatchingEntities()
 {
     // Arrange - insert mixed entity types
-    await table.Put.WithItem(new User { TenantId = "TENANT#abc", SortKey = "USER#user1" }).PutAsync();
-    await table.Put.WithItem(new Order { TenantId = "TENANT#abc", SortKey = "ORDER#order1" }).PutAsync();
+    await table.Users.PutAsync(new User { TenantId = "TENANT#abc", SortKey = "USER#user1" });
+    await table.Orders.PutAsync(new Order { TenantId = "TENANT#abc", SortKey = "ORDER#order1" });
     
     // Act - query for users only
-    var response = await table.Query<User>()
+    var users = await table.Query<User>()
         .Where($"{UserFields.TenantId} = {{0}}", "TENANT#abc")
         .ToListAsync();
     
     // Assert - only users returned
-    Assert.All(response.Items, user => 
+    Assert.All(users, user => 
         Assert.StartsWith("USER#", user.SortKey));
 }
 ```

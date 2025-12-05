@@ -124,12 +124,15 @@ public static class DynamicCompilationHelper
         references.Add(CreateReferenceFromType(typeof(System.Text.Json.Serialization.JsonSerializerContext)));
         references.Add(CreateReferenceFromType(typeof(Newtonsoft.Json.JsonConvert)));
         
+        // Regex reference (used for wildcard pattern matching in multi-item entities)
+        references.Add(CreateReferenceFromType(typeof(System.Text.RegularExpressions.Regex)));
+        
         // AWS SDK references
         references.Add(CreateReferenceFromType(typeof(Amazon.DynamoDBv2.Model.AttributeValue)));
         
         // FluentDynamoDb library references
         references.Add(CreateReferenceFromType(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute)));
-        references.Add(CreateReferenceFromType(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity)));
+        references.Add(CreateReferenceFromType(typeof(Oproto.FluentDynamoDb.Entities.IDynamoDbEntity)));
 
         return references;
     }

@@ -1,8 +1,8 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.Requests;
 

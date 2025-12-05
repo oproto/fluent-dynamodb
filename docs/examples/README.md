@@ -2,6 +2,40 @@
 
 This directory contains practical code examples for Oproto.FluentDynamoDb features.
 
+## Example Applications
+
+Complete, runnable example applications demonstrating real-world usage patterns:
+
+### [TodoList](../../examples/TodoList/README.md)
+A simple todo list application demonstrating basic CRUD operations.
+- **CRUD Operations**: Create, Read, Update, Delete todo items
+- **Scannable Tables**: Using `[Scannable]` attribute for small datasets
+- **Lambda Expression Updates**: Type-safe updates with update models
+- **Entity Accessors**: Generated `table.TodoItems` accessor pattern
+
+### [TransactionDemo](../../examples/TransactionDemo/README.md)
+Demonstrates DynamoDB transactions with side-by-side SDK comparison.
+- **Transaction API**: Atomic write operations across multiple items
+- **Single-Table Design**: Accounts and transaction records in one table
+- **Key Prefix Pattern**: Using `[PartitionKey(Prefix = "...")]` for key formatting
+- **Code Comparison**: FluentDynamoDb vs raw AWS SDK (~60-70% code reduction)
+
+### [InvoiceManager](../../examples/InvoiceManager/README.md)
+Multi-entity invoice management demonstrating single-table design patterns.
+- **Single-Table Design**: Customer, Invoice, InvoiceLine entities in one table
+- **Hierarchical Composite Keys**: Sort key patterns for related data
+- **ToCompositeEntityAsync**: Automatic assembly of complex entities
+- **RelatedEntity Attribute**: Declarative entity relationship configuration
+
+### [StoreLocator](../../examples/StoreLocator/README.md)
+Geospatial queries comparing GeoHash, S2, and H3 spatial indexing.
+- **Geospatial Indexing**: Three spatial index types for location-based queries
+- **Adaptive Precision**: Automatic precision selection based on search radius
+- **Multi-Precision GSIs**: Global Secondary Indexes for different precision levels
+- **Index Comparison**: Side-by-side query efficiency comparison
+
+---
+
 ## Available Examples
 
 ### [Entity-Specific Builders Examples](EntitySpecificBuildersExamples.md)

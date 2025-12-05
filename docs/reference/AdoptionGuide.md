@@ -49,9 +49,9 @@ public partial class User
 }
 
 // Usage with generated code and expression formatting
-await table.Put.WithItem(user).PutAsync();
+await table.Put().WithItem(user).PutAsync();
 
-var response = await table.Query
+var response = await table.Query()
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
     .ToListAsync<User>();
 ```
@@ -75,9 +75,9 @@ public class UserRepository
     
     public async Task<Dictionary<string, AttributeValue>?> GetUserAsync(string userId)
     {
-        var response = await _table.Get
+        var response = await _table.Get()
             .WithKey("pk", userId)
-            .ExecuteAsync();
+            .GetItemAsync();
         
         return response.Item;
     }
@@ -146,21 +146,21 @@ public partial class User
 }
 
 // Create
-await table.Put.WithItem(user).ExecuteAsync();
+await table.Put().WithItem(user).PutAsync();
 
 // Read
-var response = await table.Get
+var response = await table.Get()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync<User>();
 
 // Update with expression formatting
-await table.Update
+await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}", "New Name")
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Query with expression formatting
-var users = await table.Query
+var users = await table.Query()
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
     .ToListAsync<User>();
 ```
@@ -187,12 +187,12 @@ public static Dictionary<string, AttributeValue> ToDynamoDb(User user)
 }
 
 // Create
-await table.Put.WithItem(ToDynamoDb(user)).ExecuteAsync();
+await table.Put().WithItem(ToDynamoDb(user)).PutAsync();
 
 // Read
-var response = await table.Get
+var response = await table.Get()
     .WithKey("pk", "user123")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 if (response.Item != null)
 {
@@ -200,18 +200,18 @@ if (response.Item != null)
 }
 
 // Update with manual parameters
-await table.Update
+await table.Update()
     .WithKey("pk", "user123")
     .Set("SET #name = :name")
     .WithAttributeName("#name", "name")
     .WithValue(":name", "New Name")
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Query with manual parameters
-var response = await table.Query
+var response = await table.Query()
     .Where("pk = :pk")
     .WithValue(":pk", "user123")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Composite Keys
@@ -337,12 +337,12 @@ public partial class User
 **Step 2**: Update usage gradually
 ```csharp
 // Old code continues to work
-var response = await table.Get.WithKey("pk", "user123").ExecuteAsync();
+var response = await table.Get().WithKey("pk", "user123").GetItemAsync();
 
 // New code uses generated constants
-var response = await table.Get
+var response = await table.Get()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync<User>();
 ```
 
 **Step 3**: Remove manual mapping code when ready
@@ -361,16 +361,16 @@ public class UserService
     // Legacy method (keep for now)
     public async Task<User> GetUserLegacyAsync(string userId)
     {
-        var response = await _table.Get.WithKey("pk", userId).ExecuteAsync();
+        var response = await _table.Get().WithKey("pk", userId).GetItemAsync();
         return UserMapper.FromDynamoDb(response.Item);
     }
 
     // New method using source generation
     public async Task<User?> GetUserAsync(string userId)
     {
-        var response = await _table.Get
+        var response = await _table.Get()
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-            .ExecuteAsync<User>();
+            .GetItemAsync<User>();
         return response.Item;
     }
 
@@ -408,7 +408,7 @@ public partial class User
 }
 
 // Use generated mapping but manual query parameters
-var response = await table.Query
+var response = await table.Query()
     .Where("pk = :pk AND begins_with(sk, :prefix)")
     .WithValue(":pk", UserKeys.Pk("user123"))
     .WithValue(":prefix", "profile#")
@@ -429,9 +429,9 @@ public partial class User
 // Use different table at runtime
 var table = new DynamoDbTableBase(client, GetTableNameForTenant(tenantId));
 
-var response = await table.Get
+var response = await table.Get()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync<User>();
 ```
 
 ### Use Case 3: Generated Entities with Manual Client Management
@@ -446,10 +446,10 @@ public async Task<Order?> GetOrderAsync(string tenantId, string orderId)
 {
     var scopedClient = await _stsService.CreateClientForTenantAsync(tenantId);
     
-    var response = await _table.Get
+    var response = await _table.Get()
         .WithClient(scopedClient) // Manual client
         .WithKey(OrderFields.OrderId, OrderKeys.Pk(orderId)) // Generated constants
-        .ExecuteAsync<Order>(); // Generated mapping
+        .GetItemAsync<Order>(); // Generated mapping
     
     return response.Item;
 }

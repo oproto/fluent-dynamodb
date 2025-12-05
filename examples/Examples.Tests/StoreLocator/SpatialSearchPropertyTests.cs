@@ -9,7 +9,6 @@ using Oproto.FluentDynamoDb.Geospatial.GeoHash;
 using Oproto.FluentDynamoDb.Geospatial.H3;
 using Oproto.FluentDynamoDb.Geospatial.S2;
 using StoreLocator.Entities;
-using StoreLocator.Tables;
 using System.Reflection;
 
 namespace Examples.Tests.StoreLocator;
@@ -108,7 +107,7 @@ public class SpatialSearchPropertyTests
             GeneratePositiveRadius(),
             radius =>
             {
-                var level = StoreS2Table.SelectS2Level(radius);
+                var level = StoresS2Table.SelectS2Level(radius);
                 
                 // Verify the level matches the expected thresholds from Requirements 2.1:
                 // - Level 14 (~284m) for radius ≤ 2km
@@ -140,7 +139,7 @@ public class SpatialSearchPropertyTests
             GeneratePositiveRadius(),
             radius =>
             {
-                var resolution = StoreH3Table.SelectH3Resolution(radius);
+                var resolution = StoresH3Table.SelectH3Resolution(radius);
                 
                 // Verify the resolution matches the expected thresholds from Requirements 2.2:
                 // - Resolution 9 (~174m) for radius ≤ 2km
@@ -336,7 +335,7 @@ public class SpatialSearchPropertyTests
             (center, radius) =>
             {
                 // Test S2 precision selection and cell covering
-                var s2Level = StoreS2Table.SelectS2Level(radius);
+                var s2Level = StoresS2Table.SelectS2Level(radius);
                 bool s2Success = true;
                 string s2Error = string.Empty;
                 int s2EstimatedCells = 0;
@@ -371,7 +370,7 @@ public class SpatialSearchPropertyTests
                 }
 
                 // Test H3 precision selection and cell covering
-                var h3Resolution = StoreH3Table.SelectH3Resolution(radius);
+                var h3Resolution = StoresH3Table.SelectH3Resolution(radius);
                 bool h3Success = true;
                 string h3Error = string.Empty;
                 int h3EstimatedCells = 0;

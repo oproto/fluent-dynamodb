@@ -1,7 +1,5 @@
-using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 

@@ -1,15 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.Model;
-using AwesomeAssertions;
 using Newtonsoft.Json;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.NewtonsoftJson;
-using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.SystemTextJson;
-using Xunit;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.AdvancedTypes;

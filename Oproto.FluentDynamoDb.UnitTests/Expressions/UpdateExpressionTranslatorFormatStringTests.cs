@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using Oproto.FluentDynamoDb.Expressions;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Expressions;
 

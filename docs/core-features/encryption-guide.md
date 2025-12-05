@@ -565,10 +565,10 @@ public class User
 **Step 2: Migrate existing data**
 ```csharp
 // Scan all items and re-encrypt
-await foreach (var user in table.Scan.ExecuteAsync())
+await foreach (var user in table.Scan().ExecuteAsync())
 {
     // Update will encrypt the value
-    await table.Update
+    await table.Update()
         .WithKey("user_id", user.UserId)
         .Set(x => new UserUpdateModel 
         { 

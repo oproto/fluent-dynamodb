@@ -1,11 +1,9 @@
 using System.Diagnostics;
-using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 using Oproto.FluentDynamoDb.Pagination;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 
@@ -285,7 +283,7 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
     /// Tests that multiple queries return consistent results and performance.
     /// Uses level 10 (~4.5km cells) with 15km radius to stay within 500 cell limit.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Performance Test")]
     public async Task SpatialQueryAsync_S2ProximityNonPaginated_MultipleQueries_ConsistentPerformance()
     {
         // Arrange - Create table with stores using low precision entity

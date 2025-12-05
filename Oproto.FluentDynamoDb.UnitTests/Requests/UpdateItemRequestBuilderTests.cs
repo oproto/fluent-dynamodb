@@ -4,9 +4,13 @@ using Amazon.Runtime;
 using AwesomeAssertions;
 using NSubstitute;
 
+using Oproto.FluentDynamoDb.Context;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Mapping;
+using Oproto.FluentDynamoDb.Metadata;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 

@@ -60,8 +60,8 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 
 ---
 
-#### 2. AdvancedTypeGenerationTests.cs ✅ COMPLETED
-- **Location:** `Oproto.FluentDynamoDb.SourceGenerator.UnitTests/Generators/AdvancedTypeGenerationTests.cs`
+#### 2. ComplexTypeGenerationTests.cs ✅ COMPLETED
+- **Location:** `Oproto.FluentDynamoDb.SourceGenerator.UnitTests/Generators/ComplexTypeGenerationTests.cs`
 - **Total Tests:** 38
 - **Migration Status:** ✅ **COMPLETED** (2025-10-22)
 - **Compilation Verification:** ✅ Already Added
@@ -401,7 +401,7 @@ These tests verify infrastructure, diagnostics, or simple models and rarely brea
 - **Review Needed:** 1 file, 11 tests (EndToEndSourceGeneratorTests.cs)
 
 ### By Compilation Verification Status
-- **Already Added:** 7 files (MapperGeneratorTests, AdvancedTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests, DynamoDbSourceGeneratorTests, MapperGeneratorBugFixTests, EdgeCaseTests)
+- **Already Added:** 7 files (MapperGeneratorTests, ComplexTypeGenerationTests, KeysGeneratorTests, FieldsGeneratorTests, DynamoDbSourceGeneratorTests, MapperGeneratorBugFixTests, EdgeCaseTests)
 - **Needs Adding:** 0 files
 - **Not Needed:** 10 files (diagnostic, model, and infrastructure tests)
 
@@ -500,7 +500,7 @@ Use this checklist for each file being migrated:
 
 1. ✅ Complete this migration status document
 2. ✅ **COMPLETED:** Priority 1: MapperGeneratorTests.cs (9 tests migrated)
-3. ✅ **COMPLETED:** Priority 1: AdvancedTypeGenerationTests.cs (38 tests migrated)
+3. ✅ **COMPLETED:** Priority 1: ComplexTypeGenerationTests.cs (38 tests migrated)
 4. ✅ **COMPLETED:** Priority 1: KeysGeneratorTests.cs (8 tests migrated)
 5. ✅ **COMPLETED:** Priority 2: FieldsGeneratorTests.cs (6 tests migrated)
 6. ✅ **COMPLETED:** Priority 2: DynamoDbSourceGeneratorTests.cs (3 tests migrated)

@@ -48,23 +48,19 @@ Supported IDEs:
 
 ## NuGet Package Installation
 
-### Core Packages (Required)
+### Core Package (Required)
 
-Install the three core packages for source generation support:
+Install the main package which includes the source generator and attributes:
 
 ```bash
-# Main library with fluent API
+# Main library with fluent API, source generator, and attributes
 dotnet add package Oproto.FluentDynamoDb
-
-# Source generator for automatic code generation
-dotnet add package Oproto.FluentDynamoDb.SourceGenerator
-
-# Attributes for entity definition
-dotnet add package Oproto.FluentDynamoDb.Attributes
 
 # AWS SDK for DynamoDB
 dotnet add package AWSSDK.DynamoDBv2
 ```
+
+> **Note:** The source generator and attributes are bundled in the main package. No additional packages are required for basic usage.
 
 ### Optional Packages
 
@@ -182,8 +178,6 @@ If you prefer using the Package Manager Console:
 
 ```powershell
 Install-Package Oproto.FluentDynamoDb
-Install-Package Oproto.FluentDynamoDb.SourceGenerator
-Install-Package Oproto.FluentDynamoDb.Attributes
 Install-Package AWSSDK.DynamoDBv2
 ```
 
@@ -201,15 +195,13 @@ Alternatively, add package references directly to your `.csproj` file:
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Oproto.FluentDynamoDb" Version="0.3.0" />
-    <PackageReference Include="Oproto.FluentDynamoDb.SourceGenerator" Version="0.3.0" />
-    <PackageReference Include="Oproto.FluentDynamoDb.Attributes" Version="0.3.0" />
+    <PackageReference Include="Oproto.FluentDynamoDb" Version="0.8.0" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.0" />
   </ItemGroup>
 </Project>
 ```
 
-**Note:** Check [NuGet.org](https://www.nuget.org/packages/Oproto.FluentDynamoDb) for the latest version numbers.
+> **Note:** The source generator and attributes are bundled in the main package. Check [NuGet.org](https://www.nuget.org/packages/Oproto.FluentDynamoDb) for the latest version numbers.
 
 ## Project Configuration
 
@@ -363,7 +355,7 @@ If generated code is not available:
 2. **Clean and rebuild**: `dotnet clean && dotnet build`
 3. **Restart IDE**: Close and reopen your IDE
 4. **Check build output**: Look for source generator errors in build output
-5. **Verify package installation**: Ensure `Oproto.FluentDynamoDb.SourceGenerator` is installed
+5. **Verify package installation**: Ensure `Oproto.FluentDynamoDb` is installed (source generator is bundled)
 
 See [Troubleshooting Guide](../reference/Troubleshooting.md#source-generator-issues) for more help.
 
@@ -449,7 +441,7 @@ If you see "Installation verified successfully!", you're all set!
 
 ### Issue: "Type or namespace 'DynamoDbTable' could not be found"
 
-**Solution**: Ensure `Oproto.FluentDynamoDb.Attributes` package is installed and you have the correct using statement:
+**Solution**: Ensure `Oproto.FluentDynamoDb` package is installed (attributes are bundled) and you have the correct using statement:
 
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;

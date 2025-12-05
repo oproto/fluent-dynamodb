@@ -3,7 +3,7 @@ using System.Linq.Expressions;
 using System.Text;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Logging;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Metadata;
 
 namespace Oproto.FluentDynamoDb.Expressions;
 

@@ -6,7 +6,16 @@
 
 [![Build](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml)
 [![Tests](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml)
-[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
+
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg?label=FluentDynamoDb)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Streams.svg?label=Streams)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Streams/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Geospatial.svg?label=Geospatial)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Geospatial/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.FluentResults.svg?label=FluentResults)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.FluentResults/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Encryption.Kms.svg?label=Encryption.Kms)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Encryption.Kms/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.BlobStorage.S3.svg?label=BlobStorage.S3)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.BlobStorage.S3/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Logging.Extensions.svg?label=Logging.Extensions)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Logging.Extensions/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.SystemTextJson.svg?label=SystemTextJson)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.SystemTextJson/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.NewtonsoftJson.svg?label=NewtonsoftJson)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.NewtonsoftJson/)
 
 A modern, fluent-style API wrapper for Amazon DynamoDB that combines automatic code generation with type-safe operations. Built for .NET 8+, this library eliminates boilerplate through source generation while providing an intuitive, expression-based syntax for all DynamoDB operations. Whether you're building serverless applications, microservices, or enterprise systems, Oproto.FluentDynamoDb delivers a developer-friendly experience without sacrificing performance or flexibility.
 
@@ -14,15 +23,34 @@ The library is designed with AOT (Ahead-of-Time) compilation compatibility in mi
 
 Perfect for teams seeking to reduce development time and maintenance overhead, Oproto.FluentDynamoDb provides compile-time safety through source generation, runtime efficiency through optimized request building, and developer productivity through expression formatting that eliminates manual parameter management.
 
+## Feature Maturity (0.8.0)
+
+FluentDynamoDB is a large library, and not every subsystem is at the same level of maturity yet.
+
+**Production-ready (core focus)**
+- Strongly-typed entity modeling and repositories
+- Single-table, multi-entity patterns (e.g., Invoice + Lines)
+- Query and scan builders (LINQ-style expressions)
+- Batch operations and transactional helpers
+- Source generation (no reflection, AOT-friendly)
+
+**Experimental / evolving**
+- Geospatial indexing (GeoHash, S2, H3)
+- S3-backed blob storage
+- KMS-based field encryption
+- Attributes for defining Entities *may* evolve over time
+
+These experimental features are available for early testing and feedback, but may change shape before 1.0 and do not yet have full demo coverage or documentation.
+
 ## Quick Start
 
 ### Installation
 
 ```bash
 dotnet add package Oproto.FluentDynamoDb
-dotnet add package Oproto.FluentDynamoDb.SourceGenerator
-dotnet add package Oproto.FluentDynamoDb.Attributes
 ```
+
+> **Note:** The source generator and attributes are bundled in the main package. No additional packages are required for basic usage.
 
 ### Define Your First Entity
 
@@ -62,6 +90,7 @@ All support classes are generated as nested classes within your entity for bette
 ```csharp
 using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -103,7 +132,7 @@ var context = DynamoDbOperationContext.Current;
 Console.WriteLine($"Consumed capacity: {context?.ConsumedCapacity?.CapacityUnits}");
 
 // Query users with expression formatting
-var activeUsers = await table.Query
+var activeUsers = await table.Query()
     .Where("{0} = {1} AND {2} = {3}", 
            User.Fields.UserId, User.Keys.Pk("user123"),
            User.Fields.Status, "active")
@@ -248,7 +277,7 @@ String.Format-style syntax eliminates manual parameter naming and `.WithValue()`
 Write type-safe queries using C# lambda expressions with full IntelliSense support. Automatically translates expressions to DynamoDB syntax while validating property mappings at compile time.
 ```csharp
 // Type-safe queries with lambda expressions
-await table.Query
+await table.Query()
     .Where<User>(x => x.UserId == "user123" && x.Status == "active")
     .WithFilter<User>(x => x.Email.StartsWith("john"))
     .ExecuteAsync();
@@ -292,7 +321,7 @@ var client = new AmazonDynamoDBClient();
 var table = new ProductsTable(client, "products");
 
 // Operations work without any logging configuration
-await table.Get.WithKey("pk", "product-123").ExecuteAsync();
+await table.Get().WithKey("pk", "product-123").GetItemAsync();
 ```
 
 ### With Microsoft.Extensions.Logging
@@ -462,10 +491,10 @@ public partial class Order
 }
 
 // Use generated code with expression formatting
-await table.Update
+await table.Update()
     .WithKey(OrderEntity.Fields.OrderId, OrderEntity.Keys.Pk("order123"))
     .Set($"SET {OrderEntity.Fields.Amount} = {{0:F2}}", 99.99m)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Also Available: Manual Patterns
@@ -481,11 +510,11 @@ For scenarios requiring dynamic table names, runtime schema determination, or ma
 **Example:**
 ```csharp
 // Manual approach without source generation
-await table.Update
+await table.Update()
     .WithKey("pk", "order123")
     .Set("SET amount = :amount")
     .WithValue(":amount", new AttributeValue { N = "99.99" })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Learn more:** See [Manual Patterns Guide](docs/advanced-topics/ManualPatterns.md) for detailed examples and migration strategies.

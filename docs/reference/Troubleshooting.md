@@ -37,14 +37,14 @@ error CS0103: The name 'UserKeys' does not exist in the current context
 
 **Solution:**
 
-1. **Verify the source generator package is installed:**
+1. **Verify the main package is installed (source generator is bundled):**
 ```bash
-dotnet list package | grep Oproto.FluentDynamoDb.SourceGenerator
+dotnet list package | grep Oproto.FluentDynamoDb
 ```
 
 If not installed:
 ```bash
-dotnet add package Oproto.FluentDynamoDb.SourceGenerator
+dotnet add package Oproto.FluentDynamoDb
 ```
 
 2. **Ensure your entity class is marked as `partial`:**
@@ -932,8 +932,9 @@ Install required packages:
 ```bash
 dotnet add package AWSSDK.DynamoDBv2
 dotnet add package Oproto.FluentDynamoDb
-dotnet add package Oproto.FluentDynamoDb.SourceGenerator
 ```
+
+Note: The source generator is bundled with the main package.
 
 Verify installation:
 ```bash
@@ -1080,7 +1081,7 @@ Unit test frameworks (e.g., xUnit) restore the original execution context when a
 Subscribe to the internal diagnostics event before invoking the operation and capture the context inside the same asynchronous flow. Remember to unsubscribe in a `finally` block.
 
 ```csharp
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Context;
 
 OperationContextData? captured = null;
 void Handler(OperationContextData? ctx) => captured = ctx;

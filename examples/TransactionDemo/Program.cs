@@ -2,8 +2,9 @@
 // This example compares FluentDynamoDb's fluent transaction API with raw AWS SDK usage
 
 using Examples.Shared;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 using TransactionDemo;
-using TransactionDemo.Tables;
+using TransactionDemo.Entities;
 
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║        TransactionDemo - FluentDynamoDb Example            ║");
@@ -101,7 +102,7 @@ static async Task<TransactionComparison.TransactionResult> RunFluentTransactionA
     
     // Clear existing items first
     ConsoleHelpers.ShowInfo("Clearing existing items...");
-    await table.DeleteAllItemsAsync();
+    await DeleteAllItemsAsync(table);
     
     ConsoleHelpers.ShowInfo("Executing transaction with 25 put operations...");
     Console.WriteLine();
@@ -115,8 +116,8 @@ static async Task<TransactionComparison.TransactionResult> RunFluentTransactionA
         Console.WriteLine($"  Execution Time: {result.ExecutionTime.TotalMilliseconds:F2} ms");
         Console.WriteLine($"  Approximate Lines of Code: ~{result.LineCount}");
         
-        // Verify items were written
-        var itemCount = await table.CountAllItemsAsync();
+        // Verify items were written using generated entity accessor
+        var itemCount = await CountAllItemsAsync(table);
         Console.WriteLine($"  Items Written: {itemCount}");
         
         if (itemCount == 25)
@@ -148,7 +149,7 @@ static async Task<TransactionComparison.TransactionResult> RunRawSdkTransactionA
     
     // Clear existing items first
     ConsoleHelpers.ShowInfo("Clearing existing items...");
-    await table.DeleteAllItemsAsync();
+    await DeleteAllItemsAsync(table);
     
     ConsoleHelpers.ShowInfo("Executing transaction with 25 put operations...");
     Console.WriteLine();
@@ -162,8 +163,8 @@ static async Task<TransactionComparison.TransactionResult> RunRawSdkTransactionA
         Console.WriteLine($"  Execution Time: {result.ExecutionTime.TotalMilliseconds:F2} ms");
         Console.WriteLine($"  Approximate Lines of Code: ~{result.LineCount}");
         
-        // Verify items were written
-        var itemCount = await table.CountAllItemsAsync();
+        // Verify items were written using generated entity accessor
+        var itemCount = await CountAllItemsAsync(table);
         Console.WriteLine($"  Items Written: {itemCount}");
         
         if (itemCount == 25)
@@ -289,7 +290,11 @@ static async Task ViewCurrentItemsAsync(TransactionDemoTable table)
 {
     ConsoleHelpers.ShowSection("Current Items in Table");
     
-    var accounts = await table.GetAllAccountsAsync();
+    // PREFERRED: Using the generated entity accessor Scan method
+    var allAccounts = await table.Accounts.Scan().ToListAsync();
+    
+    // Filter to only account profiles (not transaction records)
+    var accounts = allAccounts.Where(x => x.Sk == Account.ProfileSk).ToList();
     
     if (accounts.Count == 0)
     {
@@ -311,24 +316,32 @@ static async Task ViewCurrentItemsAsync(TransactionDemoTable table)
     var sampleAccount = accounts.FirstOrDefault();
     if (sampleAccount != null)
     {
-        var transactions = await table.GetAccountTransactionsAsync(sampleAccount.AccountId);
-        if (transactions.Count > 0)
+        var pk = Account.Keys.Pk(sampleAccount.AccountId);
+        
+        // PREFERRED: Using the generated entity accessor Query method with lambda expression
+        var transactions = await table.Transactions.Query(
+            x => x.Pk == pk && x.Sk.StartsWith(TransactionRecord.TxnSkPrefix))
+            .ToListAsync();
+        
+        var sortedTransactions = transactions.OrderByDescending(t => t.Timestamp).ToList();
+        
+        if (sortedTransactions.Count > 0)
         {
             ConsoleHelpers.DisplayTable(
-                transactions.Take(5),
+                sortedTransactions.Take(5),
                 ("Account", t => t.AccountId),
                 ("Type", t => t.Type),
                 ("Amount", t => t.Amount.ToString("C")),
                 ("Timestamp", t => t.Timestamp.ToString("HH:mm:ss.fff")));
             
-            if (transactions.Count > 5)
+            if (sortedTransactions.Count > 5)
             {
-                Console.WriteLine($"  ... and {transactions.Count - 5} more transactions");
+                Console.WriteLine($"  ... and {sortedTransactions.Count - 5} more transactions");
             }
         }
     }
     
-    var totalItems = await table.CountAllItemsAsync();
+    var totalItems = await CountAllItemsAsync(table);
     ConsoleHelpers.ShowInfo($"Total items in table: {totalItems}");
     
     ConsoleHelpers.WaitForKey();
@@ -341,7 +354,7 @@ static async Task ClearAllItemsAsync(TransactionDemoTable table)
 {
     ConsoleHelpers.ShowSection("Clear All Items");
     
-    var itemCount = await table.CountAllItemsAsync();
+    var itemCount = await CountAllItemsAsync(table);
     
     if (itemCount == 0)
     {
@@ -360,8 +373,39 @@ static async Task ClearAllItemsAsync(TransactionDemoTable table)
     }
     
     ConsoleHelpers.ShowInfo("Deleting all items...");
-    await table.DeleteAllItemsAsync();
+    await DeleteAllItemsAsync(table);
     ConsoleHelpers.ShowSuccess("All items deleted");
     
     ConsoleHelpers.WaitForKey();
+}
+
+/// <summary>
+/// Counts all items in the table (accounts and transactions).
+/// </summary>
+static async Task<int> CountAllItemsAsync(TransactionDemoTable table)
+{
+    // Use raw response to count ALL items regardless of entity type
+    var response = await table.Accounts.Scan().ToDynamoDbResponseAsync();
+    return response.Items?.Count ?? 0;
+}
+
+/// <summary>
+/// Deletes all items in the table.
+/// </summary>
+static async Task DeleteAllItemsAsync(TransactionDemoTable table)
+{
+    // Get all items
+    var response = await table.Accounts.Scan().ToDynamoDbResponseAsync();
+    
+    if (response.Items == null || response.Items.Count == 0)
+        return;
+
+    // Delete each item using the generated entity accessor
+    foreach (var item in response.Items)
+    {
+        var pk = item["pk"].S;
+        var sk = item["sk"].S;
+        
+        await table.Accounts.Delete(pk, sk).DeleteAsync();
+    }
 }
