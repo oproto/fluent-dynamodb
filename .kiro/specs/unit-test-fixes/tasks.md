@@ -36,33 +36,33 @@
   - Update migration tracking document
   - _Requirements: 5.1, 5.4_
 
-- [x] 3. Migrate AdvancedTypeGenerationTests.cs (High Priority)
-- [x] 3.1 Add compilation verification to all tests in AdvancedTypeGenerationTests.cs
+- [x] 3. Migrate ComplexTypeGenerationTests.cs (High Priority)
+- [x] 3.1 Add compilation verification to all tests in ComplexTypeGenerationTests.cs
   - Add `CompilationVerifier.AssertGeneratedCodeCompiles(code, source)` after diagnostic checks
   - Handle tests with multiple source files by passing additional sources
   - _Requirements: 2.1, 2.2, 2.4_
 
-- [x] 3.2 Replace structural assertions with semantic assertions in AdvancedTypeGenerationTests.cs
+- [x] 3.2 Replace structural assertions with semantic assertions in ComplexTypeGenerationTests.cs
   - Replace method existence checks with semantic assertions
   - Replace assignment checks with semantic assertions
   - Replace LINQ checks with semantic assertions
   - Replace type reference checks with semantic assertions
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [x] 3.3 Preserve DynamoDB-specific checks in AdvancedTypeGenerationTests.cs
+- [x] 3.3 Preserve DynamoDB-specific checks in ComplexTypeGenerationTests.cs
   - Keep string checks for collection type conversions (List, HashSet, Dictionary)
   - Keep string checks for DynamoDB attribute types
   - Keep string checks for null and empty collection handling
   - Add descriptive "because" messages
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [x] 3.4 Validate AdvancedTypeGenerationTests.cs migration
+- [x] 3.4 Validate ComplexTypeGenerationTests.cs migration
   - Run all tests to ensure they pass
   - Test with formatting changes
   - Test with intentional errors
   - _Requirements: 8.1, 8.2, 8.4_
 
-- [x] 3.5 Document AdvancedTypeGenerationTests.cs migration
+- [x] 3.5 Document ComplexTypeGenerationTests.cs migration
   - Add file header comment
   - Update migration tracking
   - _Requirements: 5.1, 5.4_
@@ -201,6 +201,6 @@
   - _Requirements: 5.4_
 
 - [x] 9.4 Clean up backup files
-  - Remove or archive any .bak files (e.g., AdvancedTypeGenerationTests.cs.bak)
+  - Remove or archive any .bak files (e.g., ComplexTypeGenerationTests.cs.bak)
   - Ensure no temporary migration files remain
   - _Requirements: 5.4_

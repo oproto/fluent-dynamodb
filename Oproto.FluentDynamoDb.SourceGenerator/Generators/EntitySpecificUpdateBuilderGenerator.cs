@@ -33,7 +33,8 @@ internal static class EntitySpecificUpdateBuilderGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
-        sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine();
         
         // Namespace

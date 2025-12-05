@@ -1,7 +1,5 @@
 using System.Diagnostics;
-using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 

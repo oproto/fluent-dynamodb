@@ -502,12 +502,12 @@ public class CircuitBreaker
 - Type conversion errors
 - Missing required attributes
 
-**Exception Type:** `Oproto.FluentDynamoDb.Storage.DynamoDbMappingException`
+**Exception Type:** `Oproto.FluentDynamoDb.Mapping.DynamoDbMappingException`
 
 **Example Scenarios:**
 
 ```csharp
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Mapping;
 
 try
 {

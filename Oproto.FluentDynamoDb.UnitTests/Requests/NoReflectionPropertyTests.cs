@@ -61,7 +61,7 @@ public class NoReflectionPropertyTests
     // - UpdateExpressionTranslator.cs: Now uses ICollectionFormatterRegistry instead of Activator.CreateInstance
     // - DynamoDbResponseExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
     // - MappingErrorHandler.cs: Removed unused ValidateRequiredProperties method that used GetProperty()
-    // - EnhancedExecuteAsyncExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
+    // - EntityExecuteAsyncExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
     // - ExpressionTranslator.cs: Now uses MemberExpression.Member directly (AOT-safe) and IGeospatialProvider
     //
     // ALL MAIN LIBRARY FILES ARE NOW AOT-SAFE!

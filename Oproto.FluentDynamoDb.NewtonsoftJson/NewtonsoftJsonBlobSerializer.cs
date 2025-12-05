@@ -1,5 +1,5 @@
 using Newtonsoft.Json;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.NewtonsoftJson;
 
@@ -126,6 +126,8 @@ public sealed class NewtonsoftJsonBlobSerializer : IJsonBlobSerializer
     /// <inheritdoc />
     /// <remarks>
     /// Serializes the value to a JSON string using the configured settings.
+    /// Note: Newtonsoft.Json uses reflection and is not AOT-compatible.
+    /// For AOT scenarios, use SystemTextJson with a JsonSerializerContext instead.
     /// </remarks>
     public string Serialize<T>(T value)
     {
@@ -136,6 +138,8 @@ public sealed class NewtonsoftJsonBlobSerializer : IJsonBlobSerializer
     /// <remarks>
     /// Deserializes the JSON string to an object of type <typeparamref name="T"/>.
     /// Returns <c>default</c> if the input is null or empty.
+    /// Note: Newtonsoft.Json uses reflection and is not AOT-compatible.
+    /// For AOT scenarios, use SystemTextJson with a JsonSerializerContext instead.
     /// </remarks>
     public T? Deserialize<T>(string json)
     {

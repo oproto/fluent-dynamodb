@@ -72,8 +72,7 @@ public static class QuerySamples
     /// </summary>
     public static async Task<List<OrderLine>> FluentLambdaQueryAsync(OrdersTable table, string orderId)
     {
-        return await table.OrderLines.Query()
-            .Where(x => x.Pk == OrderLine.Keys.Pk(orderId) && x.Sk.StartsWith("LINE#"))
+        return await table.OrderLines.Query(x => x.Pk == OrderLine.Keys.Pk(orderId) && x.Sk.StartsWith("LINE#"))
             .ToListAsync();
     }
 }

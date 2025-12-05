@@ -133,7 +133,7 @@ The goal of this project is to migrate brittle unit tests from string-based asse
    - High complexity
    - Estimated: 3-4 hours
 
-2. **AdvancedTypeGenerationTests.cs** (38 tests, 131 string assertions)
+2. **ComplexTypeGenerationTests.cs** (38 tests, 131 string assertions)
    - Advanced type handling
    - Very high complexity
    - Estimated: 8-10 hours
@@ -206,7 +206,7 @@ Refer to:
 
 1. ✅ Complete migration tracking infrastructure (Task 1)
 2. ✅ Migrated MapperGeneratorTests.cs (Task 2)
-3. ✅ Migrated AdvancedTypeGenerationTests.cs (Task 3)
+3. ✅ Migrated ComplexTypeGenerationTests.cs (Task 3)
 4. ✅ Migrated KeysGeneratorTests.cs (Task 4)
 5. ✅ Migrated Priority 2 files (Tasks 5-7)
 6. ✅ Reviewed Priority 3 files (Task 8)

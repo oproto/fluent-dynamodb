@@ -1,5 +1,7 @@
+using Oproto.FluentDynamoDb.Hydration;
 using Oproto.FluentDynamoDb.Logging;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb;
 

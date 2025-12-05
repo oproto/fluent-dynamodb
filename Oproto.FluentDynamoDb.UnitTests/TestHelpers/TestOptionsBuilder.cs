@@ -1,6 +1,7 @@
 using NSubstitute;
 using Oproto.FluentDynamoDb.Logging;
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.UnitTests.TestHelpers;
 

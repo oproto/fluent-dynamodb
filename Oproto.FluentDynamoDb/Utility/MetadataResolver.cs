@@ -1,4 +1,4 @@
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Metadata;
 
 namespace Oproto.FluentDynamoDb.Utility;
 

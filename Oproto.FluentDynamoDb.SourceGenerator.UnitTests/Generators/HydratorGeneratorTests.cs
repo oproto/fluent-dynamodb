@@ -189,7 +189,7 @@ public class HydratorGeneratorTests
                     PropertyName = "Content",
                     AttributeName = "content_ref",
                     PropertyType = "byte[]",
-                    AdvancedType = new AdvancedTypeInfo
+                    ComplexType = new ComplexTypeInfo
                     {
                         IsBlobReference = true
                     }
@@ -199,7 +199,7 @@ public class HydratorGeneratorTests
                     PropertyName = "Thumbnail",
                     AttributeName = "thumbnail_ref",
                     PropertyType = "byte[]",
-                    AdvancedType = new AdvancedTypeInfo
+                    ComplexType = new ComplexTypeInfo
                     {
                         IsBlobReference = true
                     }
@@ -275,7 +275,7 @@ public class HydratorGeneratorTests
                     PropertyName = "LargeData",
                     AttributeName = "large_data_ref",
                     PropertyType = "byte[]",
-                    AdvancedType = new AdvancedTypeInfo
+                    ComplexType = new ComplexTypeInfo
                     {
                         IsBlobReference = true
                     }

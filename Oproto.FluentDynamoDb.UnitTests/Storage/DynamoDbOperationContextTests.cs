@@ -1,7 +1,9 @@
 using Amazon.DynamoDBv2.Model;
 using AwesomeAssertions;
 
-using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.Context;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Metadata;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 

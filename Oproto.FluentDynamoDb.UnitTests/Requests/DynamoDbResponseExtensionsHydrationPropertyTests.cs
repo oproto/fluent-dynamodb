@@ -4,9 +4,11 @@ using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
 
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Hydration;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
-using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;

@@ -1,5 +1,5 @@
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.Expressions;
 

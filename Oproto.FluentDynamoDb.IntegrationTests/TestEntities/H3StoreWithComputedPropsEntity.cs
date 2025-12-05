@@ -1,7 +1,6 @@
 #if FALSE // TODO: Enable when source generator supports computed properties (see KNOWN_LIMITATIONS.md)
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 

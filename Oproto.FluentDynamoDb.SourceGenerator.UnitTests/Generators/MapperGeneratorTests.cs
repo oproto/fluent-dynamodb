@@ -814,7 +814,8 @@ public class MapperGeneratorTests
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("using Amazon.DynamoDBv2.Model;");
-            sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+            sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+            sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
             sb.AppendLine();
             sb.AppendLine($"namespace {entity.Namespace}");
             sb.AppendLine("{");

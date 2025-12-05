@@ -29,7 +29,7 @@ internal static class HydratorGenerator
     /// <returns>True if the entity has blob reference properties, false otherwise.</returns>
     public static bool RequiresHydrator(EntityModel entity)
     {
-        return entity.Properties.Any(p => p.AdvancedType?.IsBlobReference == true);
+        return entity.Properties.Any(p => p.ComplexType?.IsBlobReference == true);
     }
 
     /// <summary>
@@ -56,7 +56,9 @@ internal static class HydratorGenerator
         sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
         sb.AppendLine("using Oproto.FluentDynamoDb;");
-        sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Hydration;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.BlobStorage;");
         sb.AppendLine();
 
         // Namespace

@@ -46,7 +46,9 @@ internal static class StreamMapperGenerator
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using Amazon.Lambda.DynamoDBEvents;");
-        sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Context;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Mapping;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.Encryption;");
         
         // Add encryption support if needed
         var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);

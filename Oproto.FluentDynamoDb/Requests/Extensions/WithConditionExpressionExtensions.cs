@@ -1,9 +1,10 @@
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using Oproto.FluentDynamoDb.Attributes;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
-using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Utility;
 using Oproto.FluentDynamoDb.Requests;
 

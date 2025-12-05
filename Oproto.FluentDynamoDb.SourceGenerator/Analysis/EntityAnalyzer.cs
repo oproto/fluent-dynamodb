@@ -481,9 +481,9 @@ internal class EntityAnalyzer
         // Extract coordinate storage attributes
         ExtractCoordinateStorageAttributes(propertyDecl, semanticModel, propertyModel);
 
-        // Analyze advanced type information
-        var advancedTypeAnalyzer = new AdvancedTypeAnalyzer();
-        propertyModel.AdvancedType = advancedTypeAnalyzer.AnalyzeProperty(propertyModel, semanticModel);
+        // Analyze complex type information
+        var complexTypeAnalyzer = new ComplexTypeAnalyzer();
+        propertyModel.ComplexType = complexTypeAnalyzer.AnalyzeProperty(propertyModel, semanticModel);
 
         // Analyze security attributes
         var securityAnalyzer = new SecurityAttributeAnalyzer();
@@ -946,8 +946,8 @@ internal class EntityAnalyzer
         // Validate computed and extracted keys
         ValidateComputedAndExtractedKeys(entityModel);
 
-        // Validate advanced types (Map, Set, List, TTL, JsonBlob, BlobReference)
-        ValidateAdvancedTypes(entityModel);
+        // Validate complex types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        ValidateComplexTypes(entityModel);
 
         // Validate security attributes (Sensitive, Encrypted)
         ValidateSecurityAttributes(entityModel);
@@ -970,17 +970,17 @@ internal class EntityAnalyzer
         }
 
         // Validate property type support
-        // Skip validation for advanced types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        // Skip validation for complex types (Map, Set, List, TTL, JsonBlob, BlobReference)
         // as they are validated separately
-        var isAdvancedType = propertyModel.AdvancedType != null && (
-            propertyModel.AdvancedType.IsMap ||
-            propertyModel.AdvancedType.IsSet ||
-            propertyModel.AdvancedType.IsList ||
-            propertyModel.AdvancedType.IsTtl ||
-            propertyModel.AdvancedType.IsJsonBlob ||
-            propertyModel.AdvancedType.IsBlobReference);
+        var isComplexType = propertyModel.ComplexType != null && (
+            propertyModel.ComplexType.IsMap ||
+            propertyModel.ComplexType.IsSet ||
+            propertyModel.ComplexType.IsList ||
+            propertyModel.ComplexType.IsTtl ||
+            propertyModel.ComplexType.IsJsonBlob ||
+            propertyModel.ComplexType.IsBlobReference);
 
-        if (!isAdvancedType && !IsSupportedPropertyType(propertyModel.PropertyType))
+        if (!isComplexType && !IsSupportedPropertyType(propertyModel.PropertyType))
         {
             ReportDiagnostic(DiagnosticDescriptors.UnsupportedPropertyType,
                 propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
@@ -988,7 +988,7 @@ internal class EntityAnalyzer
         }
 
         // Validate nested map types have [DynamoDbEntity] for AOT compatibility
-        if (propertyModel.AdvancedType?.IsMap == true)
+        if (propertyModel.ComplexType?.IsMap == true)
         {
             ValidateNestedMapType(propertyModel, semanticModel);
         }
@@ -1895,9 +1895,9 @@ internal class EntityAnalyzer
         }
     }
 
-    private void ValidateAdvancedTypes(EntityModel entityModel)
+    private void ValidateComplexTypes(EntityModel entityModel)
     {
-        var validator = new AdvancedTypeValidator();
+        var validator = new ComplexTypeValidator();
 
         // Check for package references using semantic model
         var compilation = entityModel.SemanticModel?.Compilation;
@@ -1910,14 +1910,14 @@ internal class EntityAnalyzer
             hasBlobProviderPackage = HasBlobProviderPackage(compilation);
         }
 
-        // Validate each property with advanced types
+        // Validate each property with complex types
         foreach (var property in entityModel.Properties)
         {
-            if (property.AdvancedType?.HasAdvancedType == true)
+            if (property.ComplexType?.HasComplexType == true)
             {
                 validator.ValidateProperty(
                     property,
-                    property.AdvancedType,
+                    property.ComplexType,
                     hasJsonSerializerPackage,
                     hasBlobProviderPackage,
                     entityModel.SemanticModel!);

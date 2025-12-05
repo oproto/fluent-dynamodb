@@ -98,14 +98,14 @@
 - [x] Update all other generators that reference `IDynamoDbLogger` parameter
   - [x] `HydratorGenerator.cs` - updated to pass `options: null` instead of `logger: null`
   - [x] `TableGenerator.cs` - already uses `FluentDynamoDbOptions`
-  - [x] `AdvancedTypeAnalyzer.cs` - removed compile-time JSON serializer detection
+  - [x] `ComplexTypeAnalyzer.cs` - removed compile-time JSON serializer detection
   - [x] `JsonSerializerContextGenerator.cs` - updated to check package reference directly
   - _Requirements: 5.3_
 
 ## Task 6: Update Request Builders and Extensions
 - [x] 6 Update all callers of `ToDynamoDb`/`FromDynamoDb` in request builders
   - [x] 6.1 `PutItemRequestBuilder.cs` - pass options instead of logger
-  - [x] 6.2 `EnhancedExecuteAsyncExtensions.cs` - pass options instead of logger
+  - [x] 6.2 `EntityExecuteAsyncExtensions.cs` - pass options instead of logger
   - [x] 6.3 Any other files calling these methods
   - _Requirements: 5.3_
 
@@ -134,7 +134,7 @@
   - _Requirements: 8.2_
 
 - [x] Update `Oproto.FluentDynamoDb.SourceGenerator.UnitTests`
-  - [x] Update `AdvancedTypeGenerationTests.cs` - remove assembly attribute tests
+  - [x] Update `ComplexTypeGenerationTests.cs` - remove assembly attribute tests
   - [x] Add tests for new generated code pattern
   - [x] Add tests for diagnostic warning
   - _Requirements: 8.1_

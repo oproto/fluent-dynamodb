@@ -55,7 +55,7 @@ public class ReflectionReductionPropertyTests
     private static readonly string[] FilesPendingMigration = new[]
     {
         "EntityAnalyzerTests.cs",
-        "AdvancedTypeGenerationTests.cs",
+        "ComplexTypeGenerationTests.cs",
         "TableClassGenerationTests.cs",
         "EntityAccessorClassGenerationTests.cs",
         "EntityGroupingTests.cs",

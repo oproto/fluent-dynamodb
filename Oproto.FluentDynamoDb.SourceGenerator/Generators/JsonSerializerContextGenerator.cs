@@ -22,7 +22,7 @@ internal static class JsonSerializerContextGenerator
     {
         // Get all properties with JsonBlob attribute
         var jsonBlobProperties = entity.Properties
-            .Where(p => p.AdvancedType?.IsJsonBlob == true)
+            .Where(p => p.ComplexType?.IsJsonBlob == true)
             .ToArray();
 
         if (jsonBlobProperties.Length == 0)

@@ -129,7 +129,7 @@ public static class DynamicCompilationHelper
         
         // FluentDynamoDb library references
         references.Add(CreateReferenceFromType(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute)));
-        references.Add(CreateReferenceFromType(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity)));
+        references.Add(CreateReferenceFromType(typeof(Oproto.FluentDynamoDb.Entities.IDynamoDbEntity)));
 
         return references;
     }
