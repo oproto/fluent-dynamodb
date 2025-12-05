@@ -5,14 +5,14 @@ This directory contains all CI/CD workflows and configuration documentation for 
 ## 📋 Quick Start
 
 **New to the CI/CD setup?** Start here:
-1. Read [README.md](./README.md) for an overview
+1. Read [WORKFLOWS.md](./WORKFLOWS.md) for an overview
 2. Review [SETUP_COMPLETION_CHECKLIST.md](./SETUP_COMPLETION_CHECKLIST.md) to see what's done
 3. Follow [BRANCH_PROTECTION_SETUP.md](./BRANCH_PROTECTION_SETUP.md) to complete manual setup
 
 ## 📚 Documentation Files
 
 ### Overview and Status
-- **[README.md](./README.md)** - Overview of all workflows and configuration
+- **[WORKFLOWS.md](./WORKFLOWS.md)** - Overview of all workflows and configuration
 - **[SETUP_COMPLETION_CHECKLIST.md](./SETUP_COMPLETION_CHECKLIST.md)** - Track setup progress and completion
 
 ### Manual Setup Required

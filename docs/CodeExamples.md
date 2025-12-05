@@ -24,6 +24,7 @@ This document provides comprehensive real-world code examples using the recommen
 - [Multi-Tenant SaaS Application](#multi-tenant-saas-application)
 - [Time-Series Metrics System](#time-series-metrics-system)
 - [Content Management System](#content-management-system)
+- [Repository Pattern with Table Class](#repository-pattern-with-table-class)
 
 ## E-commerce Order System
 
@@ -176,10 +177,10 @@ public class EcommerceService
 
     public async Task<Customer?> GetCustomerByEmailAsync(string email)
     {
-        var customers = await _table.Query()
-            .FromIndex("EmailIndex")
-            .Where($"{CustomerFields.EmailIndex.EmailGsi} = {{0}}", email)
-            .ToListAsync<Customer>();
+        var customers = await _table.Query<Customer>()
+            .UsingIndex("EmailIndex")
+            .Where($"{Customer.Fields.Email} = {{0}}", email)
+            .ToListAsync();
 
         return customers.FirstOrDefault();
     }
@@ -218,12 +219,12 @@ public class EcommerceService
 
     public async Task<List<Order>> GetCustomerOrdersAsync(string customerId, int limit = 50)
     {
-        return await _table.Query()
-            .FromIndex("CustomerOrderIndex")
-            .Where($"{OrderFields.CustomerOrderIndex.CustomerGsi} = {{0}}", $"CUSTOMER#{customerId}")
-            .WithScanIndexForward(false) // Most recent first
-            .WithLimit(limit)
-            .ToListAsync<Order>();
+        return await _table.Query<Order>()
+            .UsingIndex("CustomerOrderIndex")
+            .Where($"{Order.Fields.CustomerId} = {{0}}", $"CUSTOMER#{customerId}")
+            .OrderDescending() // Most recent first
+            .Take(limit)
+            .ToListAsync();
     }
 
     public async Task<Order> AddPaymentAsync(string orderId, Payment payment)
@@ -426,10 +427,10 @@ public class TenantResourceService
             throw new UnauthorizedAccessException("System admin role required");
         }
 
-        return await _table.Query()
-            .FromIndex("ResourceTypeIndex")
-            .Where($"{TenantResourceFields.ResourceTypeIndex.ResourceTypeGsi} = {{0}}", resourceType)
-            .WithScanIndexForward(false)
+        return await _table.Query<TenantResource>()
+            .UsingIndex("ResourceTypeIndex")
+            .Where($"{TenantResource.Fields.ResourceType} = {{0}}", resourceType)
+            .OrderDescending()
             .ToListAsync<TenantResource>();
     }
 }
@@ -529,11 +530,11 @@ public class MetricsService
         string metricName,
         int count = 100)
     {
-        return await _table.Query()
-            .Where($"{MetricDataFields.Pk} = {{0}}", MetricDataKeys.Pk(serviceName, metricName))
-            .WithScanIndexForward(false) // Descending order
-            .WithLimit(count)
-            .ToListAsync<MetricData>();
+        return await _table.Query<MetricData>()
+            .Where($"{MetricData.Fields.Pk} = {{0}}", MetricData.Keys.Pk(serviceName, metricName))
+            .OrderDescending() // Descending order
+            .Take(count)
+            .ToListAsync();
     }
 
     public async Task<Dictionary<string, double>> GetAverageMetricsByInstanceAsync(
@@ -724,10 +725,10 @@ public class ArticleService
 
     public async Task<List<Article>> GetAuthorArticlesAsync(string authorId)
     {
-        return await _table.Query()
-            .FromIndex("AuthorIndex")
-            .Where($"{ArticleFields.AuthorIndex.AuthorGsi} = {{0}}", $"AUTHOR#{authorId}")
-            .WithScanIndexForward(false)
+        return await _table.Query<Article>()
+            .UsingIndex("AuthorIndex")
+            .Where($"{Article.Fields.AuthorId} = {{0}}", $"AUTHOR#{authorId}")
+            .OrderDescending()
             .ToListAsync<Article>();
     }
 
@@ -820,6 +821,288 @@ public class ArticleService
     }
 }
 ```
+
+## Repository Pattern with Table Class
+
+Instead of using a separate service class that wraps a table, you can use the table class itself as a repository. This pattern provides better encapsulation and a cleaner API by hiding the raw DynamoDB operations and exposing only domain-specific methods.
+
+### Benefits
+
+1. **Controlled Access**: Hide generated DynamoDB operations, preventing direct table manipulation
+2. **Self-Documenting API**: Custom methods clearly express what operations are available
+3. **Business Logic Encapsulation**: Validation and business rules live with the data access
+4. **Single Responsibility**: The table class becomes the single source of truth for data access
+
+### How It Works
+
+1. Use `[GenerateAccessors]` attribute to make generated operations `private`, `internal`, or `protected`
+2. Create a partial class implementation of your table class
+3. Add custom public methods that wrap the hidden generated operations
+
+### Service Architecture (Before)
+
+The traditional approach uses a separate service class:
+
+```csharp
+// Entity definition
+[DynamoDbEntity("users")]
+public partial class User
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("email")]
+    public string Email { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+}
+
+// Table definition - all operations are public by default
+[DynamoDbTable("users")]
+public partial class UsersTable : DynamoDbTableBase
+{
+    public UsersTable(IAmazonDynamoDB client) : base(client, "users") { }
+}
+
+// Separate service class wraps the table
+public class UserService
+{
+    private readonly UsersTable _table;
+
+    public UserService(UsersTable table)
+    {
+        _table = table;
+    }
+
+    public async Task<User?> GetUserAsync(string userId)
+    {
+        return await _table.Users.GetAsync(userId);
+    }
+
+    public async Task CreateUserAsync(User user)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email))
+            throw new ArgumentException("Email is required");
+
+        user.Status = "active";
+        await _table.Users.PutAsync(user);
+    }
+
+    public async Task DeactivateUserAsync(string userId)
+    {
+        await _table.Users.Update(userId)
+            .Set(x => new { Status = "inactive" })
+            .ExecuteAsync();
+    }
+}
+
+// Usage - consumers can bypass the service and access table directly!
+var service = new UserService(table);
+await service.CreateUserAsync(user);
+
+// Problem: Nothing prevents this direct access
+await table.Users.DeleteAsync(userId); // Bypasses business logic!
+```
+
+### Repository Pattern (After)
+
+The table class becomes the repository with controlled access:
+
+```csharp
+// Entity definition - same as before
+[DynamoDbEntity("users")]
+public partial class User
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("email")]
+    public string Email { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+}
+
+// Table definition - hide all generated operations
+[DynamoDbTable("users")]
+[GenerateAccessors(Operations = TableOperation.All, Modifier = AccessModifier.Private)]
+public partial class UsersTable : DynamoDbTableBase
+{
+    public UsersTable(IAmazonDynamoDB client) : base(client, "users") { }
+}
+
+// Partial class adds custom public methods
+public partial class UsersTable
+{
+    /// <summary>
+    /// Gets a user by their unique identifier.
+    /// </summary>
+    public async Task<User?> GetUserAsync(string userId)
+    {
+        return await Users.GetAsync(userId);
+    }
+
+    /// <summary>
+    /// Gets all active users.
+    /// </summary>
+    public async Task<List<User>> GetActiveUsersAsync()
+    {
+        return await Users.Query()
+            .Where(x => x.Status == "active")
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a new user with validation.
+    /// </summary>
+    public async Task CreateUserAsync(User user)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email))
+            throw new ArgumentException("Email is required", nameof(user));
+
+        if (string.IsNullOrWhiteSpace(user.Name))
+            throw new ArgumentException("Name is required", nameof(user));
+
+        user.Status = "active";
+        await Users.PutAsync(user);
+    }
+
+    /// <summary>
+    /// Deactivates a user (soft delete).
+    /// </summary>
+    public async Task DeactivateUserAsync(string userId)
+    {
+        await Users.Update(userId)
+            .Set(x => new { Status = "inactive" })
+            .ExecuteAsync();
+    }
+
+    /// <summary>
+    /// Updates a user's profile information.
+    /// </summary>
+    public async Task UpdateProfileAsync(string userId, string name, string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            throw new ArgumentException("Email is required", nameof(email));
+
+        await Users.Update(userId)
+            .Set(x => new { Name = name, Email = email })
+            .ExecuteAsync();
+    }
+
+    // Note: No DeleteAsync exposed - users can only be deactivated, not deleted
+}
+
+// Usage - clean, self-documenting API
+var table = new UsersTable(dynamoDbClient);
+
+await table.CreateUserAsync(user);
+var user = await table.GetUserAsync(userId);
+await table.DeactivateUserAsync(userId);
+
+// This won't compile - Users accessor is private!
+// await table.Users.DeleteAsync(userId); // Compile error!
+```
+
+### Mixed Visibility Pattern
+
+For more flexibility, you can make read operations public while hiding write operations:
+
+```csharp
+[DynamoDbTable("orders")]
+// Read operations are public
+[GenerateAccessors(
+    Operations = TableOperation.Get | TableOperation.Query | TableOperation.Scan,
+    Modifier = AccessModifier.Public)]
+// Write operations are internal
+[GenerateAccessors(
+    Operations = TableOperation.Put | TableOperation.Update | TableOperation.Delete,
+    Modifier = AccessModifier.Internal)]
+public partial class OrdersTable : DynamoDbTableBase
+{
+    public OrdersTable(IAmazonDynamoDB client) : base(client, "orders") { }
+}
+
+public partial class OrdersTable
+{
+    /// <summary>
+    /// Creates a new order with validation and business rules.
+    /// </summary>
+    public async Task<Order> CreateOrderAsync(Order order)
+    {
+        // Validate order
+        if (order.Items == null || order.Items.Count == 0)
+            throw new ArgumentException("Order must have at least one item");
+
+        // Apply business rules
+        order.Status = "pending";
+        order.CreatedAt = DateTime.UtcNow;
+        order.TotalAmount = order.Items.Sum(i => i.Quantity * i.UnitPrice);
+
+        // Use internal Put operation
+        await Orders.PutAsync(order);
+        return order;
+    }
+
+    /// <summary>
+    /// Cancels an order if it hasn't been shipped.
+    /// </summary>
+    public async Task CancelOrderAsync(string orderId)
+    {
+        var order = await Orders.GetAsync(orderId);
+        if (order == null)
+            throw new InvalidOperationException("Order not found");
+
+        if (order.Status == "shipped")
+            throw new InvalidOperationException("Cannot cancel shipped orders");
+
+        await Orders.Update(orderId)
+            .Set(x => new { Status = "cancelled" })
+            .ExecuteAsync();
+    }
+}
+
+// Usage
+var table = new OrdersTable(dynamoDbClient);
+
+// Read operations work directly
+var order = await table.Orders.GetAsync(orderId);
+var orders = await table.Orders.Query()
+    .Where(x => x.CustomerId == customerId)
+    .ToListAsync();
+
+// Write operations go through custom methods
+await table.CreateOrderAsync(newOrder);
+await table.CancelOrderAsync(orderId);
+
+// Direct write access is blocked
+// await table.Orders.DeleteAsync(orderId); // Compile error - internal!
+```
+
+### When to Use Each Pattern
+
+| Pattern | Use When |
+|---------|----------|
+| **Service Architecture** | Multiple services need different views of the same data, or you need to compose operations across multiple tables |
+| **Repository Pattern** | Single table with clear domain boundaries, want to enforce business rules at data access layer |
+| **Mixed Visibility** | Need direct read access for queries but want controlled write operations |
+
+### Best Practices
+
+1. **Document your methods**: Add XML documentation to custom methods explaining their purpose and constraints
+2. **Use meaningful names**: `DeactivateUserAsync` is clearer than `SoftDeleteAsync`
+3. **Validate early**: Check inputs at the start of methods before any DynamoDB operations
+4. **Be consistent**: If you hide operations, hide them consistently across all entities
+5. **Consider testing**: Internal operations can still be tested using `InternalsVisibleTo`
 
 ## See Also
 

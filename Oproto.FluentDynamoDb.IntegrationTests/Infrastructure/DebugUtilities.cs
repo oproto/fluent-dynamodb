@@ -339,7 +339,7 @@ public static class DebugUtilities
         }
         
         // Null (NULL)
-        if (value.NULL)
+        if (value.NULL == true)
         {
             return "NULL: true";
         }

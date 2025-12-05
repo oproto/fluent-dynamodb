@@ -4,14 +4,23 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>0.5.0</Version>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IsPackable>true</IsPackable>
         <StripSymbols>false</StripSymbols>
         <LangVersion>12.0</LangVersion>
+    </PropertyGroup>
+
+    <!-- Make internal types visible to test projects and extension packages -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.UnitTests" />
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.IntegrationTests" />
+        <InternalsVisibleTo Include="Oproto.FluentDynamoDb.Geospatial" />
+    </ItemGroup>
+
+    <PropertyGroup>
         
         <!-- Package metadata -->
         <PackageId>Oproto.FluentDynamoDb</PackageId>
@@ -19,7 +28,7 @@
         <Description>A fluent-style API wrapper for Amazon DynamoDB with source generator support for automatic entity mapping, field constants, and key builders. Provides type-safe, AOT-compatible DynamoDB operations with minimal boilerplate code.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;fluent;aot;source-generator;entity-mapping</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -29,7 +38,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Amazon.Lambda.DynamoDBEvents" Version="[3.1.1,4.0.0)" />
       <PackageReference Include="AWSSDK.DynamoDBv2" Version="[4.0.0,5.0.0)" />
     </ItemGroup>
 
@@ -39,7 +47,7 @@
 
     <!-- Include README in package -->
     <ItemGroup>
-        <None Include="..\README.md" Pack="true" PackagePath="\" />
+        <None Include="README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
     <!-- Include source generator as analyzer for development -->

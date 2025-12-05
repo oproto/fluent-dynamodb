@@ -212,12 +212,39 @@ entity.ExpiresAt = DateTime.UtcNow.AddHours(1);
 ### JSON Blob
 
 ```csharp
-// Configure at assembly level
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+// 1. Define entity with [JsonBlob] property
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Id { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("content")]
+    [JsonBlob]
+    public ComplexObject Content { get; set; } = new();
+}
 
-[DynamoDbAttribute("content")]
-[JsonBlob]
-public ComplexObject Content { get; set; }
+// 2. Configure FluentDynamoDbOptions with JSON serializer
+using Oproto.FluentDynamoDb.SystemTextJson; // or NewtonsoftJson
+
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();  // or .WithNewtonsoftJson()
+
+// 3. Create table with options
+var table = new DocumentTable(dynamoDbClient, "documents", options);
+
+// Custom serializer options
+var jsonOptions = new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+};
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(jsonOptions);
+
+// AOT-compatible with JsonSerializerContext
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(MyJsonContext.Default);
 ```
 
 **Details:** [Advanced Types - JSON Blobs](advanced-topics/AdvancedTypes.md#json-blob-serialization)
@@ -326,27 +353,63 @@ if (response.IsSuccess)
 ### Update
 
 ```csharp
-// SET expression
+// Expression-based (type-safe, recommended)
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Name = "New Name",
+        UpdatedAt = DateTime.UtcNow,
+        ViewCount = x.ViewCount.Add(1)
+    })
+    .ExecuteAsync();
+
+// Advanced features: nullable types, arithmetic, format strings
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        // Nullable property support
+        Tags = x.Tags.Add("premium"),  // Works with HashSet<string>?
+        
+        // Arithmetic operations
+        Score = x.Score + 10,  // Intuitive syntax
+        TotalScore = x.BaseScore + x.BonusScore,  // Property-to-property
+        
+        // Format strings applied automatically
+        CreatedDate = DateTime.Now,  // Formatted per metadata
+        
+        // DynamoDB functions
+        ViewCount = x.ViewCount.IfNotExists(0),
+        History = x.History.ListAppend("event"),
+        
+        // REMOVE and DELETE
+        TempData = x.TempData.Remove(),
+        OldTags = x.OldTags.Delete("old-tag")
+    })
+    .ExecuteAsync();
+
+// String-based SET expression
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"SET {EntityFields.Name} = {{0}}, {EntityFields.UpdatedAt} = {{1:o}}", 
          "New Name", DateTime.UtcNow)
     .ExecuteAsync();
 
-// ADD expression (increment)
+// String-based ADD expression (increment)
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"ADD {EntityFields.ViewCount} {{0}}", 1)
     .ExecuteAsync();
 
-// REMOVE expression
+// String-based REMOVE expression
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"REMOVE {EntityFields.TempField}")
     .ExecuteAsync();
 ```
 
-**Details:** [Basic Operations](core-features/BasicOperations.md#update-operations)
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md) | [Basic Operations](core-features/BasicOperations.md#update-operations)
 
 ### Delete
 
@@ -474,7 +537,7 @@ if (response.LastEvaluatedKey != null)
 
 ```csharp
 var response = await table.Query()
-    .WithIndex(EntityIndexes.IndexName)
+    .UsingIndex(EntityIndexes.IndexName)
     .Where($"{EntityFields.GsiPartitionKey} = {{0}}", "value")
     .ExecuteAsync<Entity>();
 ```
@@ -490,6 +553,133 @@ var response = await table.Scan()
 ```
 
 **Details:** [Querying Data](core-features/QueryingData.md#scan-operations)
+
+---
+
+## Expression-Based Updates
+
+### SET Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Name = "John Doe",
+        Email = "john@example.com",
+        Status = "active"
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#set-operations)
+
+### ADD Operations (Atomic Increment)
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        LoginCount = x.LoginCount.Add(1),
+        Credits = x.Credits.Add(-10)  // Decrement
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#add-operations)
+
+### REMOVE Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        TempData = x.TempData.Remove()
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#remove-operations)
+
+### DELETE Operations (Remove Set Elements)
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Tags = x.Tags.Delete("old-tag", "deprecated")
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#delete-operations)
+
+### DynamoDB Functions
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        // if_not_exists
+        ViewCount = x.ViewCount.IfNotExists(0),
+        
+        // list_append
+        History = x.History.ListAppend("new-event"),
+        
+        // list_prepend
+        RecentActivity = x.RecentActivity.ListPrepend("latest-event")
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#dynamodb-functions)
+
+### Arithmetic Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        Score = x.Score + 10,
+        Balance = x.Balance - 5.00m
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#arithmetic-operations)
+
+### Combined Operations
+
+```csharp
+await table.Update()
+    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+    .Set(x => new EntityUpdateModel 
+    {
+        // SET
+        Name = "John Doe",
+        Status = "active",
+        
+        // ADD
+        LoginCount = x.LoginCount.Add(1),
+        
+        // Arithmetic
+        Score = x.Score + 10,
+        
+        // Functions
+        ViewCount = x.ViewCount.IfNotExists(0),
+        
+        // REMOVE
+        TempData = x.TempData.Remove()
+    })
+    .ExecuteAsync();
+```
+
+**Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#combined-operations)
 
 ---
 
@@ -679,7 +869,7 @@ public DateTime CreatedAt { get; set; }
 
 ```csharp
 var response = await table.Query()
-    .WithIndex(EntityIndexes.StatusIndex)
+    .UsingIndex(EntityIndexes.StatusIndex)
     .Where($"{EntityFields.Status} = {{0}}", "active")
     .ExecuteAsync<Entity>();
 ```
@@ -860,7 +1050,7 @@ await batchBuilder.ExecuteAsync();
 // ❌ Avoid - multiple individual requests
 foreach (var entity in entities)
 {
-    await table.Put().WithItem(entity).ExecuteAsync();
+    await table.Put().WithItem(entity).PutAsync();
 }
 ```
 

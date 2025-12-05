@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        
+        <!-- Suppress AOT/trimming warnings - test code doesn't run in AOT mode -->
+        <!-- Suppress nullable warnings in test code - test assertions handle null checks -->
+        <NoWarn>$(NoWarn);IL2026;IL2060;IL2070;IL2072;IL2075;IL2090;IL3000;IL3050;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8629;CS1998;CS0219;xUnit1026;xUnit1031</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
+        <PackageReference Include="FsCheck" Version="2.16.6" />
+        <PackageReference Include="FsCheck.Xunit" Version="2.16.6" />
+        <PackageReference Include="H3Lib" Version="3.7.2" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
+        <PackageReference Include="NSubstitute" Version="5.3.0" />
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector" Version="6.0.4">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
+        <!-- S2Geometry NuGet package for cross-validation tests -->
+        <PackageReference Include="S2Geometry" Version="1.0.3" />
+    </ItemGroup>
+
+</Project>

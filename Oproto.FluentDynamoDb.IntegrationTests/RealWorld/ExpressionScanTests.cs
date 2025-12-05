@@ -16,7 +16,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Trait("Feature", "ExpressionSupport")]
 public class ExpressionScanTests : IntegrationTestBase
 {
-    private DynamoDbTableBase _table = null!;
+    private TestTable _table = null!;
     
     public ExpressionScanTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
@@ -118,8 +118,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with filter on IsActive
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.IsActive == true, metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -136,8 +136,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with filter on Type
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Type == "electronics", metadata)
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Type == "electronics", metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -158,8 +158,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with equality filter
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Name == "Laptop", metadata)
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Name == "Laptop", metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -176,8 +176,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with inequality filter
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Type != "electronics", metadata)
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Type != "electronics", metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -194,8 +194,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with AND operator
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => x.Type == "electronics" && x.IsActive == true, 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -218,8 +218,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with OR operator
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => x.Type == "electronics" || x.Type == "furniture", 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -241,8 +241,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with NOT operator
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => !(x.IsActive == false), metadata)
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => !(x.IsActive == false), metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -263,8 +263,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with StartsWith function
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Name!.StartsWith("L"), metadata)
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Name!.StartsWith("L"), metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -281,8 +281,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with Contains function
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.Description!.Contains("laptop"), metadata)
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Description!.Contains("laptop"), metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -301,8 +301,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var highValue = "f";
         
         // Act - Scan with Between function
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => x.Type!.Between(lowValue, highValue), 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -314,8 +314,8 @@ public class ExpressionScanTests : IntegrationTestBase
         entities.Should().AllSatisfy(e => 
         {
             e.Type.Should().NotBeNull();
-            e.Type.Should().BeGreaterOrEqualTo(lowValue);
-            e.Type.Should().BeLessOrEqualTo(highValue);
+            e.Type!.CompareTo(lowValue).Should().BeGreaterThanOrEqualTo(0);
+            e.Type!.CompareTo(highValue).Should().BeLessThanOrEqualTo(0);
         });
     }
     
@@ -330,8 +330,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with complex filter
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => x.Type == "electronics" && x.IsActive == true && x.Name!.StartsWith("L"), 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -352,8 +352,8 @@ public class ExpressionScanTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Scan with nested logical operators
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => (x.Type == "electronics" || x.Type == "accessories") && x.IsActive == true, 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -371,25 +371,6 @@ public class ExpressionScanTests : IntegrationTestBase
     
     #endregion
     
-    #region Scan without Metadata
-    
-    [Fact]
-    public async Task Scan_WithoutMetadata_WorksWithoutValidation()
-    {
-        // Act - Scan without metadata (validation skipped)
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(x => x.IsActive == true)
-            .ToDynamoDbResponseAsync();
-        
-        // Assert
-        response.Items.Should().HaveCountGreaterThan(0);
-        
-        var entities = response.Items.Select(item => ComplexEntity.FromDynamoDb<ComplexEntity>(item)).ToList();
-        entities.Should().AllSatisfy(e => e.IsActive.Should().BeTrue());
-    }
-    
-    #endregion
-    
     // Helper class to create a table instance for scan operations
     private class TestTable : DynamoDbTableBase
     {
@@ -398,7 +379,10 @@ public class ExpressionScanTests : IntegrationTestBase
         {
         }
         
-        public ScanRequestBuilder Scan() => 
-            new ScanRequestBuilder(DynamoDbClient).ForTable(Name);
+        public ScanRequestBuilder<ComplexEntity> Scan() => 
+            new ScanRequestBuilder<ComplexEntity>(DynamoDbClient).ForTable(Name);
+        
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+            new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
     }
 }

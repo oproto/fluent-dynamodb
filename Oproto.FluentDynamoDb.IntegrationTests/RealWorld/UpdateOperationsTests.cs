@@ -48,15 +48,25 @@ public class UpdateOperationsTests : IntegrationTestBase
             NS = newCategoryIds.Select(x => x.ToString()).ToList()
         };
         
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-1")
             .WithKey("sk", "product")
             .Set("SET category_ids = :categoryIds")
-            .WithValue(":categoryIds", categoryIdsAttributeValue)
+            .WithValues(attrs => attrs.Add(":categoryIds", categoryIdsAttributeValue))
             .UpdateAsync();
         
-        // Assert - Verify the update
-        var loaded = await SaveAndLoadAsync(entity);
+        // Assert - Verify the update by loading the entity from DynamoDB
+        var getResponse = await DynamoDb.GetItemAsync(new GetItemRequest
+        {
+            TableName = TableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = "update-test-1" },
+                ["sk"] = new AttributeValue { S = "product" }
+            }
+        });
+        
+        var loaded = ComplexEntity.FromDynamoDb<ComplexEntity>(getResponse.Item);
         loaded.CategoryIds.Should().NotBeNull();
         loaded.CategoryIds.Should().BeEquivalentTo(newCategoryIds);
     }
@@ -83,11 +93,11 @@ public class UpdateOperationsTests : IntegrationTestBase
             SS = newTags.ToList()
         };
         
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-2")
             .WithKey("sk", "product")
             .Set("SET tags = :tags")
-            .WithValue(":tags", tagsAttributeValue)
+            .WithValues(attrs => attrs.Add(":tags", tagsAttributeValue))
             .UpdateAsync();
         
         // Assert - Verify the update
@@ -128,11 +138,11 @@ public class UpdateOperationsTests : IntegrationTestBase
             L = newItemIds.Select(id => new AttributeValue { S = id }).ToList()
         };
         
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-3")
             .WithKey("sk", "product")
             .Set("SET item_ids = :itemIds")
-            .WithValue(":itemIds", itemIdsAttributeValue)
+            .WithValues(attrs => attrs.Add(":itemIds", itemIdsAttributeValue))
             .UpdateAsync();
         
         // Assert - Verify the update
@@ -173,11 +183,11 @@ public class UpdateOperationsTests : IntegrationTestBase
             L = newPrices.Select(price => new AttributeValue { N = price.ToString() }).ToList()
         };
         
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-4")
             .WithKey("sk", "product")
             .Set("SET prices = :prices")
-            .WithValue(":prices", pricesAttributeValue)
+            .WithValues(attrs => attrs.Add(":prices", pricesAttributeValue))
             .UpdateAsync();
         
         // Assert - Verify the update
@@ -230,11 +240,11 @@ public class UpdateOperationsTests : IntegrationTestBase
                 kvp => new AttributeValue { S = kvp.Value })
         };
         
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-5")
             .WithKey("sk", "product")
             .Set("SET metadata = :metadata")
-            .WithValue(":metadata", metadataAttributeValue)
+            .WithValues(values => values[":metadata"] = metadataAttributeValue)
             .UpdateAsync();
         
         // Assert - Verify the update
@@ -277,16 +287,19 @@ public class UpdateOperationsTests : IntegrationTestBase
         var newItemIds = new List<string> { "item-100", "item-200" };
         var newMetadata = new Dictionary<string, string> { ["new"] = "updated-value" };
         
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-6")
             .WithKey("sk", "product")
             .Set("SET category_ids = :categoryIds, tags = :tags, item_ids = :itemIds, metadata = :metadata")
-            .WithValue(":categoryIds", new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
-            .WithValue(":tags", new AttributeValue { SS = newTags.ToList() })
-            .WithValue(":itemIds", new AttributeValue { L = newItemIds.Select(id => new AttributeValue { S = id }).ToList() })
-            .WithValue(":metadata", new AttributeValue 
-            { 
-                M = newMetadata.ToDictionary(kvp => kvp.Key, kvp => new AttributeValue { S = kvp.Value }) 
+            .WithValues(values =>
+            {
+                values[":categoryIds"] = new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() };
+                values[":tags"] = new AttributeValue { SS = newTags.ToList() };
+                values[":itemIds"] = new AttributeValue { L = newItemIds.Select(id => new AttributeValue { S = id }).ToList() };
+                values[":metadata"] = new AttributeValue 
+                { 
+                    M = newMetadata.ToDictionary(kvp => kvp.Key, kvp => new AttributeValue { S = kvp.Value }) 
+                };
             })
             .UpdateAsync();
         
@@ -333,10 +346,10 @@ public class UpdateOperationsTests : IntegrationTestBase
         await DynamoDb.PutItemAsync(TableName, item);
         
         // Act - Remove collection properties
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-7")
             .WithKey("sk", "product")
-            .Remove("REMOVE category_ids, tags")
+            .Set("REMOVE category_ids, tags")
             .UpdateAsync();
         
         // Assert - Verify properties were removed
@@ -373,12 +386,12 @@ public class UpdateOperationsTests : IntegrationTestBase
         // Act - Conditional update (only if category_ids exists)
         var newCategoryIds = new HashSet<int> { 10, 20 };
         
-        await _table.Update
+        await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-8")
             .WithKey("sk", "product")
             .Set("SET category_ids = :categoryIds")
             .Where("attribute_exists(category_ids)")
-            .WithValue(":categoryIds", new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
+            .WithValues(values => values[":categoryIds"] = new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
             .UpdateAsync();
         
         // Assert - Verify the update succeeded
@@ -415,15 +428,17 @@ public class UpdateOperationsTests : IntegrationTestBase
         // Act & Assert - Conditional update should fail
         var newCategoryIds = new HashSet<int> { 10, 20 };
         
-        var act = async () => await _table.Update
+        var act = async () => await _table.Update<ComplexEntity>()
             .WithKey("pk", "update-test-9")
             .WithKey("sk", "product")
             .Set("SET category_ids = :categoryIds")
             .Where("attribute_exists(category_ids)")
-            .WithValue(":categoryIds", new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
+            .WithValues(values => values[":categoryIds"] = new AttributeValue { NS = newCategoryIds.Select(x => x.ToString()).ToList() })
             .UpdateAsync();
         
-        await act.Should().ThrowAsync<ConditionalCheckFailedException>();
+        // The library wraps AWS exceptions in DynamoDbMappingException
+        var exception = await act.Should().ThrowAsync<DynamoDbMappingException>();
+        exception.Which.InnerException.Should().BeOfType<ConditionalCheckFailedException>();
     }
     
     // Helper class to create a table instance for update operations

@@ -37,20 +37,20 @@ This guide covers querying and scanning data in DynamoDB using Oproto.FluentDyna
 
 **Rule of Thumb:** Always use Query when you know the partition key. Only use Scan when you truly need to examine every item.
 
-## Three Approaches to Writing Queries
+## Three API Styles
 
 FluentDynamoDb supports three approaches for writing queries. Choose based on your needs:
 
-### 1. Expression-Based (Type-Safe, Recommended)
+### 1. Lambda Expressions (PREFERRED)
 
 Use C# lambda expressions for compile-time type safety and IntelliSense support:
 
 ```csharp
-// Type-safe with lambda expressions
+// PREFERRED: Type-safe with lambda expressions
 await table.Query
     .Where<User>(x => x.UserId == userId && x.SortKey.StartsWith("ORDER#"))
     .WithFilter<User>(x => x.Status == "ACTIVE" && x.Age >= 18)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Advantages:**
@@ -61,18 +61,18 @@ await table.Query
 
 **See:** [LINQ Expressions Guide](LinqExpressions.md) for complete documentation.
 
-### 2. Format Strings (Concise)
+### 2. Format Strings (ALTERNATIVE)
 
 Use String.Format-style syntax for concise queries:
 
 ```csharp
-// Format string approach
+// ALTERNATIVE: Format string - concise with placeholders
 await table.Query
     .Where($"{UserFields.UserId} = {{0}} AND begins_with({UserFields.SortKey}, {{1}})", 
            UserKeys.Pk(userId), "ORDER#")
     .WithFilter($"{UserFields.Status} = {{0}} AND {UserFields.Age} >= {{1}}", 
                 "ACTIVE", 18)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Advantages:**
@@ -82,20 +82,24 @@ await table.Query
 
 **See:** [Expression Formatting Guide](ExpressionFormatting.md) for complete documentation.
 
-### 3. Manual Parameters (Maximum Control)
+### 3. Manual WithValue (EXPLICIT CONTROL)
 
 Use explicit parameter binding for maximum control:
 
 ```csharp
-// Manual parameter approach
+// EXPLICIT CONTROL: Manual - for complex scenarios
 await table.Query
-    .Where($"{UserFields.UserId} = :pk AND begins_with({UserFields.SortKey}, :prefix)")
+    .Where("#pk = :pk AND begins_with(#sk, :prefix)")
+    .WithAttribute("#pk", "pk")
+    .WithAttribute("#sk", "sk")
     .WithValue(":pk", UserKeys.Pk(userId))
     .WithValue(":prefix", "ORDER#")
-    .WithFilter($"{UserFields.Status} = :status AND {UserFields.Age} >= :age")
+    .WithFilter("#status = :status AND #age >= :age")
+    .WithAttribute("#status", "status")
+    .WithAttribute("#age", "age")
     .WithValue(":status", "ACTIVE")
     .WithValue(":age", 18)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Advantages:**
@@ -104,9 +108,11 @@ await table.Query
 - ✓ Good for dynamic queries
 
 **When to Use Each Approach:**
-- **Expression-based:** New code, type safety important, known properties
+- **Lambda expressions:** New code, type safety important, known properties
 - **Format strings:** Balance of conciseness and flexibility
 - **Manual parameters:** Dynamic queries, complex scenarios, existing code
+
+See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on the manual approach.
 
 ## Basic Query Operations
 
@@ -126,10 +132,22 @@ public partial class User
     public string Name { get; set; } = string.Empty;
 }
 
-// Query all items for a user
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
+var response = await table.Query
+    .Where<User>(x => x.UserId == "user123")
+    .ToListAsync();
+
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
-    .ExecuteAsync();
+    .ToListAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", UserKeys.Pk("user123"))
+    .ToListAsync();
 
 // Process results
 foreach (var item in response.Items)
@@ -159,17 +177,26 @@ public partial class Order
     public string Status { get; set; } = string.Empty;
 }
 
-// Expression-based (type-safe)
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId && x.OrderId > "ORDER#2024-01-01")
-    .ExecuteAsync();
+    .ToListAsync();
 
-// Format string approach
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}} AND {OrderFields.OrderId} > {{1}}", 
            OrderKeys.Pk("customer123"),
            OrderKeys.Sk("ORDER#2024-01-01"))
-    .ExecuteAsync();
+    .ToListAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk AND #sk > :sk")
+    .WithAttribute("#pk", "pk")
+    .WithAttribute("#sk", "sk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithValue(":sk", OrderKeys.Sk("ORDER#2024-01-01"))
+    .ToListAsync();
 ```
 
 ## Key Condition Expressions
@@ -264,49 +291,88 @@ Filter expressions apply additional filtering after items are retrieved by the k
 ### Basic Filters
 
 ```csharp
-// Expression-based (type-safe)
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId)
     .WithFilter<Order>(x => x.Status == "pending")
-    .ExecuteAsync();
+    .ToListAsync();
 
-// Format string approach
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithFilter($"{OrderFields.Status} = {{0}}", "pending")
-    .ExecuteAsync();
+    .ToListAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithFilter("#status = :status")
+    .WithAttribute("#status", "status")
+    .WithValue(":status", "pending")
+    .ToListAsync();
 ```
 
 ### Multiple Filter Conditions
 
+**AND Conditions (all three styles):**
+
 ```csharp
-// Expression-based: Combine multiple conditions with AND
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId)
     .WithFilter<Order>(x => x.Status == "pending" && x.Total > 100.00m)
-    .ExecuteAsync();
+    .ToListAsync();
 
-// Format string: Combine multiple conditions with AND
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithFilter($"{OrderFields.Status} = {{0}} AND {OrderFields.Total} > {{1}}", 
                 "pending", 
                 100.00m)
-    .ExecuteAsync();
+    .ToListAsync();
 
-// Expression-based: Combine conditions with OR
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithFilter("#status = :status AND #total > :total")
+    .WithAttribute("#status", "status")
+    .WithAttribute("#total", "total")
+    .WithValue(":status", "pending")
+    .WithValue(":total", 100.00m)
+    .ToListAsync();
+```
+
+**OR Conditions (all three styles):**
+
+```csharp
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
     .Where<Order>(x => x.CustomerId == customerId)
     .WithFilter<Order>(x => x.Status == "pending" || x.Status == "processing")
-    .ExecuteAsync();
+    .ToListAsync();
 
-// Format string: Combine conditions with OR
+// 2. ALTERNATIVE: Format string - concise with placeholders
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithFilter($"{OrderFields.Status} = {{0}} OR {OrderFields.Status} = {{1}}", 
                 "pending", 
                 "processing")
-    .ExecuteAsync();
+    .ToListAsync();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", OrderKeys.Pk("customer123"))
+    .WithFilter("#status = :status1 OR #status = :status2")
+    .WithAttribute("#status", "status")
+    .WithValue(":status1", "pending")
+    .WithValue(":status2", "processing")
+    .ToListAsync();
 ```
 
 ### Filter Functions
@@ -418,7 +484,7 @@ do
         query = query.StartAt(lastKey);
     }
     
-    var response = await query.ExecuteAsync();
+    var response = await query.ToListAsync();
     
     // Process this page of results
     foreach (var item in response.Items)
@@ -442,7 +508,7 @@ Control how many items are evaluated per request:
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .Take(25)  // Evaluate up to 25 items per request
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Check if there are more results
 if (response.LastEvaluatedKey != null && response.LastEvaluatedKey.Count > 0)
@@ -472,7 +538,7 @@ public async Task<(List<Order> Orders, string? NextPageToken)> GetOrdersPage(
         query = query.StartAt(lastKey);
     }
     
-    var response = await query.ExecuteAsync();
+    var response = await query.ToListAsync();
     
     var orders = response.Items
         .Select(OrderMapper.FromAttributeMap)
@@ -512,7 +578,7 @@ Control the sort order of query results using the sort key.
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .OrderAscending()  // Optional - this is the default
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Descending Order
@@ -523,7 +589,7 @@ var response = await table.Query
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .OrderDescending()
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Use Case:** When your sort key represents timestamps, use `OrderDescending()` to get the most recent items first.
@@ -536,7 +602,7 @@ var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .OrderDescending()
     .Take(10)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Projection Expressions
@@ -550,7 +616,7 @@ Retrieve only specific attributes to reduce data transfer and improve performanc
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .WithProjection($"{OrderFields.OrderId}, {OrderFields.Total}, {OrderFields.Status}")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Note: Other properties will have default values
 foreach (var item in response.Items)
@@ -605,7 +671,7 @@ public partial class Order
 var response = await table.Query
     .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.Status} = {{0}}", "pending")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Query GSI with Sort Key Condition
@@ -617,7 +683,7 @@ var response = await table.Query
     .Where($"{OrderFields.Status} = {{0}} AND {OrderFields.CreatedAt} > {{1:o}}", 
            "pending",
            new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc))
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### GSI Query Limitations
@@ -628,13 +694,13 @@ var response = await table.Query
     .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.Status} = {{0}}", "pending")
     .UsingConsistentRead()  // This will throw an exception!
-    .ExecuteAsync();
+    .ToListAsync();
 
 // ✅ GSI queries are always eventually consistent
 var response = await table.Query
     .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.Status} = {{0}}", "pending")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Important:** GSIs only support eventually consistent reads. Strongly consistent reads will throw a `ValidationException`.
@@ -648,7 +714,7 @@ If your GSI uses a projection (not ALL), only projected attributes are available
 var response = await table.Query
     .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.Status} = {{0}}", "pending")
-    .ExecuteAsync();
+    .ToListAsync();
 
 foreach (var item in response.Items)
 {
@@ -679,7 +745,7 @@ Use Scan only for:
 var scannableTable = new ScannableDynamoDbTable(client, "users");
 
 var response = await scannableTable.Scan
-    .ExecuteAsync();
+    .ToListAsync();
 
 foreach (var item in response.Items)
 {
@@ -694,7 +760,7 @@ foreach (var item in response.Items)
 // Filter reduces data transfer but NOT consumed capacity
 var response = await scannableTable.Scan
     .WithFilter($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Important:** Filters don't reduce the cost of a scan. You still pay for reading every item in the table.
@@ -714,7 +780,7 @@ do
         scan = scan.StartAt(lastKey);
     }
     
-    var response = await scan.ExecuteAsync();
+    var response = await scan.ToListAsync();
     
     foreach (var item in response.Items)
     {
@@ -765,7 +831,7 @@ private async Task<List<User>> ScanSegmentAsync(int segment, int totalSegments)
             scan = scan.StartAt(lastKey);
         }
         
-        var response = await scan.ExecuteAsync();
+        var response = await scan.ToListAsync();
         
         foreach (var item in response.Items)
         {
@@ -796,7 +862,7 @@ private async Task<List<User>> ScanSegmentAsync(int segment, int totalSegments)
 // Monitor consumed capacity
 var response = await scannableTable.Scan
     .ReturnTotalConsumedCapacity()
-    .ExecuteAsync();
+    .ToListAsync();
 
 Console.WriteLine($"Items returned: {response.Items.Count}");
 Console.WriteLine($"Items scanned: {response.ScannedCount}");
@@ -837,8 +903,8 @@ public string SortKey { get; set; } = string.Empty;
 // ✅ Good - only retrieve needed attributes
 .WithProjection($"{OrderFields.OrderId}, {OrderFields.Total}")
 
-// ❌ Avoid - retrieves all attributes
-.ExecuteAsync()
+// ❌ Avoid - retrieves all attributes without projection
+.ToListAsync()
 ```
 
 ### 3. Prefer Key Conditions Over Filters
@@ -870,23 +936,23 @@ scannableTable.Scan.WithFilter($"{OrderFields.Status} = {{0}}", "pending")
 ```csharp
 // ✅ Good - handles large result sets
 do {
-    var response = await query.StartAt(lastKey).ExecuteAsync();
+    var response = await query.StartAt(lastKey).ToListAsync();
     // Process page
     lastKey = response.LastEvaluatedKey;
 } while (lastKey != null);
 
 // ❌ Avoid - may hit 1MB limit
-var response = await query.ExecuteAsync();
+var response = await query.ToListAsync();
 ```
 
 ### 6. Use Consistent Reads Sparingly
 
 ```csharp
 // ✅ Good - eventually consistent (default)
-.ExecuteAsync()
+.ToListAsync()
 
 // ⚠️ Use only when necessary - 2x cost
-.UsingConsistentRead().ExecuteAsync()
+.UsingConsistentRead().ToListAsync()
 ```
 
 ### 7. Monitor Consumed Capacity
@@ -895,7 +961,7 @@ var response = await query.ExecuteAsync();
 var response = await table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
     .ReturnTotalConsumedCapacity()
-    .ExecuteAsync();
+    .ToListAsync();
 
 Console.WriteLine($"Consumed: {response.ConsumedCapacity?.CapacityUnits} RCUs");
 ```
@@ -952,7 +1018,7 @@ public async Task<(List<Order> Orders, string? NextPageToken)> GetCustomerOrders
     }
     
     // Execute query
-    var response = await query.ExecuteAsync();
+    var response = await query.ToListAsync();
     
     // Log capacity consumption
     Console.WriteLine($"Query consumed {response.ConsumedCapacity?.CapacityUnits} RCUs");
@@ -975,18 +1041,23 @@ public async Task<(List<Order> Orders, string? NextPageToken)> GetCustomerOrders
 
 ## Manual Patterns
 
-For complex dynamic scenarios, you can use manual parameter binding:
+While **lambda expressions are preferred** and **format strings are a good alternative**, you can use manual parameter binding for complex or dynamic scenarios:
 
 ```csharp
-// Manual parameter approach
+// Manual parameter approach - use when you need explicit control
 await table.Query
-    .Where($"{OrderFields.CustomerId} = :pk AND {OrderFields.OrderDate} > :date")
+    .Where("#pk = :pk AND #date > :date")
+    .WithAttribute("#pk", "pk")
+    .WithAttribute("#date", "orderDate")
     .WithValue(":pk", OrderKeys.Pk("customer123"))
     .WithValue(":date", startDate)
-    .WithFilter($"{OrderFields.Status} = :status")
+    .WithFilter("#status = :status")
+    .WithAttribute("#status", "status")
     .WithValue(":status", "pending")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
+
+> **Recommendation**: Use lambda expressions (preferred) or format strings (alternative) for most queries. Reserve manual patterns for dynamic queries, complex scenarios, or legacy code migration.
 
 See [Manual Patterns](../advanced-topics/ManualPatterns.md) for more details on lower-level approaches.
 

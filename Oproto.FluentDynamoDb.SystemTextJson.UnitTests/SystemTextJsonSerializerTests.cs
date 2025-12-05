@@ -1,23 +1,25 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Oproto.FluentDynamoDb.SystemTextJson;
 
 namespace Oproto.FluentDynamoDb.SystemTextJson.UnitTests;
 
-public class SystemTextJsonSerializerTests
+/// <summary>
+/// Tests for <see cref="SystemTextJsonBlobSerializer"/> and <see cref="SystemTextJsonOptionsExtensions"/>.
+/// </summary>
+public class SystemTextJsonBlobSerializerTests
 {
+    #region SystemTextJsonBlobSerializer - Default Constructor Tests
+
     [Fact]
-    public void Serialize_WithSimpleObject_ProducesValidJson()
+    public void DefaultConstructor_CreatesSerializer_ThatCanSerialize()
     {
         // Arrange
-        var testObject = new TestData
-        {
-            Id = "test-123",
-            Name = "Test Name",
-            Value = 42
-        };
+        var serializer = new SystemTextJsonBlobSerializer();
+        var testObject = new TestData { Id = "test-123", Name = "Test Name", Value = 42 };
 
         // Act
-        var json = SystemTextJsonSerializer.Serialize(testObject, TestJsonContext.Default);
+        var json = serializer.Serialize(testObject);
 
         // Assert
         json.Should().NotBeNullOrEmpty();
@@ -27,13 +29,14 @@ public class SystemTextJsonSerializerTests
     }
 
     [Fact]
-    public void Deserialize_WithValidJson_ReconstructsObjectCorrectly()
+    public void DefaultConstructor_CreatesSerializer_ThatCanDeserialize()
     {
         // Arrange
+        var serializer = new SystemTextJsonBlobSerializer();
         var json = "{\"Id\":\"test-456\",\"Name\":\"Another Test\",\"Value\":99}";
 
         // Act
-        var result = SystemTextJsonSerializer.Deserialize<TestData>(json, TestJsonContext.Default);
+        var result = serializer.Deserialize<TestData>(json);
 
         // Assert
         result.Should().NotBeNull();
@@ -43,19 +46,120 @@ public class SystemTextJsonSerializerTests
     }
 
     [Fact]
-    public void RoundTrip_PreservesData()
+    public void DefaultConstructor_RoundTrip_PreservesData()
     {
         // Arrange
-        var original = new TestData
-        {
-            Id = "round-trip-test",
-            Name = "Round Trip",
-            Value = 123
-        };
+        var serializer = new SystemTextJsonBlobSerializer();
+        var original = new TestData { Id = "round-trip-test", Name = "Round Trip", Value = 123 };
 
         // Act
-        var json = SystemTextJsonSerializer.Serialize(original, TestJsonContext.Default);
-        var restored = SystemTextJsonSerializer.Deserialize<TestData>(json, TestJsonContext.Default);
+        var json = serializer.Serialize(original);
+        var restored = serializer.Deserialize<TestData>(json);
+
+        // Assert
+        restored.Should().NotBeNull();
+        restored!.Id.Should().Be(original.Id);
+        restored.Name.Should().Be(original.Name);
+        restored.Value.Should().Be(original.Value);
+    }
+
+    #endregion
+
+    #region SystemTextJsonBlobSerializer - Custom Options Constructor Tests
+
+    [Fact]
+    public void CustomOptionsConstructor_WithCamelCase_SerializesWithCamelCase()
+    {
+        // Arrange
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var serializer = new SystemTextJsonBlobSerializer(options);
+        var testObject = new TestData { Id = "test-123", Name = "Test Name", Value = 42 };
+
+        // Act
+        var json = serializer.Serialize(testObject);
+
+        // Assert
+        json.Should().Contain("\"id\":\"test-123\"");
+        json.Should().Contain("\"name\":\"Test Name\"");
+        json.Should().Contain("\"value\":42");
+    }
+
+    [Fact]
+    public void CustomOptionsConstructor_WithCamelCase_DeserializesFromCamelCase()
+    {
+        // Arrange
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var serializer = new SystemTextJsonBlobSerializer(options);
+        var json = "{\"id\":\"test-456\",\"name\":\"Another Test\",\"value\":99}";
+
+        // Act
+        var result = serializer.Deserialize<TestData>(json);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Id.Should().Be("test-456");
+        result.Name.Should().Be("Another Test");
+        result.Value.Should().Be(99);
+    }
+
+    [Fact]
+    public void CustomOptionsConstructor_WithNullOptions_ThrowsArgumentNullException()
+    {
+        // Act
+        var act = () => new SystemTextJsonBlobSerializer((JsonSerializerOptions)null!);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+    }
+
+    #endregion
+
+    #region SystemTextJsonBlobSerializer - AOT Context Constructor Tests
+
+    [Fact]
+    public void AotContextConstructor_WithContext_SerializesCorrectly()
+    {
+        // Arrange
+        var serializer = new SystemTextJsonBlobSerializer(TestJsonContext.Default);
+        var testObject = new TestData { Id = "aot-test", Name = "AOT Compatible", Value = 100 };
+
+        // Act
+        var json = serializer.Serialize(testObject);
+
+        // Assert
+        json.Should().NotBeNullOrEmpty();
+        json.Should().Contain("\"Id\":\"aot-test\"");
+        json.Should().Contain("\"Name\":\"AOT Compatible\"");
+        json.Should().Contain("\"Value\":100");
+    }
+
+    [Fact]
+    public void AotContextConstructor_WithContext_DeserializesCorrectly()
+    {
+        // Arrange
+        var serializer = new SystemTextJsonBlobSerializer(TestJsonContext.Default);
+        var json = "{\"Id\":\"aot-456\",\"Name\":\"AOT Test\",\"Value\":200}";
+
+        // Act
+        var result = serializer.Deserialize<TestData>(json);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Id.Should().Be("aot-456");
+        result.Name.Should().Be("AOT Test");
+        result.Value.Should().Be(200);
+    }
+
+    [Fact]
+    public void AotContextConstructor_RoundTrip_PreservesData()
+    {
+        // Arrange
+        var serializer = new SystemTextJsonBlobSerializer(TestJsonContext.Default);
+        var original = new TestData { Id = "aot-round-trip", Name = "AOT Round Trip", Value = 300 };
+
+        // Act
+        var json = serializer.Serialize(original);
+        var restored = serializer.Deserialize<TestData>(json);
 
         // Assert
         restored.Should().NotBeNull();
@@ -65,22 +169,59 @@ public class SystemTextJsonSerializerTests
     }
 
     [Fact]
+    public void AotContextConstructor_WithNullContext_ThrowsArgumentNullException()
+    {
+        // Act
+        var act = () => new SystemTextJsonBlobSerializer((JsonSerializerContext)null!);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+    }
+
+    #endregion
+
+    #region SystemTextJsonBlobSerializer - Edge Cases
+
+    [Fact]
+    public void Deserialize_WithNullJson_ReturnsDefault()
+    {
+        // Arrange
+        var serializer = new SystemTextJsonBlobSerializer();
+
+        // Act
+        var result = serializer.Deserialize<TestData>(null!);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Deserialize_WithEmptyJson_ReturnsDefault()
+    {
+        // Arrange
+        var serializer = new SystemTextJsonBlobSerializer();
+
+        // Act
+        var result = serializer.Deserialize<TestData>("");
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
     public void Serialize_WithComplexObject_HandlesNestedProperties()
     {
         // Arrange
+        var serializer = new SystemTextJsonBlobSerializer();
         var complexObject = new ComplexTestData
         {
             Id = "complex-123",
-            Metadata = new Dictionary<string, string>
-            {
-                ["key1"] = "value1",
-                ["key2"] = "value2"
-            },
+            Metadata = new Dictionary<string, string> { ["key1"] = "value1", ["key2"] = "value2" },
             Tags = new List<string> { "tag1", "tag2", "tag3" }
         };
 
         // Act
-        var json = SystemTextJsonSerializer.Serialize(complexObject, TestJsonContext.Default);
+        var json = serializer.Serialize(complexObject);
 
         // Assert
         json.Should().NotBeNullOrEmpty();
@@ -90,41 +231,20 @@ public class SystemTextJsonSerializerTests
     }
 
     [Fact]
-    public void Deserialize_WithComplexJson_ReconstructsNestedProperties()
-    {
-        // Arrange
-        var json = "{\"Id\":\"complex-456\",\"Metadata\":{\"key1\":\"value1\",\"key2\":\"value2\"},\"Tags\":[\"tag1\",\"tag2\"]}";
-
-        // Act
-        var result = SystemTextJsonSerializer.Deserialize<ComplexTestData>(json, TestJsonContext.Default);
-
-        // Assert
-        result.Should().NotBeNull();
-        result!.Id.Should().Be("complex-456");
-        result.Metadata.Should().HaveCount(2);
-        result.Metadata["key1"].Should().Be("value1");
-        result.Tags.Should().HaveCount(2);
-        result.Tags.Should().Contain("tag1");
-    }
-
-    [Fact]
     public void RoundTrip_WithComplexObject_PreservesAllData()
     {
         // Arrange
+        var serializer = new SystemTextJsonBlobSerializer();
         var original = new ComplexTestData
         {
             Id = "complex-round-trip",
-            Metadata = new Dictionary<string, string>
-            {
-                ["author"] = "John Doe",
-                ["version"] = "1.0"
-            },
+            Metadata = new Dictionary<string, string> { ["author"] = "John Doe", ["version"] = "1.0" },
             Tags = new List<string> { "important", "reviewed" }
         };
 
         // Act
-        var json = SystemTextJsonSerializer.Serialize(original, TestJsonContext.Default);
-        var restored = SystemTextJsonSerializer.Deserialize<ComplexTestData>(json, TestJsonContext.Default);
+        var json = serializer.Serialize(original);
+        var restored = serializer.Deserialize<ComplexTestData>(json);
 
         // Assert
         restored.Should().NotBeNull();
@@ -133,90 +253,176 @@ public class SystemTextJsonSerializerTests
         restored.Tags.Should().BeEquivalentTo(original.Tags);
     }
 
+    #endregion
+}
+
+
+/// <summary>
+/// Tests for <see cref="SystemTextJsonOptionsExtensions"/>.
+/// </summary>
+public class SystemTextJsonOptionsExtensionsTests
+{
     [Fact]
-    public void Serialize_WithNullContext_ThrowsArgumentNullException()
+    public void WithSystemTextJson_Default_ConfiguresJsonSerializer()
     {
         // Arrange
+        var options = new FluentDynamoDbOptions();
+
+        // Act
+        var result = options.WithSystemTextJson();
+
+        // Assert
+        result.JsonSerializer.Should().NotBeNull();
+        result.JsonSerializer.Should().BeOfType<SystemTextJsonBlobSerializer>();
+    }
+
+    [Fact]
+    public void WithSystemTextJson_Default_ReturnsNewInstance()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+
+        // Act
+        var result = options.WithSystemTextJson();
+
+        // Assert
+        result.Should().NotBeSameAs(options);
+    }
+
+    [Fact]
+    public void WithSystemTextJson_Default_PreservesOtherOptions()
+    {
+        // Arrange
+        var logger = new TestLogger();
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
+
+        // Act
+        var result = options.WithSystemTextJson();
+
+        // Assert
+        result.Logger.Should().BeSameAs(logger);
+        result.JsonSerializer.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void WithSystemTextJson_WithNullOptions_ThrowsArgumentNullException()
+    {
+        // Arrange
+        FluentDynamoDbOptions options = null!;
+
+        // Act
+        var act = () => options.WithSystemTextJson();
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+    }
+
+    [Fact]
+    public void WithSystemTextJson_WithJsonSerializerOptions_ConfiguresSerializer()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        // Act
+        var result = options.WithSystemTextJson(jsonOptions);
+
+        // Assert
+        result.JsonSerializer.Should().NotBeNull();
+        result.JsonSerializer.Should().BeOfType<SystemTextJsonBlobSerializer>();
+    }
+
+    [Fact]
+    public void WithSystemTextJson_WithJsonSerializerOptions_UsesProvidedOptions()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         var testObject = new TestData { Id = "test", Name = "Test", Value = 1 };
 
         // Act
-        var act = () => SystemTextJsonSerializer.Serialize(testObject, null!);
+        var result = options.WithSystemTextJson(jsonOptions);
+        var json = result.JsonSerializer!.Serialize(testObject);
 
-        // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        // Assert - camelCase property names indicate custom options were used
+        json.Should().Contain("\"id\":");
+        json.Should().Contain("\"name\":");
+        json.Should().Contain("\"value\":");
     }
 
     [Fact]
-    public void Deserialize_WithNullJson_ThrowsArgumentNullException()
-    {
-        // Act
-        var act = () => SystemTextJsonSerializer.Deserialize<TestData>(null!, TestJsonContext.Default);
-
-        // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("json");
-    }
-
-    [Fact]
-    public void Deserialize_WithNullContext_ThrowsArgumentNullException()
+    public void WithSystemTextJson_WithNullJsonSerializerOptions_ThrowsArgumentNullException()
     {
         // Arrange
-        var json = "{\"Id\":\"test\"}";
+        var options = new FluentDynamoDbOptions();
 
         // Act
-        var act = () => SystemTextJsonSerializer.Deserialize<TestData>(json, null!);
+        var act = () => options.WithSystemTextJson((JsonSerializerOptions)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        act.Should().Throw<ArgumentNullException>().WithParameterName("serializerOptions");
     }
 
     [Fact]
-    public void Serialize_WithNullProperties_HandlesNullsCorrectly()
+    public void WithSystemTextJson_WithJsonSerializerContext_ConfiguresSerializer()
     {
         // Arrange
-        var testObject = new TestData
-        {
-            Id = "test-null",
-            Name = null,
-            Value = 0
-        };
+        var options = new FluentDynamoDbOptions();
 
         // Act
-        var json = SystemTextJsonSerializer.Serialize(testObject, TestJsonContext.Default);
-        var restored = SystemTextJsonSerializer.Deserialize<TestData>(json, TestJsonContext.Default);
+        var result = options.WithSystemTextJson(TestJsonContext.Default);
 
         // Assert
-        restored.Should().NotBeNull();
-        restored!.Id.Should().Be("test-null");
-        restored.Name.Should().BeNull();
-        restored.Value.Should().Be(0);
+        result.JsonSerializer.Should().NotBeNull();
+        result.JsonSerializer.Should().BeOfType<SystemTextJsonBlobSerializer>();
     }
 
     [Fact]
-    public void WorksWithJsonSerializerContext_IsAotCompatible()
+    public void WithSystemTextJson_WithJsonSerializerContext_UsesProvidedContext()
     {
-        // This test verifies that the serializer works with JsonSerializerContext
-        // which is required for AOT compatibility
-        
         // Arrange
-        var testObject = new TestData
-        {
-            Id = "aot-test",
-            Name = "AOT Compatible",
-            Value = 100
-        };
+        var options = new FluentDynamoDbOptions();
+        var testObject = new TestData { Id = "aot-test", Name = "AOT", Value = 42 };
 
-        // Act - Using the context ensures AOT compatibility
-        var json = SystemTextJsonSerializer.Serialize(testObject, TestJsonContext.Default);
-        var restored = SystemTextJsonSerializer.Deserialize<TestData>(json, TestJsonContext.Default);
+        // Act
+        var result = options.WithSystemTextJson(TestJsonContext.Default);
+        var json = result.JsonSerializer!.Serialize(testObject);
+        var restored = result.JsonSerializer.Deserialize<TestData>(json);
 
         // Assert
         restored.Should().NotBeNull();
         restored!.Id.Should().Be(testObject.Id);
         restored.Name.Should().Be(testObject.Name);
         restored.Value.Should().Be(testObject.Value);
+    }
+
+    [Fact]
+    public void WithSystemTextJson_WithNullJsonSerializerContext_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+
+        // Act
+        var act = () => options.WithSystemTextJson((JsonSerializerContext)null!);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+    }
+
+    [Fact]
+    public void WithSystemTextJson_Chained_LastOneWins()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+        var camelCaseOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var testObject = new TestData { Id = "test", Name = "Test", Value = 1 };
+
+        // Act - chain default then custom options
+        var result = options.WithSystemTextJson().WithSystemTextJson(camelCaseOptions);
+        var json = result.JsonSerializer!.Serialize(testObject);
+
+        // Assert - should use camelCase (last configured)
+        json.Should().Contain("\"id\":");
     }
 }
 
@@ -240,4 +446,17 @@ public class ComplexTestData
 [JsonSerializable(typeof(ComplexTestData))]
 internal partial class TestJsonContext : JsonSerializerContext
 {
+}
+
+// Simple test logger for testing options preservation
+internal class TestLogger : Oproto.FluentDynamoDb.Logging.IDynamoDbLogger
+{
+    public bool IsEnabled(Oproto.FluentDynamoDb.Logging.LogLevel logLevel) => true;
+    public void LogTrace(int eventId, string message, params object[] args) { }
+    public void LogDebug(int eventId, string message, params object[] args) { }
+    public void LogInformation(int eventId, string message, params object[] args) { }
+    public void LogWarning(int eventId, string message, params object[] args) { }
+    public void LogError(int eventId, string message, params object[] args) { }
+    public void LogError(int eventId, Exception exception, string message, params object[] args) { }
+    public void LogCritical(int eventId, Exception exception, string message, params object[] args) { }
 }

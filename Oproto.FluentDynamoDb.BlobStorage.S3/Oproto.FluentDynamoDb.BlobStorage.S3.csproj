@@ -4,7 +4,6 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>0.5.0</Version>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
@@ -18,13 +17,19 @@
         <Description>S3 blob storage provider for Oproto.FluentDynamoDb. Enables storing large data externally in Amazon S3 with only a reference in DynamoDB.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;s3;blob-storage;fluent;aot</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
+
+    <!-- Include README in package -->
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="AWSSDK.S3" Version="[4.0.0,5.0.0)" />

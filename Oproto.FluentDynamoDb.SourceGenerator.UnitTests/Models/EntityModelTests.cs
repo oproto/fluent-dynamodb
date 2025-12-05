@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Models;
@@ -135,7 +135,7 @@ public class EntityModelTests
         entity.ClassName.Should().Be(string.Empty);
         entity.Namespace.Should().Be(string.Empty);
         entity.TableName.Should().Be(string.Empty);
-        entity.EntityDiscriminator.Should().BeNull();
+        entity.Discriminator.Should().BeNull();
         entity.Properties.Should().BeEmpty();
         entity.Indexes.Should().BeEmpty();
         entity.Relationships.Should().BeEmpty();
@@ -152,7 +152,12 @@ public class EntityModelTests
             ClassName = "TestEntity",
             Namespace = "TestNamespace",
             TableName = "test-table",
-            EntityDiscriminator = "TEST_ENTITY",
+            Discriminator = new DiscriminatorConfig
+            {
+                PropertyName = "entity_type",
+                ExactValue = "TEST_ENTITY",
+                Strategy = DiscriminatorStrategy.ExactMatch
+            },
             IsMultiItemEntity = true,
             Properties = new[]
             {
@@ -173,7 +178,10 @@ public class EntityModelTests
         entity.ClassName.Should().Be("TestEntity");
         entity.Namespace.Should().Be("TestNamespace");
         entity.TableName.Should().Be("test-table");
-        entity.EntityDiscriminator.Should().Be("TEST_ENTITY");
+        entity.Discriminator.Should().NotBeNull();
+        entity.Discriminator!.ExactValue.Should().Be("TEST_ENTITY");
+        entity.Discriminator.PropertyName.Should().Be("entity_type");
+        entity.Discriminator.Strategy.Should().Be(DiscriminatorStrategy.ExactMatch);
         entity.IsMultiItemEntity.Should().BeTrue();
         entity.Properties.Should().HaveCount(2);
         entity.Indexes.Should().HaveCount(1);

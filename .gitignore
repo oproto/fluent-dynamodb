@@ -295,3 +295,6 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# DynamoDB Local (downloaded by integration tests)
+dynamodb-local/

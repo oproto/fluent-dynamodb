@@ -1,0 +1,49 @@
+<Project>
+  <PropertyGroup>
+    <!-- MSBuildProjectDirectory is needed for relative path calculation -->
+    <IconPath>$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'Directory.Build.props'))\docs\assets\icon.png</IconPath>
+  </PropertyGroup>
+  
+  <PropertyGroup>
+    <!-- Default version for local development -->
+    <!-- This will be overridden by CI/CD with -p:Version=x.y.z -->
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
+    
+    <!-- Use the same version for package -->
+    <PackageVersion>$(Version)</PackageVersion>
+    
+    <!-- AssemblyVersion and FileVersion can't have pre-release suffix -->
+    <!-- Extract just the numeric part (e.g., "1.2.3" from "1.2.3-beta.1") -->
+    <VersionPrefix>$(Version.Split('-')[0])</VersionPrefix>
+    <AssemblyVersion>$(VersionPrefix)</AssemblyVersion>
+    <FileVersion>$(VersionPrefix)</FileVersion>
+    
+    <!-- InformationalVersion can have the full version string -->
+    <InformationalVersion>$(Version)</InformationalVersion>
+    
+    <!-- Common package metadata -->
+    <Authors>Oproto</Authors>
+    <Copyright>Copyright © Oproto</Copyright>
+    <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon.png</PackageIcon>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    
+    <!-- Common build settings -->
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+  
+  <!-- Include package icon for all packable projects -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(IconPath)" Pack="true" PackagePath="\" Condition="Exists('$(IconPath)')" />
+  </ItemGroup>
+</Project>

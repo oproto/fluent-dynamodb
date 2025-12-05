@@ -6,7 +6,9 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 /// Complex test entity that combines multiple advanced types for comprehensive integration testing.
 /// This entity represents a realistic scenario with HashSet, List, and Dictionary properties.
 /// </summary>
+[DynamoDbEntity]
 [DynamoDbTable("test-complex-entity")]
+[Scannable]
 public partial class ComplexEntity
 {
     [PartitionKey]

@@ -4,7 +4,6 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>0.5.0</Version>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
@@ -18,16 +17,26 @@
         <Description>System.Text.Json serialization support for Oproto.FluentDynamoDb. Provides AOT-compatible JSON serialization for complex objects stored in DynamoDB.</Description>
         <Authors>Oproto</Authors>
         <PackageTags>dynamodb;aws;json;system-text-json;fluent;aot;serialization</PackageTags>
-        <PackageProjectUrl>https://github.com/oproto/fluent-dynamodb</PackageProjectUrl>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
 
+    <!-- Include README in package -->
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="System.Text.Json" Version="[8.0.5,9.0.0)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
     </ItemGroup>
 
 </Project>

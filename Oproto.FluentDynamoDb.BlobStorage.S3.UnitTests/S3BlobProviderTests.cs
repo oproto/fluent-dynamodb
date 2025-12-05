@@ -1,6 +1,6 @@
 using Amazon.S3;
 using Amazon.S3.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.BlobStorage.S3;
 using System.Text;

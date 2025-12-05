@@ -66,6 +66,47 @@ public class PropertyMetadata
     /// If null or empty, default serialization is used.
     /// </remarks>
     public string? Format { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this property is encrypted at rest using field-level encryption.
+    /// </summary>
+    /// <remarks>
+    /// When true, the property value is encrypted before being stored in DynamoDB and decrypted when retrieved.
+    /// This requires an IFieldEncryptor to be configured in the DynamoDbOperationContext.
+    /// Encrypted properties are marked with the [Encrypted] attribute in the entity class.
+    /// </remarks>
+    public bool IsEncrypted { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this property contains sensitive data that should be redacted in logs.
+    /// </summary>
+    /// <remarks>
+    /// When true, the property value is replaced with "[REDACTED]" in all log messages.
+    /// This applies to query parameters, filter expressions, and any other logging output.
+    /// Sensitive properties are marked with the [Sensitive] attribute in the entity class.
+    /// </remarks>
+    public bool IsSensitive { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DateTimeKind for DateTime properties to control timezone handling during serialization and deserialization.
+    /// </summary>
+    /// <remarks>
+    /// When specified, DateTime values are converted to the specified kind before serialization
+    /// and the Kind property is set after deserialization. This ensures consistent timezone handling across operations.
+    /// Common values: DateTimeKind.Utc for UTC timestamps, DateTimeKind.Local for local time, DateTimeKind.Unspecified for no timezone conversion.
+    /// If null, no timezone conversion is performed.
+    /// </remarks>
+    public DateTimeKind? DateTimeKind { get; set; }
+
+    /// <summary>
+    /// Gets or sets the GeoHash precision for GeoLocation properties.
+    /// </summary>
+    /// <remarks>
+    /// When specified, GeoLocation values are encoded to GeoHash strings with the specified precision (1-12).
+    /// This property is only applicable to GeoLocation properties when the Oproto.FluentDynamoDb.Geospatial package is referenced.
+    /// If null, the default precision of 6 is used.
+    /// </remarks>
+    public int? GeoHashPrecision { get; set; }
 }
 
 /// <summary>

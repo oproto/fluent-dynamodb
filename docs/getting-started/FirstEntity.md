@@ -192,62 +192,74 @@ public partial class Order
 
 ## Generated Code Overview
 
-When you build your project, the source generator creates three classes for each entity:
+When you build your project, the source generator creates nested support classes within your entity:
 
 ### 1. Fields Class (Type-Safe Field Names)
 
 ```csharp
-// Generated: UserFields.g.cs
-public static class UserFields
+// Generated: User.g.cs (nested within User class)
+public partial class User
 {
-    public const string UserId = "pk";
-    public const string Email = "email";
-    public const string FullName = "full_name";
-}
-```
-
-**Usage:**
-```csharp
-// Use in queries and updates
-await table.Query
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Email} = {{0}}", "john@example.com")
-    .ExecuteAsync<User>();
-```
-
-**Benefits:**
-- Compile-time safety (typos caught at build time)
-- IntelliSense support
-- Refactoring support (rename property → field name updates automatically)
-
-### 2. Keys Class (Key Builder Methods)
-
-```csharp
-// Generated: UserKeys.g.cs
-public static class UserKeys
-{
-    public static string Pk(string userId)
+    public static partial class Fields
     {
-        return $"USER#{userId}";
+        public const string UserId = "pk";
+        public const string Email = "email";
+        public const string FullName = "full_name";
     }
 }
 ```
 
 **Usage:**
 ```csharp
-// Build partition key value
-var key = UserKeys.Pk("user123");  // Returns "USER#user123"
+// Access through entity class
+await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", "user123")
+    .WithFilter($"{User.Fields.Email} = {{0}}", "john@example.com")
+    .ToListAsync();
+```
+
+**Benefits:**
+- Compile-time safety (typos caught at build time)
+- IntelliSense support
+- Refactoring support (rename property → field name updates automatically)
+- No namespace pollution - Fields class is nested within entity
+
+> **Tip:** You can also use string literals directly (e.g., `"pk"` instead of `User.Fields.UserId`). The generated constants provide compile-time validation but aren't required. Use whichever approach is cleaner for your use case.
+
+### 2. Keys Class (Key Builder Methods)
+
+```csharp
+// Generated: User.g.cs (nested within User class)
+public partial class User
+{
+    public static partial class Keys
+    {
+        public static string Pk(string userId)
+        {
+            return $"USER#{userId}";
+        }
+    }
+}
+```
+
+**Usage:**
+```csharp
+// Build partition key value through entity class
+var key = User.Keys.Pk("user123");  // Returns "USER#user123"
 
 // Use in operations
-await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+await table.Get<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .GetItemAsync();
 ```
 
 **Benefits:**
 - Consistent key formatting
 - Prevents key format errors
 - Supports composite key patterns
+- Clear relationship between entity and its keys
+
+> **Note:** The `Keys.Pk()` method formats keys based on your entity's `[Computed]` or `[PartitionKey(Prefix = "...")]` attributes. If no prefix is configured, it returns the value as-is. You can also pass raw values directly to `WithKey()` if you don't need key formatting.
 
 ### 3. Mapper Class (Serialization/Deserialization)
 
@@ -300,9 +312,9 @@ public partial class User
 }
 
 // Usage
-await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+await table.Get<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .GetItemAsync();
 ```
 
 ### Pattern 2: Composite Key Entity
@@ -327,15 +339,56 @@ public partial class Order
 }
 
 // Usage - requires both partition and sort key
-await table.Get
-    .WithKey(OrderFields.CustomerId, OrderKeys.Pk("customer123"))
-    .WithKey(OrderFields.OrderId, OrderKeys.Sk("order456"))
-    .ExecuteAsync<Order>();
+await table.Get<Order>()
+    .WithKey(Order.Fields.CustomerId, "customer123", Order.Fields.OrderId, "order456")
+    .GetItemAsync();
 ```
 
-### Pattern 3: Computed Keys (Format Strings)
+### Pattern 3: Key Prefixes (Recommended)
 
-Use `[Computed]` attribute for keys with dynamic formatting:
+Use the `Prefix` property on `[PartitionKey]` and `[SortKey]` for simple key formatting:
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    // Generates keys like "ORDER#order123"
+    [PartitionKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("pk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    // Generates keys like "LINE#item456"
+    [SortKey(Prefix = "LINE")]
+    [DynamoDbAttribute("sk")]
+    public string LineId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("total")]
+    public decimal Total { get; set; }
+}
+
+// Generated key builder methods
+// Order.Keys.Pk("order123") returns "ORDER#order123"
+// Order.Keys.Sk("item456") returns "LINE#item456"
+```
+
+**Key Prefix Properties:**
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Prefix` | `null` | Optional prefix prepended to key values |
+| `Separator` | `"#"` | Separator between prefix and value |
+
+**Custom Separator Example:**
+```csharp
+// Generates keys like "USER_user123"
+[PartitionKey(Prefix = "USER", Separator = "_")]
+[DynamoDbAttribute("pk")]
+public string UserId { get; set; } = string.Empty;
+```
+
+### Pattern 4: Computed Keys (Advanced Format Strings)
+
+Use `[Computed]` attribute for complex keys with dynamic formatting:
 
 ```csharp
 [DynamoDbTable("products")]
@@ -366,7 +419,9 @@ public partial class Product
 - `{PropertyName:o}` - DateTime ISO 8601 format
 - See [Expression Formatting](../core-features/ExpressionFormatting.md) for more options
 
-### Pattern 4: Extracted Keys (Composite Patterns)
+> **Tip:** For simple prefix patterns like `"ORDER#123"`, use `[PartitionKey(Prefix = "ORDER")]` instead of `[Computed]`. Reserve `[Computed]` for complex multi-property keys or custom formatting.
+
+### Pattern 5: Extracted Keys (Composite Patterns)
 
 Use `[Extracted]` for keys derived from other properties:
 
@@ -470,7 +525,7 @@ using Amazon.DynamoDBv2;
 using Oproto.FluentDynamoDb.Storage;
 
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "users");
+var table = new UsersTable(client, "users");
 
 // Create user
 var user = new User
@@ -486,28 +541,26 @@ var user = new User
     }
 };
 
-await table.Put.WithItem(user).ExecuteAsync();
+await table.Put<User>().WithItem(user).PutAsync();
 
-// Retrieve user using generated fields and keys
-var response = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .WithKey(UserFields.RecordType, UserKeys.Sk())
-    .ExecuteAsync<User>();
+// Retrieve user using generated fields
+var response = await table.Get<User>()
+    .WithKey(User.Fields.UserId, "user123", User.Fields.RecordType, "PROFILE")
+    .GetItemAsync();
 
 // Query with filter using generated fields
-var activeUsers = await table.Query
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+var activeUsers = await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", "user123")
+    .WithFilter($"{User.Fields.Status} = {{0}}", "active")
+    .ToListAsync();
 
 // Update using generated fields
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .WithKey(UserFields.RecordType, UserKeys.Sk())
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
+await table.Update<User>()
+    .WithKey(User.Fields.UserId, "user123", User.Fields.RecordType, "PROFILE")
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## Best Practices

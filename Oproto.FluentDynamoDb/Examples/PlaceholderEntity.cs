@@ -1,5 +1,4 @@
 using Amazon.DynamoDBv2.Model;
-using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.Examples;
@@ -10,17 +9,17 @@ namespace Oproto.FluentDynamoDb.Examples;
 /// </summary>
 public class PlaceholderEntity : IDynamoDbEntity
 {
-    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
     {
         return new Dictionary<string, AttributeValue>();
     }
 
-    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
     {
         throw new NotImplementedException();
     }
 
-    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
     {
         throw new NotImplementedException();
     }

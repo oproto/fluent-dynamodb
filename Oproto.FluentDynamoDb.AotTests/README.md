@@ -64,6 +64,19 @@ Tests that verify the trimmed binary works correctly:
 - Expression translation functions correctly
 - Extension methods are available and work
 
+### 5. Update Expression AOT Tests
+Tests that verify expression-based update operations work in AOT:
+- UpdateExpressionProperty<T> instantiation
+- Source-generated UpdateExpressions and UpdateModel classes
+- Simple SET operations
+- ADD operations (atomic increment/decrement, set union)
+- REMOVE operations (attribute deletion)
+- DELETE operations (set element removal)
+- DynamoDB functions (if_not_exists, list_append, list_prepend)
+- Combined operations (SET + ADD + REMOVE + DELETE)
+- Generic type resolution at compile time
+- No runtime code generation (Expression.Compile() not used)
+
 ## Expected Output
 
 When all tests pass, you should see:
@@ -91,6 +104,18 @@ Running Trimming Compatibility Tests...
   ✓ Core types present after trimming
   ✓ Expression translation works in trimmed binary
   ✓ Extension methods work in trimmed binary
+
+Running Update Expression AOT Tests...
+  ✓ UpdateExpressionProperty instantiation
+  ✓ Source-generated classes
+  ✓ Simple SET operations
+  ✓ ADD operations
+  ✓ REMOVE operations
+  ✓ DELETE operations
+  ✓ DynamoDB functions
+  ✓ Combined operations
+  ✓ Generic type resolution
+  ✓ No runtime code generation
 
 ✓ All AOT compatibility tests passed!
 ```

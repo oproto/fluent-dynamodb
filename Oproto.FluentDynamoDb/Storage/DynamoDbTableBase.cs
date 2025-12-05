@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 
@@ -15,8 +16,24 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <param name="client">The DynamoDB client.</param>
     /// <param name="tableName">The name of the table.</param>
     public DynamoDbTableBase(IAmazonDynamoDB client, string tableName)
-        : this(client, tableName, null)
+        : this(client, tableName, (FluentDynamoDbOptions?)null)
     {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the DynamoDbTableBase class with configuration options.
+    /// This is the preferred constructor for configuring optional features like logging, encryption, and geospatial support.
+    /// </summary>
+    /// <param name="client">The DynamoDB client.</param>
+    /// <param name="tableName">The name of the table.</param>
+    /// <param name="options">Configuration options. If null, uses sensible defaults (NoOpLogger, no optional features).</param>
+    public DynamoDbTableBase(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)
+    {
+        DynamoDbClient = client;
+        Name = tableName;
+        Options = options ?? new FluentDynamoDbOptions();
+        Logger = Options.Logger;
+        FieldEncryptor = Options.FieldEncryptor;
     }
 
     /// <summary>
@@ -25,6 +42,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <param name="client">The DynamoDB client.</param>
     /// <param name="tableName">The name of the table.</param>
     /// <param name="logger">Optional logger for DynamoDB operations. If null, uses a no-op logger.</param>
+    [Obsolete("Use the constructor that accepts FluentDynamoDbOptions instead. This constructor will be removed in a future version.")]
     public DynamoDbTableBase(IAmazonDynamoDB client, string tableName, IDynamoDbLogger? logger)
         : this(client, tableName, logger, null)
     {
@@ -37,16 +55,26 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// <param name="tableName">The name of the table.</param>
     /// <param name="logger">Optional logger for DynamoDB operations. If null, uses a no-op logger.</param>
     /// <param name="fieldEncryptor">Optional field encryptor for encrypting sensitive properties. If null, encryption is disabled.</param>
+    [Obsolete("Use the constructor that accepts FluentDynamoDbOptions instead. This constructor will be removed in a future version.")]
     public DynamoDbTableBase(IAmazonDynamoDB client, string tableName, IDynamoDbLogger? logger, IFieldEncryptor? fieldEncryptor)
     {
         DynamoDbClient = client;
         Name = tableName;
         Logger = logger ?? NoOpLogger.Instance;
         FieldEncryptor = fieldEncryptor;
+        // Create options from individual parameters for backward compatibility
+        Options = new FluentDynamoDbOptions()
+            .WithLogger(Logger)
+            .WithEncryption(fieldEncryptor);
     }
 
     public IAmazonDynamoDB DynamoDbClient { get; private init; }
     public string Name { get; private init; }
+    
+    /// <summary>
+    /// Gets the configuration options for this table.
+    /// </summary>
+    protected FluentDynamoDbOptions Options { get; private init; }
     
     /// <summary>
     /// Gets the logger for DynamoDB operations.
@@ -58,6 +86,13 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// Returns null if encryption is not configured for this table.
     /// </summary>
     protected IFieldEncryptor? FieldEncryptor { get; private init; }
+
+    /// <summary>
+    /// Gets the field encryptor for this table.
+    /// This method is used internally by transaction builders to access the encryptor.
+    /// </summary>
+    /// <returns>The field encryptor, or null if encryption is not configured.</returns>
+    internal IFieldEncryptor? GetFieldEncryptor() => FieldEncryptor;
 
     /// <summary>
     /// Gets the current encryption context identifier, checking both operation-specific and ambient contexts.
@@ -99,7 +134,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </code>
     /// </example>
     public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class => 
-        new QueryRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new Query operation builder with a key condition expression.
@@ -145,7 +180,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </code>
     /// </example>
     public virtual GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class => 
-        new GetItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new UpdateItem operation builder for this table.
@@ -154,7 +189,9 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </summary>
     /// <returns>An UpdateItemRequestBuilder configured for this table.</returns>
     public virtual UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class => 
-        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options)
+            .ForTable(Name)
+            .SetFieldEncryptor(FieldEncryptor);
     
     /// <summary>
     /// Creates a new DeleteItem operation builder for this table.
@@ -163,7 +200,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </summary>
     /// <returns>A DeleteItemRequestBuilder configured for this table.</returns>
     public virtual DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class => 
-        new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new PutItem operation builder for this table.
@@ -185,88 +222,85 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// </code>
     /// </example>
     public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class => 
-        new PutItemRequestBuilder<TEntity>(DynamoDbClient, Logger).ForTable(Name);
+        new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+    
+    /// <summary>
+    /// Creates a new ConditionCheck operation builder for this table.
+    /// Condition checks verify conditions without modifying data and are used within transactions.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to check.</typeparam>
+    /// <returns>A ConditionCheckBuilder&lt;TEntity&gt; configured for this table.</returns>
+    /// <example>
+    /// <code>
+    /// // Use in a transaction
+    /// await DynamoDbTransactions.Write
+    ///     .Add(table.ConditionCheck&lt;MyEntity&gt;()
+    ///         .WithKey("id", "123")
+    ///         .Where("attribute_exists(#status)")
+    ///         .WithAttribute("#status", "status"))
+    ///     .Add(table.Update&lt;MyEntity&gt;().WithKey("id", "456").Set(...))
+    ///     .ExecuteAsync();
+    /// </code>
+    /// </example>
+    public ConditionCheckBuilder<TEntity> ConditionCheck<TEntity>() where TEntity : class => 
+        new ConditionCheckBuilder<TEntity>(DynamoDbClient, Name);
+
 
     /// <summary>
-    /// Encrypts a value for use in query expressions.
-    /// Uses the ambient DynamoDbOperationContext.EncryptionContextId for the context ID.
+    /// Express-route method that executes a PutItem operation and stores an entity in DynamoDB.
+    /// This method combines Put() and PutAsync() into a single call for simple scenarios.
     /// </summary>
-    /// <param name="value">The value to encrypt.</param>
-    /// <param name="fieldName">The name of the field being encrypted (used for encryption context).</param>
-    /// <returns>A base64-encoded encrypted string suitable for use in DynamoDB queries.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when IFieldEncryptor is not configured.</exception>
-    /// <remarks>
-    /// <para>
-    /// This method is designed for use in LINQ expressions, format string expressions, and WithValue calls
-    /// when you need to query encrypted fields. It uses the same encryption pattern as Put/Get operations.
-    /// </para>
-    /// <para>
-    /// <strong>Important:</strong> Manual encryption only works for equality comparisons (=).
-    /// Do not use with range queries (&gt;, &lt;, BETWEEN), begins_with, or other non-equality operations,
-    /// as encrypted values cannot be compared or sorted.
-    /// </para>
-    /// <para>
-    /// The method uses DynamoDbOperationContext.EncryptionContextId for the context ID, which should be set before calling:
+    /// <typeparam name="TEntity">The entity type that implements IDynamoDbEntity.</typeparam>
+    /// <param name="entity">The entity instance to put.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    /// <example>
     /// <code>
-    /// DynamoDbOperationContext.EncryptionContextId = "tenant-123";
-    /// var results = await table.Query&lt;User&gt;()
-    ///     .Where(x => x.Ssn == table.Encrypt(ssn, "Ssn"))
-    ///     .ToListAsync();
+    /// // Simple put operation
+    /// await table.PutAsync(myEntity);
     /// </code>
-    /// </para>
-    /// </remarks>
-    public string Encrypt(object value, string fieldName)
+    /// </example>
+    public async Task PutAsync<TEntity>(
+        TEntity entity,
+        CancellationToken cancellationToken = default)
+        where TEntity : class, IDynamoDbEntity
     {
-        if (FieldEncryptor == null)
-        {
-            throw new InvalidOperationException(
-                "Cannot encrypt value: IFieldEncryptor not configured. " +
-                "Pass an IFieldEncryptor instance to the table constructor.");
-        }
-
-        // Build FieldEncryptionContext using same pattern as generated code
-        var context = new FieldEncryptionContext
-        {
-            ContextId = DynamoDbOperationContext.EncryptionContextId, // Uses ambient context from unified context
-            CacheTtlSeconds = 300 // Default, matches generated code
-        };
-
-        // Convert value to bytes
-        var plaintext = System.Text.Encoding.UTF8.GetBytes(value?.ToString() ?? string.Empty);
-
-        // Encrypt synchronously (blocking call for use in expressions)
-        var ciphertext = FieldEncryptor.EncryptAsync(plaintext, fieldName, context).GetAwaiter().GetResult();
-
-        // Return as base64 string for use in queries
-        return Convert.ToBase64String(ciphertext);
+        var builder = Put<TEntity>();
+        builder = Requests.Extensions.EnhancedExecuteAsyncExtensions.WithItem(builder, entity);
+        await Requests.Extensions.EnhancedExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
     }
 
     /// <summary>
-    /// Encrypts a value for use in query expressions.
-    /// This is an alias for <see cref="Encrypt"/> to make the intent clear when pre-encrypting values.
-    /// Uses the ambient DynamoDbOperationContext.EncryptionContextId for the context ID.
+    /// Express-route method that executes a PutItem operation with a raw attribute dictionary.
+    /// This method combines Put() and PutAsync() into a single call for simple scenarios.
     /// </summary>
-    /// <param name="value">The value to encrypt.</param>
-    /// <param name="fieldName">The name of the field being encrypted (used for encryption context).</param>
-    /// <returns>A base64-encoded encrypted string suitable for use in DynamoDB queries.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when IFieldEncryptor is not configured.</exception>
-    /// <remarks>
-    /// <para>
-    /// This method is identical to <see cref="Encrypt"/> but provides a clearer name when
-    /// pre-encrypting values for later use in queries:
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="item">The raw attribute dictionary to put.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
+    /// <example>
     /// <code>
-    /// DynamoDbOperationContext.EncryptionContextId = "tenant-123";
-    /// var encryptedSsn = table.EncryptValue(ssn, "Ssn");
-    /// 
-    /// var results = await table.Query&lt;User&gt;()
-    ///     .Where(x => x.Ssn == encryptedSsn)
-    ///     .ToListAsync();
+    /// // Put with raw dictionary
+    /// await table.PutAsync&lt;MyEntity&gt;(new Dictionary&lt;string, AttributeValue&gt;
+    /// {
+    ///     ["id"] = new AttributeValue { S = "123" },
+    ///     ["name"] = new AttributeValue { S = "John" }
+    /// });
     /// </code>
-    /// </para>
-    /// </remarks>
-    public string EncryptValue(object value, string fieldName)
+    /// </example>
+    public async Task PutAsync<TEntity>(
+        Dictionary<string, AttributeValue> item,
+        CancellationToken cancellationToken = default)
+        where TEntity : class
     {
-        return Encrypt(value, fieldName);
+        var builder = Put<TEntity>().WithItem(item);
+        await Requests.Extensions.EnhancedExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
     }
+
+
+
+
 
 }

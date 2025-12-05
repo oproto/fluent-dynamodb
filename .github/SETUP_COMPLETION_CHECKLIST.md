@@ -162,7 +162,7 @@ git push origin v0.5.1-test.1
 
 - **Branch Protection Setup**: [BRANCH_PROTECTION_SETUP.md](./BRANCH_PROTECTION_SETUP.md)
 - **Manual Setup Overview**: [MANUAL_SETUP_REQUIRED.md](./MANUAL_SETUP_REQUIRED.md)
-- **Workflows Documentation**: [README.md](./README.md)
+- **Workflows Documentation**: [WORKFLOWS.md](./WORKFLOWS.md)
 - **GitHub Documentation**: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches
 
 ## Troubleshooting

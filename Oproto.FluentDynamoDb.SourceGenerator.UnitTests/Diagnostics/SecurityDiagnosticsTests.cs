@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
@@ -147,23 +147,16 @@ namespace TestNamespace
         warning.Should().BeNull("should not emit warning for Sensitive attribute without Encrypted");
     }
 
+    /// <summary>
+    /// Gets diagnostics from running the source generator on the provided source.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static IEnumerable<Diagnostic> GetDiagnostics(string source, bool includeEncryptionKms)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         
-        var references = new List<MetadataReference>
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location)
-        };
-
-        // Add runtime assemblies
-        var runtimePath = System.IO.Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        references.Add(MetadataReference.CreateFromFile(System.IO.Path.Combine(runtimePath, "System.Runtime.dll")));
-        references.Add(MetadataReference.CreateFromFile(System.IO.Path.Combine(runtimePath, "netstandard.dll")));
+        // Use DynamicCompilationHelper for standard references
+        var references = TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences().ToList();
 
         // Conditionally add Encryption.Kms package reference
         if (includeEncryptionKms)
@@ -197,15 +190,11 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms
 }";
 
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = new[]
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location)
-        };
 
         var compilation = CSharpCompilation.Create(
             "Oproto.FluentDynamoDb.Encryption.Kms",
             new[] { syntaxTree },
-            references,
+            TestHelpers.DynamicCompilationHelper.GetStandardReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         using var ms = new System.IO.MemoryStream();

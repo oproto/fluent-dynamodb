@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
@@ -20,7 +20,7 @@ public class RequestBuilderLoggingTests
     {
         public string Id { get; set; } = string.Empty;
 
-        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var testEntity = entity as TestEntity;
             return new Dictionary<string, AttributeValue>
@@ -29,7 +29,7 @@ public class RequestBuilderLoggingTests
             };
         }
 
-        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var entity = new TestEntity
             {
@@ -38,9 +38,9 @@ public class RequestBuilderLoggingTests
             return (TSelf)(object)entity;
         }
 
-        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
-            return FromDynamoDb<TSelf>(items.First(), logger);
+            return FromDynamoDb<TSelf>(items.First(), options);
         }
 
         public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
@@ -174,7 +174,7 @@ public class RequestBuilderLoggingTests
                 ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
             });
 
-        var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new QueryRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act
         var response = await builder
@@ -205,7 +205,7 @@ public class RequestBuilderLoggingTests
                 ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
             });
 
-        var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new QueryRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act
         var response = await builder
@@ -236,7 +236,7 @@ public class RequestBuilderLoggingTests
                 ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
             });
 
-        var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new QueryRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act
         var response = await builder
@@ -266,7 +266,7 @@ public class RequestBuilderLoggingTests
                 ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.5 } 
             });
 
-        var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new QueryRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act
         var response = await builder
@@ -291,7 +291,7 @@ public class RequestBuilderLoggingTests
         mockClient.QueryAsync(Arg.Any<QueryRequest>(), Arg.Any<CancellationToken>())
             .Returns<QueryResponse>(_ => throw expectedException);
 
-        var builder = new QueryRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new QueryRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
         // Query uses ToListAsync
 
         // Act & Assert
@@ -324,7 +324,7 @@ public class RequestBuilderLoggingTests
                 ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 }
             });
 
-        var builder = new GetItemRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new GetItemRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act
         var response = await builder
@@ -347,7 +347,7 @@ public class RequestBuilderLoggingTests
         mockClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
             .Returns<GetItemResponse>(_ => throw expectedException);
 
-        var builder = new GetItemRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new GetItemRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(async () => await builder
@@ -374,7 +374,7 @@ public class RequestBuilderLoggingTests
         mockClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse { ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 } });
 
-        var builder = new PutItemRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new PutItemRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
         var item = new Dictionary<string, AttributeValue>
         {
             ["id"] = new AttributeValue { S = "test-id" },
@@ -402,7 +402,7 @@ public class RequestBuilderLoggingTests
         mockClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns<PutItemResponse>(_ => throw expectedException);
 
-        var builder = new PutItemRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new PutItemRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
         var item = new Dictionary<string, AttributeValue>
         {
             ["id"] = new AttributeValue { S = "test-id" }
@@ -432,7 +432,7 @@ public class RequestBuilderLoggingTests
         mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new UpdateItemResponse { ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 } });
 
-        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act
         var response = await builder
@@ -458,7 +458,7 @@ public class RequestBuilderLoggingTests
         mockClient.UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>())
             .Returns<UpdateItemResponse>(_ => throw expectedException);
 
-        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient, logger);
+        var builder = new UpdateItemRequestBuilder<TestEntity>(mockClient, new FluentDynamoDbOptions().WithLogger(logger));
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<DynamoDbMappingException>(async () => await builder
@@ -477,74 +477,6 @@ public class RequestBuilderLoggingTests
     #endregion
 
     #region TransactWriteItemsRequestBuilder Tests
-
-    [Fact]
-    public async Task TransactWriteItemsRequestBuilder_LogsOperation()
-    {
-        // Arrange
-        var logger = new TestLogger();
-        var mockClient = Substitute.For<IAmazonDynamoDB>();
-        mockClient.TransactWriteItemsAsync(Arg.Any<TransactWriteItemsRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new TransactWriteItemsResponse 
-            { 
-                ConsumedCapacity = new List<ConsumedCapacity>
-                {
-                    new ConsumedCapacity { CapacityUnits = 2.0 }
-                }
-            });
-
-        var builder = new TransactWriteItemsRequestBuilder(mockClient, logger);
-
-        // Act
-        await builder
-            .AddTransactItem(new TransactWriteItem
-            {
-                Put = new Put
-                {
-                    TableName = "TestTable",
-                    Item = new Dictionary<string, AttributeValue>
-                    {
-                        ["id"] = new AttributeValue { S = "test-id" }
-                    }
-                }
-            })
-            .ExecuteAsync();
-
-        // Assert
-        logger.HasLogEntry(LogLevel.Information, LogEventIds.ExecutingTransaction).Should().BeTrue();
-        logger.HasLogEntry(LogLevel.Information, LogEventIds.OperationComplete).Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task TransactWriteItemsRequestBuilder_LogsError()
-    {
-        // Arrange
-        var logger = new TestLogger();
-        var mockClient = Substitute.For<IAmazonDynamoDB>();
-        var expectedException = new TransactionCanceledException("Transaction canceled");
-        mockClient.TransactWriteItemsAsync(Arg.Any<TransactWriteItemsRequest>(), Arg.Any<CancellationToken>())
-            .Returns<TransactWriteItemsResponse>(_ => throw expectedException);
-
-        var builder = new TransactWriteItemsRequestBuilder(mockClient, logger);
-
-        // Act & Assert
-        await Assert.ThrowsAsync<TransactionCanceledException>(async () => await builder
-            .AddTransactItem(new TransactWriteItem
-            {
-                Put = new Put
-                {
-                    TableName = "TestTable",
-                    Item = new Dictionary<string, AttributeValue>
-                    {
-                        ["id"] = new AttributeValue { S = "test-id" }
-                    }
-                }
-            })
-            .ExecuteAsync());
-        
-        // Assert
-        logger.HasLogEntry(LogLevel.Error, LogEventIds.DynamoDbOperationError).Should().BeTrue();
-    }
 
     #endregion
 }

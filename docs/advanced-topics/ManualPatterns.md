@@ -14,7 +14,9 @@ related: ["../core-features/BasicOperations.md", "../core-features/QueryingData.
 
 ---
 
-This guide covers lower-level manual patterns for scenarios where source generation or expression formatting may not be suitable. **The source generation approach with expression formatting is recommended for most use cases.**
+This guide covers lower-level manual patterns for scenarios where lambda expressions or format strings may not be suitable. 
+
+> **API Style Priority**: For most use cases, use **lambda expressions (preferred)** or **format strings (alternative)**. Manual patterns are the third option, appropriate only for specific scenarios like dynamic queries or legacy code migration.
 
 ## Introduction
 
@@ -30,10 +32,10 @@ Manual patterns may be appropriate for:
 
 ### Recommended Approach Reminder
 
-For production code, **source generation with expression formatting** is recommended:
+For production code, **lambda expressions are preferred**, with **format strings as an alternative**. Manual patterns are the third option for specific scenarios.
 
 ```csharp
-// ✅ Recommended: Source generation + expression formatting
+// ✅ PREFERRED: Lambda expressions - type-safe with IntelliSense
 [DynamoDbTable("users")]
 public partial class User
 {
@@ -43,15 +45,40 @@ public partial class User
 }
 
 await table.Query
+    .Where<User>(x => x.UserId == "user123")
+    .ExecuteAsync();
+
+// ✅ ALTERNATIVE: Format strings - concise with placeholders
+await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
     .ExecuteAsync<User>();
+
+// ⚠️ EXPLICIT CONTROL: Manual patterns - for specific scenarios (this guide)
+await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", UserKeys.Pk("user123"))
+    .ExecuteAsync();
 ```
 
-**Benefits:**
-- Type safety
-- Compile-time validation
-- Better performance
-- Easier maintenance
+**Benefits of Lambda Expressions (Preferred):**
+- Compile-time type checking
+- IntelliSense support
+- Refactoring safety
+- Automatic parameter generation
+
+**Benefits of Format Strings (Alternative):**
+- Concise syntax
+- Automatic parameter generation
+- Supports all DynamoDB features
+
+**When Manual Patterns Are Appropriate:**
+- Dynamic table names
+- Dynamic schema
+- Legacy code migration
+- Complex dynamic queries
+
+See [Basic Operations](../core-features/BasicOperations.md) and [Querying Data](../core-features/QueryingData.md) for the preferred approaches.
 
 
 ## Manual Table Pattern
@@ -799,9 +826,9 @@ var results = await builder.SearchAsync("USER#", filters, "desc");
 
 ## Mixing Approaches
 
-You can mix source generation with manual patterns:
+You can mix all three API styles in the same codebase. Here's how they compare:
 
-### Scenario 1: Generated Entity with Manual Queries
+### Scenario 1: Generated Entity - All Three Styles
 
 ```csharp
 // Entity with source generation
@@ -816,20 +843,33 @@ public partial class User
     public string Email { get; set; } = string.Empty;
 }
 
-// Use generated fields with manual parameter binding
+// 1. PREFERRED: Lambda expression - type-safe with IntelliSense
 var response = await table.Query
-    .Where($"{UserFields.UserId} = :pk")  // Generated field
-    .WithValue(":pk", UserKeys.Pk("user123"))  // Generated key builder
-    .ExecuteAsync<User>();  // Generated mapper
+    .Where<User>(x => x.UserId == "user123")
+    .ExecuteAsync();
+
+// 2. ALTERNATIVE: Format string - concise with placeholders
+var response = await table.Query
+    .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
+    .ExecuteAsync<User>();
+
+// 3. EXPLICIT CONTROL: Manual - for complex scenarios
+var response = await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", UserKeys.Pk("user123"))
+    .ExecuteAsync<User>();
 ```
 
-### Scenario 2: Manual Table with Expression Formatting
+### Scenario 2: Manual Table with Format Strings
+
+When you don't have source generation, format strings are the preferred alternative:
 
 ```csharp
 // Manual table (no entity class)
 var table = new DynamoDbTableBase(client, "dynamic-table");
 
-// Use expression formatting with manual field names
+// Use format strings with manual field names (preferred for manual tables)
 const string PK = "pk";
 const string Status = "status";
 const string CreatedAt = "createdAt";
@@ -879,21 +919,29 @@ public class HybridUserService
 
 ## Performance Considerations
 
-### Manual vs Source Generation
+### API Style Comparison
 
-**Manual Approach:**
+**Lambda Expressions (Preferred):**
+- Compile-time type checking
+- IntelliSense support
+- Refactoring safety
+- Automatic parameter generation
+- Best for production code
+
+**Format Strings (Alternative):**
+- Concise syntax
+- Automatic parameter generation
+- Good balance of flexibility and safety
+- Suitable when lambda expressions aren't available
+
+**Manual Patterns (Explicit Control):**
 - Runtime overhead for parameter binding
 - Manual serialization/deserialization
 - More error-prone
 - Harder to maintain
+- Use only when necessary
 
-**Source Generation:**
-- Zero runtime overhead
-- Compile-time code generation
-- Type-safe
-- Easier to maintain
-
-**Recommendation:** Use source generation for production code, manual patterns only when necessary.
+**Recommendation:** Use lambda expressions (preferred) or format strings (alternative) for production code. Reserve manual patterns for dynamic queries, complex scenarios, or legacy code migration.
 
 ### Optimization Tips for Manual Patterns
 
@@ -927,15 +975,26 @@ for (int i = 0; i < 1000; i++)
 
 ## Best Practices
 
-### 1. Prefer Source Generation
+### 1. Prefer Lambda Expressions, Then Format Strings
 
 ```csharp
-// ✅ Recommended: Source generation
-[DynamoDbTable("users")]
-public partial class User { }
+// ✅ PREFERRED: Lambda expressions - type-safe with IntelliSense
+await table.Query
+    .Where<User>(x => x.UserId == "user123")
+    .ExecuteAsync();
 
-// Use only when necessary
+// ✅ ALTERNATIVE: Format strings - concise with placeholders
+await table.Query
+    .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
+    .ExecuteAsync<User>();
+
+// ⚠️ EXPLICIT CONTROL: Manual patterns - use only when necessary
 var table = new DynamoDbTableBase(client, "dynamic-table");
+await table.Query
+    .Where("#pk = :pk")
+    .WithAttribute("#pk", "pk")
+    .WithValue(":pk", "USER#user123")
+    .ExecuteAsync();
 ```
 
 ### 2. Use Constants for Field Names
@@ -1013,10 +1072,12 @@ public async Task<Dictionary<string, AttributeValue>?> GetTenantDataAsync(
 
 ## Next Steps
 
-- **[Basic Operations](../core-features/BasicOperations.md)** - Standard CRUD operations
-- **[Expression Formatting](../core-features/ExpressionFormatting.md)** - Recommended approach
-- **[Entity Definition](../core-features/EntityDefinition.md)** - Source generation setup
-- **[Querying Data](../core-features/QueryingData.md)** - Query patterns
+> **Recommendation**: For most use cases, use the preferred approaches documented in these guides:
+
+- **[Basic Operations](../core-features/BasicOperations.md)** - Standard CRUD operations with all three API styles
+- **[Querying Data](../core-features/QueryingData.md)** - Query patterns with lambda expressions (preferred)
+- **[Expression Formatting](../core-features/ExpressionFormatting.md)** - Format string approach (alternative)
+- **[Entity Definition](../core-features/EntityDefinition.md)** - Source generation setup for type-safe operations
 
 ---
 

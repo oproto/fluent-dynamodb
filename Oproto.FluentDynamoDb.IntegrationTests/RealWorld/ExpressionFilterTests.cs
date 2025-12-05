@@ -16,7 +16,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Trait("Feature", "ExpressionSupport")]
 public class ExpressionFilterTests : IntegrationTestBase
 {
-    private DynamoDbTableBase _table = null!;
+    private TestTable _table = null!;
     
     public ExpressionFilterTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
@@ -139,9 +139,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with filter on IsActive (non-key attribute)
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.IsActive == true, metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -159,9 +159,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with filter on Name
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Name == "Laptop", metadata)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Name == "Laptop", metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -179,9 +179,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with filter using StartsWith
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Name!.StartsWith("Lap"), metadata)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Name!.StartsWith("Lap"), metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -199,9 +199,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with filter using Contains
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.Description!.Contains("laptop"), metadata)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.Description!.Contains("laptop"), metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -223,9 +223,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with complex filter (multiple conditions with AND)
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => x.IsActive == true && x.Name!.StartsWith("L"), 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -246,9 +246,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with filter on multiple properties
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => x.IsActive == true && x.Name == "Laptop" && x.Description!.Contains("performance"), 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -270,9 +270,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with NOT operator
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(x => !(x.Name == "Mouse"), metadata)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => !(x.Name == "Mouse"), metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -294,9 +294,9 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Mix expression-based Where() and WithFilter()
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.IsActive == true, metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -319,11 +319,11 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Expression Where with both keys, then filter
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == productId && x.Type == productType, 
                 metadata)
-            .WithFilter<QueryRequestBuilder, ComplexEntity>(x => x.IsActive == true, metadata)
+            .WithFilter<QueryRequestBuilder<ComplexEntity>, ComplexEntity>(x => x.IsActive == true, metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -346,8 +346,8 @@ public class ExpressionFilterTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Use scan to get all items, then filter
-        var response = await _table.Scan()
-            .WithFilter<ScanRequestBuilder, ComplexEntity>(
+        var response = await _table.Scan<ComplexEntity>()
+            .WithFilter<ScanRequestBuilder<ComplexEntity>, ComplexEntity>(
                 x => x.Type == "electronics" && x.IsActive == true, 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -373,7 +373,10 @@ public class ExpressionFilterTests : IntegrationTestBase
         {
         }
         
-        public ScanRequestBuilder Scan() => 
-            new ScanRequestBuilder(DynamoDbClient).ForTable(Name);
+        public ScanRequestBuilder<ComplexEntity> Scan() => 
+            new ScanRequestBuilder<ComplexEntity>(DynamoDbClient).ForTable(Name);
+        
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+            new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
     }
 }

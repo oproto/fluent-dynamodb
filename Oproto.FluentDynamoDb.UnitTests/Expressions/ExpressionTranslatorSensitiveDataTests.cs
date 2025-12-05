@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Logging;
@@ -226,7 +226,7 @@ public class ExpressionTranslatorSensitiveDataTests
         // Arrange
         bool IsSensitiveField(string attributeName) => attributeName == "email";
         
-        var translator = new ExpressionTranslator(null, IsSensitiveField);
+        var translator = new ExpressionTranslator((Oproto.FluentDynamoDb.Logging.IDynamoDbLogger?)null, IsSensitiveField);
         var metadata = CreateEntityMetadata();
         var context = CreateContext(metadata);
         

@@ -1,0 +1,271 @@
+# Implementation Plan
+
+- [x] 1. Create FluentDynamoDbOptions class
+  - [x] 1.1 Create FluentDynamoDbOptions with core properties
+    - Create `Oproto.FluentDynamoDb/FluentDynamoDbOptions.cs`
+    - Add Logger, BlobStorageProvider, FieldEncryptor properties
+    - Add internal HydratorRegistry property
+    - _Requirements: 1.1, 5.1, 5.2_
+  - [x] 1.2 Add immutable With* methods
+    - Add WithLogger, WithBlobStorage, WithEncryption methods
+    - Each method returns a new instance
+    - _Requirements: 1.1_
+  - [x] 1.3 Write property test for options immutability
+    - **Property 2: Options Immutability**
+    - **Validates: Requirements 8.2**
+
+- [x] 2. Create IGeospatialProvider interface
+  - [x] 2.1 Define IGeospatialProvider interface in main library
+    - Create `Oproto.FluentDynamoDb/IGeospatialProvider.cs`
+    - Add CreateBoundingBox methods
+    - Add GetGeoHashRange, GetS2CellCovering, GetH3CellCovering methods
+    - Add GeoBoundingBoxResult struct
+    - _Requirements: 2.1, 2.4_
+  - [x] 2.2 Add GeospatialProvider property to FluentDynamoDbOptions
+    - Add internal WithGeospatialProvider method
+    - _Requirements: 2.1_
+
+- [x] 3. Implement IGeospatialProvider in Geospatial package
+  - [x] 3.1 Create DefaultGeospatialProvider class
+    - Implement IGeospatialProvider using existing GeoHash, S2, H3 classes
+    - _Requirements: 2.1, 2.4_
+  - [x] 3.2 Create AddGeospatial extension method
+    - Create `GeospatialOptionsExtensions.cs` in Geospatial package
+    - Extension method on FluentDynamoDbOptions
+    - _Requirements: 2.1_
+  - [x] 3.3 Write unit tests for geospatial provider
+    - Test bounding box creation
+    - Test cell covering methods
+    - _Requirements: 2.4_
+
+- [x] 4. Update ExpressionTranslator to use IGeospatialProvider
+  - [x] 4.1 Add FluentDynamoDbOptions parameter to ExpressionTranslator
+    - Update constructor to accept options
+    - Store options reference
+    - _Requirements: 2.2_
+  - [x] 4.2 Replace reflection-based geospatial calls with provider
+    - Update TranslateGeospatialMethod to use IGeospatialProvider
+    - Remove Assembly.GetType and GetMethod calls
+    - Throw descriptive exception if provider not configured
+    - _Requirements: 2.2, 2.3_
+  - [x] 4.3 Write property test for no reflection in geospatial translation
+    - **Property 3: No Reflection for Registered Services**
+    - **Validates: Requirements 2.2, 6.4**
+
+- [x] 5. Checkpoint - Verify geospatial refactoring
+  - Ensure all tests pass, ask the user if questions arise.
+  - Verify ExpressionTranslator no longer uses Assembly.GetType for geospatial
+
+- [x] 6. Create IAsyncEntityHydrator interface
+  - [x] 6.1 Define IAsyncEntityHydrator<T> interface
+    - Create `Oproto.FluentDynamoDb/Storage/IAsyncEntityHydrator.cs`
+    - Add HydrateAsync methods for single and composite entities
+    - _Requirements: 3.1, 3.2_
+  - [x] 6.2 Define IEntityHydratorRegistry interface
+    - Add GetHydrator<T> and Register<T> methods
+    - Create DefaultEntityHydratorRegistry implementation
+    - _Requirements: 3.2_
+
+- [x] 7. Update source generator to emit IAsyncEntityHydrator
+  - [x] 7.1 Generate IAsyncEntityHydrator implementation for entities with blob refs
+    - Update EntityGenerator to detect blob references
+    - Generate hydrator class that wraps FromDynamoDbAsync
+    - _Requirements: 3.1_
+  - [x] 7.2 Generate hydrator registration code
+    - Generate static registration method
+    - _Requirements: 3.1_
+  - [x] 7.3 Write unit tests for generated hydrator
+    - Test hydrator generation for entity with blob refs
+    - Test hydrator not generated for entity without blob refs
+    - _Requirements: 3.1_
+
+- [x] 8. Update DynamoDbResponseExtensions to use hydrator registry
+  - [x] 8.1 Add FluentDynamoDbOptions parameter to extension methods
+    - Update ToListAsync, ToEntityAsync signatures
+    - _Requirements: 3.2_
+  - [x] 8.2 Replace GetMethod reflection with hydrator lookup
+    - Use HydratorRegistry.GetHydrator<T>()
+    - Throw descriptive exception if hydrator not found
+    - _Requirements: 3.2, 3.4_
+  - [x] 8.3 Write property test for no reflection in entity hydration
+    - **Property 3: No Reflection for Registered Services**
+    - **Validates: Requirements 3.2, 6.4**
+
+- [x] 9. Checkpoint - Verify blob storage refactoring
+  - Ensure all tests pass, ask the user if questions arise.
+  - Verify DynamoDbResponseExtensions no longer uses GetMethod for FromDynamoDbAsync
+
+- [x] 10. Create source-generated collection formatters
+  - [x] 10.1 Update source generator to detect collection properties with format strings
+    - Analyze entity properties for HashSet<T>, List<T> with format attributes
+    - _Requirements: 4.1_
+  - [x] 10.2 Generate type-specific FormatCollection methods
+    - Generate FormatDateTimeSet, FormatDecimalSet, etc.
+    - _Requirements: 4.1_
+  - [x] 10.3 Write unit tests for generated formatters
+    - Test formatter generation for various collection types
+    - _Requirements: 4.1_
+
+- [x] 11. Update UpdateExpressionTranslator to use generated formatters
+  - [x] 11.1 Add mechanism to lookup generated formatters
+    - Create ICollectionFormatterRegistry interface
+    - _Requirements: 4.2_
+  - [x] 11.2 Replace Activator.CreateInstance with formatter lookup
+    - Update ApplyFormatToSetElements to use registry
+    - Fall back to generic implementation with warning for unknown types
+    - _Requirements: 4.2, 4.3_
+  - [x] 11.3 Write property test for collection type preservation
+    - **Property 6: Collection Type Preservation**
+    - **Validates: Requirements 4.4**
+  - [x] 11.4 Write property test for no Activator.CreateInstance
+    - **Property 3: No Reflection for Registered Services**
+    - **Validates: Requirements 4.2, 6.4**
+
+- [x] 12. Checkpoint - Verify collection formatting refactoring
+  - Ensure all tests pass, ask the user if questions arise.
+  - Verify UpdateExpressionTranslator no longer uses Activator.CreateInstance
+
+- [x] 13. Update DynamoDbTableBase to accept FluentDynamoDbOptions
+  - [x] 13.1 Replace constructors with FluentDynamoDbOptions parameter
+    - Remove old constructors that take individual logger/encryptor params
+    - Accept options parameter only
+    - Extract Logger, FieldEncryptor from options
+    - _Requirements: 7.2_
+  - [x] 13.2 Update request builder creation to pass options
+    - Pass options to QueryRequestBuilder, etc.
+    - _Requirements: 5.3_
+  - [x] 13.3 Write property test for logger propagation
+    - **Property 5: Logger Propagation**
+    - **Validates: Requirements 5.3**
+
+- [x] 14. Write configuration isolation tests
+  - [x] 14.1 Write property test for configuration isolation
+    - **Property 1: Configuration Isolation**
+    - **Validates: Requirements 7.4, 8.1, 8.2, 8.3, 8.5**
+  - [x] 14.2 Write parallel test execution test
+    - Create multiple tables with different configs in parallel
+    - Verify no cross-contamination
+    - _Requirements: 8.3_
+
+- [x] 15. Write default options tests
+  - [x] 15.1 Write property test for default options behavior
+    - **Property 7: Default Options Behavior**
+    - **Validates: Requirements 1.3, 5.2, 7.3**
+  - [x] 15.2 Write property test for core operations without optional packages
+    - **Property 4: Core Operations Without Optional Packages**
+    - **Validates: Requirements 1.3, 1.4**
+
+- [x] 16. Update NoReflectionPropertyTests
+  - [x] 16.1 Remove files from AOT-unsafe list
+    - Remove ExpressionTranslator.cs (after geospatial refactor)
+    - Remove UpdateExpressionTranslator.cs (after formatter refactor)
+    - Remove DynamoDbResponseExtensions.cs (after hydrator refactor)
+    - Remove EnhancedExecuteAsyncExtensions.cs (after hydrator refactor)
+    - _Requirements: 6.4_
+  - [x] 16.2 Verify no AOT-unsafe reflection in main library
+    - Run property tests
+    - _Requirements: 6.1, 6.4_
+
+- [x] 17. Migrate existing unit tests to new initialization pattern
+  - [x] 17.1 Create test helper for FluentDynamoDbOptions
+    - Create `TestOptionsBuilder` or similar helper class
+    - Provide common test configurations (with mock logger, etc.)
+    - _Requirements: 8.1, 8.2_
+  - [x] 17.2 Update Oproto.FluentDynamoDb.UnitTests
+    - Update ExpressionTranslator tests to pass options
+    - Update UpdateExpressionTranslator tests to pass options
+    - Update request builder tests to use new constructors
+    - _Requirements: 8.1_
+  - [x] 17.3 Update Oproto.FluentDynamoDb.Geospatial.UnitTests
+    - Update tests to use AddGeospatial() pattern
+    - Update spatial query tests with new options
+    - _Requirements: 2.1_
+  - [x] 17.4 Update Oproto.FluentDynamoDb.SourceGenerator.UnitTests
+    - Update tests that verify generated code signatures
+    - Update tests for hydrator generation
+    - _Requirements: 3.1_
+  - [x] 17.5 Update Oproto.FluentDynamoDb.IntegrationTests
+    - Update table creation to use FluentDynamoDbOptions
+    - Update blob storage tests with new pattern
+    - _Requirements: 3.3_
+  - [x] 17.6 Update extension library unit tests
+    - Update BlobStorage.S3.UnitTests
+    - Update Encryption.Kms.UnitTests
+    - Update Logging.Extensions.UnitTests
+    - Update FluentResults.UnitTests
+    - Update Streams.UnitTests
+    - _Requirements: 8.1_
+  - [x] 17.7 Update ApiConsistencyTests
+    - Update any tests checking constructor signatures
+    - _Requirements: 8.1_
+
+- [x] 18. Refactor EnhancedExecuteAsyncExtensions to use hydrator registry
+  - [x] 18.1 Update ToEntityAsync methods to use IEntityHydratorRegistry
+    - Replace GetMethod() reflection with HydratorRegistry.GetHydrator<T>()
+    - Fall back to synchronous FromDynamoDb when no hydrator registered
+    - _Requirements: 3.2, 3.4, 6.4_
+  - [x] 18.2 Update ToListAsync methods to use IEntityHydratorRegistry
+    - Replace GetMethod() reflection with HydratorRegistry.GetHydrator<T>()
+    - Fall back to synchronous FromDynamoDb when no hydrator registered
+    - _Requirements: 3.2, 3.4, 6.4_
+  - [x] 18.3 Update ToDynamoDbAsync methods to use registry pattern
+    - Replace GetMethod() reflection for ToDynamoDbAsync discovery
+    - _Requirements: 3.2, 6.4_
+  - [ ]* 18.4 Write property test for no reflection in EnhancedExecuteAsyncExtensions
+    - **Property 3: No Reflection for Registered Services**
+    - **Validates: Requirements 3.2, 6.4**
+
+- [x] 19. Refactor ExpressionTranslator property type discovery
+  - [x] 19.1 Replace GetProperty() in IsGeoLocationPropertyAccess
+    - Use MemberExpression.Member directly (already AOT-safe)
+    - Cast to PropertyInfo from expression tree (compile-time captured)
+    - Lines 414, 421 in ExpressionTranslator.cs
+    - _Requirements: 2.2, 6.4_
+  - [x] 19.2 Replace GetField/GetProperty in EvaluateConstantExpression
+    - Use MemberExpression.Member directly (already AOT-safe)
+    - Cast to FieldInfo/PropertyInfo from expression tree
+    - Lines 1061, 1067 in ExpressionTranslator.cs
+    - _Requirements: 6.4_
+  - [x] 19.3 Replace GetProperty() in ExtractGeoLocationCoordinates
+    - Use IGeospatialProvider to extract coordinates
+    - Or use duck typing with known property names
+    - Lines 1220, 1221 in ExpressionTranslator.cs
+    - _Requirements: 2.2, 6.4_
+  - [x] 19.4 Replace GetProperty() in ExtractBoundingBoxCoordinates
+    - Use IGeospatialProvider to extract coordinates
+    - Or use duck typing with known property names
+    - Lines 1337, 1338 in ExpressionTranslator.cs
+    - _Requirements: 2.2, 6.4_
+  - [ ]* 19.5 Write property test for no reflection in ExpressionTranslator
+    - **Property 3: No Reflection for Registered Services**
+    - **Validates: Requirements 2.2, 6.4**
+
+- [x] 20. Update NoReflectionPropertyTests
+  - [x] 20.1 Remove EnhancedExecuteAsyncExtensions.cs from AOT-unsafe list
+    - After task 18 is complete
+    - _Requirements: 6.4_
+  - [x] 20.2 Remove ExpressionTranslator.cs from AOT-unsafe list
+    - After task 19 is complete
+    - _Requirements: 6.4_
+  - [x] 20.3 Verify FilesWithAotUnsafeReflection array is empty
+    - All main library files should be AOT-safe
+    - _Requirements: 6.1, 6.4_
+
+- [x] 21. Checkpoint - Verify all existing tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+  - Run full test suite: `dotnet test`
+  - Address any test failures from API changes
+
+- [x] 22. Update CHANGELOG.md
+  - [x] 22.1 Add entry for FluentDynamoDbOptions
+    - Document new configuration pattern
+    - _Requirements: 1.1_
+  - [x] 22.2 Add entry for AOT compatibility improvements
+    - Document reflection removal
+    - _Requirements: 6.1_
+
+- [x] 23. Final Checkpoint - Verify all changes
+  - Ensure all tests pass, ask the user if questions arise.
+  - Verify no AOT-unsafe reflection in main library
+  - Verify parallel test execution works correctly
+

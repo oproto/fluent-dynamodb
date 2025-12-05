@@ -1,23 +1,14 @@
 version: 2
 updates:
-  # NuGet package ecosystem
+  # NuGet package ecosystem - DISABLED
+  # This is a library that uses version ranges to maintain compatibility with user environments.
+  # Dependabot's automatic updates would force minimum version bumps that reduce compatibility.
+  # Dependency updates are managed manually during release planning.
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "nuget"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    reviewers:
-      - "oproto/maintainers"
-    assignees:
-      - "oproto/maintainers"
+    open-pull-requests-limit: 0  # Disabled
     
   # GitHub Actions ecosystem
   - package-ecosystem: "github-actions"
@@ -26,6 +17,7 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+    target-branch: "develop"  # Target develop branch for Git Flow workflow
     open-pull-requests-limit: 5
     labels:
       - "dependencies"

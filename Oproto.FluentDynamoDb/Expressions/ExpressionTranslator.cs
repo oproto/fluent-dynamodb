@@ -125,6 +125,7 @@ public class ExpressionTranslator
     private static readonly ExpressionCache _cache = new();
     private readonly IDynamoDbLogger? _logger;
     private readonly Func<string, bool>? _isSensitiveField;
+    private readonly FluentDynamoDbOptions? _options;
 
     /// <summary>
     /// Gets the global expression cache instance.
@@ -146,6 +147,18 @@ public class ExpressionTranslator
     public ExpressionTranslator(IDynamoDbLogger? logger, Func<string, bool>? isSensitiveField = null)
     {
         _logger = logger;
+        _isSensitiveField = isSensitiveField;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExpressionTranslator"/> class with FluentDynamoDbOptions.
+    /// </summary>
+    /// <param name="options">The FluentDynamoDb configuration options. If null, uses default options.</param>
+    /// <param name="isSensitiveField">Optional function to check if a field is sensitive (typically from generated SecurityMetadata).</param>
+    public ExpressionTranslator(FluentDynamoDbOptions? options, Func<string, bool>? isSensitiveField = null)
+    {
+        _options = options;
+        _logger = options?.Logger;
         _isSensitiveField = isSensitiveField;
     }
 
@@ -244,6 +257,49 @@ public class ExpressionTranslator
             return sb.ToString();
         }
 
+        // Special handling for GeoLocation comparisons
+        // Detects patterns like: x.Location == cell or x.Location.SpatialIndex == cell
+        // These use the implicit cast operator or explicit SpatialIndex property access
+        if (IsGeoLocationComparison(node, entityParameter, out var geoLocationExpr, out var valueExpr, out var isLeftSide))
+        {
+            return TranslateGeoLocationComparison(node, geoLocationExpr!, valueExpr!, isLeftSide, entityParameter, context);
+        }
+
+        // Special handling for string.CompareOrdinal(x.Property, value) >= 0 pattern
+        // This allows string comparison operators in expressions
+        // Example: string.CompareOrdinal(x.Type, "value") >= 0 translates to: #attr0 >= :p0
+        if (node.Left is MethodCallExpression methodCall &&
+            methodCall.Method.Name == "CompareOrdinal" &&
+            methodCall.Method.DeclaringType == typeof(string) &&
+            methodCall.Arguments.Count == 2 &&
+            IsEntityPropertyAccess(methodCall.Arguments[0], entityParameter))
+        {
+            // Extract the property and value from CompareOrdinal
+            var comparePropertyMetadata = GetPropertyMetadata(methodCall.Arguments[0], entityParameter, context);
+            var attributeName = Visit(methodCall.Arguments[0], entityParameter, context);
+            var compareValue = VisitWithPropertyMetadata(methodCall.Arguments[1], entityParameter, context, comparePropertyMetadata);
+            
+            // The right side should be 0 (the comparison result)
+            // Map the comparison operator: CompareOrdinal(...) >= 0 means attr >= value
+            var compareOperator = node.NodeType switch
+            {
+                ExpressionType.Equal => "=",           // CompareOrdinal(...) == 0 -> attr = value
+                ExpressionType.NotEqual => "<>",       // CompareOrdinal(...) != 0 -> attr <> value
+                ExpressionType.LessThan => "<",        // CompareOrdinal(...) < 0 -> attr < value
+                ExpressionType.LessThanOrEqual => "<=", // CompareOrdinal(...) <= 0 -> attr <= value
+                ExpressionType.GreaterThan => ">",     // CompareOrdinal(...) > 0 -> attr > value
+                ExpressionType.GreaterThanOrEqual => ">=", // CompareOrdinal(...) >= 0 -> attr >= value
+                _ => throw new UnsupportedExpressionException(
+                    $"Binary operator '{node.NodeType}' is not supported with string.CompareOrdinal.",
+                    node)
+            };
+            
+            // Use StringBuilder to minimize allocations
+            var compareBuilder = new StringBuilder(attributeName.Length + compareValue.Length + compareOperator.Length + 2);
+            compareBuilder.Append(attributeName).Append(' ').Append(compareOperator).Append(' ').Append(compareValue);
+            return compareBuilder.ToString();
+        }
+
         // Handle comparison operators (==, !=, <, >, <=, >=)
         // For comparisons, we need to determine which side is the property and which is the value
         // to apply formatting correctly
@@ -288,6 +344,170 @@ public class ExpressionTranslator
     }
     
     /// <summary>
+    /// Checks if a binary expression is comparing a GeoLocation property to a string value.
+    /// Detects both implicit cast (x.Location == cell) and explicit property access (x.Location.SpatialIndex == cell).
+    /// Only supports equality and inequality operators, as spatial indices (S2, H3) are not lexicographically ordered.
+    /// </summary>
+    /// <param name="node">The binary expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="geoLocationExpr">The GeoLocation property expression if detected.</param>
+    /// <param name="valueExpr">The string value expression if detected.</param>
+    /// <param name="isLeftSide">True if GeoLocation is on the left side, false if on the right.</param>
+    /// <returns>True if this is a GeoLocation comparison, false otherwise.</returns>
+    private bool IsGeoLocationComparison(
+        BinaryExpression node,
+        ParameterExpression entityParameter,
+        out Expression? geoLocationExpr,
+        out Expression? valueExpr,
+        out bool isLeftSide)
+    {
+        geoLocationExpr = null;
+        valueExpr = null;
+        isLeftSide = false;
+
+        // Only handle equality and inequality operators
+        // Note: S2 and H3 spatial indices are NOT lexicographically ordered,
+        // so comparison operators (<, >, <=, >=) don't make semantic sense.
+        // GeoHash BETWEEN queries are handled by WithinDistance/WithinBoundingBox methods.
+        if (node.NodeType != ExpressionType.Equal &&
+            node.NodeType != ExpressionType.NotEqual)
+        {
+            return false;
+        }
+
+        // Check left side for GeoLocation
+        if (IsGeoLocationPropertyAccess(node.Left, entityParameter))
+        {
+            geoLocationExpr = node.Left;
+            valueExpr = node.Right;
+            isLeftSide = true;
+            return true;
+        }
+
+        // Check right side for GeoLocation
+        if (IsGeoLocationPropertyAccess(node.Right, entityParameter))
+        {
+            geoLocationExpr = node.Right;
+            valueExpr = node.Left;
+            isLeftSide = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if an expression is accessing a GeoLocation property or its SpatialIndex property.
+    /// Detects: x.Location (GeoLocation property) or x.Location.SpatialIndex (explicit property access).
+    /// </summary>
+    private bool IsGeoLocationPropertyAccess(Expression expr, ParameterExpression entityParameter)
+    {
+        if (expr is not MemberExpression member)
+            return false;
+
+        // Check for x.Location.SpatialIndex pattern
+        if (member.Member.Name == "SpatialIndex" &&
+            member.Expression is MemberExpression parentMember &&
+            parentMember.Expression == entityParameter)
+        {
+            // Check if the parent property is of type GeoLocation
+            // Use MemberExpression.Member directly - it's already captured at compile time (AOT-safe)
+            var propertyType = parentMember.Member is System.Reflection.PropertyInfo parentPropInfo 
+                ? parentPropInfo.PropertyType 
+                : null;
+            return IsGeoLocationType(propertyType);
+        }
+
+        // Check for x.Location pattern (direct GeoLocation property access)
+        if (member.Expression == entityParameter)
+        {
+            // Use MemberExpression.Member directly - it's already captured at compile time (AOT-safe)
+            var propertyType = member.Member is System.Reflection.PropertyInfo propInfo 
+                ? propInfo.PropertyType 
+                : null;
+            return IsGeoLocationType(propertyType);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a type is GeoLocation.
+    /// </summary>
+    private bool IsGeoLocationType(Type? type)
+    {
+        if (type == null)
+            return false;
+
+        // Check for exact type match
+        if (type.FullName == "Oproto.FluentDynamoDb.Geospatial.GeoLocation")
+            return true;
+
+        // Check for nullable GeoLocation
+        if (type.IsGenericType &&
+            type.GetGenericTypeDefinition() == typeof(Nullable<>) &&
+            type.GetGenericArguments()[0].FullName == "Oproto.FluentDynamoDb.Geospatial.GeoLocation")
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Translates a GeoLocation comparison to a DynamoDB expression.
+    /// Handles both x.Location == cell and x.Location.SpatialIndex == cell patterns.
+    /// Only supports equality (==) and inequality (!=) operators.
+    /// </summary>
+    private string TranslateGeoLocationComparison(
+        BinaryExpression node,
+        Expression geoLocationExpr,
+        Expression valueExpr,
+        bool isLeftSide,
+        ParameterExpression entityParameter,
+        ExpressionContext context)
+    {
+        // Extract the base GeoLocation property (x.Location)
+        MemberExpression baseProperty;
+        if (geoLocationExpr is MemberExpression member && member.Member.Name == "SpatialIndex")
+        {
+            // x.Location.SpatialIndex - get the parent (x.Location)
+            baseProperty = (MemberExpression)member.Expression!;
+        }
+        else
+        {
+            // x.Location - already the base property
+            baseProperty = (MemberExpression)geoLocationExpr;
+        }
+
+        // Get the property metadata for the GeoLocation property
+        var propertyMetadata = GetPropertyMetadata(baseProperty, entityParameter, context);
+
+        // Translate the GeoLocation property to its DynamoDB attribute name
+        var attributeName = Visit(baseProperty, entityParameter, context);
+
+        // Evaluate and capture the string value
+        var value = VisitWithPropertyMetadata(valueExpr, entityParameter, context, propertyMetadata);
+
+        // Map the comparison operator (only == and != are supported)
+        var dynamoDbOperator = node.NodeType switch
+        {
+            ExpressionType.Equal => "=",
+            ExpressionType.NotEqual => "<>",
+            _ => throw new UnsupportedExpressionException(
+                $"Binary operator '{node.NodeType}' is not supported for GeoLocation comparisons. " +
+                $"Only equality (==) and inequality (!=) operators are supported because spatial indices " +
+                $"(S2, H3) are not lexicographically ordered. Use WithinDistance or WithinBoundingBox methods " +
+                $"for range-based spatial queries.",
+                node)
+        };
+
+        // Build the expression: attribute operator value
+        // Note: We always put the attribute on the left side in DynamoDB expressions
+        var builder = new StringBuilder(attributeName.Length + value.Length + dynamoDbOperator.Length + 2);
+        builder.Append(attributeName).Append(' ').Append(dynamoDbOperator).Append(' ').Append(value);
+        return builder.ToString();
+    }
+
+    /// <summary>
     /// Visits an expression node with property metadata for format application.
     /// </summary>
     private string VisitWithPropertyMetadata(Expression node, ParameterExpression entityParameter, ExpressionContext context, PropertyMetadata? propertyMetadata)
@@ -296,6 +516,12 @@ public class ExpressionTranslator
         if (IsEntityPropertyAccess(node, entityParameter))
         {
             return Visit(node, entityParameter, context);
+        }
+        
+        // Handle type conversions (like nullable to non-nullable) by unwrapping and continuing
+        if (node is UnaryExpression unary && (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            return VisitWithPropertyMetadata(unary.Operand, entityParameter, context, propertyMetadata);
         }
         
         // For value expressions, evaluate and capture with format
@@ -357,7 +583,7 @@ public class ExpressionTranslator
                 // Validate key-only mode for Query().Where()
                 if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
                 {
-                    var isKey = propertyMetadata.IsPartitionKey || propertyMetadata.IsSortKey;
+                    var isKey = IsKeyProperty(propertyName, propertyMetadata, context);
                     if (!isKey)
                     {
                         throw new InvalidKeyExpressionException(propertyName, node);
@@ -382,6 +608,36 @@ public class ExpressionTranslator
         // Evaluate the member expression to get its value
         var value = EvaluateExpression(node);
         return CaptureValue(value, context, propertyMetadata: null);
+    }
+
+    /// <summary>
+    /// Determines if a property is a key property for the current query context.
+    /// When querying a GSI (IndexName is set), checks if the property is the GSI's partition or sort key.
+    /// Otherwise, checks if the property is the main table's partition or sort key.
+    /// </summary>
+    /// <param name="propertyName">The C# property name to check.</param>
+    /// <param name="propertyMetadata">The property metadata from entity metadata.</param>
+    /// <param name="context">The expression context containing index information.</param>
+    /// <returns>True if the property is a key property for the current query context.</returns>
+    private bool IsKeyProperty(string propertyName, PropertyMetadata propertyMetadata, ExpressionContext context)
+    {
+        // If querying a GSI, check if the property is a key in that GSI
+        if (!string.IsNullOrEmpty(context.IndexName) && context.EntityMetadata?.Indexes != null)
+        {
+            var indexMetadata = context.EntityMetadata.Indexes
+                .FirstOrDefault(i => string.Equals(i.IndexName, context.IndexName, StringComparison.OrdinalIgnoreCase));
+            
+            if (indexMetadata != null)
+            {
+                // Check if this property is the GSI partition key or sort key
+                var isGsiKey = string.Equals(indexMetadata.PartitionKeyProperty, propertyName, StringComparison.Ordinal) ||
+                               string.Equals(indexMetadata.SortKeyProperty, propertyName, StringComparison.Ordinal);
+                return isGsiKey;
+            }
+        }
+        
+        // Fall back to main table key validation
+        return propertyMetadata.IsPartitionKey || propertyMetadata.IsSortKey;
     }
 
     /// <summary>
@@ -448,6 +704,17 @@ public class ExpressionTranslator
     }
 
     /// <summary>
+    /// Checks if a method call is a geospatial query method from GeoHashQueryExtensions.
+    /// </summary>
+    /// <param name="node">The method call expression.</param>
+    /// <returns>True if this is a geospatial method, false otherwise.</returns>
+    private bool IsGeospatialMethod(MethodCallExpression node)
+    {
+        var declaringType = node.Method.DeclaringType;
+        return declaringType?.FullName == "Oproto.FluentDynamoDb.Geospatial.GeoHash.GeoHashQueryExtensions";
+    }
+
+    /// <summary>
     /// Checks if a method call is a DynamoDB function and translates it.
     /// </summary>
     /// <param name="node">The method call expression.</param>
@@ -459,31 +726,11 @@ public class ExpressionTranslator
     {
         dynamoDbFunction = null;
 
-        // table.Encrypt(value, fieldName) -> encrypted parameter value
-        // This is a special case where we need to call the Encrypt method and capture the result
-        if (node.Method.Name == "Encrypt" && 
-            node.Method.DeclaringType != null &&
-            typeof(DynamoDbTableBase).IsAssignableFrom(node.Method.DeclaringType) &&
-            node.Arguments.Count == 2)
+        // Check if this is a geospatial method
+        if (IsGeospatialMethod(node))
         {
-            try
-            {
-                // Evaluate the method call to get the encrypted value
-                // The Encrypt method will handle the encryption using the configured IFieldEncryptor
-                var encryptedValue = EvaluateExpression(node);
-                
-                // Capture the encrypted value as a parameter
-                dynamoDbFunction = CaptureValue(encryptedValue, context, propertyMetadata: null);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                throw new ExpressionTranslationException(
-                    $"Failed to encrypt value in expression: {ex.Message}. " +
-                    $"Ensure IFieldEncryptor is configured and DynamoDbOperationContext.EncryptionContextId is set.",
-                    ex,
-                    node);
-            }
+            dynamoDbFunction = TranslateGeospatialMethod(node, entityParameter, context);
+            return true;
         }
 
         // string.StartsWith(value) -> begins_with(attr, value)
@@ -527,6 +774,10 @@ public class ExpressionTranslator
                 return true;
             }
         }
+
+        // string.CompareOrdinal(str1, str2) - used for string comparisons in expressions
+        // This is NOT a DynamoDB function - it's handled specially in VisitBinary
+        // We don't handle it here
 
         // Between(low, high) -> attr BETWEEN low AND high
         if (node.Method.Name == "Between" && 
@@ -712,8 +963,12 @@ public class ExpressionTranslator
         // Log parameter capture with sensitive data redaction
         if (_logger != null && _logger.IsEnabled(LogLevel.Debug))
         {
-            var attributeName = propertyMetadata?.AttributeName;
-            var isSensitive = attributeName != null && _isSensitiveField != null && _isSensitiveField(attributeName);
+            // Check if property is sensitive using PropertyMetadata.IsSensitive or the fallback function
+            var isSensitive = propertyMetadata?.IsSensitive == true;
+            if (!isSensitive && _isSensitiveField != null && propertyMetadata?.AttributeName != null)
+            {
+                isSensitive = _isSensitiveField(propertyMetadata.AttributeName);
+            }
             
             var valueToLog = isSensitive ? "[REDACTED]" : (value?.ToString() ?? "null");
             
@@ -789,5 +1044,329 @@ public class ExpressionTranslator
             Enum e => new AttributeValue { S = e.ToString() },
             _ => new AttributeValue { S = value.ToString() ?? string.Empty }
         };
+    }
+
+    /// <summary>
+    /// Evaluates a constant expression in an AOT-safe manner.
+    /// This method handles constant expressions, member access on constants, and simple expressions
+    /// that can be compiled without dynamic code generation.
+    /// </summary>
+    /// <typeparam name="T">The expected type of the result.</typeparam>
+    /// <param name="expression">The expression to evaluate.</param>
+    /// <returns>The evaluated value.</returns>
+    /// <exception cref="ExpressionTranslationException">Thrown when the expression cannot be evaluated.</exception>
+    private T EvaluateConstantExpression<T>(Expression expression)
+    {
+        try
+        {
+            // Handle constant expressions directly
+            if (expression is ConstantExpression constant)
+            {
+                return (T)constant.Value!;
+            }
+
+            // Handle member access on constants (e.g., variable references)
+            // Use MemberExpression.Member directly - it's already captured at compile time (AOT-safe)
+            if (expression is MemberExpression member && member.Expression is ConstantExpression memberConstant)
+            {
+                // member.Member is already the FieldInfo/PropertyInfo from the expression tree
+                if (member.Member is System.Reflection.FieldInfo field)
+                {
+                    return (T)field.GetValue(memberConstant.Value)!;
+                }
+
+                if (member.Member is System.Reflection.PropertyInfo property)
+                {
+                    return (T)property.GetValue(memberConstant.Value)!;
+                }
+            }
+
+            // For other cases, compile and invoke (AOT-safe for simple expressions)
+            var lambda = Expression.Lambda<Func<T>>(expression);
+            var compiled = lambda.Compile();
+            return compiled();
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate constant expression of type {typeof(T).Name}: {ex.Message}",
+                expression);
+        }
+    }
+
+    /// <summary>
+    /// Gets the GeoHash precision for a property from its metadata.
+    /// </summary>
+    /// <param name="propertyExpression">The property expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The precision value, or 6 if not specified.</returns>
+    private int GetPrecisionForProperty(Expression propertyExpression, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var propertyMetadata = GetPropertyMetadata(propertyExpression, entityParameter, context);
+        return propertyMetadata?.GeoHashPrecision ?? 6;
+    }
+
+    /// <summary>
+    /// Translates a geospatial method call to a DynamoDB BETWEEN expression.
+    /// </summary>
+    /// <param name="node">The method call expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The translated DynamoDB expression string.</returns>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the geospatial method is not supported.</exception>
+    private string TranslateGeospatialMethod(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var methodName = node.Method.Name;
+
+        return methodName switch
+        {
+            "WithinDistanceMeters" => TranslateWithinDistance(node, entityParameter, context, distanceUnit: "meters"),
+            "WithinDistanceKilometers" => TranslateWithinDistance(node, entityParameter, context, distanceUnit: "kilometers"),
+            "WithinDistanceMiles" => TranslateWithinDistance(node, entityParameter, context, distanceUnit: "miles"),
+            "WithinBoundingBox" => TranslateWithinBoundingBox(node, entityParameter, context),
+            _ => throw new UnsupportedExpressionException(
+                $"Geospatial method '{methodName}' is not supported. " +
+                $"Supported methods: WithinDistanceMeters, WithinDistanceKilometers, WithinDistanceMiles, WithinBoundingBox.",
+                methodName,
+                node)
+        };
+    }
+
+    /// <summary>
+    /// Translates a WithinDistance method call to a DynamoDB BETWEEN expression.
+    /// </summary>
+    private string TranslateWithinDistance(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context, string distanceUnit)
+    {
+        // WithinDistance methods have 3 arguments:
+        // 0: this GeoLocation (the property being queried)
+        // 1: GeoLocation center
+        // 2: double distance
+        if (node.Arguments.Count != 3)
+        {
+            throw new UnsupportedExpressionException(
+                $"WithinDistance method expects 3 arguments but got {node.Arguments.Count}.",
+                node.Method.Name,
+                node);
+        }
+
+        var locationExpr = node.Arguments[0];
+        var centerExpr = node.Arguments[1];
+        var distanceExpr = node.Arguments[2];
+
+        // Ensure the first argument is an entity property access
+        if (!IsEntityPropertyAccess(locationExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "WithinDistance method must be called on an entity property (e.g., x.Location.WithinDistance(...)).",
+                node.Method.Name,
+                node);
+        }
+
+        // Ensure geospatial provider is configured
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider == null)
+        {
+            throw new InvalidOperationException(
+                "Geospatial features require configuration. " +
+                "Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+                "options.AddGeospatial() when creating your ExpressionTranslator. " +
+                "Example: new ExpressionTranslator(new FluentDynamoDbOptions().AddGeospatial())");
+        }
+
+        // Evaluate center and distance - these must be constants or simple expressions
+        var center = EvaluateConstantExpression<object>(centerExpr);
+        var distance = EvaluateConstantExpression<double>(distanceExpr);
+
+        // Convert distance to meters based on unit
+        var distanceMeters = distanceUnit switch
+        {
+            "meters" => distance,
+            "kilometers" => distance * 1000.0,
+            "miles" => distance * 1609.344,
+            _ => throw new ArgumentException($"Unknown distance unit: {distanceUnit}")
+        };
+
+        // Get the precision for this property
+        var precision = GetPrecisionForProperty(locationExpr, entityParameter, context);
+
+        // Extract latitude and longitude from the center GeoLocation
+        var (centerLatitude, centerLongitude) = ExtractGeoLocationCoordinates(center, node);
+
+        // Create bounding box using the provider (no reflection)
+        var bbox = geospatialProvider.CreateBoundingBox(centerLatitude, centerLongitude, distanceMeters);
+
+        // Get GeoHash range from bounding box using the provider (no reflection)
+        var (minHash, maxHash) = geospatialProvider.GetGeoHashRange(bbox, precision);
+
+        // Translate location property to attribute name
+        var locationField = Visit(locationExpr, entityParameter, context);
+
+        // Generate parameter names
+        var minParam = context.ParameterGenerator.GenerateParameterName();
+        var maxParam = context.ParameterGenerator.GenerateParameterName();
+
+        // Add to parameter dictionary
+        context.AttributeValues.AttributeValues[minParam] = new AttributeValue { S = minHash };
+        context.AttributeValues.AttributeValues[maxParam] = new AttributeValue { S = maxHash };
+
+        // Return BETWEEN expression
+        var sb = new StringBuilder(locationField.Length + minParam.Length + maxParam.Length + 17);
+        sb.Append(locationField).Append(" BETWEEN ").Append(minParam).Append(" AND ").Append(maxParam);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Extracts latitude and longitude from a GeoLocation object using the configured geospatial provider.
+    /// This method is AOT-safe as it delegates to the provider instead of using reflection.
+    /// </summary>
+    /// <param name="geoLocation">The GeoLocation object.</param>
+    /// <param name="node">The expression node for error reporting.</param>
+    /// <returns>A tuple containing latitude and longitude.</returns>
+    private (double Latitude, double Longitude) ExtractGeoLocationCoordinates(object geoLocation, Expression node)
+    {
+        // Use the geospatial provider for AOT-safe coordinate extraction
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider != null)
+        {
+            try
+            {
+                return geospatialProvider.ExtractGeoLocationCoordinates(geoLocation);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new ExpressionTranslationException(
+                    $"Unable to extract coordinates from GeoLocation object: {ex.Message}",
+                    node);
+            }
+        }
+        
+        throw new ExpressionTranslationException(
+            $"Unable to extract coordinates from GeoLocation object of type {geoLocation.GetType().FullName}. " +
+            "Geospatial provider is not configured. Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+            "options.AddGeospatial() when creating your ExpressionTranslator.",
+            node);
+    }
+
+    /// <summary>
+    /// Translates a WithinBoundingBox method call to a DynamoDB BETWEEN expression.
+    /// </summary>
+    private string TranslateWithinBoundingBox(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // WithinBoundingBox has two overloads:
+        // 1. WithinBoundingBox(GeoBoundingBox boundingBox) - 2 arguments
+        // 2. WithinBoundingBox(GeoLocation southwest, GeoLocation northeast) - 3 arguments
+        if (node.Arguments.Count != 2 && node.Arguments.Count != 3)
+        {
+            throw new UnsupportedExpressionException(
+                $"WithinBoundingBox method expects 2 or 3 arguments but got {node.Arguments.Count}.",
+                node.Method.Name,
+                node);
+        }
+
+        var locationExpr = node.Arguments[0];
+
+        // Ensure the first argument is an entity property access
+        if (!IsEntityPropertyAccess(locationExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "WithinBoundingBox method must be called on an entity property (e.g., x.Location.WithinBoundingBox(...)).",
+                node.Method.Name,
+                node);
+        }
+
+        // Ensure geospatial provider is configured
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider == null)
+        {
+            throw new InvalidOperationException(
+                "Geospatial features require configuration. " +
+                "Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+                "options.AddGeospatial() when creating your ExpressionTranslator. " +
+                "Example: new ExpressionTranslator(new FluentDynamoDbOptions().AddGeospatial())");
+        }
+
+        GeoBoundingBoxResult bbox;
+
+        if (node.Arguments.Count == 2)
+        {
+            // Single GeoBoundingBox parameter
+            var bboxExpr = node.Arguments[1];
+            var bboxObj = EvaluateConstantExpression<object>(bboxExpr);
+            
+            // Extract coordinates from the bounding box object
+            var (swLat, swLon, neLat, neLon) = ExtractBoundingBoxCoordinates(bboxObj, node);
+            bbox = geospatialProvider.CreateBoundingBox(swLat, swLon, neLat, neLon);
+        }
+        else
+        {
+            // Two GeoLocation parameters (southwest, northeast)
+            var southwestExpr = node.Arguments[1];
+            var northeastExpr = node.Arguments[2];
+
+            var southwest = EvaluateConstantExpression<object>(southwestExpr);
+            var northeast = EvaluateConstantExpression<object>(northeastExpr);
+
+            // Extract coordinates from GeoLocation objects
+            var (swLat, swLon) = ExtractGeoLocationCoordinates(southwest, node);
+            var (neLat, neLon) = ExtractGeoLocationCoordinates(northeast, node);
+
+            // Create bounding box using the provider (no reflection)
+            bbox = geospatialProvider.CreateBoundingBox(swLat, swLon, neLat, neLon);
+        }
+
+        // Get the precision for this property
+        var precision = GetPrecisionForProperty(locationExpr, entityParameter, context);
+
+        // Get GeoHash range from bounding box using the provider (no reflection)
+        var (minHash, maxHash) = geospatialProvider.GetGeoHashRange(bbox, precision);
+
+        // Translate location property to attribute name
+        var locationField = Visit(locationExpr, entityParameter, context);
+
+        // Generate parameter names
+        var minParam = context.ParameterGenerator.GenerateParameterName();
+        var maxParam = context.ParameterGenerator.GenerateParameterName();
+
+        // Add to parameter dictionary
+        context.AttributeValues.AttributeValues[minParam] = new AttributeValue { S = minHash };
+        context.AttributeValues.AttributeValues[maxParam] = new AttributeValue { S = maxHash };
+
+        // Return BETWEEN expression
+        var sb = new StringBuilder(locationField.Length + minParam.Length + maxParam.Length + 17);
+        sb.Append(locationField).Append(" BETWEEN ").Append(minParam).Append(" AND ").Append(maxParam);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Extracts coordinates from a GeoBoundingBox object using the configured geospatial provider.
+    /// This method is AOT-safe as it delegates to the provider instead of using reflection.
+    /// </summary>
+    /// <param name="boundingBox">The bounding box object.</param>
+    /// <param name="node">The expression node for error reporting.</param>
+    /// <returns>A tuple containing southwest and northeast coordinates.</returns>
+    private (double SwLatitude, double SwLongitude, double NeLatitude, double NeLongitude) ExtractBoundingBoxCoordinates(object boundingBox, Expression node)
+    {
+        // Use the geospatial provider for AOT-safe coordinate extraction
+        var geospatialProvider = _options?.GeospatialProvider;
+        if (geospatialProvider != null)
+        {
+            try
+            {
+                return geospatialProvider.ExtractBoundingBoxCoordinates(boundingBox);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new ExpressionTranslationException(
+                    $"Unable to extract coordinates from bounding box object: {ex.Message}",
+                    node);
+            }
+        }
+        
+        throw new ExpressionTranslationException(
+            $"Unable to extract coordinates from bounding box object of type {boundingBox.GetType().FullName}. " +
+            "Geospatial provider is not configured. Add the Oproto.FluentDynamoDb.Geospatial package and call " +
+            "options.AddGeospatial() when creating your ExpressionTranslator.",
+            node);
     }
 }

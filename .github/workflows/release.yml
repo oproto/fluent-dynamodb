@@ -116,10 +116,14 @@ jobs:
           VERSION="${{ needs.validate-tag.outputs.version }}"
           echo "Building with version: $VERSION"
           
+          # Build all projects with the same version
+          # This ensures ProjectReferences will use the correct version when packed
           dotnet build \
             --configuration Release \
             --no-restore \
+            /maxcpucount:1 \
             -p:Version=$VERSION \
+            -p:PackageVersion=$VERSION \
             -p:AssemblyVersion=$VERSION \
             -p:FileVersion=$VERSION \
             -p:InformationalVersion=$VERSION
@@ -130,54 +134,74 @@ jobs:
           echo "Packing version: $VERSION"
           
           # Pack all packable projects
+          # Don't use --no-build to ensure version is applied correctly
+          # ProjectReferences will automatically become PackageReferences with matching versions
           dotnet pack Oproto.FluentDynamoDb/Oproto.FluentDynamoDb.csproj \
             --configuration Release \
-            --no-build \
             --output ./packages \
-            -p:PackageVersion=$VERSION \
             -p:Version=$VERSION
           
           dotnet pack Oproto.FluentDynamoDb.BlobStorage.S3/Oproto.FluentDynamoDb.BlobStorage.S3.csproj \
             --configuration Release \
-            --no-build \
             --output ./packages \
-            -p:PackageVersion=$VERSION \
             -p:Version=$VERSION
           
           dotnet pack Oproto.FluentDynamoDb.Encryption.Kms/Oproto.FluentDynamoDb.Encryption.Kms.csproj \
             --configuration Release \
-            --no-build \
             --output ./packages \
-            -p:PackageVersion=$VERSION \
             -p:Version=$VERSION
           
           dotnet pack Oproto.FluentDynamoDb.FluentResults/Oproto.FluentDynamoDb.FluentResults.csproj \
             --configuration Release \
-            --no-build \
             --output ./packages \
-            -p:PackageVersion=$VERSION \
             -p:Version=$VERSION
           
           dotnet pack Oproto.FluentDynamoDb.Logging.Extensions/Oproto.FluentDynamoDb.Logging.Extensions.csproj \
             --configuration Release \
-            --no-build \
             --output ./packages \
-            -p:PackageVersion=$VERSION \
             -p:Version=$VERSION
           
           dotnet pack Oproto.FluentDynamoDb.NewtonsoftJson/Oproto.FluentDynamoDb.NewtonsoftJson.csproj \
             --configuration Release \
-            --no-build \
             --output ./packages \
-            -p:PackageVersion=$VERSION \
             -p:Version=$VERSION
           
           dotnet pack Oproto.FluentDynamoDb.SystemTextJson/Oproto.FluentDynamoDb.SystemTextJson.csproj \
             --configuration Release \
-            --no-build \
             --output ./packages \
-            -p:PackageVersion=$VERSION \
             -p:Version=$VERSION
+      
+      - name: Validate package dependencies
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          echo "📦 Validating package dependencies for version: $VERSION"
+          
+          # Check packages with dependencies on Oproto.FluentDynamoDb
+          for pkg in BlobStorage.S3 Encryption.Kms FluentResults Logging.Extensions; do
+            PACKAGE_FILE="./packages/Oproto.FluentDynamoDb.${pkg}.${VERSION}.nupkg"
+            if [ -f "$PACKAGE_FILE" ]; then
+              echo "Checking $pkg package..."
+              unzip -q -o "$PACKAGE_FILE" -d "./temp-${pkg}"
+              
+              # Extract and check the nuspec file for dependency version
+              NUSPEC_FILE="./temp-${pkg}/Oproto.FluentDynamoDb.${pkg}.nuspec"
+              if [ -f "$NUSPEC_FILE" ] && grep -q "Oproto.FluentDynamoDb" "$NUSPEC_FILE"; then
+                DEP_VERSION=$(grep -A 1 'id="Oproto.FluentDynamoDb"' "$NUSPEC_FILE" | grep version | sed 's/.*version="\([^"]*\)".*/\1/' || echo "not-found")
+                echo "  Found dependency: Oproto.FluentDynamoDb version $DEP_VERSION"
+                
+                if [ "$DEP_VERSION" != "$VERSION" ] && [ "$DEP_VERSION" != "not-found" ]; then
+                  echo "  ❌ ERROR: Dependency version mismatch! Expected $VERSION but got $DEP_VERSION"
+                  exit 1
+                elif [ "$DEP_VERSION" = "$VERSION" ]; then
+                  echo "  ✅ Dependency version matches: $VERSION"
+                fi
+              fi
+              
+              rm -rf "./temp-${pkg}"
+            fi
+          done
+          
+          echo "✅ All package dependencies validated"
       
       - name: Validate package contents
         run: |

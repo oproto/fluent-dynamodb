@@ -1,8 +1,8 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
-using Oproto.FluentDynamoDb.Logging;
+
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
@@ -15,7 +15,7 @@ public class WithClientExtensionsTests
     {
         public string Id { get; set; } = string.Empty;
 
-        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var testEntity = entity as TestEntity;
             return new Dictionary<string, AttributeValue>
@@ -24,7 +24,7 @@ public class WithClientExtensionsTests
             };
         }
 
-        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var entity = new TestEntity
             {
@@ -33,9 +33,9 @@ public class WithClientExtensionsTests
             return (TSelf)(object)entity;
         }
 
-        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
-            return FromDynamoDb<TSelf>(items.First(), logger);
+            return FromDynamoDb<TSelf>(items.First(), options);
         }
 
         public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
@@ -71,8 +71,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToGetItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -104,8 +104,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToQueryRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -141,8 +141,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToPutItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -171,8 +171,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToUpdateItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -203,8 +203,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToDeleteItemRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -236,8 +236,8 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToScanRequest();
         newRequest.TableName.Should().Be("TestTable");
@@ -256,110 +256,7 @@ public class WithClientExtensionsTests
     }
 
     [Fact]
-    public void BatchGetItemRequestBuilder_WithClient_ShouldPreserveConfiguration()
-    {
-        // Arrange
-        var originalBuilder = new BatchGetItemRequestBuilder(_originalClient)
-            .GetFromTable("Users", builder => builder
-                .WithKey("id", "user1")
-                .WithKey("id", "user2")
-                .WithProjection("#name, #email")
-                .WithAttribute("#name", "name")
-                .WithAttribute("#email", "email"))
-            .GetFromTable("Orders", builder => builder
-                .WithKey("orderId", "order123")
-                .UsingConsistentRead())
-            .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
-
-        // Act
-        var newBuilder = originalBuilder.WithClient(_scopedClient);
-
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
-
-        var newRequest = newBuilder.ToBatchGetItemRequest();
-        newRequest.RequestItems.Should().ContainKeys("Users", "Orders");
-        newRequest.RequestItems["Users"].Keys.Should().HaveCount(2);
-        newRequest.RequestItems["Orders"].Keys.Should().HaveCount(1);
-        newRequest.ReturnConsumedCapacity.Should().Be(ReturnConsumedCapacity.TOTAL);
-    }
-
-    [Fact]
-    public void BatchWriteItemRequestBuilder_WithClient_ShouldPreserveConfiguration()
-    {
-        // Arrange
-        var testItem = new Dictionary<string, AttributeValue>
-        {
-            ["id"] = new AttributeValue("user1"),
-            ["name"] = new AttributeValue("John Doe")
-        };
-
-        var originalBuilder = new BatchWriteItemRequestBuilder(_originalClient)
-            .WriteToTable("Users", builder => builder
-                .PutItem(testItem)
-                .DeleteItem("id", "user2"))
-            .ReturnTotalConsumedCapacity()
-            .ReturnItemCollectionMetrics();
-
-        // Act
-        var newBuilder = originalBuilder.WithClient(_scopedClient);
-
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
-
-        var newRequest = newBuilder.ToBatchWriteItemRequest();
-        newRequest.RequestItems.Should().ContainKey("Users");
-        newRequest.RequestItems["Users"].Should().HaveCount(2);
-        newRequest.ReturnConsumedCapacity.Should().Be(ReturnConsumedCapacity.TOTAL);
-        newRequest.ReturnItemCollectionMetrics.Should().Be(ReturnItemCollectionMetrics.SIZE);
-    }
-
-    [Fact]
-    public void TransactWriteItemsRequestBuilder_WithClient_ShouldPreserveConfiguration()
-    {
-        // Arrange
-        var testItem = new Dictionary<string, AttributeValue>
-        {
-            ["id"] = new AttributeValue("user1"),
-            ["name"] = new AttributeValue("John Doe")
-        };
-
-        var originalBuilder = new TransactWriteItemsRequestBuilder(_originalClient)
-            .WithClientRequestToken("test-token-123")
-            .ReturnTotalConsumedCapacity()
-            .ReturnItemCollectionMetrics();
-
-        // Act
-        var newBuilder = originalBuilder.WithClient(_scopedClient);
-
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
-
-        var newRequest = newBuilder.ToTransactWriteItemsRequest();
-        newRequest.ClientRequestToken.Should().Be("test-token-123");
-        newRequest.ReturnConsumedCapacity.Should().Be(ReturnConsumedCapacity.TOTAL);
-        newRequest.ReturnItemCollectionMetrics.Should().Be(ReturnItemCollectionMetrics.SIZE);
-    }
-
-    [Fact]
-    public void TransactGetItemsRequestBuilder_WithClient_ShouldPreserveConfiguration()
-    {
-        // Arrange
-        var originalBuilder = new TransactGetItemsRequestBuilder(_originalClient)
-            .ReturnConsumedCapacity(ReturnConsumedCapacity.INDEXES);
-
-        // Act
-        var newBuilder = originalBuilder.WithClient(_scopedClient);
-
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
-
-        var newRequest = newBuilder.ToTransactGetItemsRequest();
-        newRequest.ReturnConsumedCapacity.Should().Be(ReturnConsumedCapacity.INDEXES);
-    }
-
-    [Fact]
-    public void WithClient_EmptyBuilder_ShouldCreateNewBuilderWithClient()
+    public void WithClient_EmptyBuilder_ShouldReturnSameBuilderWithNewClient()
     {
         // Arrange
         var originalBuilder = new GetItemRequestBuilder<TestEntity>(_originalClient);
@@ -367,12 +264,12 @@ public class WithClientExtensionsTests
         // Act
         var newBuilder = originalBuilder.WithClient(_scopedClient);
 
-        // Assert
-        newBuilder.Should().NotBeSameAs(originalBuilder);
+        // Assert - WithClient returns the same builder instance (per design)
+        newBuilder.Should().BeSameAs(originalBuilder);
 
         var newRequest = newBuilder.ToGetItemRequest();
         newRequest.Should().NotBeNull();
-        newRequest.ExpressionAttributeNames.Should().BeEmpty();
+        newRequest.ExpressionAttributeNames.Should().BeNullOrEmpty();
     }
 
     [Fact]

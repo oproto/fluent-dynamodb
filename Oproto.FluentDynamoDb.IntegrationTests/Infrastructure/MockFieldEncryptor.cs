@@ -14,6 +14,12 @@ internal sealed class MockFieldEncryptor : IFieldEncryptor
     private readonly Dictionary<string, byte[]> _contextKeys;
     private readonly byte[] _defaultKey;
 
+    /// <summary>
+    /// Gets the list of encryption calls made to this encryptor.
+    /// Useful for verifying encryption behavior in tests.
+    /// </summary>
+    public List<EncryptCall> EncryptCalls { get; } = new();
+
     public MockFieldEncryptor(Dictionary<string, byte[]>? contextKeys = null)
     {
         _contextKeys = contextKeys ?? new Dictionary<string, byte[]>();
@@ -26,6 +32,14 @@ internal sealed class MockFieldEncryptor : IFieldEncryptor
         FieldEncryptionContext context,
         CancellationToken cancellationToken = default)
     {
+        // Track the encryption call
+        EncryptCalls.Add(new EncryptCall
+        {
+            Plaintext = plaintext,
+            FieldName = fieldName,
+            Context = context
+        });
+
         // Get key based on context
         var key = GetKeyForContext(context.ContextId);
         
@@ -151,4 +165,14 @@ internal sealed class MockFieldEncryptor : IFieldEncryptor
         }
         return new MockFieldEncryptor(contextKeys);
     }
+}
+
+/// <summary>
+/// Represents a call to the EncryptAsync method for test verification.
+/// </summary>
+internal sealed class EncryptCall
+{
+    public required byte[] Plaintext { get; init; }
+    public required string FieldName { get; init; }
+    public required FieldEncryptionContext Context { get; init; }
 }

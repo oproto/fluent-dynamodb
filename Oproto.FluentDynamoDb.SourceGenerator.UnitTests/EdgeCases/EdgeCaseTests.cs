@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator;
@@ -38,7 +38,7 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "EmptyEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -83,9 +83,9 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var fieldsCode = GetGeneratedSource(result, "SpecialCharsEntityFields.g.cs");
+        var fieldsCode = GetGeneratedSource(result, "SpecialCharsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
         
         // Keep DynamoDB-specific field constant value checks
@@ -139,9 +139,9 @@ namespace TestNamespace
         // Should generate warnings for reserved words only
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warnings
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var fieldsCode = GetGeneratedSource(result, "ReservedKeywordsEntityFields.g.cs");
+        var fieldsCode = GetGeneratedSource(result, "ReservedKeywordsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
         
         // Keep DynamoDB-specific checks for reserved keyword escaping
@@ -187,9 +187,9 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var fieldsCode = GetGeneratedSource(result, "LongNamesEntityFields.g.cs");
+        var fieldsCode = GetGeneratedSource(result, "LongNamesEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
         
         // Keep DynamoDB-specific check for long attribute name mapping
@@ -225,7 +225,7 @@ namespace Very.Deeply.Nested.Namespace.Structure
         // Should generate warnings for reserved word "name" only
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "name"
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "NestedNamespaceEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -271,7 +271,7 @@ namespace TestNamespace
         // Should generate warnings for complex collection types
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for complex collections
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "GenericConstraintsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -315,7 +315,7 @@ namespace TestNamespace
 
         // Assert
         // Should generate code gracefully even with circular references
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "CircularRefEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -359,9 +359,9 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var fieldsCode = GetGeneratedSource(result, "UnicodeEntityFields.g.cs");
+        var fieldsCode = GetGeneratedSource(result, "UnicodeEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
         
         // Keep DynamoDB-specific checks for Unicode character handling
@@ -409,9 +409,9 @@ namespace TestNamespace
         // Should generate warning for reserved word "region"
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "region"
-        result.GeneratedSources.Should().HaveCount(5); // Fields, Keys, Entity, Table, Table.Indexes (has GSI)
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var keysCode = GetGeneratedSource(result, "ComplexKeyFormatsEntityKeys.g.cs");
+        var keysCode = GetGeneratedSource(result, "ComplexKeyFormatsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(keysCode, source);
         
         keysCode.ShouldContainMethod("Pk");
@@ -453,9 +453,9 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var fieldsCode = GetGeneratedSource(result, "EmptyAttributesEntityFields.g.cs");
+        var fieldsCode = GetGeneratedSource(result, "EmptyAttributesEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
         
         // Keep DynamoDB-specific checks for attribute name handling
@@ -497,9 +497,9 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for basic entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var fieldsCode = GetGeneratedSource(result, "DuplicateAttributesEntityFields.g.cs");
+        var fieldsCode = GetGeneratedSource(result, "DuplicateAttributesEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
         
         // Keep DynamoDB-specific checks for duplicate attribute name handling
@@ -566,7 +566,7 @@ namespace TestNamespace
         // May generate warnings about overly broad patterns and performance issues
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warnings for collections
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "ComplexPatternsEntity.g.cs");
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
@@ -588,6 +588,10 @@ namespace TestNamespace
             "should include exact match relationship in metadata");
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
         // Include attribute definitions in the compilation
@@ -650,24 +654,7 @@ namespace Oproto.FluentDynamoDb.Attributes
                 CSharpSyntaxTree.ParseText(source),
                 CSharpSyntaxTree.ParseText(attributeSource)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                // Add AWS SDK references for generated code
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                // Add main library reference for IDynamoDbEntity and other types
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                // Add System.Linq reference
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                // Add System.IO reference  
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                // Add netstandard reference for Attribute, Enum, and other base types
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                // Add System.Collections reference for Dictionary<,> and List<>
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                // Add System.Linq.Expressions reference
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

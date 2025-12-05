@@ -7,7 +7,8 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 /// </summary>
 [DynamoDbTable("test-multi-entity",
     DiscriminatorProperty = "sk",
-    DiscriminatorPattern = "ORDER#*")]
+    DiscriminatorPattern = "ORDER#*",
+    IsDefault = true)]
 public partial class OrderEntity
 {
     [PartitionKey]

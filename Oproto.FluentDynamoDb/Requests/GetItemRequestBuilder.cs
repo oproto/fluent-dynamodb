@@ -28,23 +28,25 @@ namespace Oproto.FluentDynamoDb.Requests;
 ///     .ExecuteAsync();
 /// </code>
 /// </example>
-public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>
+public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>, ITransactableGetBuilder, IHasDynamoDbClient
     where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the GetItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public GetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public GetItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
+        _options = options ?? new FluentDynamoDbOptions();
+        _logger = _options.Logger;
     }
 
     private GetItemRequest _req = new GetItemRequest();
-    private readonly IAmazonDynamoDB _dynamoDbClient;
+    private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
+    private readonly FluentDynamoDbOptions _options;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
     /// <summary>
@@ -58,7 +60,27 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// This is used by Primary API extension methods to call AWS SDK directly.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// This is used by Primary API extension methods to access the hydrator registry.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
+
+    /// <summary>
+    /// Replaces the DynamoDB client used for executing this request.
+    /// Used for tenant-specific STS credential scenarios where different clients
+    /// are needed for different tenants or security contexts.
+    /// </summary>
+    /// <param name="client">The scoped DynamoDB client to use.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public GetItemRequestBuilder<TEntity> WithClient(IAmazonDynamoDB client)
+    {
+        _dynamoDbClient = client;
+        return this;
+    }
 
     /// <summary>
     /// Sets key values using a configuration action for extension method access.
@@ -154,9 +176,20 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// <returns>A configured GetItemRequest ready for execution.</returns>
     public GetItemRequest ToGetItemRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
         return _req;
     }
+
+    // ITransactableGetBuilder implementation
+    string ITransactableGetBuilder.GetTableName() => _req.TableName;
+    Dictionary<string, AttributeValue> ITransactableGetBuilder.GetKey() => _req.Key;
+    string? ITransactableGetBuilder.GetProjectionExpression() => _req.ProjectionExpression;
+    Dictionary<string, string>? ITransactableGetBuilder.GetExpressionAttributeNames() => 
+        _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
+    bool ITransactableGetBuilder.GetConsistentRead() => _req.ConsistentRead ?? false;
 
     /// <summary>
     /// Executes the GetItem operation asynchronously and returns the raw AWS SDK GetItemResponse.

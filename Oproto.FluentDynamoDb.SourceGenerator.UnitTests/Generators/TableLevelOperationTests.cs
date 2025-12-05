@@ -12,7 +12,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// correctly when a default entity exists, use the default entity type, and delegate to the
 /// entity accessor. Also verifies that no table-level operations are generated when there is
 /// no default entity.
-/// Covers requirement 6 from the table-generation-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class TableLevelOperationTests
@@ -121,8 +120,8 @@ namespace TestNamespace
             "table-level Put should use default entity type Order");
         tableCode.Should().Contain("DeleteItemRequestBuilder<Order> Delete(string pk)",
             "table-level Delete should use default entity type Order");
-        tableCode.Should().Contain("UpdateItemRequestBuilder<Order> Update(string pk)",
-            "table-level Update should use default entity type Order");
+        tableCode.Should().Contain("OrderUpdateBuilder Update(string pk)",
+            "table-level Update should use entity-specific update builder");
         
         // Verify table-level operations section uses Order, not OrderLine
         // Extract the table-level operations section (between constructors and accessors)
@@ -302,8 +301,8 @@ namespace TestNamespace
             "should generate table-level Put for single entity table");
         tableCode.Should().Contain("DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate table-level Delete for single entity table");
-        tableCode.Should().Contain("UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate table-level Update for single entity table");
+        tableCode.Should().Contain("OrderUpdateBuilder Update(string pk)",
+            "should generate table-level Update with entity-specific builder for single entity table");
     }
 
     [Fact]
@@ -546,8 +545,8 @@ namespace TestNamespace
             "table-level Put should be public");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "table-level Delete should be public");
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "table-level Update should be public");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "table-level Update should be public and return entity-specific builder");
     }
 
     [Fact]
@@ -640,8 +639,8 @@ namespace TestNamespace
         tableCode.Should().Contain("Orders.Delete(pk)",
             "table-level Delete should pass pk to accessor");
         
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "table-level Update should accept pk parameter");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "table-level Update should accept pk parameter and return entity-specific builder");
         tableCode.Should().Contain("Orders.Update(pk)",
             "table-level Update should pass pk to accessor");
     }
@@ -653,18 +652,7 @@ namespace TestNamespace
             new[] {
                 CSharpSyntaxTree.ParseText(source)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

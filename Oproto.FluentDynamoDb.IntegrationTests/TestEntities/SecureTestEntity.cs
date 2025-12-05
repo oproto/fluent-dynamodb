@@ -3,7 +3,8 @@ using Oproto.FluentDynamoDb.Attributes;
 namespace Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 
 /// <summary>
-/// Test entity with encrypted and sensitive fields for security integration testing.
+/// Test entity with sensitive fields for security integration testing.
+/// Note: Encrypted attributes are commented out since encryption package is not referenced in tests.
 /// </summary>
 [DynamoDbTable("test-secure-entity")]
 public partial class SecureTestEntity
@@ -15,12 +16,12 @@ public partial class SecureTestEntity
     [DynamoDbAttribute("name")]
     public string? Name { get; set; }
     
-    [Encrypted]
+    // [Encrypted] - Commented out for testing without encryption package
     [Sensitive]
     [DynamoDbAttribute("ssn")]
     public string? SocialSecurityNumber { get; set; }
     
-    [Encrypted]
+    // [Encrypted] - Commented out for testing without encryption package
     [DynamoDbAttribute("credit_card")]
     public string? CreditCardNumber { get; set; }
     

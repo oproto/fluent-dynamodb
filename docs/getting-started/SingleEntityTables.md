@@ -55,7 +55,7 @@ public partial class User
 
 **What Gets Generated:**
 
-The source generator creates a table class named `UsersTable`:
+The source generator creates a table class named `UsersTable` with an entity accessor:
 
 ```csharp
 // Generated: UsersTable.g.cs
@@ -64,61 +64,34 @@ public partial class UsersTable : DynamoDbTableBase
     public UsersTable(IAmazonDynamoDB client, string tableName) 
         : base(client, tableName)
     {
+        Users = new UsersAccessor(this);
     }
     
-    // Direct table-level operations
-    public GetItemRequestBuilder<User> Get()
+    // Entity accessor - provides operations without generic parameters
+    public UsersAccessor Users { get; }
+    
+    // Entity accessor class with convenient methods
+    public class UsersAccessor
     {
-        return new GetItemRequestBuilder<User>(Client, TableName, UserMetadata.Instance);
+        public GetItemRequestBuilder<User> Get(string userId) { ... }
+        public QueryRequestBuilder<User> Query() { ... }
+        public PutItemRequestBuilder<User> Put(User item) { ... }
+        public UpdateItemRequestBuilder<User> Update(string userId) { ... }
+        public DeleteItemRequestBuilder<User> Delete(string userId) { ... }
     }
     
-    public QueryRequestBuilder<User> Query()
-    {
-        return new QueryRequestBuilder<User>(Client, TableName, UserMetadata.Instance);
-    }
-    
-    public ScanRequestBuilder<User> Scan()
-    {
-        return new ScanRequestBuilder<User>(Client, TableName, UserMetadata.Instance);
-    }
-    
-    public PutItemRequestBuilder<User> Put(User item)
-    {
-        return new PutItemRequestBuilder<User>(Client, TableName, UserMetadata.Instance, item);
-    }
-    
-    public DeleteItemRequestBuilder<User> Delete()
-    {
-        return new DeleteItemRequestBuilder<User>(Client, TableName, UserMetadata.Instance);
-    }
-    
-    public UpdateItemRequestBuilder<User> Update()
-    {
-        return new UpdateItemRequestBuilder<User>(Client, TableName, UserMetadata.Instance);
-    }
-    
-    // Transaction and batch operations
-    public TransactWriteItemsRequestBuilder TransactWrite()
-    {
-        return new TransactWriteItemsRequestBuilder(Client);
-    }
-    
-    public TransactGetItemsRequestBuilder TransactGet()
-    {
-        return new TransactGetItemsRequestBuilder(Client);
-    }
-    
-    public BatchWriteItemBuilder BatchWrite()
-    {
-        return new BatchWriteItemBuilder(Client);
-    }
-    
-    public BatchGetItemBuilder BatchGet()
-    {
-        return new BatchGetItemBuilder(Client);
-    }
+    // Generic table-level operations (also available)
+    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class { ... }
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class { ... }
+    public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class { ... }
+    // ... etc
 }
 ```
+
+**Key Points:**
+- `Users` accessor provides entity-specific operations with key parameters built-in
+- Generic methods (`Get<User>()`, `Query<User>()`) are also available for flexibility
+- Entity accessor methods accept key values directly (e.g., `Get(userId)` instead of `Get().WithKey(...)`)
 
 ## Using Single-Entity Tables
 
@@ -134,7 +107,7 @@ var usersTable = new UsersTable(client, "users");
 
 ### Basic CRUD Operations
 
-All operations work directly on the table instance:
+All operations work directly on the table instance. You can use either the generic methods or entity-specific accessors:
 
 ```csharp
 // Create a user
@@ -145,13 +118,19 @@ var user = new User
     Name = "John Doe"
 };
 
-await usersTable.Put(user)
-    .ExecuteAsync();
+// Option 1: Entity accessor (recommended - no generic parameter needed)
+await usersTable.Users.Put(user).PutAsync();
 
-// Get a user
-var response = await usersTable.Get()
-    .WithKey(UserFields.UserId, "user123")
-    .ExecuteAsync();
+// Option 2: Generic method
+await usersTable.Put<User>().WithItem(user).PutAsync();
+
+// Get a user - using entity accessor
+var response = await usersTable.Users.Get("user123").GetItemAsync();
+
+// Or with explicit field names (string literals work too!)
+var response = await usersTable.Get<User>()
+    .WithKey("pk", "user123")  // Can use string literal instead of User.Fields.UserId
+    .GetItemAsync();
 
 if (response.Item != null)
 {
@@ -159,23 +138,62 @@ if (response.Item != null)
 }
 
 // Query users
-var queryResponse = await usersTable.Query()
-    .Where($"{UserFields.UserId} = :pk", new { pk = "user123" })
-    .ExecuteAsync();
+var queryResponse = await usersTable.Users.Query()
+    .Where($"{User.Fields.UserId} = {{0}}", "user123")
+    .ToListAsync();
 
 // Update a user
-await usersTable.Update()
-    .WithKey(UserFields.UserId, "user123")
-    .Set($"SET {UserFields.Name} = :name", new { name = "Jane Doe" })
-    .ExecuteAsync();
+await usersTable.Users.Update("user123")
+    .Set($"SET {User.Fields.Name} = {{0}}", "Jane Doe")
+    .UpdateAsync();
 
 // Delete a user
-await usersTable.Delete()
-    .WithKey(UserFields.UserId, "user123")
-    .ExecuteAsync();
+await usersTable.Users.Delete("user123").DeleteAsync();
 ```
 
-**Notice:** All operations are called directly on the table instance (`usersTable.Get()`, `usersTable.Put()`, etc.). There's no need for entity accessors in single-entity tables.
+**Entity Accessors:** Generated tables include entity-specific accessors (like `usersTable.Users`) that provide operations without requiring generic type parameters. The accessor methods accept key values directly, making the code cleaner.
+
+## Single-Entity Table with Key Prefixes
+
+Use the `Prefix` property on key attributes for consistent key formatting:
+
+```csharp
+[DynamoDbTable("users")]
+public partial class User
+{
+    // Generates keys like "USER#user123"
+    [PartitionKey(Prefix = "USER")]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("email")]
+    public string Email { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+**Usage with Generated Key Builders:**
+
+```csharp
+var usersTable = new UsersTable(client, "users");
+
+// Use generated key builder for consistent formatting
+var pk = User.Keys.Pk("user123");  // Returns "USER#user123"
+
+// Get user using generated key
+var response = await usersTable.Get<User>()
+    .WithKey(User.Fields.UserId, User.Keys.Pk("user123"))
+    .GetItemAsync();
+```
+
+**Key Prefix Properties:**
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Prefix` | `null` | Optional prefix prepended to key values |
+| `Separator` | `"#"` | Separator between prefix and value |
 
 ## Single-Entity Table with Sort Key
 
@@ -185,11 +203,13 @@ For composite primary keys:
 [DynamoDbTable("orders")]
 public partial class Order
 {
-    [PartitionKey]
+    // Generates keys like "CUSTOMER#cust123"
+    [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
     public string CustomerId { get; set; } = string.Empty;
     
-    [SortKey]
+    // Generates keys like "ORDER#order456"
+    [SortKey(Prefix = "ORDER")]
     [DynamoDbAttribute("sk")]
     public string OrderId { get; set; } = string.Empty;
     
@@ -204,44 +224,45 @@ public partial class Order
 }
 ```
 
-**Usage:**
+**Usage with Generated Key Builders:**
 
 ```csharp
-var ordersTable = new OrdersTable(client);
+var ordersTable = new OrdersTable(client, "orders");
 
-// Create an order
+// Create an order - set key values with prefixes
 var order = new Order
 {
-    CustomerId = "customer123",
-    OrderId = "order456",
+    CustomerId = Order.Keys.Pk("customer123"),  // "CUSTOMER#customer123"
+    OrderId = Order.Keys.Sk("order456"),        // "ORDER#order456"
     Total = 99.99m,
     Status = "pending"
 };
 
-await ordersTable.Put(order)
-    .ExecuteAsync();
+await ordersTable.Put<Order>()
+    .WithItem(order)
+    .PutAsync();
 
-// Get a specific order (requires both keys)
-var response = await ordersTable.Get()
-    .WithKey(OrderFields.CustomerId, "customer123")
-    .WithKey(OrderFields.OrderId, "order456")
-    .ExecuteAsync();
+// Get a specific order using generated key builders
+var response = await ordersTable.Get<Order>()
+    .WithKey(Order.Fields.CustomerId, Order.Keys.Pk("customer123"), 
+             Order.Fields.OrderId, Order.Keys.Sk("order456"))
+    .GetItemAsync();
 
 // Query all orders for a customer
-var customerOrders = await ordersTable.Query()
-    .Where($"{OrderFields.CustomerId} = :pk", new { pk = "customer123" })
-    .ExecuteAsync();
+var customerOrders = await ordersTable.Query<Order>()
+    .Where($"{Order.Fields.CustomerId} = {{0}}", Order.Keys.Pk("customer123"))
+    .ToListAsync();
 
 foreach (var customerOrder in customerOrders.Items)
 {
     Console.WriteLine($"Order {customerOrder.OrderId}: ${customerOrder.Total}");
 }
 
-// Query orders with sort key condition
-var recentOrders = await ordersTable.Query()
-    .Where($"{OrderFields.CustomerId} = :pk AND {OrderFields.OrderId} > :sk",
-           new { pk = "customer123", sk = "order400" })
-    .ExecuteAsync();
+// Query orders with sort key prefix (begins_with)
+var recentOrders = await ordersTable.Query<Order>()
+    .Where($"{Order.Fields.CustomerId} = {{0}} AND begins_with({Order.Fields.OrderId}, {{1}})",
+           Order.Keys.Pk("customer123"), "ORDER#")
+    .ToListAsync();
 ```
 
 ## Single-Entity Table with GSI
@@ -276,19 +297,18 @@ public partial class Product
 **Usage:**
 
 ```csharp
-var productsTable = new ProductsTable(client);
+var productsTable = new ProductsTable(client, "products");
 
 // Query by primary key
-var product = await productsTable.Get()
-    .WithKey(ProductFields.ProductId, "prod123")
-    .ExecuteAsync();
+var product = await productsTable.Get<Product>()
+    .WithKey(Product.Fields.ProductId, "prod123")
+    .GetItemAsync();
 
 // Query by category using GSI
-var electronicsProducts = await productsTable.Query()
-    .FromIndex("CategoryIndex")
-    .Where($"{ProductFields.Category} = :category", 
-           new { category = "Electronics" })
-    .ExecuteAsync();
+var electronicsProducts = await productsTable.Query<Product>()
+    .UsingIndex("CategoryIndex")
+    .Where($"{Product.Fields.Category} = {{0}}", "Electronics")
+    .ToListAsync();
 
 foreach (var prod in electronicsProducts.Items)
 {
@@ -326,12 +346,12 @@ Single-entity tables maintain backward compatibility with the previous table gen
 var table = new UsersTable(client, "users");
 
 // All these operations work directly on the table
-await table.Get().WithKey(UserFields.UserId, "user123").ExecuteAsync();
-await table.Query().Where($"{UserFields.UserId} = :pk", new { pk = "user123" }).ExecuteAsync();
-await table.Scan().ExecuteAsync();
-await table.Put(user).ExecuteAsync();
-await table.Delete().WithKey(UserFields.UserId, "user123").ExecuteAsync();
-await table.Update().WithKey(UserFields.UserId, "user123").Set("...").ExecuteAsync();
+await table.Get<User>().WithKey(User.Fields.UserId, "user123").GetItemAsync();
+await table.Query<User>().Where($"{User.Fields.UserId} = {{0}}", "user123").ToListAsync();
+await table.Scan<User>().ToListAsync();
+await table.Put<User>().WithItem(user).PutAsync();
+await table.Delete<User>().WithKey(User.Fields.UserId, "user123").DeleteAsync();
+await table.Update<User>().WithKey(User.Fields.UserId, "user123").Set("SET ...").UpdateAsync();
 ```
 
 **No Breaking Changes:** If you're upgrading from a previous version, your existing single-entity table code continues to work without modifications.
@@ -344,23 +364,24 @@ Transaction and batch operations are always available at the table level:
 var usersTable = new UsersTable(client, "users");
 var ordersTable = new OrdersTable(client, "orders");
 
-// Transaction across multiple tables
-await usersTable.TransactWrite()
-    .AddPut(usersTable, user)
-    .AddPut(ordersTable, order)
+// Transaction across multiple tables using DynamoDbTransactions
+await DynamoDbTransactions.Write(client)
+    .Add(usersTable.Put<User>().WithItem(user))
+    .Add(ordersTable.Put<Order>().WithItem(order))
+    .CommitAsync();
+
+// Batch write operations
+await DynamoDbBatch.Write(client)
+    .Add(usersTable.Put<User>().WithItem(user1))
+    .Add(usersTable.Put<User>().WithItem(user2))
+    .Add(usersTable.Delete<User>().WithKey(User.Fields.UserId, "user3"))
     .ExecuteAsync();
 
-// Batch operations
-await usersTable.BatchWrite()
-    .AddPut(user1)
-    .AddPut(user2)
-    .AddDelete(UserKeys.Pk("user3"))
-    .ExecuteAsync();
-
-var batchGetResponse = await usersTable.BatchGet()
-    .AddKey(UserKeys.Pk("user1"))
-    .AddKey(UserKeys.Pk("user2"))
-    .AddKey(UserKeys.Pk("user3"))
+// Batch get operations
+var batchGetResponse = await DynamoDbBatch.Get(client)
+    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user1"))
+    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user2"))
+    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user3"))
     .ExecuteAsync();
 ```
 
@@ -441,9 +462,9 @@ public partial class BlogComment
 
 ```csharp
 var client = new AmazonDynamoDBClient();
-var usersTable = new BlogUsersTable(client);
-var postsTable = new BlogPostsTable(client);
-var commentsTable = new BlogCommentsTable(client);
+var usersTable = new BlogUsersTable(client, "blog_users");
+var postsTable = new BlogPostsTable(client, "blog_posts");
+var commentsTable = new BlogCommentsTable(client, "blog_comments");
 
 // Create a user
 var user = new BlogUser
@@ -453,7 +474,7 @@ var user = new BlogUser
     Email = "john@example.com",
     EmailLower = "john@example.com"
 };
-await usersTable.Put(user).ExecuteAsync();
+await usersTable.Put<BlogUser>().WithItem(user).PutAsync();
 
 // Create a post
 var post = new BlogPost
@@ -464,7 +485,7 @@ var post = new BlogPost
     AuthorId = "user123",
     AuthorIndexKey = "user123"
 };
-await postsTable.Put(post).ExecuteAsync();
+await postsTable.Put<BlogPost>().WithItem(post).PutAsync();
 
 // Add a comment
 var comment = new BlogComment
@@ -474,27 +495,24 @@ var comment = new BlogComment
     Content = "Great post!",
     AuthorId = "user123"
 };
-await commentsTable.Put(comment).ExecuteAsync();
+await commentsTable.Put<BlogComment>().WithItem(comment).PutAsync();
 
 // Query posts by author
-var authorPosts = await postsTable.Query()
-    .FromIndex("AuthorIndex")
-    .Where($"{BlogPostFields.AuthorIndexKey} = :authorId", 
-           new { authorId = "user123" })
-    .ExecuteAsync();
+var authorPosts = await postsTable.Query<BlogPost>()
+    .UsingIndex("AuthorIndex")
+    .Where($"{BlogPost.Fields.AuthorIndexKey} = {{0}}", "user123")
+    .ToListAsync();
 
 // Query comments for a post
-var postComments = await commentsTable.Query()
-    .Where($"{BlogCommentFields.PostId} = :postId", 
-           new { postId = "post456" })
-    .ExecuteAsync();
+var postComments = await commentsTable.Query<BlogComment>()
+    .Where($"{BlogComment.Fields.PostId} = {{0}}", "post456")
+    .ToListAsync();
 
 // Find user by email
-var userByEmail = await usersTable.Query()
-    .FromIndex("EmailIndex")
-    .Where($"{BlogUserFields.EmailLower} = :email", 
-           new { email = "john@example.com" })
-    .ExecuteAsync();
+var userByEmail = await usersTable.Query<BlogUser>()
+    .UsingIndex("EmailIndex")
+    .Where($"{BlogUser.Fields.EmailLower} = {{0}}", "john@example.com")
+    .ToListAsync();
 ```
 
 ## When to Use Single-Entity Tables
@@ -528,10 +546,10 @@ var table = new UsersTable(client, "users");
 
 await table.Get()
     .WithKey(UserFields.UserId, "user123")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 await table.Put(user)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 **No breaking changes** for single-entity tables. The new table generation system is fully backward compatible.

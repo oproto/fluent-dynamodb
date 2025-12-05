@@ -19,7 +19,7 @@ This document provides comprehensive code examples for using projection models i
 using Oproto.FluentDynamoDb.Attributes;
 
 // Full entity with all properties
-[DynamoDbEntity]
+[DynamoDbTable("Products")]
 public partial class Product
 {
     [PartitionKey]
@@ -105,7 +105,7 @@ var searchResults = await table.Query
 ### Example 3: Projection with Nullable Properties
 
 ```csharp
-[DynamoDbEntity]
+[DynamoDbTable("Orders")]
 public partial class Order
 {
     [PartitionKey]
@@ -138,7 +138,7 @@ var orders = await table.Query
 ### Example 4: Projection with Custom Attribute Names
 
 ```csharp
-[DynamoDbEntity]
+[DynamoDbTable("Transactions")]
 public partial class Transaction
 {
     [PartitionKey]
@@ -171,7 +171,7 @@ public partial class TransactionSummary
 ### Example 5: GSI with Required Projection
 
 ```csharp
-[DynamoDbEntity]
+[DynamoDbTable("Transactions")]
 public partial class Transaction
 {
     [PartitionKey]
@@ -218,7 +218,7 @@ var summaries = await table.StatusIndex.Query
 ### Example 6: Multiple GSIs with Different Projections
 
 ```csharp
-[DynamoDbEntity]
+[DynamoDbTable("Orders")]
 public partial class Order
 {
     [PartitionKey]
@@ -287,7 +287,7 @@ public class ProductsTable : DynamoDbTableBase
 // Usage
 var response = await table.CategoryIndex.Query
     .Where("category = {0}", "Electronics")
-    .ExecuteAsync();
+    .ToListAsync();
 // Fetches only: id, name, price, stock_quantity
 ```
 
@@ -347,16 +347,16 @@ public class TransactionsTable : DynamoDbTableBase
 var listItems = await table.StatusIndexMinimal.Query
     .Where("status = {0}", "ACTIVE")
     .Take(100)
-    .ExecuteAsync();
+    .ToListAsync();
 
 var standardItems = await table.StatusIndex.Query
     .Where("status = {0}", "ACTIVE")
     .Take(10)
-    .ExecuteAsync();
+    .ToListAsync();
 
 var fullItems = await table.StatusIndexFull.Query
     .Where("status = {0} AND id = {1}", "ACTIVE", "TXN123")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Type Override Patterns
@@ -404,7 +404,7 @@ public async Task<QueryResponse> QueryTransactions(
     }
     // Otherwise, use index default projection
 
-    return await query.ExecuteAsync();
+    return await query.ToListAsync();
 }
 ```
 
@@ -441,7 +441,7 @@ var full = await table.StatusIndex.Query<Transaction>()
 
 ```csharp
 // Define entities with discriminators
-[DynamoDbEntity(EntityDiscriminator = "ORDER")]
+[DynamoDbTable("MultiEntity", EntityDiscriminator = "ORDER")]
 public partial class Order
 {
     [PartitionKey]
@@ -453,7 +453,7 @@ public partial class Order
     public string ShippingAddress { get; set; } = string.Empty;
 }
 
-[DynamoDbEntity(EntityDiscriminator = "INVOICE")]
+[DynamoDbTable("MultiEntity", EntityDiscriminator = "INVOICE")]
 public partial class Invoice
 {
     [PartitionKey]
@@ -502,7 +502,7 @@ var invoices = await table.StatusIndex.Query
 ### Example 14: Shared GSI Across Entity Types
 
 ```csharp
-[DynamoDbEntity(EntityDiscriminator = "PRODUCT")]
+[DynamoDbTable("Catalog", EntityDiscriminator = "PRODUCT")]
 public partial class Product
 {
     [PartitionKey]
@@ -516,7 +516,7 @@ public partial class Product
     public int StockQuantity { get; set; }
 }
 
-[DynamoDbEntity(EntityDiscriminator = "SERVICE")]
+[DynamoDbTable("Catalog", EntityDiscriminator = "SERVICE")]
 public partial class Service
 {
     [PartitionKey]
@@ -565,7 +565,7 @@ var services = await table.CategoryIndex.Query
 
 ```csharp
 // Full product entity
-[DynamoDbEntity]
+[DynamoDbTable("Products")]
 public partial class Product
 {
     [PartitionKey]
@@ -681,7 +681,7 @@ public class ProductService
 
 ```csharp
 // Full order entity
-[DynamoDbEntity]
+[DynamoDbTable("Orders")]
 public partial class Order
 {
     [PartitionKey]
@@ -777,7 +777,7 @@ public class OrderService
 
 ```csharp
 // Transaction entity
-[DynamoDbEntity]
+[DynamoDbTable("Transactions")]
 public partial class Transaction
 {
     [PartitionKey]

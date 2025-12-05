@@ -44,7 +44,7 @@ jobs:
         run: dotnet restore
       
       - name: Build solution
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore /maxcpucount:1
       
       - name: Upload build artifacts
         uses: actions/upload-artifact@v5

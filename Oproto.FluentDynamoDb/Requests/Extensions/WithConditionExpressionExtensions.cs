@@ -1,9 +1,11 @@
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Utility;
+using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -71,6 +73,7 @@ public static class WithConditionExpressionExtensions
     /// .WithValue(":prefix", "ORDER#")
     /// </code>
     /// </example>
+    [GenerateWrapper]
     public static T Where<T>(this IWithConditionExpression<T> builder, string conditionExpression)
     {
         return builder.SetConditionExpression(conditionExpression);
@@ -123,6 +126,7 @@ public static class WithConditionExpressionExtensions
     /// <para><strong>Format Safety:</strong> All format operations are AOT-safe and don't use reflection.</para>
     /// <para><strong>Error Handling:</strong> Clear error messages are provided for invalid format strings or type mismatches.</para>
     /// </remarks>
+    [GenerateWrapper]
     public static T Where<T>(this IWithConditionExpression<T> builder, string format, params object[] args)
     {
         var (processedExpression, _) = FormatStringProcessor.ProcessFormatString(format, args, builder.GetAttributeValueHelper());
@@ -170,18 +174,268 @@ public static class WithConditionExpressionExtensions
     /// <para><strong>Parameter Generation:</strong> Values are automatically captured and converted to DynamoDB AttributeValue types.</para>
     /// <para><strong>AOT Safety:</strong> This method is AOT-safe and doesn't use runtime code generation.</para>
     /// </remarks>
+    [GenerateWrapper(RequiresSpecialization = true, SpecializationNotes = "Fixes TEntity generic parameter to the builder's entity type")]
     public static T Where<T, TEntity>(
         this IWithConditionExpression<T> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
+        where TEntity : IEntityMetadataProvider
     {
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
+        
         var context = new ExpressionContext(
             builder.GetAttributeValueHelper(),
             builder.GetAttributeNameHelper(),
             metadata,
             ExpressionValidationMode.KeysOnly);
 
-        var translator = new ExpressionTranslator();
+        // Get options from the builder if it implements IHasDynamoDbClient
+        var options = (builder as IHasDynamoDbClient)?.GetOptions();
+        var translator = new ExpressionTranslator(options);
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
+    }
+    
+    /// <summary>
+    /// Specifies the condition expression using a C# lambda expression for QueryRequestBuilder.
+    /// This overload provides better type inference for query operations.
+    /// When querying a GSI (via UsingIndex()), the index's key schema is used for validation
+    /// instead of the main table's keys.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being queried.</typeparam>
+    /// <param name="builder">The QueryRequestBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the condition.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public static QueryRequestBuilder<TEntity> Where<TEntity>(
+        this QueryRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
+        
+        // Get the index name from the builder (set via UsingIndex())
+        var indexName = builder.GetIndexName();
+        
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.KeysOnly,
+            indexName);
+
+        var translator = new ExpressionTranslator(builder.GetOptions());
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
+    }
+
+    /// <summary>
+    /// Specifies the condition expression using a C# lambda expression for ConditionCheckBuilder.
+    /// This overload provides better type inference for condition check operations in transactions.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being checked.</typeparam>
+    /// <param name="builder">The ConditionCheckBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the condition.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Use in a transaction with lambda expression
+    /// await DynamoDbTransactions.Write
+    ///     .Add(table.BasicPkEntitys.ConditionCheck("1234").Where(x => x.Name == "Test"))
+    ///     .Add(table.Update("1234").Set(x => new BasicPkEntityUpdateModel { Age = 30 }))
+    ///     .ExecuteAsync();
+    /// </code>
+    /// </example>
+    public static ConditionCheckBuilder<TEntity> Where<TEntity>(
+        this ConditionCheckBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
+        
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None); // Use None for condition checks - they can reference any property
+
+        var translator = new ExpressionTranslator(builder.GetOptions());
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
+    }
+
+    /// <summary>
+    /// Specifies the condition expression using a C# lambda expression for PutItemRequestBuilder.
+    /// This overload provides type-safe conditional puts with compile-time checking of property access.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being put.</typeparam>
+    /// <param name="builder">The PutItemRequestBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the condition (e.g., x => x.Pk.AttributeNotExists()).</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Conditional put - only if item doesn't exist
+    /// await table.Put&lt;Order&gt;()
+    ///     .WithItem(order)
+    ///     .Where(x => x.Pk.AttributeNotExists())
+    ///     .PutAsync();
+    /// 
+    /// // Conditional put with comparison
+    /// await table.Orders.Put(order)
+    ///     .Where(x => x.Status == "pending")
+    ///     .PutAsync();
+    /// 
+    /// // Conditional put with AttributeExists
+    /// await table.Orders.Put(order)
+    ///     .Where(x => x.Pk.AttributeExists())
+    ///     .PutAsync();
+    /// </code>
+    /// </example>
+    /// <remarks>
+    /// <para><strong>Validation Mode:</strong> This overload uses None validation, meaning any property can be referenced in the condition.</para>
+    /// <para><strong>Supported Operators:</strong> ==, !=, &lt;, &gt;, &lt;=, &gt;=, &amp;&amp;, ||, !</para>
+    /// <para><strong>Supported Methods:</strong> AttributeExists, AttributeNotExists, StartsWith, Contains, Between, Size</para>
+    /// <para><strong>Parameter Generation:</strong> Values are automatically captured and converted to DynamoDB AttributeValue types.</para>
+    /// </remarks>
+    public static PutItemRequestBuilder<TEntity> Where<TEntity>(
+        this PutItemRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
+        
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None); // Use None for condition expressions - they can reference any property
+
+        var translator = new ExpressionTranslator(builder.GetOptions());
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
+    }
+
+    /// <summary>
+    /// Specifies the condition expression using a C# lambda expression for DeleteItemRequestBuilder.
+    /// This overload provides type-safe conditional deletes with compile-time checking of property access.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being deleted.</typeparam>
+    /// <param name="builder">The DeleteItemRequestBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the condition (e.g., x => x.Pk.AttributeExists()).</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Conditional delete - only if item exists
+    /// await table.Delete&lt;Order&gt;()
+    ///     .WithKey("pk", orderId)
+    ///     .Where(x => x.Pk.AttributeExists())
+    ///     .DeleteAsync();
+    /// 
+    /// // Conditional delete with comparison
+    /// await table.Orders.Delete(orderId)
+    ///     .Where(x => x.Status == "cancelled")
+    ///     .DeleteAsync();
+    /// 
+    /// // Conditional delete with AttributeNotExists
+    /// await table.Orders.Delete(orderId)
+    ///     .Where(x => x.ProcessedAt.AttributeNotExists())
+    ///     .DeleteAsync();
+    /// </code>
+    /// </example>
+    /// <remarks>
+    /// <para><strong>Validation Mode:</strong> This overload uses None validation, meaning any property can be referenced in the condition.</para>
+    /// <para><strong>Supported Operators:</strong> ==, !=, &lt;, &gt;, &lt;=, &gt;=, &amp;&amp;, ||, !</para>
+    /// <para><strong>Supported Methods:</strong> AttributeExists, AttributeNotExists, StartsWith, Contains, Between, Size</para>
+    /// <para><strong>Parameter Generation:</strong> Values are automatically captured and converted to DynamoDB AttributeValue types.</para>
+    /// </remarks>
+    public static DeleteItemRequestBuilder<TEntity> Where<TEntity>(
+        this DeleteItemRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
+        
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None); // Use None for condition expressions - they can reference any property
+
+        var translator = new ExpressionTranslator(builder.GetOptions());
+        var expressionString = translator.Translate(expression, context);
+
+        return builder.SetConditionExpression(expressionString);
+    }
+
+    /// <summary>
+    /// Specifies the condition expression using a C# lambda expression for UpdateItemRequestBuilder.
+    /// This overload provides type-safe conditional updates with compile-time checking of property access.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the condition (e.g., x => x.Pk.AttributeExists()).</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Conditional update - only if item exists
+    /// await table.Update&lt;Order&gt;()
+    ///     .WithKey("pk", orderId)
+    ///     .Set("SET #status = :status")
+    ///     .Where(x => x.Pk.AttributeExists())
+    ///     .UpdateAsync();
+    /// 
+    /// // Conditional update with comparison
+    /// await table.Orders.Update(orderId)
+    ///     .Set(x => new OrderUpdateModel { Status = "shipped" })
+    ///     .Where(x => x.Status == "pending")
+    ///     .UpdateAsync();
+    /// 
+    /// // Conditional update with AttributeNotExists
+    /// await table.Orders.Update(orderId)
+    ///     .Set(x => new OrderUpdateModel { ProcessedAt = DateTime.UtcNow })
+    ///     .Where(x => x.ProcessedAt.AttributeNotExists())
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    /// <remarks>
+    /// <para><strong>Validation Mode:</strong> This overload uses None validation, meaning any property can be referenced in the condition.</para>
+    /// <para><strong>Supported Operators:</strong> ==, !=, &lt;, &gt;, &lt;=, &gt;=, &amp;&amp;, ||, !</para>
+    /// <para><strong>Supported Methods:</strong> AttributeExists, AttributeNotExists, StartsWith, Contains, Between, Size</para>
+    /// <para><strong>Parameter Generation:</strong> Values are automatically captured and converted to DynamoDB AttributeValue types.</para>
+    /// </remarks>
+    public static UpdateItemRequestBuilder<TEntity> Where<TEntity>(
+        this UpdateItemRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
+        
+        var context = new ExpressionContext(
+            builder.GetAttributeValueHelper(),
+            builder.GetAttributeNameHelper(),
+            metadata,
+            ExpressionValidationMode.None); // Use None for condition expressions - they can reference any property
+
+        var translator = new ExpressionTranslator(builder.GetOptions());
         var expressionString = translator.Translate(expression, context);
 
         return builder.SetConditionExpression(expressionString);

@@ -3,7 +3,7 @@
 // - Semantic assertions: Replaced structural string checks
 // - DynamoDB-specific checks: Preserved with descriptive "because" messages
 
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator;
@@ -571,8 +571,8 @@ namespace TestNamespace
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
         // Verify empty collection check exists
-        entityCode.Should().Contain("if (typedEntity.Items != null && typedEntity.Items.Count > 0)",
-            "should check for null and empty to omit empty List from DynamoDB item");
+        entityCode.Should().Contain("if (typedEntity.@Items != null && typedEntity.@Items.Count > 0)",
+            "should check for null and empty to omit empty List from DynamoDB item (Items is a DynamoDB reserved word)");
     }
 
     #endregion
@@ -764,14 +764,12 @@ namespace TestNamespace
     #region JSON Blob Property Tests (Task 19.5)
 
     [Fact]
-    public void Generator_WithJsonBlobSystemTextJson_GeneratesJsonSerializerContext()
+    public void Generator_WithJsonBlob_GeneratesRuntimeSerializerCall()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed, serializer is configured at runtime
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -794,52 +792,47 @@ namespace TestNamespace
     }
 }";
 
-        // Act
+        // Act - Include JSON package reference to avoid DYNDB102 error
         var result = GenerateCode(source, includeSystemTextJson: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
         
-        // Check that JsonSerializerContext is generated
-        var contextCode = result.GeneratedSources.FirstOrDefault(s => s.FileName.Contains("JsonContext"));
-        if (contextCode != null)
-        {
-            var contextText = contextCode.SourceText.ToString();
-            contextText.Should().Contain("JsonSerializable(typeof(TestNamespace.DocumentContent))");
-            contextText.Should().Contain("partial class");
-            contextText.Should().Contain("JsonSerializerContext");
-        }
-        
         var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
         
         // Verify compilation
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Check ToDynamoDb uses System.Text.Json serialization
+        // Check ToDynamoDb uses runtime-configured serializer via options
         entityCode.Should().Contain("if (typedEntity.Content != null)",
             "should check for null before serializing JSON blob");
-        entityCode.ShouldReferenceType("JsonSerializer");
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize",
-            "should use System.Text.Json for serialization");
+        entityCode.Should().Contain("options?.JsonSerializer == null",
+            "should check if JSON serializer is configured at runtime");
+        entityCode.Should().Contain("options.JsonSerializer.Serialize",
+            "should use runtime-configured serializer for serialization");
         entityCode.Should().Contain("{ S = json }",
             "should use String (S) attribute type for JSON blob");
         
-        // Check FromDynamoDb uses System.Text.Json deserialization
+        // Check FromDynamoDb uses runtime-configured serializer
         entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue))",
             "should check for attribute existence");
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Deserialize",
-            "should use System.Text.Json for deserialization");
+        entityCode.Should().Contain("options.JsonSerializer.Deserialize",
+            "should use runtime-configured serializer for deserialization");
+        
+        // Verify error message mentions the correct extension methods
+        entityCode.Should().Contain("WithSystemTextJson()",
+            "error message should mention WithSystemTextJson() extension method");
+        entityCode.Should().Contain("WithNewtonsoftJson()",
+            "error message should mention WithNewtonsoftJson() extension method");
     }
 
     [Fact]
-    public void Generator_WithJsonBlobNewtonsoftJson_GeneratesNewtonsoftSerialization()
+    public void Generator_WithJsonBlob_GeneratesNullSerializerCheck()
     {
-        // Arrange
+        // Arrange - Test that generated code throws when serializer is not configured
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.NewtonsoftJson)]
 
 namespace TestNamespace
 {
@@ -862,8 +855,8 @@ namespace TestNamespace
     }
 }";
 
-        // Act
-        var result = GenerateCode(source, includeNewtonsoftJson: true);
+        // Act - Include JSON package reference to avoid DYNDB102 error
+        var result = GenerateCode(source, includeSystemTextJson: true);
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
@@ -873,26 +866,17 @@ namespace TestNamespace
         // Verify compilation
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Check ToDynamoDb uses Newtonsoft.Json serialization
-        entityCode.Should().Contain("if (typedEntity.Content != null)",
-            "should check for null before serializing JSON blob");
-        entityCode.ShouldReferenceType("JsonConvert");
-        entityCode.Should().Contain("Newtonsoft.Json.JsonConvert.SerializeObject",
-            "should use Newtonsoft.Json for serialization");
-        entityCode.Should().Contain("{ S = json }",
-            "should use String (S) attribute type for JSON blob");
-        
-        // Check FromDynamoDb uses Newtonsoft.Json deserialization
-        entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue))",
-            "should check for attribute existence");
-        entityCode.Should().Contain("Newtonsoft.Json.JsonConvert.DeserializeObject",
-            "should use Newtonsoft.Json for deserialization");
+        // Check that generated code throws InvalidOperationException when serializer is null
+        entityCode.Should().Contain("throw new InvalidOperationException",
+            "should throw when JSON serializer is not configured");
+        entityCode.Should().Contain("no JSON serializer is configured",
+            "error message should explain the issue");
     }
 
     [Fact]
-    public void Generator_WithJsonBlobNoSerializer_GeneratesError()
+    public void Generator_WithJsonBlobNoPackageReference_GeneratesDYNDB102Warning()
     {
-        // Arrange
+        // Arrange - No JSON package reference
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
@@ -926,61 +910,12 @@ namespace TestNamespace
     }
 
     [Fact]
-    public void Generator_WithAssemblyAttributeDetection_UsesCorrectSerializer()
-    {
-        // Arrange
-        var source = @"
-using System;
-using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
-
-namespace TestNamespace
-{
-    [DynamoDbTable(""test-table"")]
-    public partial class TestEntity
-    {
-        [PartitionKey]
-        [DynamoDbAttribute(""pk"")]
-        public string Id { get; set; } = string.Empty;
-        
-        [DynamoDbAttribute(""data"")]
-        [JsonBlob]
-        public CustomData? Data { get; set; }
-    }
-
-    public class CustomData
-    {
-        public int Value { get; set; }
-    }
-}";
-
-        // Act
-        var result = GenerateCode(source, includeSystemTextJson: true);
-
-        // Assert
-        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
-        
-        var entityCode = GetGeneratedSource(result, "TestEntity.g.cs");
-        
-        // Verify compilation
-        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
-        
-        // Verify System.Text.Json is used based on assembly attribute
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize",
-            "should use System.Text.Json based on assembly attribute");
-        entityCode.Should().NotContain("Newtonsoft.Json");
-    }
-
-    [Fact]
     public void Generator_WithJsonBlobFromDynamoDb_DeserializesCorrectly()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -1014,22 +949,20 @@ namespace TestNamespace
         // Verify compilation
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Check FromDynamoDb deserializes JSON
+        // Check FromDynamoDb uses runtime-configured serializer
         entityCode.Should().Contain("if (item.TryGetValue(\"content\", out var contentValue))",
             "should check for attribute existence");
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Deserialize",
-            "should use System.Text.Json for deserialization");
+        entityCode.Should().Contain("options.JsonSerializer.Deserialize",
+            "should use runtime-configured serializer for deserialization");
     }
 
     [Fact]
     public void Generator_WithJsonBlobToDynamoDb_SerializesCorrectly()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -1063,11 +996,11 @@ namespace TestNamespace
         // Verify compilation
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Check ToDynamoDb serializes JSON
+        // Check ToDynamoDb uses runtime-configured serializer
         entityCode.Should().Contain("if (typedEntity.Content != null)",
             "should check for null before serializing JSON blob");
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize",
-            "should use System.Text.Json for serialization");
+        entityCode.Should().Contain("options.JsonSerializer.Serialize",
+            "should use runtime-configured serializer for serialization");
         entityCode.Should().Contain("{ S = json }",
             "should use String (S) attribute type for JSON blob");
     }
@@ -1075,12 +1008,10 @@ namespace TestNamespace
     [Fact]
     public void Generator_WithJsonBlobNullValue_OmitsAttribute()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -1121,12 +1052,10 @@ namespace TestNamespace
     [Fact]
     public void Generator_WithJsonBlobEmptyObject_StoresEmptyJson()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -1159,9 +1088,9 @@ namespace TestNamespace
         // Verify compilation
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Verify serialization happens even for empty objects
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize",
-            "should serialize even empty objects");
+        // Verify serialization happens even for empty objects using runtime serializer
+        entityCode.Should().Contain("options.JsonSerializer.Serialize",
+            "should serialize even empty objects using runtime-configured serializer");
         entityCode.Should().Contain("{ S = json }",
             "should use String (S) attribute type for JSON blob");
     }
@@ -1169,13 +1098,11 @@ namespace TestNamespace
     [Fact]
     public void Generator_WithJsonBlobComplexType_GeneratesCorrectSerialization()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed
         var source = @"
 using System;
 using System.Collections.Generic;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -1210,22 +1137,20 @@ namespace TestNamespace
         // Verify compilation
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Verify complex type serialization
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize",
-            "should serialize complex types with nested collections");
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Deserialize",
-            "should deserialize complex types with nested collections");
+        // Verify complex type serialization using runtime serializer
+        entityCode.Should().Contain("options.JsonSerializer.Serialize",
+            "should serialize complex types with nested collections using runtime serializer");
+        entityCode.Should().Contain("options.JsonSerializer.Deserialize",
+            "should deserialize complex types with nested collections using runtime serializer");
     }
 
     [Fact]
     public void Generator_WithJsonBlobAndTtl_GeneratesBothCorrectly()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -1263,8 +1188,8 @@ namespace TestNamespace
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
         // Verify both JsonBlob and TTL are handled
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize",
-            "should handle JSON blob serialization");
+        entityCode.Should().Contain("options.JsonSerializer.Serialize",
+            "should handle JSON blob serialization using runtime serializer");
         entityCode.Should().Contain("var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)",
             "should handle TTL Unix epoch conversion");
     }
@@ -1272,12 +1197,10 @@ namespace TestNamespace
     [Fact]
     public void Generator_WithJsonBlobInMultiItemEntity_GeneratesCorrectly()
     {
-        // Arrange
+        // Arrange - No assembly attribute needed
         var source = @"
 using System;
 using Oproto.FluentDynamoDb.Attributes;
-
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
 
 namespace TestNamespace
 {
@@ -1314,9 +1237,9 @@ namespace TestNamespace
         // Verify compilation
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Verify JsonBlob works in multi-item entity
-        entityCode.Should().Contain("System.Text.Json.JsonSerializer.Serialize",
-            "should handle JSON blob in multi-item entity");
+        // Verify JsonBlob works in multi-item entity using runtime serializer
+        entityCode.Should().Contain("options.JsonSerializer.Serialize",
+            "should handle JSON blob in multi-item entity using runtime serializer");
         // Note: Multi-item entity comment may not be present if entity doesn't have relationships
     }
 
@@ -1406,8 +1329,8 @@ namespace TestNamespace
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
         // Check ToDynamoDb calls StoreAsync
-        entityCode.Should().Contain("if (typedEntity.Data != null)",
-            "should check for null before storing blob");
+        entityCode.Should().Contain("if (typedEntity.@Data != null)",
+            "should check for null before storing blob (Data is a DynamoDB reserved word)");
         entityCode.ShouldReferenceType("MemoryStream");
         entityCode.Should().Contain("await blobProvider.StoreAsync",
             "should call StoreAsync to store blob data");
@@ -1497,7 +1420,7 @@ namespace TestNamespace
         entityCode.ShouldReferenceType("MemoryStream");
         entityCode.Should().Contain("await stream.CopyToAsync(memoryStream, cancellationToken)",
             "should copy blob stream to memory");
-        entityCode.ShouldContainAssignment("entity.Data");
+        entityCode.ShouldContainAssignment("entity.@Data"); // Data is a DynamoDB reserved word
         
         // Check error handling
         entityCode.Should().Contain("catch (Exception ex)",
@@ -1771,12 +1694,16 @@ namespace TestNamespace
 
     #region Helper Methods
 
+    /// <summary>
+    /// Creates a mock assembly for testing optional package references.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static MetadataReference CreateMockAssembly(string assemblyName)
     {
         var compilation = CSharpCompilation.Create(
             assemblyName,
             new[] { CSharpSyntaxTree.ParseText("// Mock assembly") },
-            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) },
+            TestHelpers.DynamicCompilationHelper.GetStandardReferences().Take(1),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         using var ms = new MemoryStream();
@@ -1789,26 +1716,17 @@ namespace TestNamespace
         return MetadataReference.CreateFromStream(ms);
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(
         string source,
         bool includeSystemTextJson = false,
         bool includeNewtonsoftJson = false,
         bool includeS3BlobProvider = false)
     {
-        var references = new List<MetadataReference>
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll")),
-            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll"))
-        };
+        var references = TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences().ToList();
 
         if (includeSystemTextJson)
         {

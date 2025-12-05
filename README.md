@@ -1,7 +1,11 @@
+<p align="center">
+  <img src="docs/assets/FluentDynamoDBLogo.svg" alt="Oproto.FluentDynamoDb Logo" width="300">
+</p>
+
 # Oproto.FluentDynamoDb
 
-[![Build](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/build.yml)
-[![Tests](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/oproto-fluent-dynamodb/actions/workflows/test.yml)
+[![Build](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml)
+[![Tests](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml)
 [![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
 
 A modern, fluent-style API wrapper for Amazon DynamoDB that combines automatic code generation with type-safe operations. Built for .NET 8+, this library eliminates boilerplate through source generation while providing an intuitive, expression-based syntax for all DynamoDB operations. Whether you're building serverless applications, microservices, or enterprise systems, Oproto.FluentDynamoDb delivers a developer-friendly experience without sacrificing performance or flexibility.
@@ -47,21 +51,30 @@ public partial class User
 ```
 
 The source generator automatically creates:
-- **Field constants** (`UserFields.UserId`, `UserFields.Username`, etc.)
-- **Key builders** (`UserKeys.Pk(userId)`)
+- **Field constants** (`User.Fields.UserId`, `User.Fields.Username`, etc.)
+- **Key builders** (`User.Keys.Pk(userId)`)
 - **Mapper methods** for converting between your model and DynamoDB items
+
+All support classes are generated as nested classes within your entity for better organization.
 
 ### Basic Operations
 
 ```csharp
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "users");
 
-// Create a user (Primary API - returns void, populates context)
+// Basic usage - no configuration needed
+var table = new UsersTable(client, "users");
+
+// Or with configuration options (for logging, encryption, etc.)
+var options = new FluentDynamoDbOptions();
+var tableWithOptions = new UsersTable(client, "users", options);
+
+// Create a user
 var user = new User 
 { 
     UserId = "user123", 
@@ -69,42 +82,157 @@ var user = new User
     Email = "john@example.com"
 };
 
-await table.Put
-    .WithItem(UserMapper.ToItem(user))
-    .Where("attribute_not_exists({0})", UserFields.UserId)
+// Convenience method (recommended for simple operations)
+await table.Users.PutAsync(user);
+
+// Builder API (for complex operations with conditions)
+await table.Users.Put(user)
+    .Where("attribute_not_exists({0})", User.Fields.UserId)
     .PutAsync();
 
-// Get a user (Primary API - returns entity, populates context)
-var retrievedUser = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .GetItemAsync<User>();
+// Get a user - convenience method
+var retrievedUser = await table.Users.GetAsync("user123");
+
+// Get a user - builder API with projection
+var userWithProjection = await table.Users.Get("user123")
+    .WithProjection($"{User.Fields.Username}, {User.Fields.Email}")
+    .GetItemAsync();
 
 // Access operation metadata via context
 var context = DynamoDbOperationContext.Current;
 Console.WriteLine($"Consumed capacity: {context?.ConsumedCapacity?.CapacityUnits}");
 
-// Query users with expression formatting (Primary API - returns list, populates context)
+// Query users with expression formatting
 var activeUsers = await table.Query
     .Where("{0} = {1} AND {2} = {3}", 
-           UserFields.UserId, UserKeys.Pk("user123"),
-           UserFields.Status, "active")
+           User.Fields.UserId, User.Keys.Pk("user123"),
+           User.Fields.Status, "active")
     .ToListAsync<User>();
 
-// Update with type-safe fields and format strings (Primary API - returns void, populates context)
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Status} = {{0}}, {UserFields.CreatedAt} = {{1:o}}", 
-         "inactive", DateTime.UtcNow)
+// Update with entity-specific builder (simplified Set method)
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel 
+    { 
+        Status = "inactive",
+        UpdatedAt = DateTime.UtcNow
+    })
     .UpdateAsync();
 
-// Delete with condition (Primary API - returns void, populates context)
-await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where("{0} = {1}", UserFields.Status, "inactive")
+// Update - convenience method with configuration
+await table.Users.UpdateAsync("user123", update => 
+    update.Set(x => new UserUpdateModel { Status = "inactive" }));
+
+// Delete - convenience method
+await table.Users.DeleteAsync("user123");
+
+// Delete - builder API with condition
+await table.Users.Delete("user123")
+    .Where("{0} = {1}", User.Fields.Status, "inactive")
     .DeleteAsync();
 ```
 
 **Next Steps:** See the [Getting Started Guide](docs/getting-started/QuickStart.md) for detailed setup instructions and more examples.
+
+## API Patterns
+
+Oproto.FluentDynamoDb provides two complementary API patterns to suit different scenarios:
+
+### Convenience Methods (Recommended for Simple Operations)
+
+Convenience methods combine builder creation and execution in a single call, reducing boilerplate for straightforward operations:
+
+```csharp
+// Simple operations without additional configuration
+var user = await table.Users.GetAsync("user123");
+await table.Users.PutAsync(user);
+await table.Users.DeleteAsync("user123");
+
+// Update with configuration action
+await table.Users.UpdateAsync("user123", update => 
+    update.Set(x => new UserUpdateModel { Status = "active" }));
+```
+
+**When to use:**
+- Simple CRUD operations without conditions
+- Quick prototyping and testing
+- Operations that don't need return values or capacity metrics
+
+### Builder API (For Complex Operations)
+
+The builder pattern provides full control over all DynamoDB options:
+
+```csharp
+// Complex operations with conditions, return values, etc.
+await table.Users.Put(user)
+    .Where("attribute_not_exists({0})", User.Fields.UserId)
+    .ReturnAllOldValues()
+    .PutAsync();
+
+var response = await table.Users.Get("user123")
+    .WithProjection($"{User.Fields.Username}, {User.Fields.Email}")
+    .UsingConsistentRead()
+    .GetItemAsync();
+```
+
+**When to use:**
+- Conditional expressions
+- Return value requirements
+- Projection expressions
+- Consistent reads
+- Custom capacity settings
+
+### Entity-Specific Update Builders
+
+Update operations benefit from entity-specific builders that eliminate verbose generic parameters:
+
+```csharp
+// Before: Required 3 generic type parameters
+await table.Update<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .Set<User, UserUpdateExpressions, UserUpdateModel>(x => new UserUpdateModel 
+    { 
+        Status = "active" 
+    })
+    .UpdateAsync();
+
+// After: Entity-specific builder infers types automatically
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Status = "active" })
+    .UpdateAsync();
+```
+
+**Benefits:**
+- Simplified method signatures
+- Better IntelliSense support
+- Maintains full type safety
+- Fluent chaining preserved
+
+### Raw Dictionary Support
+
+For advanced scenarios or when working without entity classes:
+
+```csharp
+// Put raw attribute dictionary
+await table.Users.PutAsync(new Dictionary<string, AttributeValue>
+{
+    ["pk"] = new AttributeValue { S = "user123" },
+    ["username"] = new AttributeValue { S = "john_doe" },
+    ["email"] = new AttributeValue { S = "john@example.com" }
+});
+
+// Builder pattern with raw dictionary
+await table.Users.Put(rawAttributes)
+    .Where("attribute_not_exists(pk)")
+    .PutAsync();
+```
+
+**When to use:**
+- Testing and debugging
+- Migration from other libraries
+- Dynamic schema scenarios
+- Advanced DynamoDB features
+
+**Learn more:** See [Basic Operations](docs/core-features/BasicOperations.md) for detailed examples and usage patterns.
 
 ## Key Features
 
@@ -159,9 +287,11 @@ By default, the library uses a no-op logger with zero overhead:
 
 ```csharp
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "products");
 
-// No logging - works exactly as before
+// No logging - uses NoOpLogger by default
+var table = new ProductsTable(client, "products");
+
+// Operations work without any logging configuration
 await table.Get.WithKey("pk", "product-123").ExecuteAsync();
 ```
 
@@ -173,18 +303,22 @@ Install the adapter package:
 dotnet add package Oproto.FluentDynamoDb.Logging.Extensions
 ```
 
-Configure logging:
+Configure logging using `FluentDynamoDbOptions`:
 
 ```csharp
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging.Extensions;
 using Microsoft.Extensions.Logging;
 
 // Create logger from ILoggerFactory
 var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
-var logger = loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger();
 
-// Pass logger to table
-var table = new ProductsTable(client, "products", logger);
+// Configure options with logging
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger());
+
+// Pass options to table constructor
+var table = new ProductsTable(client, "products", options);
 
 // All operations are now logged with detailed context
 await table.GetProductAsync("product-123");
@@ -204,6 +338,7 @@ await table.GetProductAsync("product-123");
 Implement the `IDynamoDbLogger` interface:
 
 ```csharp
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging;
 
 public class ConsoleLogger : IDynamoDbLogger
@@ -224,9 +359,11 @@ public class ConsoleLogger : IDynamoDbLogger
     // Implement other methods...
 }
 
-// Use custom logger
-var logger = new ConsoleLogger();
-var table = new ProductsTable(client, "products", logger);
+// Configure options with custom logger
+var options = new FluentDynamoDbOptions()
+    .WithLogger(new ConsoleLogger());
+
+var table = new ProductsTable(client, "products", options);
 ```
 
 ### Conditional Compilation (Zero Overhead in Production)
@@ -263,6 +400,7 @@ New to Oproto.FluentDynamoDb? Start here to learn the basics.
 
 ### 🎯 [Core Features](docs/core-features/README.md)
 Master the essential operations and patterns.
+- [Configuration](docs/core-features/Configuration.md) - FluentDynamoDbOptions and service configuration
 - [Entity Definition](docs/core-features/EntityDefinition.md) - Attributes, keys, and indexes
 - [Basic Operations](docs/core-features/BasicOperations.md) - CRUD operations
 - [Querying Data](docs/core-features/QueryingData.md) - Query and scan operations
@@ -325,8 +463,8 @@ public partial class Order
 
 // Use generated code with expression formatting
 await table.Update
-    .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
-    .Set($"SET {OrderFields.Amount} = {{0:F2}}", 99.99m)
+    .WithKey(OrderEntity.Fields.OrderId, OrderEntity.Keys.Pk("order123"))
+    .Set($"SET {OrderEntity.Fields.Amount} = {{0:F2}}", 99.99m)
     .ExecuteAsync();
 ```
 
@@ -356,6 +494,30 @@ await table.Update
 
 
 
+## About
+
+**Oproto.FluentDynamoDb** is developed and maintained by [Oproto Inc](https://oproto.com), 
+a company building modern SaaS solutions for small business finance and accounting.
+
+### Links
+- 🏢 **Company**: [oproto.com](https://oproto.com)
+- 👨‍💻 **Developer Portal**: [oproto.io](https://oproto.io)
+- 📚 **Documentation**: [fluentdynamodb.dev](https://fluentdynamodb.dev)
+
+### Maintainer
+- **Dan Guisinger** - [danguisinger.com](https://danguisinger.com)
+
+## Built Using Kiro (for Kiroween 2025)
+
+FluentDynamoDB was developed using Kiro's spec-driven workflow, including structured requirements and design specifications, source-generator implementation tasks, multi-model LLM workflows for complex features, and extensive automated testing.
+
+A short demo of this workflow was submitted as part of the Kiroween 2025 Hackathon. This repository continues to evolve beyond the hackathon submission.
+
+### 🎥 Demo Video & Submission
+
+- https://www.youtube.com/watch?v=4-SI6YgSX_s
+- https://devpost.com/software/fluent-dynamodb
+
 ## Community & Support
 
 - **Issues:** [GitHub Issues](https://github.com/OProto/oproto-fluent-dynamodb/issues)
@@ -365,6 +527,10 @@ await table.Update
 ## Contributing
 
 Contributions are welcome! Please see our contributing guidelines for more information.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 

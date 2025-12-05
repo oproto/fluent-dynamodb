@@ -172,22 +172,22 @@ public static class WithFilterExpressionExtensions
     /// <example>
     /// <code>
     /// // Simple filter on non-key attribute
-    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Status == "ACTIVE")
+    /// .WithFilter&lt;QueryRequestBuilder&lt;UserEntity&gt;, UserEntity&gt;(x => x.Status == "ACTIVE")
     /// 
     /// // Complex filter with multiple conditions
-    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Status == "ACTIVE" &amp;&amp; x.Age >= 18)
+    /// .WithFilter&lt;QueryRequestBuilder&lt;UserEntity&gt;, UserEntity&gt;(x => x.Status == "ACTIVE" &amp;&amp; x.Age >= 18)
     /// 
     /// // Using string methods
-    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Name.StartsWith("John") &amp;&amp; x.Email.Contains("@example.com"))
+    /// .WithFilter&lt;QueryRequestBuilder&lt;UserEntity&gt;, UserEntity&gt;(x => x.Name.StartsWith("John") &amp;&amp; x.Email.Contains("@example.com"))
     /// 
     /// // Using DynamoDB functions
-    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Age.Between(18, 65) &amp;&amp; x.Tags.Size() > 0)
+    /// .WithFilter&lt;QueryRequestBuilder&lt;UserEntity&gt;, UserEntity&gt;(x => x.Age.Between(18, 65) &amp;&amp; x.Tags.Size() > 0)
     /// 
     /// // Checking attribute existence
-    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.OptionalField.AttributeExists())
+    /// .WithFilter&lt;QueryRequestBuilder&lt;UserEntity&gt;, UserEntity&gt;(x => x.OptionalField.AttributeExists())
     /// 
     /// // With entity metadata for validation
-    /// .WithFilter&lt;QueryRequestBuilder, UserEntity&gt;(x => x.Status == "ACTIVE", userEntityMetadata)
+    /// .WithFilter&lt;QueryRequestBuilder&lt;UserEntity&gt;, UserEntity&gt;(x => x.Status == "ACTIVE", userEntityMetadata)
     /// </code>
     /// </example>
     /// <remarks>
@@ -202,17 +202,103 @@ public static class WithFilterExpressionExtensions
         this IWithFilterExpression<T> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
+        where TEntity : IEntityMetadataProvider
     {
+        // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
+        metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();
+        
         var context = new ExpressionContext(
             builder.GetAttributeValueHelper(),
             builder.GetAttributeNameHelper(),
             metadata,
             ExpressionValidationMode.None);
 
-        var translator = new ExpressionTranslator();
+        // Get options from the builder if it implements IHasDynamoDbClient
+        var options = (builder as IHasDynamoDbClient)?.GetOptions();
+        var translator = new ExpressionTranslator(options);
         var expressionString = translator.Translate(expression, context);
 
         return builder.SetFilterExpression(expressionString);
     }
 
 }
+
+/// <summary>
+/// Extension methods for QueryRequestBuilder with automatic type inference for filter expressions.
+/// </summary>
+public static class QueryRequestBuilderFilterExtensions
+{
+    /// <summary>
+    /// Specifies the filter expression using a C# lambda expression with automatic type inference.
+    /// This overload is specifically for QueryRequestBuilder and doesn't require explicit type parameters.
+    /// The expression is translated to DynamoDB expression syntax with automatic parameter generation.
+    /// Filter expressions can reference any property (no key-only restriction).
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being filtered (inferred from QueryRequestBuilder).</typeparam>
+    /// <param name="builder">The QueryRequestBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the filter (e.g., x => x.Status == "ACTIVE").</param>
+    /// <param name="metadata">Optional entity metadata for property validation. If not provided, it's resolved from the entity type.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Simple filter - no type parameters needed!
+    /// table.Query&lt;UserEntity&gt;()
+    ///     .Where("pk = :pk")
+    ///     .WithValue(":pk", userId)
+    ///     .WithFilter(x => x.Status == "ACTIVE")
+    ///     .ExecuteAsync();
+    /// 
+    /// // Complex filter with multiple conditions
+    /// table.Query&lt;UserEntity&gt;()
+    ///     .Where("pk = :pk")
+    ///     .WithValue(":pk", userId)
+    ///     .WithFilter(x => x.Status == "ACTIVE" &amp;&amp; x.Age >= 18)
+    ///     .ExecuteAsync();
+    /// </code>
+    /// </example>
+    public static QueryRequestBuilder<TEntity> WithFilter<TEntity>(
+        this QueryRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        return WithFilterExpressionExtensions.WithFilter<QueryRequestBuilder<TEntity>, TEntity>(
+            builder, expression, metadata);
+    }
+}
+
+/// <summary>
+/// Extension methods for ScanRequestBuilder with automatic type inference for filter expressions.
+/// </summary>
+public static class ScanRequestBuilderFilterExtensions
+{
+    /// <summary>
+    /// Specifies the filter expression using a C# lambda expression with automatic type inference.
+    /// This overload is specifically for ScanRequestBuilder and doesn't require explicit type parameters.
+    /// The expression is translated to DynamoDB expression syntax with automatic parameter generation.
+    /// Filter expressions can reference any property.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being filtered (inferred from ScanRequestBuilder).</typeparam>
+    /// <param name="builder">The ScanRequestBuilder instance.</param>
+    /// <param name="expression">The lambda expression representing the filter (e.g., x => x.Status == "ACTIVE").</param>
+    /// <param name="metadata">Optional entity metadata for property validation. If not provided, it's resolved from the entity type.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Scan with filter - no type parameters needed!
+    /// table.Scan&lt;UserEntity&gt;()
+    ///     .WithFilter(x => x.CreatedDate > DateTime.Now.AddDays(-30))
+    ///     .ExecuteAsync();
+    /// </code>
+    /// </example>
+    public static ScanRequestBuilder<TEntity> WithFilter<TEntity>(
+        this ScanRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, bool>> expression,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        return WithFilterExpressionExtensions.WithFilter<ScanRequestBuilder<TEntity>, TEntity>(
+            builder, expression, metadata);
+    }
+}
+

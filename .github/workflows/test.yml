@@ -54,7 +54,7 @@ jobs:
         run: dotnet restore
       
       - name: Build solution (if artifacts not available)
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore /maxcpucount:1
       
       - name: Run Unit Tests with Coverage
         run: dotnet test --configuration Release --filter "Category=Unit" --logger "trx;LogFileName=unit-test-results.trx" --results-directory ./TestResults/Unit --collect:"XPlat Code Coverage" --settings coverlet.runsettings
@@ -108,7 +108,7 @@ jobs:
           echo "Downloading DynamoDB Local..."
           mkdir -p dynamodb-local
           cd dynamodb-local
-          wget -q https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz
+          wget -q https://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz
           tar -xzf dynamodb_local_latest.tar.gz
           rm dynamodb_local_latest.tar.gz
           ls -la
@@ -121,7 +121,7 @@ jobs:
           Write-Host "Downloading DynamoDB Local..."
           New-Item -ItemType Directory -Force -Path dynamodb-local
           Set-Location dynamodb-local
-          Invoke-WebRequest -Uri "https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz" -OutFile "dynamodb_local_latest.tar.gz"
+          Invoke-WebRequest -Uri "https://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz" -OutFile "dynamodb_local_latest.tar.gz"
           tar -xzf dynamodb_local_latest.tar.gz
           Remove-Item dynamodb_local_latest.tar.gz
           Get-ChildItem
@@ -157,10 +157,10 @@ jobs:
         run: dotnet restore
       
       - name: Build solution (if artifacts not available)
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore /maxcpucount:1
       
       - name: Build integration test project explicitly
-        run: dotnet build Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-restore
+        run: dotnet build Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-restore /maxcpucount:1
       
       - name: Run Integration Tests with Coverage
         run: dotnet test Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj --configuration Release --no-build --logger "trx;LogFileName=integration-test-results.trx" --results-directory ./TestResults/Integration --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings
@@ -297,8 +297,14 @@ jobs:
         run: |
           mkdir -p ./coverage-report
           
+          # Check if coverage directory exists
+          if [ ! -d "./coverage" ]; then
+            echo "Coverage directory not found - no coverage artifacts were downloaded"
+            exit 0
+          fi
+          
           # Find all coverage files
-          COVERAGE_FILES=$(find ./coverage -name "coverage.cobertura.xml" -type f | tr '\n' ';')
+          COVERAGE_FILES=$(find ./coverage -name "coverage.cobertura.xml" -type f 2>/dev/null | tr '\n' ';')
           
           if [ ! -z "$COVERAGE_FILES" ]; then
             echo "Found coverage files, generating combined report..."
@@ -311,8 +317,9 @@ jobs:
             
             echo "Coverage report generated successfully"
           else
-            echo "No coverage files found"
+            echo "No coverage files found in ./coverage directory"
           fi
+        continue-on-error: true
       
       - name: Upload Combined Coverage Report
         if: always()

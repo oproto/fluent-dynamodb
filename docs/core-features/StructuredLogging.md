@@ -166,8 +166,9 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // Use with DynamoDB
-var logger = Log.ForContext<ProductsTable>().ToDynamoDbLogger();
-var table = new ProductsTable(client, "products", logger);
+var options = new FluentDynamoDbOptions()
+    .WithLogger(Log.ForContext<ProductsTable>().ToDynamoDbLogger());
+var table = new ProductsTable(client, "products", options);
 ```
 
 #### Query Examples

@@ -1,5 +1,5 @@
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 using Xunit;

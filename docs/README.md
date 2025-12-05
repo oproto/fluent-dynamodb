@@ -19,10 +19,12 @@ New to the library? Start here to get up and running quickly.
 ### 🔧 Core Features
 Learn the essential features you'll use every day.
 
+- **[Configuration](core-features/Configuration.md)** - Configure logging, geospatial, blob storage, and encryption
 - **[Entity Definition](core-features/EntityDefinition.md)** - Define entities with attributes and keys
 - **[Basic Operations](core-features/BasicOperations.md)** - CRUD operations (Put, Get, Update, Delete)
 - **[Querying Data](core-features/QueryingData.md)** - Query and scan operations
 - **[Expression Formatting](core-features/ExpressionFormatting.md)** - String.Format-style expressions
+- **[Expression-Based Updates](core-features/ExpressionBasedUpdates.md)** - Type-safe update operations with IntelliSense
 - **[Batch Operations](core-features/BatchOperations.md)** - Batch get and write operations
 - **[Transactions](core-features/Transactions.md)** - DynamoDB transactions
 - **[Projection Models](core-features/ProjectionModels.md)** - Optimize queries with automatic projections
@@ -34,11 +36,13 @@ Learn the essential features you'll use every day.
 ### 🎯 Advanced Topics
 Explore advanced patterns and optimizations.
 
+- **[Internal Architecture](advanced-topics/InternalArchitecture.md)** - How source generation, expression translation, and request builders work
 - **[Multi-Entity Tables](advanced-topics/MultiEntityTables.md)** - Single-table design with multiple entity types
 - **[Advanced Type System](advanced-topics/AdvancedTypes.md)** - Maps, Sets, Lists, TTL, JSON blobs, and blob storage
 - **[Composite Entities](advanced-topics/CompositeEntities.md)** - Multi-item and related entities
 - **[Discriminators](advanced-topics/Discriminators.md)** - Flexible entity type identification for single-table design
 - **[Field-Level Security](advanced-topics/FieldLevelSecurity.md)** - Logging redaction and KMS-based encryption
+- **[Geospatial Support](advanced-topics/Geospatial.md)** - Location-based queries with GeoHash, S2, and H3
 - **[Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md)** - GSI configuration and querying
 - **[STS Integration](advanced-topics/STSIntegration.md)** - Custom client support for multi-tenancy
 - **[Performance Optimization](advanced-topics/PerformanceOptimization.md)** - Performance tuning guide
@@ -47,6 +51,7 @@ Explore advanced patterns and optimizations.
 ### 📚 Reference
 Detailed reference documentation for attributes, format specifiers, and troubleshooting.
 
+- **[API Reference](reference/ApiReference.md)** - Quick reference for all builder methods and generated code
 - **[Attribute Reference](reference/AttributeReference.md)** - Complete attribute documentation
 - **[Format Specifiers](reference/FormatSpecifiers.md)** - Format specifier reference
 - **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
@@ -84,11 +89,17 @@ Practical code examples for common scenarios.
 **Use expression formatting**
 → [Expression Formatting](core-features/ExpressionFormatting.md)
 
+**Write type-safe update operations**
+→ [Expression-Based Updates](core-features/ExpressionBasedUpdates.md)
+
 **Optimize queries with projections**
 → [Projection Models](core-features/ProjectionModels.md)
 
 **Use single-table design**
 → [Multi-Entity Tables](advanced-topics/MultiEntityTables.md)
+
+**Configure optional features (logging, geospatial, encryption)**
+→ [Configuration Guide](core-features/Configuration.md)
 
 **Configure logging and diagnostics**
 → [Logging Configuration](core-features/LoggingConfiguration.md)
@@ -111,6 +122,9 @@ Practical code examples for common scenarios.
 **Protect sensitive data**
 → [Field-Level Security](advanced-topics/FieldLevelSecurity.md)
 
+**Use location-based queries**
+→ [Geospatial Support](advanced-topics/Geospatial.md)
+
 **Implement multi-tenancy**
 → [STS Integration](advanced-topics/STSIntegration.md)
 
@@ -119,6 +133,12 @@ Practical code examples for common scenarios.
 
 **Troubleshoot an issue**
 → [Troubleshooting Guide](reference/Troubleshooting.md)
+
+**Understand internal architecture**
+→ [Internal Architecture](advanced-topics/InternalArchitecture.md)
+
+**Find API methods quickly**
+→ [API Reference](reference/ApiReference.md)
 
 **Find a specific topic**
 → [Documentation Index](INDEX.md)
@@ -175,6 +195,19 @@ The source generator is automatically included and runs during compilation.
 1. **[Troubleshooting Guide](reference/Troubleshooting.md)** - Common issues and solutions
 2. **[Error Handling](reference/ErrorHandling.md)** - Exception handling patterns
 3. **[Attribute Reference](reference/AttributeReference.md)** - Verify attribute usage
+
+## About
+
+**Oproto.FluentDynamoDb** is developed and maintained by [Oproto Inc](https://oproto.com), 
+a company building modern SaaS solutions for small business finance and accounting.
+
+### Links
+- 🏢 **Company**: [oproto.com](https://oproto.com)
+- 👨‍💻 **Developer Portal**: [oproto.io](https://oproto.io)
+- 📚 **Documentation**: [fluentdynamodb.dev](https://fluentdynamodb.dev)
+
+### Maintainer
+- **Dan Guisinger** - [danguisinger.com](https://danguisinger.com)
 
 ## 🤝 Contributing
 

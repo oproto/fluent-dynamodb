@@ -162,7 +162,7 @@ public class DefaultKmsKeyResolverTests
     }
 
     [Fact]
-    public void ResolveKeyId_IsThreadSafe()
+    public async Task ResolveKeyId_IsThreadSafe()
     {
         // Arrange
         var contextKeyMap = new Dictionary<string, string>
@@ -180,7 +180,7 @@ public class DefaultKmsKeyResolverTests
             tasks.Add(Task.Run(() => resolver.ResolveKeyId(contextId)));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         // Assert - All results should be correct
         var results = tasks.Select(t => t.Result).ToList();

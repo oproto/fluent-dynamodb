@@ -78,9 +78,29 @@ public partial class User
 - `[DynamoDbAttribute]` maps properties to DynamoDB attribute names
 
 The source generator creates:
-- `UserFields` - Type-safe field name constants
-- `UserKeys` - Key builder methods
+- `User.Fields` (or `UserFields`) - Type-safe field name constants
+- `User.Keys` (or `UserKeys`) - Key builder methods for formatted keys
 - `UserMapper` - Serialization/deserialization logic
+
+### Key Builders
+
+When you add prefixes to your keys, the generated key builders format them automatically:
+
+```csharp
+[DynamoDbTable("entities")]
+public partial class User
+{
+    [PartitionKey(Prefix = "USER")]  // Adds "USER#" prefix
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+}
+
+// User.Keys.Pk("123") returns "USER#123"
+```
+
+This ensures consistent key formatting across your application. See [Entity Definition](../core-features/EntityDefinition.md) for more on key prefixes.
+
+> **Note:** You can also use string literals directly (e.g., `"pk"` instead of `User.Fields.UserId`). The generated constants provide compile-time validation but aren't required.
 
 ## Basic Operations
 
@@ -88,29 +108,40 @@ The source generator creates:
 
 ```csharp
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Storage;
 
 // Create DynamoDB client
 var client = new AmazonDynamoDBClient();
 
-// Option 1: Manual approach - create a class that inherits from DynamoDbTableBase
-public class UsersTableManual : DynamoDbTableBase
-{
-    public UsersTableManual(IAmazonDynamoDB client, string tableName) 
-        : base(client, tableName) { }
-}
-var table = new UsersTableManual(client, "users");
-
-// Option 2: Use source-generated table class (recommended)
+// Use source-generated table class (recommended)
 // Table name is configurable at runtime for different environments
-var usersTable = new UsersTable(client, "users");
+var table = new UsersTable(client, "users");
 
-// For multi-entity tables, use entity accessors
-var ordersTable = new OrdersTable(client, "orders");
-// Access via: ordersTable.Orders.Get(), ordersTable.OrderLines.Query(), etc.
+// With configuration options (for logging, encryption, etc.)
+var options = new FluentDynamoDbOptions();
+var tableWithOptions = new UsersTable(client, "users", options);
 ```
 
-> **Note**: This guide uses source-generated table classes. For manual usage without source generation, create a class that inherits from `DynamoDbTableBase`. The table name is passed to the constructor, allowing you to use different table names per environment (e.g., "users-dev", "users-prod"). See [Single-Entity Tables](SingleEntityTables.md) and [Multi-Entity Tables](../advanced-topics/MultiEntityTables.md) for details.
+### Entity Accessors
+
+For multi-entity tables, the source generator creates entity-specific accessor properties:
+
+```csharp
+var ordersTable = new OrdersTable(client, "orders");
+
+// Entity accessors eliminate generic type parameters
+var order = await ordersTable.Orders.GetAsync("order123");
+var lines = await ordersTable.OrderLines.Query()
+    .Where(x => x.OrderId == "order123")
+    .ToListAsync();
+
+// Express-route methods for simple operations
+await ordersTable.Orders.PutAsync(newOrder);
+await ordersTable.Orders.DeleteAsync("order123");
+```
+
+> **Note**: This guide uses source-generated table classes. The table name is passed to the constructor, allowing you to use different table names per environment (e.g., "users-dev", "users-prod"). For advanced configuration options like logging, encryption, and geospatial support, see the [Configuration Guide](../core-features/Configuration.md).
 
 ### Put (Create/Update Item)
 
@@ -124,10 +155,14 @@ var user = new User
     CreatedAt = DateTime.UtcNow
 };
 
-// Put item into DynamoDB
-await table.Put
-    .WithItem(user)
-    .ExecuteAsync();
+// Express-route method (recommended for simple puts)
+await table.Users.PutAsync(user);
+
+// Builder pattern (for conditional puts, return values, etc.)
+await table.Users.Put(user).PutAsync();
+
+// Generic method (also available)
+await table.Put<User>().WithItem(user).PutAsync();
 
 Console.WriteLine("User created successfully!");
 ```
@@ -136,9 +171,9 @@ Console.WriteLine("User created successfully!");
 
 ```csharp
 // Get item by partition key using generated key builder
-var response = await table.Get
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+var response = await table.Get<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .GetItemAsync();
 
 if (response.IsSuccess)
 {
@@ -155,10 +190,10 @@ else
 
 ```csharp
 // Query items with filter using expression formatting
-var queryResponse = await table.Query
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+var queryResponse = await table.Query<User>()
+    .Where($"{User.Fields.UserId} = {{0}}", "user123")
+    .WithFilter($"{User.Fields.Status} = {{0}}", "active")
+    .ToListAsync();
 
 foreach (var user in queryResponse.Items)
 {
@@ -168,19 +203,19 @@ foreach (var user in queryResponse.Items)
 
 **Expression Formatting Benefits:**
 - `{0}`, `{1}` placeholders are automatically converted to DynamoDB parameter names
-- Type-safe field references using generated `UserFields` constants
+- Type-safe field references using generated `User.Fields` constants
 - No manual parameter name management
 
 ### Update (Modify Item)
 
 ```csharp
 // Update specific attributes using expression formatting
-await table.Update
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
+await table.Update<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .Set($"SET {User.Fields.Name} = {{0}}, {User.Fields.UpdatedAt} = {{1:o}}", 
          "Jane Doe", 
          DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 Console.WriteLine("User updated successfully!");
 ```
@@ -193,9 +228,9 @@ Console.WriteLine("User updated successfully!");
 
 ```csharp
 // Delete item by key
-await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync();
+await table.Delete<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .DeleteAsync();
 
 Console.WriteLine("User deleted successfully!");
 ```
@@ -204,10 +239,10 @@ Console.WriteLine("User deleted successfully!");
 
 ```csharp
 // Delete only if status is inactive
-await table.Delete
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .Where($"{UserFields.Status} = {{0}}", "inactive")
-    .ExecuteAsync();
+await table.Delete<User>()
+    .WithKey(User.Fields.UserId, "user123")
+    .Where($"{User.Fields.Status} = {{0}}", "inactive")
+    .DeleteAsync();
 ```
 
 ## Complete Example
@@ -216,6 +251,7 @@ Here's a complete working example:
 
 ```csharp
 using Amazon.DynamoDBv2;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Storage;
 
@@ -246,7 +282,9 @@ class Program
     static async Task Main(string[] args)
     {
         var client = new AmazonDynamoDBClient();
-        var table = new DynamoDbTableBase(client, "users");
+        
+        // Create table instance - no options needed for basic usage
+        var table = new UsersTable(client, "users");
         
         // Create user
         var user = new User
@@ -258,12 +296,12 @@ class Program
             CreatedAt = DateTime.UtcNow
         };
         
-        await table.Put.WithItem(user).ExecuteAsync();
+        await table.Users.PutAsync(user);
         
         // Retrieve user
-        var getResponse = await table.Get
-            .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-            .ExecuteAsync<User>();
+        var getResponse = await table.Get<User>()
+            .WithKey(User.Fields.UserId, "user123")
+            .GetItemAsync();
         
         if (getResponse.IsSuccess)
         {
@@ -271,21 +309,42 @@ class Program
         }
         
         // Update user
-        await table.Update
-            .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-            .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
-            .ExecuteAsync();
+        await table.Update<User>()
+            .WithKey(User.Fields.UserId, "user123")
+            .Set($"SET {User.Fields.Name} = {{0}}", "Jane Doe")
+            .UpdateAsync();
         
         // Query active users
-        var queryResponse = await table.Query
-            .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-            .Where($"{UserFields.Status} = {{0}}", "active")
-            .ExecuteAsync<User>();
+        var queryResponse = await table.Query<User>()
+            .Where($"{User.Fields.UserId} = {{0}}", "user123")
+            .WithFilter($"{User.Fields.Status} = {{0}}", "active")
+            .ToListAsync();
         
         Console.WriteLine($"Found {queryResponse.Items.Count} active users");
     }
 }
 ```
+
+## Adding Optional Features
+
+For advanced scenarios, use `FluentDynamoDbOptions` to configure optional features:
+
+```csharp
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.Logging.Extensions;
+
+// With logging
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.CreateLogger<UsersTable>().ToDynamoDbLogger());
+
+var table = new UsersTable(client, "users", options);
+```
+
+See the [Configuration Guide](../core-features/Configuration.md) for complete documentation on:
+- Logging configuration
+- Geospatial support
+- Blob storage (S3)
+- Field-level encryption (KMS)
 
 ## Next Steps
 
@@ -293,6 +352,7 @@ Now that you've completed the quick start, explore these topics:
 
 - **[Installation Guide](Installation.md)** - Detailed setup and configuration
 - **[First Entity](FirstEntity.md)** - Deep dive into entity definition and generated code
+- **[Configuration Guide](../core-features/Configuration.md)** - Configure logging, encryption, and more
 - **[Entity Definition](../core-features/EntityDefinition.md)** - Advanced entity patterns (composite keys, GSIs)
 - **[Basic Operations](../core-features/BasicOperations.md)** - Complete CRUD operation reference
 - **[Querying Data](../core-features/QueryingData.md)** - Advanced query patterns and optimization
@@ -324,6 +384,7 @@ If you get authentication errors:
 [Previous: Getting Started](README.md) | [Next: Installation](Installation.md)
 
 **See Also:**
+- [Configuration Guide](../core-features/Configuration.md)
 - [Entity Definition](../core-features/EntityDefinition.md)
 - [Expression Formatting](../core-features/ExpressionFormatting.md)
 - [Attribute Reference](../reference/AttributeReference.md)

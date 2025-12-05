@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
@@ -30,15 +30,24 @@ public class BackwardCompatibilityTests
     }
     
     /// <summary>
-    /// Test table using the new constructor with optional logger parameter.
-    /// This simulates new code that can optionally use logging.
+    /// Test table using the new constructor with FluentDynamoDbOptions.
+    /// This simulates new code that uses the recommended options pattern.
     /// </summary>
     private class ModernTestTable : DynamoDbTableBase
     {
-        public ModernTestTable(IAmazonDynamoDB client, string tableName, IDynamoDbLogger? logger = null)
-            : base(client, tableName, logger)
+        public ModernTestTable(IAmazonDynamoDB client, string tableName)
+            : base(client, tableName)
         {
         }
+        
+        public ModernTestTable(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions options)
+            : base(client, tableName, options)
+        {
+        }
+        
+        // Factory method for tests that just need a logger
+        public static ModernTestTable WithLogger(IAmazonDynamoDB client, string tableName, IDynamoDbLogger logger)
+            => new ModernTestTable(client, tableName, new FluentDynamoDbOptions().WithLogger(logger));
     }
     
     #endregion
@@ -76,13 +85,13 @@ public class BackwardCompatibilityTests
     }
     
     [Fact]
-    public void ModernConstructor_WithNullLogger_ShouldUseNoOpLogger()
+    public void ModernConstructor_WithDefaultOptions_ShouldUseNoOpLogger()
     {
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         
-        // Act - Explicitly pass null logger
-        var table = new ModernTestTable(mockClient, "TestTable", null);
+        // Act - Use default options
+        var table = new ModernTestTable(mockClient, "TestTable", new FluentDynamoDbOptions());
         
         // Assert
         table.Should().NotBeNull();
@@ -96,9 +105,10 @@ public class BackwardCompatibilityTests
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var mockLogger = Substitute.For<IDynamoDbLogger>();
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
         
-        // Act - Pass a logger
-        var table = new ModernTestTable(mockClient, "TestTable", mockLogger);
+        // Act - Pass options with logger
+        var table = new ModernTestTable(mockClient, "TestTable", options);
         
         // Assert
         table.Should().NotBeNull();
@@ -346,9 +356,10 @@ public class BackwardCompatibilityTests
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var legacyTable = new LegacyTestTable(mockClient, "TestTable");
         
-        // Act - Migrate to modern code with logger
+        // Act - Migrate to modern code with options
         var mockLogger = Substitute.For<IDynamoDbLogger>();
-        var modernTable = new ModernTestTable(mockClient, "TestTable", mockLogger);
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
+        var modernTable = new ModernTestTable(mockClient, "TestTable", options);
         
         // Assert - Both should work identically
         legacyTable.Name.Should().Be(modernTable.Name);
@@ -365,10 +376,11 @@ public class BackwardCompatibilityTests
     [Fact]
     public void MigrationScenario_RemovingLoggerFromCode_ShouldWork()
     {
-        // Arrange - Start with modern code using logger
+        // Arrange - Start with modern code using options with logger
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var mockLogger = Substitute.For<IDynamoDbLogger>();
-        var modernTable = new ModernTestTable(mockClient, "TestTable", mockLogger);
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
+        var modernTable = new ModernTestTable(mockClient, "TestTable", options);
         
         // Act - Remove logger (pass null or omit parameter)
         var tableWithoutLogger = new ModernTestTable(mockClient, "TestTable");
@@ -436,10 +448,11 @@ public class BackwardCompatibilityTests
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var mockLogger = Substitute.For<IDynamoDbLogger>();
+        var options = new FluentDynamoDbOptions().WithLogger(mockLogger);
         
         // Act - Create both legacy and modern tables
         var legacyTable = new LegacyTestTable(mockClient, "LegacyTable");
-        var modernTable = new ModernTestTable(mockClient, "ModernTable", mockLogger);
+        var modernTable = new ModernTestTable(mockClient, "ModernTable", options);
         
         // Assert - Both should work independently
         legacyTable.Get<TestEntity>().Should().NotBeNull();
@@ -805,7 +818,7 @@ public class BackwardCompatibilityTests
         public int Amount { get; set; }
         public string Status { get; set; } = string.Empty;
 
-        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var testEntity = entity as TestEntity;
             return new Dictionary<string, AttributeValue>
@@ -815,7 +828,7 @@ public class BackwardCompatibilityTests
             };
         }
 
-        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var entity = new TestEntity
             {
@@ -825,9 +838,9 @@ public class BackwardCompatibilityTests
             return (TSelf)(object)entity;
         }
 
-        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
-            return FromDynamoDb<TSelf>(items.First(), logger);
+            return FromDynamoDb<TSelf>(items.First(), options);
         }
 
         public static string GetPartitionKey(Dictionary<string, AttributeValue> item)

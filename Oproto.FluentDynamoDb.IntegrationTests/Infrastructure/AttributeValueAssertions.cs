@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
-using FluentAssertions.Execution;
+using AwesomeAssertions;
+using AwesomeAssertions.Execution;
 
 namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 
@@ -94,7 +94,7 @@ public static class AttributeValueAssertions
             }
             
             // Null (NULL)
-            if (expected.NULL)
+            if (expected.NULL == true)
             {
                 actual.NULL.Should().BeTrue($"null flag should be true {because}");
                 return;

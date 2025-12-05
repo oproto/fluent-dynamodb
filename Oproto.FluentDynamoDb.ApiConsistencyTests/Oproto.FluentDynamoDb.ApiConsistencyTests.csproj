@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        
+        <!-- Enable source generator output for IDE support -->
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+        <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+        
+        <!-- Suppress AOT/trimming warnings - test code doesn't run in AOT mode -->
+        <!-- Suppress DYNDB021 (reserved words) - test entities intentionally use reserved words -->
+        <!-- Suppress DYNDB023 (complex types) - test entities intentionally use complex types for testing -->
+        <NoWarn>$(NoWarn);IL2026;IL2060;IL2070;IL2072;IL2075;IL2090;IL3000;IL3050;DYNDB021;DYNDB023</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0"/>
+        <PackageReference Include="NSubstitute" Version="5.3.0" />
+        <PackageReference Include="xunit" Version="2.4.2"/>
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector" Version="6.0.0">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.BlobStorage.S3\Oproto.FluentDynamoDb.BlobStorage.S3.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.Encryption.Kms\Oproto.FluentDynamoDb.Encryption.Kms.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.FluentResults\Oproto.FluentDynamoDb.FluentResults.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.Logging.Extensions\Oproto.FluentDynamoDb.Logging.Extensions.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.NewtonsoftJson\Oproto.FluentDynamoDb.NewtonsoftJson.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb.SystemTextJson\Oproto.FluentDynamoDb.SystemTextJson.csproj" />
+      <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+    </ItemGroup>
+
+
+    <!-- Include source generator as analyzer for compile-time generation -->
+    <ItemGroup>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
+    </ItemGroup>
+    <ItemGroup>
+      <Folder Include="GeoSpatial\H3\" />
+      <Folder Include="GeoSpatial\S2\" />
+      <Folder Include="MultiEntityTables\" />
+    </ItemGroup>
+</Project>

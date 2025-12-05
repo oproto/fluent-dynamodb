@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
@@ -717,58 +717,6 @@ public class FluentBuilderCompatibilityTests
         request.ExpressionAttributeValues[":p2"].S.Should().Be("12345678-1234-1234-1234-123456789012");
         request.ExpressionAttributeValues[":p3"].S.Should().Be("ALL_OLD");
         request.ExpressionAttributeValues[":p4"].N.Should().Be("99.99");
-    }
-
-    #endregion
-
-    #region Transaction and Batch Builder Integration
-
-    [Fact]
-    public void TransactionBuilders_WithBasicOperations_ShouldWorkCorrectly()
-    {
-        // Test TransactWriteItemsRequestBuilder
-        var writeBuilder = new TransactWriteItemsRequestBuilder(_mockClient);
-        var writeRequest = writeBuilder
-            .ReturnTotalConsumedCapacity()
-            .ReturnItemCollectionMetrics()
-            .ToTransactWriteItemsRequest();
-
-        writeRequest.Should().NotBeNull();
-        writeRequest.ReturnConsumedCapacity.Should().Be(Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL);
-        writeRequest.ReturnItemCollectionMetrics.Should().Be(Amazon.DynamoDBv2.ReturnItemCollectionMetrics.SIZE);
-
-        // Test TransactGetItemsRequestBuilder
-        var getBuilder = new TransactGetItemsRequestBuilder(_mockClient);
-        var getRequest = getBuilder
-            .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-            .ToTransactGetItemsRequest();
-
-        getRequest.Should().NotBeNull();
-        getRequest.ReturnConsumedCapacity.Should().Be(ReturnConsumedCapacity.TOTAL);
-    }
-
-    [Fact]
-    public void BatchBuilders_WithBasicOperations_ShouldWorkCorrectly()
-    {
-        // Test BatchGetItemRequestBuilder
-        var batchGetBuilder = new BatchGetItemRequestBuilder(_mockClient);
-        var batchGetRequest = batchGetBuilder
-            .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-            .ToBatchGetItemRequest();
-
-        batchGetRequest.Should().NotBeNull();
-        batchGetRequest.ReturnConsumedCapacity.Should().Be(ReturnConsumedCapacity.TOTAL);
-
-        // Test BatchWriteItemRequestBuilder
-        var batchWriteBuilder = new BatchWriteItemRequestBuilder(_mockClient);
-        var batchWriteRequest = batchWriteBuilder
-            .ReturnTotalConsumedCapacity()
-            .ReturnItemCollectionMetrics()
-            .ToBatchWriteItemRequest();
-
-        batchWriteRequest.Should().NotBeNull();
-        batchWriteRequest.ReturnConsumedCapacity.Should().Be(Amazon.DynamoDBv2.ReturnConsumedCapacity.TOTAL);
-        batchWriteRequest.ReturnItemCollectionMetrics.Should().Be(Amazon.DynamoDBv2.ReturnItemCollectionMetrics.SIZE);
     }
 
     #endregion

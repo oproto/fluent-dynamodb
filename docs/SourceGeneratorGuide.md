@@ -10,7 +10,7 @@ related: ["EntityDefinition.md", "FirstEntity.md", "BasicOperations.md"]
 
 # Source Generator Guide
 
-The Oproto.FluentDynamoDb source generator automatically creates entity mapping code, field constants, key builders, and enhanced ExecuteAsync methods to reduce boilerplate and provide a more EF/LINQ-like experience.
+The Oproto.FluentDynamoDb source generator automatically creates entity mapping code, field constants, key builders, and type-safe async methods to reduce boilerplate and provide a more EF/LINQ-like experience.
 
 > **Quick Links**: [Quick Start](getting-started/QuickStart.md) | [First Entity](getting-started/FirstEntity.md) | [Entity Definition](core-features/EntityDefinition.md)
 
@@ -150,17 +150,17 @@ var transaction = new Transaction
 
 // Put item using table-level operation
 await transactionsTable.Put(transaction)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Get item with strongly-typed response
-var response = await transactionsTable.Get()
+var transaction = await transactionsTable.Get()
     .WithKey(TransactionFields.TenantId, TransactionKeys.Pk("tenant123"))
     .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk("txn456"))
-    .ExecuteAsync();
+    .GetItemAsync();
 
-if (response.Item != null)
+if (transaction != null)
 {
-    Console.WriteLine($"Found transaction: {response.Item.Description}");
+    Console.WriteLine($"Found transaction: {transaction.Description}");
 }
 ```
 
@@ -183,20 +183,20 @@ var ecommerceTable = new EcommerceTable(dynamoDbClient, "ecommerce");
 
 // Access operations via entity accessors
 await ecommerceTable.Orders.Put(order)
-    .ExecuteAsync();
+    .PutAsync();
 
 await ecommerceTable.OrderLines.Put(orderLine)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Query specific entity type
 var orders = await ecommerceTable.Orders.Query()
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Table-level operations use the default entity (Order)
 var defaultOrder = await ecommerceTable.Get()
     .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 See [Multi-Entity Tables](advanced-topics/MultiEntityTables.md) for complete documentation.
@@ -217,24 +217,24 @@ var table = new TransactionsTableManual(dynamoDbClient, "transactions");
 // Put item using generated mapping
 await table.Put()
     .WithItem(transaction)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Get item with strongly-typed response
-var response = await table.Get()
+var response = await table.Get<Transaction>()
     .WithKey(TransactionFields.TenantId, TransactionKeys.Pk("tenant123"))
     .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk("txn456"))
-    .ExecuteAsync<Transaction>();
+    .GetItemAsync();
 ```
 
 ### 2. Query Operations
 
 ```csharp
 // Query with strongly-typed results
-var queryResponse = await table.Query()
+var transactions = await table.Query<Transaction>()
     .Where($"{TransactionFields.TenantId} = :pk", new { pk = TransactionKeys.Pk("tenant123") })
-    .ExecuteAsync<Transaction>();
+    .ToListAsync();
 
-foreach (var transaction in queryResponse.Items)
+foreach (var transaction in transactions)
 {
     Console.WriteLine($"Transaction: {transaction.Description} - {transaction.Amount}");
 }
@@ -244,11 +244,10 @@ foreach (var transaction in queryResponse.Items)
 
 ```csharp
 // Query GSI using generated field constants and key builders
-var statusResponse = await table.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{TransactionFields.StatusIndex.Status} = :status", 
-           new { status = TransactionKeys.StatusIndex.Pk("pending") })
-    .ExecuteAsync<Transaction>();
+var pendingTransactions = await table.Query<Transaction>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Transaction.Fields.Status} = {{0}}", "pending")
+    .ToListAsync();
 ```
 
 ## Advanced Features
@@ -274,10 +273,10 @@ public partial class TransactionWithEntries
 }
 
 // Query automatically groups items by partition key
-var response = await table.Query()
+var transactionsWithEntries = await table.Query<TransactionWithEntries>()
     .Where($"{TransactionWithEntriesFields.TenantId} = :pk", 
            new { pk = TransactionWithEntriesKeys.Pk("tenant123") })
-    .ExecuteAsync<TransactionWithEntries>();
+    .ToListAsync();
 
 // Each TransactionWithEntries contains all related LedgerEntry items
 ```
@@ -323,13 +322,13 @@ public class TransactionService
         var scopedClient = await _stsService.CreateClientForTenant(tenantId, user.Claims);
 
         // Use scoped client for the operation
-        var response = await _table.Get()
+        var transaction = await _table.Get<Transaction>()
             .WithClient(scopedClient)
             .WithKey(TransactionFields.TenantId, TransactionKeys.Pk(tenantId))
             .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk(transactionId))
-            .ExecuteAsync<Transaction>();
+            .GetItemAsync();
 
-        return response.Item;
+        return transaction;
     }
 }
 ```
@@ -345,15 +344,15 @@ dotnet add package Oproto.FluentDynamoDb.FluentResults
 ```csharp
 using Oproto.FluentDynamoDb.FluentResults;
 
-// Returns Result<GetItemResponse<Transaction>> instead of throwing exceptions
-var result = await table.Get()
+// Returns Result<Transaction?> instead of throwing exceptions
+var result = await table.Get<Transaction>()
     .WithKey(TransactionFields.TenantId, TransactionKeys.Pk("tenant123"))
     .WithKey(TransactionFields.TransactionId, TransactionKeys.Sk("txn456"))
-    .ExecuteAsync<Transaction>();
+    .GetItemAsync();
 
 if (result.IsSuccess)
 {
-    var transaction = result.Value.Item;
+    var transaction = result.Value;
     // Handle success
 }
 else
@@ -775,7 +774,7 @@ Generated files are available in your IDE:
 
 1. Add `[DynamoDbTable]` and property attributes to existing entities
 2. Mark classes as `partial`
-3. Replace manual mapping code with generated `ExecuteAsync<T>()` calls
+3. Replace manual mapping code with generated type-safe async methods (`GetItemAsync()`, `PutAsync()`, `ToListAsync()`, etc.)
 4. Update field references to use generated constants
 5. Replace manual key construction with generated key builders
 

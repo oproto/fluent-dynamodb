@@ -6,21 +6,32 @@
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        
+        <!-- Suppress AOT/trimming warnings - test code doesn't run in AOT mode -->
+        <!-- Suppress nullable warnings in test code - test assertions handle null checks -->
+        <!-- Suppress CS0618 (obsolete) - tests may use obsolete APIs for coverage -->
+        <NoWarn>$(NoWarn);IL2026;IL2060;IL2070;IL2072;IL2075;IL2090;IL3000;IL3050;CS0618;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8629;CS1998;CS0219</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-        <PackageReference Include="xunit" Version="2.6.2" />
-        <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="FluentAssertions" Version="6.12.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.5.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
-        <PackageReference Include="System.Text.Json" Version="8.0.0" />
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-        <PackageReference Include="coverlet.collector" Version="6.0.0">
+        <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
+        <PackageReference Include="FsCheck" Version="2.16.6" />
+        <PackageReference Include="FsCheck.Xunit" Version="2.16.6" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="System.Text.Json" Version="9.0.10" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="Amazon.Lambda.DynamoDBEvents" Version="3.1.1" />
+        <PackageReference Include="coverlet.collector" Version="6.0.4">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>

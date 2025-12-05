@@ -80,6 +80,14 @@ internal class EntityModel
     public List<AccessorConfig> AccessorConfigs { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets a value indicating whether stream conversion methods should be generated for this entity.
+    /// When true, the source generator will create FromDynamoDbStream and FromStreamImage methods
+    /// that deserialize Lambda AttributeValue dictionaries to entity instances.
+    /// Requires the Amazon.Lambda.DynamoDBEvents package to be referenced.
+    /// </summary>
+    public bool GenerateStreamConversion { get; set; }
+
+    /// <summary>
     /// Gets or sets the original class declaration syntax node.
     /// </summary>
     public ClassDeclarationSyntax? ClassDeclaration { get; set; }
@@ -93,6 +101,12 @@ internal class EntityModel
     /// Gets or sets the JSON serializer configuration information.
     /// </summary>
     public Oproto.FluentDynamoDb.SourceGenerator.Analysis.JsonSerializerInfo? JsonSerializerInfo { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the Oproto.FluentDynamoDb.Geospatial package is referenced.
+    /// When true, the source generator will generate GeoLocation serialization/deserialization code.
+    /// </summary>
+    public bool HasGeospatialPackage { get; set; }
 
     /// <summary>
     /// Gets the partition key property, if any.

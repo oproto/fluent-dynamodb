@@ -108,6 +108,9 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
         // First, process all entities and collect valid entity models
         var validEntityModels = new List<EntityModel>();
+        
+        // Discover extension methods marked with [GenerateWrapper] once for all entities
+        Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
 
         foreach (var (entity, diagnostics) in entities)
         {
@@ -121,21 +124,7 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
             validEntityModels.Add(entity);
 
-            // Check if this is a nested entity (DynamoDbEntity) vs a table entity (DynamoDbTable)
-            var isNestedEntity = entity.TableName?.StartsWith("_entity_") == true;
-
-            // Generate Fields class with field name constants (for all entities)
-            var fieldsCode = FieldsGenerator.GenerateFieldsClass(entity);
-            context.AddSource($"{entity.ClassName}Fields.g.cs", fieldsCode);
-
-            // Generate Keys class only for table entities (not nested entities)
-            if (!isNestedEntity)
-            {
-                var keysCode = KeysGenerator.GenerateKeysClass(entity);
-                context.AddSource($"{entity.ClassName}Keys.g.cs", keysCode);
-            }
-
-            // Generate optimized entity implementation with mapping methods
+            // Generate optimized entity implementation with mapping methods, Keys, and Fields
             var sourceCode = GenerateOptimizedEntityImplementation(entity);
             context.AddSource($"{entity.ClassName}.g.cs", sourceCode);
 
@@ -144,6 +133,51 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             if (!string.IsNullOrEmpty(securityMetadata))
             {
                 context.AddSource($"{entity.ClassName}SecurityMetadata.g.cs", securityMetadata);
+            }
+
+            // Generate stream conversion methods if requested
+            if (entity.GenerateStreamConversion)
+            {
+                var streamCode = StreamMapperGenerator.GenerateStreamConversion(entity);
+                if (!string.IsNullOrEmpty(streamCode))
+                {
+                    context.AddSource($"{entity.ClassName}StreamMapper.g.cs", streamCode);
+                }
+            }
+
+            // Generate UpdateExpressions and UpdateModel classes for type-safe update operations
+            var updateExpressionsCode = UpdateExpressionsGenerator.GenerateUpdateExpressionsClass(entity);
+            context.AddSource($"{entity.ClassName}UpdateExpressions.g.cs", updateExpressionsCode);
+
+            var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity);
+            context.AddSource($"{entity.ClassName}UpdateModel.g.cs", updateModelCode);
+
+            // Discover extension methods for wrapper generation (do this once to avoid redundant work)
+            if (extensionMethods == null && entity.SemanticModel != null)
+            {
+                var compilation = entity.SemanticModel.Compilation;
+                var discovery = new ExtensionMethodDiscovery(compilation);
+                extensionMethods = discovery.DiscoverExtensionMethods();
+                
+                // Report any diagnostics from extension method discovery
+                foreach (var discoveryDiagnostic in discovery.Diagnostics)
+                {
+                    context.ReportDiagnostic(discoveryDiagnostic);
+                }
+            }
+
+            // Generate entity-specific update builder with extension method wrappers
+            var updateBuilderCode = EntitySpecificUpdateBuilderGenerator.GenerateUpdateBuilder(entity, extensionMethods);
+            context.AddSource($"{entity.ClassName}UpdateBuilder.g.cs", updateBuilderCode);
+
+            // Generate IAsyncEntityHydrator implementation for entities with blob references
+            if (HydratorGenerator.RequiresHydrator(entity))
+            {
+                var hydratorCode = HydratorGenerator.GenerateHydrator(entity);
+                if (hydratorCode != null)
+                {
+                    context.AddSource($"{entity.ClassName}Hydrator.g.cs", hydratorCode);
+                }
             }
         }
 
@@ -168,6 +202,31 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 // Use table name for the file name
                 var tableClassName = GetTableClassName(tableName);
                 context.AddSource($"{tableClassName}.g.cs", tableCode);
+            }
+            
+            // Generate OnStream method and registry if any entities have stream conversion enabled
+            var streamCode = StreamRegistryGenerator.GenerateOnStreamMethod(
+                tableName,
+                tableEntities,
+                GetTableClassName(tableName),
+                tableEntities[0].Namespace);
+            
+            if (!string.IsNullOrEmpty(streamCode))
+            {
+                var tableClassName = GetTableClassName(tableName);
+                context.AddSource($"{tableClassName}StreamProcessor.g.cs", streamCode);
+                
+                // Validate consistent discriminator properties
+                if (!StreamRegistryGenerator.ValidateConsistentDiscriminatorProperty(tableEntities))
+                {
+                    var distinctProperties = StreamRegistryGenerator.GetDistinctDiscriminatorProperties(tableEntities);
+                    var location = tableEntities[0].ClassDeclaration?.Identifier.GetLocation() ?? Location.None;
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.InconsistentDiscriminatorProperties,
+                        location,
+                        tableName,
+                        string.Join(", ", distinctProperties)));
+                }
             }
         }
 
@@ -227,9 +286,6 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 context.ReportDiagnostic(diagnostic);
             }
         }
-        
-        // Generate table index properties for entities grouped by table
-        GenerateTableIndexProperties(context, validEntityModels, validProjectionModels);
     }
 
     /// <summary>
@@ -317,49 +373,5 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         
         return $"{cleanName}Table";
     }
-    
-    /// <summary>
-    /// Generates table index properties for entities grouped by table name.
-    /// </summary>
-    private static void GenerateTableIndexProperties(
-        SourceProductionContext context,
-        List<EntityModel> entities,
-        List<ProjectionModel> projectionModels)
-    {
-        // Group entities by table name
-        var entitiesByTable = entities
-            .Where(e => !string.IsNullOrEmpty(e.TableName) && !e.TableName.StartsWith("_entity_"))
-            .GroupBy(e => e.TableName)
-            .ToList();
-        
-        foreach (var tableGroup in entitiesByTable)
-        {
-            var tableName = tableGroup.Key;
-            var tableEntities = tableGroup.ToList();
-            
-            // Check if any entity in this table has GSI definitions
-            var hasGsiDefinitions = tableEntities.Any(e => e.Indexes.Length > 0);
-            if (!hasGsiDefinitions)
-                continue;
-            
-            // Generate index properties for this table
-            var indexPropertiesCode = TableIndexGenerator.GenerateIndexProperties(
-                tableName,
-                tableEntities,
-                projectionModels);
-            
-            // Report any diagnostics from table index generation
-            foreach (var diagnostic in TableIndexGenerator.Diagnostics)
-            {
-                context.ReportDiagnostic(diagnostic);
-            }
-            
-            if (!string.IsNullOrEmpty(indexPropertiesCode))
-            {
-                // Use the table name to create a unique file name
-                var tableClassName = tableName.Replace("-", "").Replace("_", "");
-                context.AddSource($"{tableClassName}Table.Indexes.g.cs", indexPropertiesCode);
-            }
-        }
-    }
+
 }

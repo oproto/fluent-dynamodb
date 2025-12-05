@@ -1,3 +1,4 @@
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
@@ -42,6 +43,7 @@ public static class WithAttributeNamesExtensions
     /// <param name="builder">The builder instance.</param>
     /// <param name="attributeNames">A dictionary mapping parameter names to actual attribute names.</param>
     /// <returns>The builder instance for method chaining.</returns>
+    [GenerateWrapper]
     public static T WithAttributes<T>(this IWithAttributeNames<T> builder, Dictionary<string, string> attributeNames)
     {
         builder.GetAttributeNameHelper().WithAttributes(attributeNames);
@@ -56,6 +58,7 @@ public static class WithAttributeNamesExtensions
     /// <param name="builder">The builder instance.</param>
     /// <param name="attributeNameFunc">An action that configures the attribute name mappings.</param>
     /// <returns>The builder instance for method chaining.</returns>
+    [GenerateWrapper]
     public static T WithAttributes<T>(this IWithAttributeNames<T> builder, Action<Dictionary<string, string>> attributeNameFunc)
     {
         builder.GetAttributeNameHelper().WithAttributes(attributeNameFunc);
@@ -91,6 +94,7 @@ public static class WithAttributeNamesExtensions
     ///        .Where("#addr.#city = :city");
     /// </code>
     /// </example>
+    [GenerateWrapper]
     public static T WithAttribute<T>(this IWithAttributeNames<T> builder, string parameterName, string attributeName)
     {
         builder.GetAttributeNameHelper().WithAttribute(parameterName, attributeName);

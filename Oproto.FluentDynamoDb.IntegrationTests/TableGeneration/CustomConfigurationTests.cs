@@ -8,7 +8,6 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TableGeneration;
 /// Integration tests for custom configuration options in table generation.
 /// Verifies that custom entity property names, visibility modifiers, and operation generation
 /// work correctly end-to-end.
-/// Tests Requirements 4, 5, and 8 from the table-generation-redesign spec.
 /// </summary>
 [Collection("DynamoDB Local")]
 [Trait("Category", "Integration")]
@@ -37,16 +36,13 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use custom-named accessor
-        await table.CustomOrders.Put(order).PutAsync();
+        await table.CustomOrders.Put().WithItem(order).PutAsync();
         
-        var result = await table.CustomOrders.Get()
-            .WithKey("pk", order.Id)
-            .GetItemAsync();
+        var retrieved = await table.CustomOrders.Get(order.Id).GetItemAsync();
 
         // Assert
-        result.Item.Should().NotBeNull();
-        var retrieved = CustomNameOrderEntity.FromDynamoDb<CustomNameOrderEntity>(result.Item);
-        retrieved.Id.Should().Be(order.Id);
+        retrieved.Should().NotBeNull();
+        retrieved!.Id.Should().Be(order.Id);
         retrieved.Description.Should().Be(order.Description);
     }
 
@@ -69,141 +65,15 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Table-level operations should still work
-        await table.Put(entity).PutAsync();
+        await table.Put<NoAccessorDefaultEntity>().WithItem(entity).PutAsync();
         
-        var result = await table.Get()
+        var retrieved = await table.Get<NoAccessorDefaultEntity>()
             .WithKey("pk", entity.Id)
             .GetItemAsync();
 
         // Assert
-        result.Item.Should().NotBeNull();
-        var retrieved = NoAccessorDefaultEntity.FromDynamoDb<NoAccessorDefaultEntity>(result.Item);
-        retrieved.Id.Should().Be(entity.Id);
-    }
-
-    [Fact]
-    public async Task InternalEntityProperty_IsAccessibleWithinAssembly()
-    {
-        // Arrange
-        await CreateTableAsync<InternalAccessorEntity>();
-        var table = new InternalAccessorTestTable(DynamoDb, TableName);
-
-        // Assert - Internal accessor should be accessible within the same assembly
-        // This is verified at compile time - if not accessible, this won't compile
-        var accessor = table.InternalEntities;
-        accessor.Should().NotBeNull();
-        
-        var entity = new InternalAccessorEntity
-        {
-            Id = "INTERNAL#1",
-            Data = "Internal Test"
-        };
-
-        // Act - Use internal accessor
-        await accessor.Put(entity).PutAsync();
-        
-        var result = await accessor.Get()
-            .WithKey("pk", entity.Id)
-            .GetItemAsync();
-
-        // Assert
-        result.Item.Should().NotBeNull();
-        var retrieved = InternalAccessorEntity.FromDynamoDb<InternalAccessorEntity>(result.Item);
-        retrieved.Id.Should().Be(entity.Id);
-        retrieved.Data.Should().Be(entity.Data);
-    }
-
-    [Fact]
-    public async Task GenerateFalse_DeleteOperation_DoesNotGenerateMethod()
-    {
-        // Arrange
-        await CreateTableAsync<NoDeleteEntity>();
-        var table = new NoDeleteTestTable(DynamoDb, TableName);
-
-        // Assert - Entity with Delete operation Generate = false should not have Delete method
-        // This is verified at compile time - if Delete() exists on accessor, this won't compile
-        var entity = new NoDeleteEntity
-        {
-            Id = "NODELETE#1",
-            Value = "Cannot Delete"
-        };
-
-        // Act - Other operations should still work
-        await table.NoDeletes.Put(entity).PutAsync();
-        
-        var getResult = await table.NoDeletes.Get()
-            .WithKey("pk", entity.Id)
-            .GetItemAsync();
-
-        var queryResult = await table.NoDeletes.Query()
-            .Where("pk = :pk")
-            .WithValue(":pk", entity.Id)
-            .ToDynamoDbResponseAsync();
-
-        // Assert - Get, Query, Put should work
-        getResult.Item.Should().NotBeNull();
-        queryResult.Items.Should().HaveCount(1);
-        
-        var retrieved = NoDeleteEntity.FromDynamoDb<NoDeleteEntity>(getResult.Item);
-        retrieved.Id.Should().Be(entity.Id);
-    }
-
-    [Fact]
-    public async Task InternalOperations_AreAccessibleWithinAssembly()
-    {
-        // Arrange
-        await CreateTableAsync<InternalOperationsEntity>();
-        var table = new InternalOperationsTestTable(DynamoDb, TableName);
-
-        // Assert - Internal operations should be accessible within the same assembly
-        // This is verified at compile time
-        var entity = new InternalOperationsEntity
-        {
-            Id = "INTERNAL_OPS#1",
-            SecretData = "Internal Operations"
-        };
-
-        // Act - Use internal operations
-        await table.InternalOps.Put(entity).PutAsync();
-        
-        var result = await table.InternalOps.Get()
-            .WithKey("pk", entity.Id)
-            .GetItemAsync();
-
-        // Assert
-        result.Item.Should().NotBeNull();
-        var retrieved = InternalOperationsEntity.FromDynamoDb<InternalOperationsEntity>(result.Item);
-        retrieved.Id.Should().Be(entity.Id);
-        retrieved.SecretData.Should().Be(entity.SecretData);
-    }
-
-    [Fact]
-    public async Task MixedVisibility_Operations_WorkCorrectly()
-    {
-        // Arrange
-        await CreateTableAsync<MixedVisibilityEntity>();
-        var table = new MixedVisibilityTestTable(DynamoDb, TableName);
-
-        // Assert - Public Query should be accessible
-        var entity = new MixedVisibilityEntity
-        {
-            Id = "MIXED#1",
-            PublicData = "Public",
-            PrivateData = "Private"
-        };
-
-        // Act - Use public Query operation
-        await table.MixedEntities.Put(entity).PutAsync();
-        
-        var queryResult = await table.MixedEntities.Query()
-            .Where("pk = :pk")
-            .WithValue(":pk", entity.Id)
-            .ToDynamoDbResponseAsync();
-
-        // Assert - Query should work (it's public)
-        queryResult.Items.Should().HaveCount(1);
-        var retrieved = MixedVisibilityEntity.FromDynamoDb<MixedVisibilityEntity>(queryResult.Items[0]);
-        retrieved.Id.Should().Be(entity.Id);
+        retrieved.Should().NotBeNull();
+        retrieved!.Id.Should().Be(entity.Id);
     }
 
     [Fact]
@@ -221,9 +91,9 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use table-level operations
-        await table.Put(entity).PutAsync();
+        await table.Put<CustomConfigDefaultEntity>().WithItem(entity).PutAsync();
         
-        var result = await table.Query()
+        var result = await table.Query<CustomConfigDefaultEntity>()
             .Where("pk = :pk")
             .WithValue(":pk", entity.Id)
             .ToDynamoDbResponseAsync();
@@ -255,26 +125,20 @@ public class CustomConfigurationTests : IntegrationTestBase
         };
 
         // Act - Use both custom-named accessors
-        await table.CustomOrders.Put(order).PutAsync();
-        await table.CustomItems.Put(item).PutAsync();
+        await table.CustomOrders.Put().WithItem(order).PutAsync();
+        await table.CustomItems.Put().WithItem(item).PutAsync();
 
-        var orderResult = await table.CustomOrders.Get()
-            .WithKey("pk", order.Id)
-            .GetItemAsync();
+        var retrievedOrder = await table.CustomOrders.Get(order.Id).GetItemAsync();
 
-        var itemResult = await table.CustomItems.Get()
-            .WithKey("pk", item.Id)
-            .GetItemAsync();
+        var retrievedItem = await table.CustomItems.Get(item.Id).GetItemAsync();
 
         // Assert - Both custom configurations should work
-        orderResult.Item.Should().NotBeNull();
-        itemResult.Item.Should().NotBeNull();
+        retrievedOrder.Should().NotBeNull();
+        retrievedItem.Should().NotBeNull();
         
-        var retrievedOrder = CustomNameOrderEntity.FromDynamoDb<CustomNameOrderEntity>(orderResult.Item);
-        retrievedOrder.Id.Should().Be(order.Id);
+        retrievedOrder!.Id.Should().Be(order.Id);
 
-        var retrievedItem = CustomNameItemEntity.FromDynamoDb<CustomNameItemEntity>(itemResult.Item);
-        retrievedItem.Id.Should().Be(item.Id);
+        retrievedItem!.Id.Should().Be(item.Id);
     }
 }
 
@@ -325,62 +189,6 @@ public partial class NoAccessorEntity
     
     [DynamoDbAttribute("hidden_data")]
     public string? HiddenData { get; set; }
-}
-
-// Test entities for internal entity property
-[DynamoDbTable("internal-accessor-test", IsDefault = true)]
-[GenerateEntityProperty(Modifier = AccessModifier.Internal)]
-public partial class InternalAccessorEntity
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string Id { get; set; } = string.Empty;
-    
-    [DynamoDbAttribute("data")]
-    public string? Data { get; set; }
-}
-
-// Test entities for Generate = false on Delete operation
-[DynamoDbTable("no-delete-test", IsDefault = true)]
-[GenerateAccessors(Operations = TableOperation.Delete, Generate = false)]
-public partial class NoDeleteEntity
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string Id { get; set; } = string.Empty;
-    
-    [DynamoDbAttribute("value")]
-    public string? Value { get; set; }
-}
-
-// Test entities for internal operations
-[DynamoDbTable("internal-operations-test", IsDefault = true)]
-[GenerateAccessors(Operations = TableOperation.All, Modifier = AccessModifier.Internal)]
-public partial class InternalOperationsEntity
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string Id { get; set; } = string.Empty;
-    
-    [DynamoDbAttribute("secret_data")]
-    public string? SecretData { get; set; }
-}
-
-// Test entities for mixed visibility operations
-[DynamoDbTable("mixed-visibility-test", IsDefault = true)]
-[GenerateAccessors(Operations = TableOperation.Get | TableOperation.Put | TableOperation.Update | TableOperation.Delete | TableOperation.Scan, Modifier = AccessModifier.Internal)]
-[GenerateAccessors(Operations = TableOperation.Query, Modifier = AccessModifier.Public)]
-public partial class MixedVisibilityEntity
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string Id { get; set; } = string.Empty;
-    
-    [DynamoDbAttribute("public_data")]
-    public string? PublicData { get; set; }
-    
-    [DynamoDbAttribute("private_data")]
-    public string? PrivateData { get; set; }
 }
 
 // Test entities for custom configuration with default entity

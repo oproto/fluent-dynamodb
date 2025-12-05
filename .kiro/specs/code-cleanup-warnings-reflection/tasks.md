@@ -1,0 +1,145 @@
+# Implementation Plan
+
+- [x] 1. Add WithClient methods to request builders
+  - [x] 1.1 Add WithClient method to QueryRequestBuilder
+    - Remove `readonly` from `_dynamoDbClient` field
+    - Add public `WithClient(IAmazonDynamoDB client)` method that swaps client and returns `this`
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [x] 1.2 Add WithClient method to GetItemRequestBuilder
+    - Remove `readonly` from `_dynamoDbClient` field
+    - Add public `WithClient(IAmazonDynamoDB client)` method
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [x] 1.3 Add WithClient method to PutItemRequestBuilder
+    - Remove `readonly` from `_dynamoDbClient` field
+    - Add public `WithClient(IAmazonDynamoDB client)` method
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [x] 1.4 Add WithClient method to UpdateItemRequestBuilder
+    - Remove `readonly` from `_dynamoDbClient` field
+    - Add public `WithClient(IAmazonDynamoDB client)` method
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [x] 1.5 Add WithClient method to DeleteItemRequestBuilder
+    - Remove `readonly` from `_dynamoDbClient` field
+    - Add public `WithClient(IAmazonDynamoDB client)` method
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [x] 1.6 Add WithClient method to ScanRequestBuilder
+    - Remove `readonly` from `_dynamoDbClient` field
+    - Add public `WithClient(IAmazonDynamoDB client)` method
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [x] 1.7 Write unit test for WithClient method
+    - Verify WithClient returns same builder instance
+    - Verify client is swapped correctly
+    - **Property 2: WithClient Returns Same Builder**
+    - **Validates: Requirements 5.1, 5.4**
+
+- [x] 2. Remove reflection from WithClientExtensions
+  - [x] 2.1 Delete WithClientExtensions.cs file
+    - Remove `Oproto.FluentDynamoDb/Requests/Extensions/WithClientExtensions.cs`
+    - _Requirements: 2.1, 2.3_
+  - [x] 2.2 Write property test for no reflection in main library
+    - **Property 1: No Reflection in Main Library**
+    - **Validates: Requirements 2.1**
+
+- [x] 3. Refactor MetadataResolver to remove reflection
+  - [x] 3.1 Create IEntityMetadataProvider interface
+    - Add interface with static abstract `GetEntityMetadata()` method
+    - Place in `Oproto.FluentDynamoDb/Storage/` namespace
+    - _Requirements: 2.1, 2.2_
+  - [x] 3.2 Update MetadataResolver to use interface constraint
+    - Change `GetEntityMetadata<TEntity>()` to require `where TEntity : IEntityMetadataProvider`
+    - Remove reflection-based method lookup
+    - _Requirements: 2.1, 2.2_
+  - [x] 3.3 Update source generator to implement IEntityMetadataProvider
+    - Ensure generated entity classes implement the interface
+    - _Requirements: 2.1, 2.2_
+
+- [x] 4. Refactor ProjectionExtensions to remove reflection
+  - [x] 4.1 Create IProjectionModel interface
+    - Add interface with static abstract `ProjectionExpression` property
+    - Add static abstract `FromDynamoDb` method
+    - _Requirements: 2.1, 2.4_
+  - [x] 4.2 Create IDiscriminatedProjection interface
+    - Extend IProjectionModel with discriminator properties
+    - _Requirements: 2.1, 2.4_
+  - [x] 4.3 Update ProjectionExtensions to use interface constraints
+    - Change `ToListAsync<TEntity, TResult>` to require `where TResult : IProjectionModel`
+    - Remove reflection-based property discovery
+    - _Requirements: 2.1, 2.4_
+  - [x] 4.4 Update source generator to implement IProjectionModel
+    - Ensure generated projection classes implement the interface
+    - _Requirements: 2.1, 2.4_
+
+- [x] 5. Checkpoint - Verify no reflection in main library
+  - Ensure all tests pass, ask the user if questions arise.
+  - Run grep to verify no `using System.Reflection` in main library source files
+
+- [x] 6. Add InternalsVisibleTo for test projects
+  - [x] 6.1 Add InternalsVisibleTo to Oproto.FluentDynamoDb
+    - Add assembly attribute for UnitTests project
+    - _Requirements: 3.1_
+  - [x] 6.2 Add InternalsVisibleTo to Oproto.FluentDynamoDb.SourceGenerator
+    - Add assembly attribute for SourceGenerator.UnitTests project
+    - _Requirements: 3.1_
+
+- [x] 7. Fix compiler warnings in test projects
+  - [x] 7.1 Fix CS0618 obsolete warnings in EntityModelTests
+    - Update code to use `Discriminator` property instead of `EntityDiscriminator`
+    - _Requirements: 1.4_
+  - [x] 7.2 Fix CS0618 obsolete warnings in MapperGeneratorTests
+    - Update code to use non-obsolete alternatives
+    - _Requirements: 1.4_
+  - [x] 7.3 Fix CS1998 async warnings in DiscriminatorStreamProcessorBuilderTests
+    - Add await operators or convert to synchronous methods
+    - _Requirements: 1.5_
+  - [x] 7.4 Fix xUnit1031 blocking task warning in DefaultKmsKeyResolverTests
+    - Convert to async test method with await
+    - _Requirements: 1.5_
+  - [x] 7.5 Fix CS8602 null reference warning in GeneratedLoggingIntegrationTests
+    - Add null checks or use null-forgiving operator with justification
+    - _Requirements: 1.1_
+
+- [x] 8. Handle IL3000 Assembly.Location warnings in source generator tests
+  - [x] 8.1 Create DynamicCompilationHelper class
+    - Isolate reflection-based compilation verification code
+    - Add appropriate suppression attributes with justification
+    - _Requirements: 4.1, 4.3_
+  - [x] 8.2 Refactor CompilationVerifier to use AppContext.BaseDirectory
+    - Replace Assembly.Location with AppContext.BaseDirectory where possible
+    - Add suppressions for unavoidable cases
+    - _Requirements: 4.4_
+  - [x] 8.3 Update test files to use DynamicCompilationHelper
+    - Refactor StreamConversionValidationTests
+    - Refactor SecurityDiagnosticsTests
+    - Refactor DiscriminatorBackwardCompatibilityTests
+    - Refactor other affected test files
+    - _Requirements: 4.2_
+  - [x] 8.4 Write property test for reflection reduction in tests
+    - **Property 3: Reflection Usage Reduction in Tests**
+    - **Validates: Requirements 3.2, 3.3, 3.4**
+
+- [x] 9. Handle IL2026/IL2060/IL2070/IL2072/IL2075 trimmer warnings
+  - [x] 9.1 Add UnconditionalSuppressMessage to GeneratedLoggingIntegrationTests
+    - Document justification for dynamic type loading in tests
+    - _Requirements: 4.2_
+  - [x] 9.2 Add DynamicallyAccessedMembers attributes where needed
+    - Annotate type parameters that require reflection
+    - _Requirements: 4.2_
+
+- [x] 10. Checkpoint - Verify warning reduction
+  - Ensure all tests pass, ask the user if questions arise.
+  - Run `dotnet build` and verify warning count is significantly reduced
+
+- [x] 11. Update CHANGELOG.md
+  - [x] 11.1 Add entry for WithClient method addition
+    - Document new `WithClient` method on request builders
+    - _Requirements: 5.1_
+  - [x] 11.2 Add entry for reflection removal
+    - Document AOT/trimmer compatibility improvements
+    - _Requirements: 2.1_
+  - [x] 11.3 Add entry for WithClientExtensions removal
+    - Document breaking change (extension methods removed)
+    - _Requirements: 2.3_
+
+- [x] 12. Final Checkpoint - Verify all changes
+  - Ensure all tests pass, ask the user if questions arise.
+  - Verify no reflection in main library
+  - Verify warning count is acceptable

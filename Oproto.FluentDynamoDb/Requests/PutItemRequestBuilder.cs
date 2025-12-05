@@ -15,45 +15,48 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// <example>
 /// <code>
 /// // Put an entity
-/// var response = await table.Put&lt;MyEntity&gt;()
+/// await table.Put&lt;MyEntity&gt;()
 ///     .WithItem(myEntity)
-///     .ExecuteAsync();
+///     .PutAsync();
 /// 
 /// // Put with raw attributes
-/// var response = await table.Put&lt;MyEntity&gt;()
+/// await table.Put&lt;MyEntity&gt;()
 ///     .WithItem(new Dictionary&lt;string, AttributeValue&gt;
 ///     {
 ///         ["id"] = new AttributeValue { S = "123" },
 ///         ["name"] = new AttributeValue { S = "John Doe" },
 ///         ["email"] = new AttributeValue { S = "john@example.com" }
 ///     })
-///     .ExecuteAsync();
+///     .PutAsync();
 /// 
-/// // Conditional put (only if item doesn't exist)
+/// // Conditional put with return values (use ToDynamoDbResponseAsync to access response.Attributes)
 /// var response = await table.Put&lt;MyEntity&gt;()
 ///     .WithItem(myEntity)
 ///     .Where("attribute_not_exists(id)")
-///     .ExecuteAsync();
+///     .ReturnAllOldValues()
+///     .ToDynamoDbResponseAsync();
 /// </code>
 /// </example>
 public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequestBuilder<TEntity>>, IWithAttributeValues<PutItemRequestBuilder<TEntity>>,
-    IWithConditionExpression<PutItemRequestBuilder<TEntity>>
+    IWithConditionExpression<PutItemRequestBuilder<TEntity>>, ITransactablePutBuilder, IHasDynamoDbClient
     where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the PutItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public PutItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public PutItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
+        _options = options ?? new FluentDynamoDbOptions();
+        _logger = _options.Logger;
     }
 
     private PutItemRequest _req = new PutItemRequest();
-    private readonly IAmazonDynamoDB _dynamoDbClient;
+    private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
+    private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -74,7 +77,27 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// This is used by Primary API extension methods to call AWS SDK directly.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// This is used by Primary API extension methods to access the hydrator registry.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
+
+    /// <summary>
+    /// Replaces the DynamoDB client used for executing this request.
+    /// Used for tenant-specific STS credential scenarios where different clients
+    /// are needed for different tenants or security contexts.
+    /// </summary>
+    /// <param name="client">The scoped DynamoDB client to use.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public PutItemRequestBuilder<TEntity> WithClient(IAmazonDynamoDB client)
+    {
+        _dynamoDbClient = client;
+        return this;
+    }
 
     /// <summary>
     /// Sets the condition expression on the builder.
@@ -112,6 +135,17 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
 
 
 
+
+    /// <summary>
+    /// Specifies which values to return in the response.
+    /// </summary>
+    /// <param name="returnValue">The return value option (NONE, ALL_OLD, UPDATED_OLD, ALL_NEW, UPDATED_NEW).</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public PutItemRequestBuilder<TEntity> ReturnValues(ReturnValue returnValue)
+    {
+        _req.ReturnValues = returnValue;
+        return this;
+    }
 
     public PutItemRequestBuilder<TEntity> ReturnUpdatedNewValues()
     {
@@ -179,12 +213,12 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// var myEntity = new MyEntity { Id = "123", Name = "John" };
     /// await table.Put&lt;MyEntity&gt;()
     ///     .WithItem(myEntity)
-    ///     .ExecuteAsync();
+    ///     .PutAsync();
     /// </code>
     /// </example>
     public PutItemRequestBuilder<TEntity> WithItem<T>(T entity) where T : class, TEntity, IDynamoDbEntity
     {
-        _req.Item = T.ToDynamoDb(entity, _logger);
+        _req.Item = T.ToDynamoDb(entity, _options);
         return this;
     }
 
@@ -215,10 +249,25 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
 
     public PutItemRequest ToPutItemRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
         return _req;
     }
+
+    // ITransactablePutBuilder implementation
+    string ITransactablePutBuilder.GetTableName() => _req.TableName;
+    Dictionary<string, AttributeValue> ITransactablePutBuilder.GetItem() => _req.Item;
+    string? ITransactablePutBuilder.GetConditionExpression() => _req.ConditionExpression;
+    Dictionary<string, string>? ITransactablePutBuilder.GetExpressionAttributeNames() => 
+        _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
+    Dictionary<string, AttributeValue>? ITransactablePutBuilder.GetExpressionAttributeValues() => 
+        _attrV.AttributeValues.Count > 0 ? _attrV.AttributeValues : null;
 
     /// <summary>
     /// Executes the PutItem operation asynchronously and returns the raw AWS SDK PutItemResponse.

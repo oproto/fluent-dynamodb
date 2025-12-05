@@ -4,23 +4,37 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>0.5.0</Version>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
         <IsPackable>true</IsPackable>
         <StripSymbols>false</StripSymbols>
+        <PackageId>Oproto.FluentDynamoDb.FluentResults</PackageId>
+        <Title>Oproto.FluentDynamoDb.FluentResults</Title>
         <Description>FluentResults extensions for Oproto.FluentDynamoDb providing Result&lt;T&gt; return patterns instead of exceptions.</Description>
         <PackageTags>dynamodb;fluentresults;aws;dotnet;aot</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
+    <!-- Include README in package -->
     <ItemGroup>
-        <PackageReference Include="FluentResults" Version="[3.15.2,4.0.0)" />
+        <None Include="README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+        <PackageReference Include="FluentResults" Version="[4.0.0,5.0.0)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- During development, use ProjectReference for easy debugging -->
+        <!-- During pack, this becomes a PackageReference with the same version -->
+        <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj">
+            <SetTargetFramework>TargetFramework=net8.0</SetTargetFramework>
+            <!-- This ensures the packed NuGet dependency uses the same version -->
+            <PrivateAssets>none</PrivateAssets>
+            <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+        </ProjectReference>
     </ItemGroup>
 
 </Project>

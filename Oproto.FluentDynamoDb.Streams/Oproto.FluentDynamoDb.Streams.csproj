@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsPackable>true</IsPackable>
+        <StripSymbols>false</StripSymbols>
+        <LangVersion>12.0</LangVersion>
+        
+        <!-- Package metadata -->
+        <PackageId>Oproto.FluentDynamoDb.Streams</PackageId>
+        <Title>Oproto.FluentDynamoDb.Streams</Title>
+        <Description>DynamoDB Streams processing support for Oproto.FluentDynamoDb. Provides fluent API for processing stream events with type-safe entity deserialization, LINQ-style filtering, and discriminator-based routing for Lambda functions.</Description>
+        <Authors>Oproto</Authors>
+        <PackageTags>dynamodb;aws;streams;lambda;fluent;aot</PackageTags>
+        <PackageProjectUrl>https://fluentdynamodb.dev/</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/oproto/fluent-dynamodb</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Amazon.Lambda.DynamoDBEvents" Version="[3.1.1,4.0.0)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+    </ItemGroup>
+
+</Project>

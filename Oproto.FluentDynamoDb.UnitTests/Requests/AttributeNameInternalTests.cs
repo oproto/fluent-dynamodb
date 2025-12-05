@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;

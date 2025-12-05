@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Oproto.FluentDynamoDb.SourceGenerator;
@@ -78,39 +78,37 @@ namespace TestNamespace
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word "status"
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warnings for collections
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB009"); // Unsupported type for Summary
-        result.GeneratedSources.Should().HaveCount(5); // Fields, Keys, Entity, Table, Table.Indexes (has GSI)
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         // Verify entity implementation
         var entityCode = GetGeneratedSource(result, "TransactionEntity.g.cs");
         entityCode.Should().Contain("public partial class TransactionEntity : IDynamoDbEntity"); // Interface included for better UX
-        entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null)");
-        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null)");
-        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null)");
+        entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)");
+        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)");
+        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)");
         entityCode.Should().Contain("public static string GetPartitionKey(Dictionary<string, AttributeValue> item)");
         entityCode.Should().Contain("public static bool MatchesEntity(Dictionary<string, AttributeValue> item)");
         entityCode.Should().Contain("public static EntityMetadata GetEntityMetadata()");
 
-        // Verify fields class
-        var fieldsCode = GetGeneratedSource(result, "TransactionEntityFields.g.cs");
-        fieldsCode.Should().Contain("public static partial class TransactionEntityFields");
-        fieldsCode.Should().Contain("public const string TenantId = \"pk\";");
-        fieldsCode.Should().Contain("public const string TransactionId = \"sk\";");
-        fieldsCode.Should().Contain("public const string Amount = \"amount\";");
-        fieldsCode.Should().Contain("public const string Status = \"status\";");
-        fieldsCode.Should().Contain("public static partial class StatusIndexFields");
-        fieldsCode.Should().Contain("public const string PartitionKey = \"status\";");
-        fieldsCode.Should().Contain("public const string SortKey = \"created_date\";");
+        // Verify nested fields class
+        entityCode.Should().Contain("public static partial class Fields");
+        entityCode.Should().Contain("public const string TenantId = \"pk\";");
+        entityCode.Should().Contain("public const string TransactionId = \"sk\";");
+        entityCode.Should().Contain("public const string Amount = \"amount\";");
+        entityCode.Should().Contain("public const string Status = \"status\";");
+        entityCode.Should().Contain("public static partial class StatusIndex");
+        entityCode.Should().Contain("public const string PartitionKey = \"status\";");
+        entityCode.Should().Contain("public const string SortKey = \"created_date\";");
 
-        // Verify keys class
-        var keysCode = GetGeneratedSource(result, "TransactionEntityKeys.g.cs");
-        keysCode.Should().Contain("public static partial class TransactionEntityKeys");
-        keysCode.Should().Contain("public static string Pk(string tenantId)");
+        // Verify nested keys class
+        entityCode.Should().Contain("public static partial class Keys");
+        entityCode.Should().Contain("public static string Pk(string tenantId)");
         // Generator uses intermediate variable for better debugging
-        keysCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
-        keysCode.Should().Contain("public static string Sk(string transactionId)");
-        keysCode.Should().Contain("var keyValue = \"txn#\" + transactionId;");
-        keysCode.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, string transactionId)");
-        keysCode.Should().Contain("public static partial class StatusIndexKeys");
+        entityCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
+        entityCode.Should().Contain("public static string Sk(string transactionId)");
+        entityCode.Should().Contain("var keyValue = \"txn#\" + transactionId;");
+        entityCode.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, string transactionId)");
+        entityCode.Should().Contain("public static partial class StatusIndex");
     }
 
     [Fact]
@@ -160,6 +158,7 @@ namespace TestNamespace
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word usage ("name", "items")
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for collections
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "MultiItemEntity.g.cs");
 
@@ -236,6 +235,7 @@ namespace TestNamespace
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for collections
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB009"); // Unsupported property type
         result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB016"); // Should NOT have this since entity has sort key
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "ParentEntity.g.cs");
 
@@ -248,7 +248,7 @@ namespace TestNamespace
         // Should generate basic entity mapping (only properties with DynamoDbAttribute)
         entityCode.Should().Contain("item[\"pk\"] = new AttributeValue { S = typedEntity.Id };");
         entityCode.Should().Contain("item[\"sk\"] = new AttributeValue { S = typedEntity.SortKey };");
-        entityCode.Should().Contain("item[\"name\"] = new AttributeValue { S = typedEntity.Name };");
+        entityCode.Should().Contain("item[\"name\"] = new AttributeValue { S = typedEntity.@Name };"); // NAME is a DynamoDB reserved word
     }
 
     [Fact]
@@ -306,7 +306,7 @@ namespace TestNamespace
         if (result.GeneratedSources.Length > 0)
         {
             // If code was generated, verify it has the expected structure
-            result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+            result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
         }
         else
         {
@@ -322,8 +322,8 @@ namespace TestNamespace
 
             // Verify basic structure is present
             entityCode.Should().Contain("public partial class ComplexTypesEntity : IDynamoDbEntity"); // Interface included for better UX
-            entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null)");
-            entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null)");
+            entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)");
+            entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)");
         }
     }
 
@@ -464,9 +464,13 @@ namespace TestNamespace
         relatedEntityWarning.GetMessage().Should().Contain("WarningEntity");
         relatedEntityWarning.GetMessage().Should().Contain("related entity properties but no sort key");
 
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table - Should still generate code despite warning
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table - Should still generate code despite warning
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(
@@ -474,28 +478,7 @@ namespace TestNamespace
             new[] {
                 CSharpSyntaxTree.ParseText(source)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Attribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Runtime.Serialization.SerializationInfo).Assembly.Location),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll")),
-                // Add AWS SDK references for generated code
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                // Add main library reference for IDynamoDbEntity and other types
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                // Add System.Linq reference
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                // Add System.IO reference  
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                // Add netstandard reference for Attribute, Enum, and other base types
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                // Add System.Collections reference for Dictionary<,> and List<>
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                // Add System.Linq.Expressions reference
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();
@@ -569,7 +552,7 @@ namespace TestNamespace
         }
 
         // Should still generate code despite warnings
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
     }
 
     [Fact]
@@ -628,7 +611,7 @@ namespace TestNamespace
         // accurately detected at compile time (e.g., sequential ID patterns require runtime analysis)
 
         // Should still generate code despite warnings
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
     }
 
     [Fact]
@@ -684,7 +667,7 @@ namespace TestNamespace
 
         // Assert
         // Should generate code successfully even with many GSIs
-        result.GeneratedSources.Should().HaveCount(5); // Fields, Keys, Entity, Table, Table.Indexes (has GSI)
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         // No scalability warnings expected - these were removed in Task 39
         // The source generator focuses on correctness, not runtime performance predictions

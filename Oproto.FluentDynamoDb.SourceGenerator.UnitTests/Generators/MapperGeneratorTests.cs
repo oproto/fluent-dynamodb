@@ -18,7 +18,7 @@
 // still catching actual errors.
 // ============================================================================
 
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
@@ -415,7 +415,7 @@ public class MapperGeneratorTests
         
         // Check FromDynamoDb conversions use correct parsing
         result.ShouldContainAssignment("entity.Id");
-        result.ShouldContainAssignment("entity.Count");
+        result.ShouldContainAssignment("entity.@Count"); // COUNT is a DynamoDB reserved word, so it's escaped
         result.ShouldContainAssignment("entity.IsActive");
         result.ShouldContainAssignment("entity.CreatedDate");
         result.ShouldContainAssignment("entity.UniqueId");
@@ -424,15 +424,25 @@ public class MapperGeneratorTests
     }
 
     [Fact]
-    public void GenerateEntityImplementation_WithEntityDiscriminator_GeneratesDiscriminatorLogic()
+    public void GenerateEntityImplementation_WithDiscriminator_GeneratesDiscriminatorLogic()
     {
         // Arrange
+        // Note: Using Discriminator property (new API) instead of EntityDiscriminator (obsolete)
+        // The generator internally still uses EntityDiscriminator for backward compatibility
         var entity = new EntityModel
         {
             ClassName = "TestEntity",
             Namespace = "TestNamespace",
             TableName = "test-table",
-            EntityDiscriminator = "TEST_ENTITY",
+            Discriminator = new DiscriminatorConfig
+            {
+                PropertyName = "entity_type",
+                ExactValue = "TEST_ENTITY",
+                Strategy = DiscriminatorStrategy.ExactMatch
+            },
+#pragma warning disable CS0618 // Type or member is obsolete - Required for backward compatibility with generator
+            EntityDiscriminator = "TEST_ENTITY", // Generator still uses this internally
+#pragma warning restore CS0618
             Properties = new[]
             {
                 new PropertyModel
@@ -522,6 +532,229 @@ public class MapperGeneratorTests
             "should throw EntityConstructionFailed for entity construction errors");
     }
 
+    [Fact]
+    public void GenerateEntityImplementation_WithDateTimeKindUtc_GeneratesUtcConversion()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "CreatedAt",
+                    AttributeName = "created_at",
+                    PropertyType = "DateTime",
+                    DateTimeKind = DateTimeKind.Utc
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should convert to UTC before serialization
+        result.Should().Contain(".ToUniversalTime()",
+            "should convert DateTime to UTC before serialization");
+        result.Should().Contain("DateTime.SpecifyKind",
+            "should set DateTime.Kind after deserialization");
+        result.Should().Contain("DateTimeKind.Utc",
+            "should specify UTC kind");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithDateTimeKindLocal_GeneratesLocalConversion()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "LocalTime",
+                    AttributeName = "local_time",
+                    PropertyType = "DateTime",
+                    DateTimeKind = DateTimeKind.Local
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should convert to Local before serialization
+        result.Should().Contain(".ToLocalTime()",
+            "should convert DateTime to Local time before serialization");
+        result.Should().Contain("DateTime.SpecifyKind",
+            "should set DateTime.Kind after deserialization");
+        result.Should().Contain("DateTimeKind.Local",
+            "should specify Local kind");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithDateTimeFormatString_GeneratesFormattedSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "DateOnly",
+                    AttributeName = "date_only",
+                    PropertyType = "DateTime",
+                    Format = "yyyy-MM-dd"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should use custom format string
+        result.Should().Contain("yyyy-MM-dd",
+            "should use custom format string for DateTime serialization");
+        result.Should().Contain("CultureInfo.InvariantCulture",
+            "should use InvariantCulture for formatting");
+        result.Should().Contain("ParseExact",
+            "should use ParseExact for formatted DateTime deserialization");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithDateTimeKindAndFormat_GeneratesBothConversions()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "UtcDate",
+                    AttributeName = "utc_date",
+                    PropertyType = "DateTime",
+                    DateTimeKind = DateTimeKind.Utc,
+                    Format = "yyyy-MM-dd"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should apply both Kind conversion and format string
+        result.Should().Contain(".ToUniversalTime()",
+            "should convert DateTime to UTC before serialization");
+        result.Should().Contain("yyyy-MM-dd",
+            "should use custom format string");
+        result.Should().Contain("DateTime.SpecifyKind",
+            "should set DateTime.Kind after deserialization");
+        result.Should().Contain("ParseExact",
+            "should use ParseExact for formatted DateTime deserialization");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithNumericFormatString_GeneratesFormattedSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Price",
+                    AttributeName = "price",
+                    PropertyType = "decimal",
+                    Format = "F2"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should use format string for decimal
+        result.Should().Contain("F2",
+            "should use custom format string for decimal serialization");
+        result.Should().Contain("CultureInfo.InvariantCulture",
+            "should use InvariantCulture for formatting");
+        result.Should().Contain("NumberStyles.Any",
+            "should use NumberStyles.Any for parsing formatted numbers");
+    }
+
     /// <summary>
     /// Helper method to create entity source code from an EntityModel for compilation testing.
     /// </summary>
@@ -589,17 +822,17 @@ public class MapperGeneratorTests
             sb.AppendLine("    {");
             sb.AppendLine("        public string Id { get; set; } = string.Empty;");
             sb.AppendLine();
-            sb.AppendLine("        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, Oproto.FluentDynamoDb.Logging.IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+            sb.AppendLine("        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
             sb.AppendLine("        {");
             sb.AppendLine("            return new Dictionary<string, AttributeValue>();");
             sb.AppendLine("        }");
             sb.AppendLine();
-            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, Oproto.FluentDynamoDb.Logging.IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
             sb.AppendLine("        {");
             sb.AppendLine($"            return (TSelf)(object)new {entityType}();");
             sb.AppendLine("        }");
             sb.AppendLine();
-            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, Oproto.FluentDynamoDb.Logging.IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity");
+            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
             sb.AppendLine("        {");
             sb.AppendLine($"            return (TSelf)(object)new {entityType}();");
             sb.AppendLine("        }");
@@ -625,5 +858,336 @@ public class MapperGeneratorTests
         }
         
         return sources.ToArray();
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithIntegerFormatString_GeneratesFormattedSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "OrderNumber",
+                    AttributeName = "order_number",
+                    PropertyType = "int",
+                    Format = "D5"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should use format string for integer with zero-padding
+        result.Should().Contain("D5",
+            "should use custom format string for integer serialization with zero-padding");
+        result.Should().Contain("CultureInfo.InvariantCulture",
+            "should use InvariantCulture for formatting");
+        result.Should().Contain("NumberStyles.Any",
+            "should use NumberStyles.Any for parsing formatted integers");
+        result.Should().Contain("int.TryParse",
+            "should use TryParse for safe integer parsing");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithDoubleFormatString_GeneratesFormattedSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Temperature",
+                    AttributeName = "temperature",
+                    PropertyType = "double",
+                    Format = "F4"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should use format string for double
+        result.Should().Contain("F4",
+            "should use custom format string for double serialization with 4 decimal places");
+        result.Should().Contain("CultureInfo.InvariantCulture",
+            "should use InvariantCulture for formatting");
+        result.Should().Contain("double.TryParse",
+            "should use TryParse for safe double parsing");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithCustomDateTimeFormat_GeneratesFormattedSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "EventDate",
+                    AttributeName = "event_date",
+                    PropertyType = "DateTime",
+                    Format = "yyyy-MM-dd HH:mm:ss"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should use custom DateTime format
+        result.Should().Contain("yyyy-MM-dd HH:mm:ss",
+            "should use custom format string for DateTime serialization");
+        result.Should().Contain("DateTime.TryParseExact",
+            "should use TryParseExact for formatted DateTime deserialization");
+        result.Should().Contain("DateTimeStyles.None",
+            "should use DateTimeStyles.None for strict parsing");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithFormatStringErrorHandling_GeneratesExceptionHandling()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "FormattedValue",
+                    AttributeName = "formatted_value",
+                    PropertyType = "decimal",
+                    Format = "N2"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should have error handling for format string failures
+        result.Should().Contain("catch (FormatException ex)",
+            "should catch FormatException for invalid format strings during serialization");
+        result.Should().Contain("Invalid format string",
+            "should provide clear error message for format string failures");
+        result.Should().Contain("DynamoDbMappingException",
+            "should throw DynamoDbMappingException for parsing failures during deserialization");
+        result.Should().Contain("Failed to parse",
+            "should provide clear error message for parsing failures");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithNullablePropertyAndFormatString_GeneratesNullChecks()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "OptionalPrice",
+                    AttributeName = "optional_price",
+                    PropertyType = "decimal?",
+                    IsNullable = true,
+                    Format = "F2"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should check for null before applying format string
+        result.Should().Contain("if (typedEntity.OptionalPrice != null)",
+            "should check for null before formatting nullable property");
+        result.Should().Contain("F2",
+            "should use format string for nullable decimal");
+        result.Should().Contain(".Value",
+            "should access Value property of nullable type before formatting");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithDateTimeOffsetFormat_GeneratesFormattedSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Timestamp",
+                    AttributeName = "timestamp",
+                    PropertyType = "DateTimeOffset",
+                    Format = "o"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should use format string for DateTimeOffset
+        result.Should().Contain("DateTimeOffset.TryParseExact",
+            "should use TryParseExact for formatted DateTimeOffset deserialization");
+        result.Should().Contain("CultureInfo.InvariantCulture",
+            "should use InvariantCulture for formatting");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithMultipleFormattedProperties_GeneratesAllFormats()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "TestEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Date",
+                    AttributeName = "date",
+                    PropertyType = "DateTime",
+                    Format = "yyyy-MM-dd"
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Price",
+                    AttributeName = "price",
+                    PropertyType = "decimal",
+                    Format = "F2"
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Quantity",
+                    AttributeName = "quantity",
+                    PropertyType = "int",
+                    Format = "D8"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - Should generate format strings for all properties
+        result.Should().Contain("yyyy-MM-dd",
+            "should use DateTime format string");
+        result.Should().Contain("F2",
+            "should use decimal format string");
+        result.Should().Contain("D8",
+            "should use integer format string");
+        result.Should().Contain("DateTime.TryParseExact",
+            "should parse formatted DateTime");
+        result.Should().Contain("decimal.TryParse",
+            "should parse formatted decimal");
+        result.Should().Contain("int.TryParse",
+            "should parse formatted integer");
     }
 }

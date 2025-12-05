@@ -10,7 +10,6 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// Tests for operation method generation in entity accessor classes.
 /// Verifies that operation methods (Get, Query, Scan, Put, Delete, Update) are generated
 /// correctly with proper visibility modifiers and respect Generate = false configurations.
-/// Covers requirement 5 from the table-generation-redesign spec.
 /// </summary>
 [Trait("Category", "Unit")]
 public class OperationMethodGenerationTests
@@ -262,8 +261,8 @@ namespace TestNamespace
         var tableCode = tableFiles[0].SourceText.ToString();
         
         // Update operation should be private
-        tableCode.Should().Contain("private UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate private Update operation when Modifier = Private");
+        tableCode.Should().Contain("private OrderUpdateBuilder Update(string pk)",
+            "should generate private Update operation with entity-specific builder when Modifier = Private");
     }
 
     [Fact]
@@ -316,8 +315,8 @@ namespace TestNamespace
             "should not generate Delete operation when Generate = false");
         
         // Operations not configured should use default (public, except Scan which is not currently implemented)
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate public Update operation (default)");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "should generate public Update operation with entity-specific builder (default)");
     }
 
     [Fact]
@@ -363,8 +362,8 @@ namespace TestNamespace
             "should generate internal Put operation when All flag is used");
         tableCode.Should().Contain("internal DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate internal Delete operation when All flag is used");
-        tableCode.Should().Contain("internal UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate internal Update operation when All flag is used");
+        tableCode.Should().Contain("internal OrderUpdateBuilder Update(string pk)",
+            "should generate internal Update operation with entity-specific builder when All flag is used");
     }
 
     [Fact]
@@ -412,8 +411,8 @@ namespace TestNamespace
             "should generate public Put operation (default)");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate public Delete operation (default)");
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate public Update operation (default)");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "should generate public Update operation with entity-specific builder (default)");
     }
 
     [Fact]
@@ -460,8 +459,8 @@ namespace TestNamespace
         // Write operations should be protected
         tableCode.Should().Contain("protected PutItemRequestBuilder<Order> Put()",
             "should generate protected Put operation");
-        tableCode.Should().Contain("protected UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate protected Update operation");
+        tableCode.Should().Contain("protected OrderUpdateBuilder Update(string pk)",
+            "should generate protected Update operation with entity-specific builder");
         
         // Delete should be public (default)
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
@@ -516,7 +515,7 @@ namespace TestNamespace
             accessorCode.Substring(0, Math.Min(1000, accessorCode.Length)), 
             @"(public|internal|protected|private)\s+\w+\s+\w+\(").Count;
         
-        methodCount.Should().BeLessOrEqualTo(1,
+        methodCount.Should().BeLessThanOrEqualTo(1,
             "should have at most the constructor when all operations are disabled");
     }
 
@@ -663,10 +662,14 @@ namespace TestNamespace
             "should generate public Put operation by default");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate public Delete operation by default");
-        tableCode.Should().Contain("public UpdateItemRequestBuilder<Order> Update(string pk)",
-            "should generate public Update operation by default");
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+            "should generate public Update operation with entity-specific builder by default");
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(
@@ -674,18 +677,7 @@ namespace TestNamespace
             new[] {
                 CSharpSyntaxTree.ParseText(source)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

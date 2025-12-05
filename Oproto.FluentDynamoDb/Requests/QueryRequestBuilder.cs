@@ -33,25 +33,44 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class QueryRequestBuilder<TEntity> :
-    IWithAttributeNames<QueryRequestBuilder<TEntity>>, IWithConditionExpression<QueryRequestBuilder<TEntity>>, IWithAttributeValues<QueryRequestBuilder<TEntity>>, IWithFilterExpression<QueryRequestBuilder<TEntity>>
+    IWithAttributeNames<QueryRequestBuilder<TEntity>>, IWithConditionExpression<QueryRequestBuilder<TEntity>>, IWithAttributeValues<QueryRequestBuilder<TEntity>>, IWithFilterExpression<QueryRequestBuilder<TEntity>>, IHasDynamoDbClient
     where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the QueryRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public QueryRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public QueryRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
+        _options = options ?? new FluentDynamoDbOptions();
+        _logger = _options.Logger;
     }
 
     private QueryRequest _req = new QueryRequest() { ExclusiveStartKey = new Dictionary<string, AttributeValue>() };
-    private readonly IAmazonDynamoDB _dynamoDbClient;
+    private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
+    private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    // === Response Metadata (populated after execution) ===
+    
+    /// <summary>
+    /// Gets the last evaluated key from the most recent query execution.
+    /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
+    /// Use this for pagination to continue from where the previous query left off.
+    /// Null if there are no more pages or if the query hasn't been executed yet.
+    /// </summary>
+    public Dictionary<string, AttributeValue>? LastEvaluatedKey { get; internal set; }
+
+    /// <summary>
+    /// Gets the number of items evaluated (before filtering) from the most recent query execution.
+    /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
+    /// Null if the query hasn't been executed yet.
+    /// </summary>
+    public int? ScannedCount { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -70,7 +89,27 @@ public class QueryRequestBuilder<TEntity> :
     /// This is used by Primary API extension methods to call AWS SDK directly.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// This is used by Primary API extension methods to access the hydrator registry.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
+
+    /// <summary>
+    /// Replaces the DynamoDB client used for executing this request.
+    /// Used for tenant-specific STS credential scenarios where different clients
+    /// are needed for different tenants or security contexts.
+    /// </summary>
+    /// <param name="client">The scoped DynamoDB client to use.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public QueryRequestBuilder<TEntity> WithClient(IAmazonDynamoDB client)
+    {
+        _dynamoDbClient = client;
+        return this;
+    }
 
     /// <summary>
     /// Sets the condition expression on the builder.
@@ -176,8 +215,18 @@ public class QueryRequestBuilder<TEntity> :
     public QueryRequestBuilder<TEntity> UsingIndex(string indexName)
     {
         _req.IndexName = indexName;
+        _indexName = indexName;
         return this;
     }
+    
+    private string? _indexName;
+    
+    /// <summary>
+    /// Gets the name of the index being queried, if any.
+    /// Used by expression translation to validate GSI key properties.
+    /// </summary>
+    /// <returns>The index name, or null if querying the main table.</returns>
+    public string? GetIndexName() => _indexName;
 
     /// <summary>
     /// Specifies which attributes to retrieve using a projection expression.
@@ -291,8 +340,14 @@ public class QueryRequestBuilder<TEntity> :
     /// <returns>A configured QueryRequest ready for execution.</returns>
     public QueryRequest ToQueryRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
         return _req;
     }
 
@@ -332,10 +387,11 @@ public class QueryRequestBuilder<TEntity> :
             var response = await _dynamoDbClient.QueryAsync(request, cancellationToken);
             
             #if !DISABLE_DYNAMODB_LOGGING
+#pragma warning disable CS8601 // Possible null reference assignment - boxing value types to object[]
             _logger?.LogInformation(LogEventIds.OperationComplete,
                 "Query completed. ItemCount: {ItemCount}, ConsumedCapacity: {ConsumedCapacity}",
-                response.Count, 
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
+                new object[] { response.Count, response.ConsumedCapacity?.CapacityUnits ?? 0 });
+#pragma warning restore CS8601
             #endif
             
             return response;

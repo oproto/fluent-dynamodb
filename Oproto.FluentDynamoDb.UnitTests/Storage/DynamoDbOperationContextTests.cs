@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
-using Oproto.FluentDynamoDb.Logging;
+using AwesomeAssertions;
+
 using Oproto.FluentDynamoDb.Storage;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;
@@ -12,7 +12,7 @@ public class DynamoDbOperationContextTests
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
 
-        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var testEntity = entity as TestEntity;
             return new Dictionary<string, AttributeValue>
@@ -22,7 +22,7 @@ public class DynamoDbOperationContextTests
             };
         }
 
-        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
             var entity = new TestEntity
             {
@@ -32,9 +32,9 @@ public class DynamoDbOperationContextTests
             return (TSelf)(object)entity;
         }
 
-        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
         {
-            return FromDynamoDb<TSelf>(items.First(), logger);
+            return FromDynamoDb<TSelf>(items.First(), options);
         }
 
         public static string GetPartitionKey(Dictionary<string, AttributeValue> item)

@@ -223,7 +223,7 @@ var order = new Order
 };
 
 await ecommerceTable.Orders.Put(order)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Create order lines using the OrderLines accessor
 var line1 = new OrderLine
@@ -237,19 +237,19 @@ var line1 = new OrderLine
 };
 
 await ecommerceTable.OrderLines.Put(line1)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Get a specific order
 var orderResponse = await ecommerceTable.Orders.Get()
     .WithKey(OrderFields.CustomerId, "customer123")
     .WithKey(OrderFields.OrderId, "ORDER#order456")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Query all order lines for an order
 var linesResponse = await ecommerceTable.OrderLines.Query()
     .Where($"{OrderLineFields.CustomerId} = :pk AND begins_with({OrderLineFields.OrderId}, :sk)",
            new { pk = "customer123", sk = "ORDER#order456#LINE#" })
-    .ExecuteAsync();
+    .ToListAsync();
 
 foreach (var line in linesResponse.Items)
 {
@@ -269,12 +269,12 @@ Since `Order` is marked as the default entity (`IsDefault = true`), table-level 
 var order1 = await ecommerceTable.Get()
     .WithKey(OrderFields.CustomerId, "customer123")
     .WithKey(OrderFields.OrderId, "ORDER#order456")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 var order2 = await ecommerceTable.Orders.Get()
     .WithKey(OrderFields.CustomerId, "customer123")
     .WithKey(OrderFields.OrderId, "ORDER#order456")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Both return GetItemResponse<Order>
 
@@ -282,13 +282,13 @@ var order2 = await ecommerceTable.Orders.Get()
 var customerOrders = await ecommerceTable.Query()
     .Where($"{OrderFields.CustomerId} = :pk AND begins_with({OrderFields.OrderId}, :sk)",
            new { pk = "customer123", sk = "ORDER#" })
-    .ExecuteAsync();
+    .ToListAsync();
 
 // This is equivalent to:
 var customerOrders2 = await ecommerceTable.Orders.Query()
     .Where($"{OrderFields.CustomerId} = :pk AND begins_with({OrderFields.OrderId}, :sk)",
            new { pk = "customer123", sk = "ORDER#" })
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Convenience:** Table-level operations provide a shorthand for the default entity, making common operations more concise.
@@ -400,7 +400,7 @@ await ecommerceTable.TransactWrite()
     .AddPut(ecommerceTable.Orders, order)
     .AddPut(ecommerceTable.OrderLines, line1)
     .AddPut(ecommerceTable.OrderLines, line2)
-    .ExecuteAsync();
+    .CommitAsync();
 
 // All items are created atomically or none are created
 ```
@@ -606,13 +606,13 @@ await ecommerceTable.TransactWrite()
     .AddPut(ecommerceTable.OrderLines, line1)
     .AddPut(ecommerceTable.OrderLines, line2)
     .AddPut(ecommerceTable.Payments, payment)
-    .ExecuteAsync();
+    .CommitAsync();
 
 // Query all items for an order (efficient single query)
 var allOrderItems = await ecommerceTable.Query()
     .Where($"{OrderFields.CustomerId} = :pk AND begins_with({OrderFields.OrderId}, :sk)",
            new { pk = "customer123", sk = "ORDER#order456" })
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Results include Order, OrderLines, Payment, and Shipment (if exists)
 // All retrieved in a single query due to shared partition key
@@ -621,19 +621,19 @@ var allOrderItems = await ecommerceTable.Query()
 var orderLines = await ecommerceTable.OrderLines.Query()
     .Where($"{OrderLineFields.CustomerId} = :pk AND begins_with({OrderLineFields.OrderId}, :sk)",
            new { pk = "customer123", sk = "ORDER#order456#LINE#" })
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Get specific payment
 var paymentResponse = await ecommerceTable.Payments.Get()
     .WithKey(PaymentFields.CustomerId, "customer123")
     .WithKey(PaymentFields.OrderId, "ORDER#order456#PAYMENT")
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Query orders by status using GSI (table-level operation)
-var pendingOrders = await ecommerceTable.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{OrderFields.StatusIndexPk} = :status", new { status = "pending" })
-    .ExecuteAsync();
+var pendingOrders = await ecommerceTable.Query<Order>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Order.Fields.StatusIndexPk} = {{0}}", "pending")
+    .ToListAsync();
 
 // Update order status and create shipment atomically
 await ecommerceTable.TransactWrite()
@@ -651,7 +651,7 @@ await ecommerceTable.TransactWrite()
         Status = "in_transit",
         ShippedAt = DateTime.UtcNow
     })
-    .ExecuteAsync();
+    .CommitAsync();
 ```
 
 
@@ -677,7 +677,7 @@ SK: ORDER#order456#SHIPMENT     → Shipment
 var allItems = await table.Query()
     .Where($"{OrderFields.CustomerId} = :pk AND begins_with({OrderFields.OrderId}, :sk)",
            new { pk = "customer123", sk = "ORDER#order456" })
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Pattern 2: Time-Series Data
@@ -701,7 +701,7 @@ var recentActivity = await table.Query()
                start = "ORDER#order456#EVENT#2024-01-15",
                end = "ORDER#order456#EVENT#2024-01-20"
            })
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Pattern 3: Status-Based Queries
@@ -710,16 +710,16 @@ Use GSI for status queries across entity types:
 
 ```csharp
 // Query all pending orders
-var pendingOrders = await table.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{OrderFields.StatusIndexPk} = :status", new { status = "pending" })
-    .ExecuteAsync();
+var pendingOrders = await table.Query<Order>()
+    .UsingIndex("StatusIndex")
+    .Where($"{Order.Fields.StatusIndexPk} = {{0}}", "pending")
+    .ToListAsync();
 
 // Query pending payments
 var pendingPayments = await table.Payments.Query()
-    .FromIndex("StatusIndex")
-    .Where($"{PaymentFields.StatusIndexPk} = :status", new { status = "pending" })
-    .ExecuteAsync();
+    .UsingIndex("StatusIndex")
+    .Where($"{Payment.Fields.StatusIndexPk} = {{0}}", "pending")
+    .ToListAsync();
 ```
 
 
@@ -751,7 +751,7 @@ public partial class OrderLine
 // Use custom name
 var lines = await ecommerceTable.Lines.Query()
     .Where($"{OrderLineFields.CustomerId} = :pk", new { pk = "customer123" })
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Hiding Entity Accessors
@@ -891,7 +891,7 @@ public partial class EcommerceTable
         var response = await OrderLines.Query()  // Internal accessor
             .Where($"{OrderLineFields.CustomerId} = :pk AND begins_with({OrderLineFields.OrderId}, :sk)",
                    new { pk = customerId, sk = $"ORDER#{orderId}#LINE#" })
-            .ExecuteAsync();
+            .ToListAsync();
         
         return response.Items;
     }
@@ -906,7 +906,7 @@ public partial class EcommerceTable
             throw new ArgumentException("ProductId is required", nameof(line));
         
         await OrderLines.Put(line)  // Internal accessor
-            .ExecuteAsync();
+            .PutAsync();
     }
 }
 ```
@@ -969,7 +969,7 @@ Store related entities together for efficient queries:
 var allItems = await table.Query()
     .Where($"pk = :pk AND begins_with(sk, :sk)",
            new { pk = "customer123", sk = "ORDER#order456" })
-    .ExecuteAsync();
+    .ToListAsync();
 
 // ❌ Bad - Multiple queries needed
 var order = await table.Orders.Get()...
@@ -987,12 +987,12 @@ await table.TransactWrite()
     .AddPut(table.Orders, order)
     .AddPut(table.OrderLines, line1)
     .AddPut(table.OrderLines, line2)
-    .ExecuteAsync();
+    .CommitAsync();
 
 // ❌ Bad - Non-atomic, can leave partial data
-await table.Orders.Put(order).ExecuteAsync();
-await table.OrderLines.Put(line1).ExecuteAsync();
-await table.OrderLines.Put(line2).ExecuteAsync();
+await table.Orders.Put(order).PutAsync();
+await table.OrderLines.Put(line1).PutAsync();
+await table.OrderLines.Put(line2).PutAsync();
 ```
 
 ### 5. Leverage GSIs for Alternative Access Patterns
@@ -1101,18 +1101,18 @@ public partial class OrderLine
 var ordersTable = new OrdersTable(client, "orders");
 var orderLinesTable = new OrderLinesTable(client, "order-lines");
 
-await ordersTable.Put(order).ExecuteAsync();
-await orderLinesTable.Put(line).ExecuteAsync();
+await ordersTable.Put(order).PutAsync();
+await orderLinesTable.Put(line).PutAsync();
 
 // After (multi-entity table)
 var ecommerceTable = new EcommerceTable(client, "ecommerce");
 
-await ecommerceTable.Orders.Put(order).ExecuteAsync();
-await ecommerceTable.OrderLines.Put(line).ExecuteAsync();
+await ecommerceTable.Orders.Put(order).PutAsync();
+await ecommerceTable.OrderLines.Put(line).PutAsync();
 
 // Or use table-level operations for default entity
-await ecommerceTable.Put(order).ExecuteAsync();
-await ecommerceTable.OrderLines.Put(line).ExecuteAsync();
+await ecommerceTable.Put(order).PutAsync();
+await ecommerceTable.OrderLines.Put(line).PutAsync();
 ```
 
 ### Step 4: Migrate Data
@@ -1126,18 +1126,18 @@ var sourceOrderLinesTable = new OrderLinesTable(client, "order-lines");
 var targetTable = new EcommerceTable(client, "ecommerce");
 
 // Scan source tables
-var orders = await sourceOrdersTable.Scan().ExecuteAsync();
-var orderLines = await sourceOrderLinesTable.Scan().ExecuteAsync();
+var orders = await sourceOrdersTable.Scan().ToListAsync();
+var orderLines = await sourceOrderLinesTable.Scan().ToListAsync();
 
 // Write to target table with new key patterns
 foreach (var order in orders.Items)
 {
-    await targetTable.Orders.Put(order).ExecuteAsync();
+    await targetTable.Orders.Put(order).PutAsync();
 }
 
 foreach (var line in orderLines.Items)
 {
-    await targetTable.OrderLines.Put(line).ExecuteAsync();
+    await targetTable.OrderLines.Put(line).PutAsync();
 }
 ```
 

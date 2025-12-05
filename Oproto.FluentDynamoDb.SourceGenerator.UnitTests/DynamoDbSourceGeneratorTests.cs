@@ -43,7 +43,7 @@ namespace TestNamespace
         // Should generate code with DYNDB021 warning for reserved word "name"
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word warning for "name"
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         // Check entity implementation
         var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntity.g.cs")).SourceText.ToString();
@@ -51,18 +51,14 @@ namespace TestNamespace
         entityCode.ShouldContainClass("TestEntity");
         entityCode.Should().Contain("namespace TestNamespace", "should generate code in the correct namespace");
 
-        // Check fields class
-        var fieldsCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityFields.g.cs")).SourceText.ToString();
-        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
-        fieldsCode.ShouldContainClass("TestEntityFields");
-        fieldsCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
-        fieldsCode.Should().Contain("public const string Name = \"name\";", "should map Name property to name attribute");
+        // Check nested fields class
+        entityCode.ShouldContainClass("Fields");
+        entityCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute in nested Fields class");
+        entityCode.Should().Contain("public const string Name = \"name\";", "should map Name property to name attribute in nested Fields class");
 
-        // Check keys class
-        var keysCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityKeys.g.cs")).SourceText.ToString();
-        CompilationVerifier.AssertGeneratedCodeCompiles(keysCode, source);
-        keysCode.ShouldContainClass("TestEntityKeys");
-        keysCode.ShouldContainMethod("Pk");
+        // Check nested keys class
+        entityCode.ShouldContainClass("Keys");
+        entityCode.ShouldContainMethod("Pk");
     }
 
     [Fact]
@@ -119,17 +115,18 @@ namespace TestNamespace
         // Assert
         // Should generate code without any diagnostics for GSI entity
         result.Diagnostics.Should().BeEmpty();
-        result.GeneratedSources.Should().HaveCount(5); // Fields, Keys, Entity, Table, Table.Indexes (has GSI)
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
-        var fieldsCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntityFields.g.cs")).SourceText.ToString();
-        CompilationVerifier.AssertGeneratedCodeCompiles(fieldsCode, source);
-        fieldsCode.ShouldContainClass("TestEntityFields");
-        fieldsCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
-        fieldsCode.Should().Contain("public const string GsiKey = \"gsi_pk\";", "should map GsiKey property to gsi_pk attribute");
-        fieldsCode.Should().Contain("public const string GsiSort = \"gsi_sk\";", "should map GsiSort property to gsi_sk attribute");
-        fieldsCode.ShouldContainClass("TestGSIFields");
-        fieldsCode.Should().Contain("public const string PartitionKey = \"gsi_pk\";", "should define GSI partition key constant");
-        fieldsCode.Should().Contain("public const string SortKey = \"gsi_sk\";", "should define GSI sort key constant");
+        var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestEntity.g.cs")).SourceText.ToString();
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        entityCode.ShouldContainClass("TestEntity");
+        entityCode.ShouldContainClass("Fields");
+        entityCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
+        entityCode.Should().Contain("public const string GsiKey = \"gsi_pk\";", "should map GsiKey property to gsi_pk attribute");
+        entityCode.Should().Contain("public const string GsiSort = \"gsi_sk\";", "should map GsiSort property to gsi_sk attribute");
+        entityCode.ShouldContainClass("TestGSI");
+        entityCode.Should().Contain("public const string PartitionKey = \"gsi_pk\";", "should define GSI partition key constant in nested GSI class");
+        entityCode.Should().Contain("public const string SortKey = \"gsi_sk\";", "should define GSI sort key constant in nested GSI class");
     }
 
     [Fact]
@@ -157,7 +154,7 @@ namespace TestNamespace
         // Assert - Single entity should work without IsDefault
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "single entity tables don't require explicit IsDefault");
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "single entity tables can't have multiple defaults");
-        result.GeneratedSources.Should().HaveCount(4); // Fields, Keys, Entity, Table
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
     }
 
     [Fact]
@@ -231,7 +228,7 @@ namespace TestNamespace
         // Assert - Should not emit FDDB001 or FDDB002
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001", "one entity is marked as default");
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB002", "only one entity is marked as default");
-        result.GeneratedSources.Should().HaveCount(7); // 2 entities × (Fields + Keys + Entity) + 1 Table
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
     }
 
     [Fact]
@@ -296,6 +293,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().BeEmpty();
+        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
         
         // Check that table class is named after the table name, not entity name
         // Table name "my-app-table" should become "MyAppTableTable" (split by hyphen, capitalize each part, append "Table")
@@ -342,6 +340,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Id == "FDDB001" || d.Id == "FDDB002");
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         // Should generate only one table class named after the table
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("Table.g.cs") && !s.FileName.Contains("Fields") && !s.FileName.Contains("Keys")).ToArray();
@@ -386,6 +385,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         // Debug: Check what files were generated
         var allFiles = string.Join(", ", result.GeneratedSources.Select(s => System.IO.Path.GetFileName(s.FileName)));
@@ -437,6 +437,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
         tableFiles.Should().HaveCount(1);
@@ -481,6 +482,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
         tableFiles.Should().HaveCount(1);
@@ -525,6 +527,7 @@ namespace TestNamespace
 
         // Assert
         result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        result.GeneratedSources.Should().HaveCount(9); // 2 entities × 4 files each (Entity, UpdateExpressions, UpdateModel, UpdateBuilder) + 1 shared Table
         
         var tableFiles = result.GeneratedSources.Where(s => s.FileName.Contains("SharedTableTable.g.cs")).ToArray();
         tableFiles.Should().HaveCount(1);
@@ -536,6 +539,10 @@ namespace TestNamespace
         tableCode.Should().Contain("public OrderLineAccessor OrderLines", "should generate public accessor property by default");
     }
 
+    /// <summary>
+    /// Generates code using the source generator.
+    /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
+    /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(
@@ -543,25 +550,7 @@ namespace TestNamespace
             new[] {
                 CSharpSyntaxTree.ParseText(source)
             },
-            new[] {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly.Location),
-                // Add AWS SDK references for generated code
-                MetadataReference.CreateFromFile(typeof(Amazon.DynamoDBv2.Model.AttributeValue).Assembly.Location),
-                // Add main library reference for IDynamoDbEntity and other types
-                MetadataReference.CreateFromFile(typeof(Oproto.FluentDynamoDb.Storage.IDynamoDbEntity).Assembly.Location),
-                // Add System.Linq reference
-                MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-                // Add System.IO reference  
-                MetadataReference.CreateFromFile(typeof(System.IO.Stream).Assembly.Location),
-                // Add netstandard reference for Attribute, Enum, and other base types
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "netstandard.dll")),
-                // Add System.Collections reference for Dictionary<,> and List<>
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Collections.dll")),
-                // Add System.Linq.Expressions reference
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Linq.Expressions.dll"))
-            },
+            DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new DynamoDbSourceGenerator();

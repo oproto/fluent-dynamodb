@@ -38,23 +38,25 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class ScanRequestBuilder<TEntity> :
-    IWithAttributeNames<ScanRequestBuilder<TEntity>>, IWithAttributeValues<ScanRequestBuilder<TEntity>>, IWithFilterExpression<ScanRequestBuilder<TEntity>>
+    IWithAttributeNames<ScanRequestBuilder<TEntity>>, IWithAttributeValues<ScanRequestBuilder<TEntity>>, IWithFilterExpression<ScanRequestBuilder<TEntity>>, IHasDynamoDbClient
     where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the ScanRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public ScanRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public ScanRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
+        _options = options ?? new FluentDynamoDbOptions();
+        _logger = _options.Logger;
     }
 
     private ScanRequest _req = new ScanRequest() { ConsistentRead = false };
-    private readonly IAmazonDynamoDB _dynamoDbClient;
+    private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
+    private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -75,7 +77,27 @@ public class ScanRequestBuilder<TEntity> :
     /// This is used by Primary API extension methods to call AWS SDK directly.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// This is used by Primary API extension methods to access the hydrator registry.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
+
+    /// <summary>
+    /// Replaces the DynamoDB client used for executing this request.
+    /// Used for tenant-specific STS credential scenarios where different clients
+    /// are needed for different tenants or security contexts.
+    /// </summary>
+    /// <param name="client">The scoped DynamoDB client to use.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public ScanRequestBuilder<TEntity> WithClient(IAmazonDynamoDB client)
+    {
+        _dynamoDbClient = client;
+        return this;
+    }
 
     /// <summary>
     /// Sets the filter expression on the builder.
@@ -251,8 +273,19 @@ public class ScanRequestBuilder<TEntity> :
     /// <returns>A configured ScanRequest ready for execution.</returns>
     public ScanRequest ToScanRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
+        else if (_req.ExpressionAttributeValues == null)
+        {
+            _req.ExpressionAttributeValues = new Dictionary<string, AttributeValue>();
+        }
         return _req;
     }
 
@@ -281,8 +314,8 @@ public class ScanRequestBuilder<TEntity> :
             request.TableName ?? "Unknown", 
             request.IndexName ?? "None", 
             request.FilterExpression ?? "None",
-            request.Segment,
-            request.TotalSegments);
+            (object?)request.Segment ?? "N/A",
+            (object?)request.TotalSegments ?? "N/A");
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
         {
@@ -297,11 +330,11 @@ public class ScanRequestBuilder<TEntity> :
             var response = await _dynamoDbClient.ScanAsync(request, cancellationToken);
             
             #if !DISABLE_DYNAMODB_LOGGING
+#pragma warning disable CS8601 // Possible null reference assignment - boxing value types to object[]
             _logger?.LogInformation(LogEventIds.OperationComplete,
                 "Scan completed. ItemCount: {ItemCount}, ScannedCount: {ScannedCount}, ConsumedCapacity: {ConsumedCapacity}",
-                response.Count, 
-                response.ScannedCount,
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
+                new object[] { response.Count, response.ScannedCount, response.ConsumedCapacity?.CapacityUnits ?? 0 });
+#pragma warning restore CS8601
             #endif
             
             return response;

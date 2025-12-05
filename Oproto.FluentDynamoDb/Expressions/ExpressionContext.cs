@@ -77,10 +77,37 @@ public class ExpressionContext
     public ExpressionValidationMode ValidationMode { get; }
     
     /// <summary>
+    /// The name of the Global Secondary Index being queried, if any.
+    /// When set, key validation uses the GSI's key schema instead of the main table's keys.
+    /// </summary>
+    public string? IndexName { get; }
+    
+    /// <summary>
     /// Parameter generator for unique parameter names.
     /// Shared with AttributeValues to ensure uniqueness across all parameter generation methods.
     /// </summary>
     public ParameterGenerator ParameterGenerator => AttributeValues.ParameterGenerator;
+    
+    /// <summary>
+    /// Gets the list of parameter metadata for tracking encryption requirements.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This list tracks parameters that require encryption during update expression translation.
+    /// The UpdateExpressionTranslator adds entries when it encounters encrypted properties,
+    /// and the request builder (e.g., UpdateItemRequestBuilder) uses this list to encrypt
+    /// parameters before sending the request to DynamoDB.
+    /// </para>
+    /// 
+    /// <para><strong>Usage Pattern:</strong></para>
+    /// <list type="number">
+    /// <item><description>Translator detects encrypted property from PropertyMetadata.IsEncrypted</description></item>
+    /// <item><description>Translator creates ParameterMetadata with RequiresEncryption = true</description></item>
+    /// <item><description>Translator adds to this list</description></item>
+    /// <item><description>Request builder iterates this list and encrypts marked parameters</description></item>
+    /// </list>
+    /// </remarks>
+    public List<ParameterMetadata> ParameterMetadata { get; } = new List<ParameterMetadata>();
     
     /// <summary>
     /// Initializes a new instance of the <see cref="ExpressionContext"/> class.
@@ -89,15 +116,18 @@ public class ExpressionContext
     /// <param name="attributeNames">The attribute name helper for reserved word handling.</param>
     /// <param name="entityMetadata">Entity metadata for property validation.</param>
     /// <param name="validationMode">Validation mode for the expression context.</param>
+    /// <param name="indexName">Optional GSI name for GSI key validation.</param>
     public ExpressionContext(
         AttributeValueInternal attributeValues,
         AttributeNameInternal attributeNames,
         EntityMetadata? entityMetadata,
-        ExpressionValidationMode validationMode)
+        ExpressionValidationMode validationMode,
+        string? indexName = null)
     {
         AttributeValues = attributeValues ?? throw new ArgumentNullException(nameof(attributeValues));
         AttributeNames = attributeNames ?? throw new ArgumentNullException(nameof(attributeNames));
         EntityMetadata = entityMetadata;
         ValidationMode = validationMode;
+        IndexName = indexName;
     }
 }

@@ -134,8 +134,8 @@ public class ExpressionQueryTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query using expression-based Where()
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId, metadata)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(x => x.Id == productId, metadata)
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -154,8 +154,8 @@ public class ExpressionQueryTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query using expression with both partition key and sort key
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == productId && x.Type == productType, 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -182,8 +182,8 @@ public class ExpressionQueryTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query using StartsWith function
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == productId && x.Type!.StartsWith(prefix), 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -205,8 +205,8 @@ public class ExpressionQueryTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query using Between function
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == productId && x.Type!.Between(lowValue, highValue), 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -218,8 +218,8 @@ public class ExpressionQueryTests : IntegrationTestBase
         entities.Should().AllSatisfy(e => 
         {
             e.Type.Should().NotBeNull();
-            e.Type.Should().BeGreaterOrEqualTo(lowValue);
-            e.Type.Should().BeLessOrEqualTo(highValue);
+            e.Type!.CompareTo(lowValue).Should().BeGreaterThanOrEqualTo(0);
+            e.Type!.CompareTo(highValue).Should().BeLessThanOrEqualTo(0);
         });
     }
     
@@ -231,10 +231,10 @@ public class ExpressionQueryTests : IntegrationTestBase
         var compareValue = "d";
         var metadata = ComplexEntity.GetEntityMetadata();
         
-        // Act - Query using >= operator
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
-                x => x.Id == productId && x.Type! >= compareValue, 
+        // Act - Query using >= operator (via string.CompareOrdinal for string comparison)
+        var response = await _table.Query<ComplexEntity>()
+            .Where(
+                x => x.Id == productId && string.CompareOrdinal(x.Type!, compareValue) >= 0, 
                 metadata)
             .ToDynamoDbResponseAsync();
         
@@ -258,8 +258,8 @@ public class ExpressionQueryTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with captured variables
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == productId && x.Type == productType, 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -280,8 +280,8 @@ public class ExpressionQueryTests : IntegrationTestBase
         var metadata = ComplexEntity.GetEntityMetadata();
         
         // Act - Query with closure capture
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == searchCriteria.ProductId && x.Type == searchCriteria.ProductType, 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -309,14 +309,14 @@ public class ExpressionQueryTests : IntegrationTestBase
         
         // Act - Query with OR operator (note: DynamoDB doesn't support OR in key conditions,
         // so we'll test with multiple queries)
-        var response1 = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response1 = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == productId && x.Type == type1, 
                 metadata)
             .ToDynamoDbResponseAsync();
         
-        var response2 = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(
+        var response2 = await _table.Query<ComplexEntity>()
+            .Where(
                 x => x.Id == productId && x.Type == type2, 
                 metadata)
             .ToDynamoDbResponseAsync();
@@ -330,28 +330,6 @@ public class ExpressionQueryTests : IntegrationTestBase
         
         var entity2 = ComplexEntity.FromDynamoDb<ComplexEntity>(response2.Items[0]);
         entity2.Type.Should().Be(type2);
-    }
-    
-    #endregion
-    
-    #region Metadata Validation Tests
-    
-    [Fact]
-    public async Task Query_WithoutMetadata_WorksWithoutValidation()
-    {
-        // Arrange
-        var productId = "product-4";
-        
-        // Act - Query without metadata (validation skipped)
-        var response = await _table.Query()
-            .Where<QueryRequestBuilder, ComplexEntity>(x => x.Id == productId)
-            .ToDynamoDbResponseAsync();
-        
-        // Assert
-        response.Items.Should().HaveCount(1);
-        
-        var entity = ComplexEntity.FromDynamoDb<ComplexEntity>(response.Items[0]);
-        entity.Id.Should().Be(productId);
     }
     
     #endregion

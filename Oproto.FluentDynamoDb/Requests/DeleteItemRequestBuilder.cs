@@ -16,38 +16,42 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// // Simple delete by primary key
 /// await table.Delete&lt;Transaction&gt;()
 ///     .WithKey("id", "user123")
-///     .ExecuteAsync();
+///     .DeleteAsync();
 /// 
-/// // Conditional delete with return values
+/// // Conditional delete with return values (use ToDynamoDbResponseAsync to access response.Attributes)
 /// var response = await table.Delete&lt;Transaction&gt;()
 ///     .WithKey("pk", "USER", "sk", "user123")
 ///     .Where("attribute_exists(#status)")
 ///     .WithAttribute("#status", "status")
 ///     .ReturnAllOldValues()
-///     .ExecuteAsync();
+///     .ToDynamoDbResponseAsync();
 /// </code>
 /// </example>
 public class DeleteItemRequestBuilder<TEntity> :
     IWithKey<DeleteItemRequestBuilder<TEntity>>,
     IWithConditionExpression<DeleteItemRequestBuilder<TEntity>>,
     IWithAttributeNames<DeleteItemRequestBuilder<TEntity>>,
-    IWithAttributeValues<DeleteItemRequestBuilder<TEntity>>
+    IWithAttributeValues<DeleteItemRequestBuilder<TEntity>>,
+    ITransactableDeleteBuilder,
+    IHasDynamoDbClient
     where TEntity : class
 {
     /// <summary>
     /// Initializes a new instance of the DeleteItemRequestBuilder.
     /// </summary>
     /// <param name="dynamoDbClient">The DynamoDB client to use for executing the request.</param>
-    /// <param name="logger">Optional logger for operation diagnostics.</param>
-    public DeleteItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, IDynamoDbLogger? logger = null)
+    /// <param name="options">Configuration options including logger, hydrator registry, etc. If null, uses sensible defaults.</param>
+    public DeleteItemRequestBuilder(IAmazonDynamoDB dynamoDbClient, FluentDynamoDbOptions? options = null)
     {
         _dynamoDbClient = dynamoDbClient;
-        _logger = logger ?? NoOpLogger.Instance;
+        _options = options ?? new FluentDynamoDbOptions();
+        _logger = _options.Logger;
     }
 
     private DeleteItemRequest _req = new();
-    private readonly IAmazonDynamoDB _dynamoDbClient;
+    private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
+    private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
@@ -68,7 +72,27 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// This is used by Primary API extension methods to call AWS SDK directly.
     /// </summary>
     /// <returns>The IAmazonDynamoDB client instance used by this builder.</returns>
-    internal IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+    public IAmazonDynamoDB GetDynamoDbClient() => _dynamoDbClient;
+
+    /// <summary>
+    /// Gets the FluentDynamoDbOptions for extension method access.
+    /// This is used by Primary API extension methods to access the hydrator registry.
+    /// </summary>
+    /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
+    public FluentDynamoDbOptions GetOptions() => _options;
+
+    /// <summary>
+    /// Replaces the DynamoDB client used for executing this request.
+    /// Used for tenant-specific STS credential scenarios where different clients
+    /// are needed for different tenants or security contexts.
+    /// </summary>
+    /// <param name="client">The scoped DynamoDB client to use.</param>
+    /// <returns>This builder instance for method chaining.</returns>
+    public DeleteItemRequestBuilder<TEntity> WithClient(IAmazonDynamoDB client)
+    {
+        _dynamoDbClient = client;
+        return this;
+    }
 
     /// <summary>
     /// Sets the condition expression on the builder.
@@ -197,10 +221,30 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// <returns>A configured DeleteItemRequest ready for execution.</returns>
     public DeleteItemRequest ToDeleteItemRequest()
     {
-        _req.ExpressionAttributeNames = _attrN.AttributeNames;
-        _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        if (_attrN.AttributeNames.Count > 0)
+        {
+            _req.ExpressionAttributeNames = _attrN.AttributeNames;
+        }
+        
+        if (_attrV.AttributeValues.Count > 0)
+        {
+            _req.ExpressionAttributeValues = _attrV.AttributeValues;
+        }
+        else if (_req.ExpressionAttributeValues == null)
+        {
+            _req.ExpressionAttributeValues = new Dictionary<string, AttributeValue>();
+        }
         return _req;
     }
+
+    // ITransactableDeleteBuilder implementation
+    string ITransactableDeleteBuilder.GetTableName() => _req.TableName;
+    Dictionary<string, AttributeValue> ITransactableDeleteBuilder.GetKey() => _req.Key;
+    string? ITransactableDeleteBuilder.GetConditionExpression() => _req.ConditionExpression;
+    Dictionary<string, string>? ITransactableDeleteBuilder.GetExpressionAttributeNames() => 
+        _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
+    Dictionary<string, AttributeValue>? ITransactableDeleteBuilder.GetExpressionAttributeValues() => 
+        _attrV.AttributeValues.Count > 0 ? _attrV.AttributeValues : null;
 
     /// <summary>
     /// Executes the DeleteItem operation asynchronously and returns the raw AWS SDK DeleteItemResponse.

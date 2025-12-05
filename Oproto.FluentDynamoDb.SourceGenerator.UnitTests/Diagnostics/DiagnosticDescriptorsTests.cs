@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
 
@@ -268,7 +268,7 @@ public class DiagnosticDescriptorsTests
         // Assert
         descriptor.Id.Should().Be("DYNDB101");
         descriptor.Title.ToString().Should().Be("Invalid TTL property type");
-        descriptor.MessageFormat.ToString().Should().Be("[TimeToLive] can only be used on DateTime or DateTimeOffset properties. Property '{0}' is type '{1}'");
+        descriptor.MessageFormat.ToString().Should().Be("[TimeToLive] can only be used on DateTime or DateTimeOffset properties, but property '{0}' is type '{1}'");
         descriptor.Category.Should().Be("DynamoDb");
         descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
         descriptor.IsEnabledByDefault.Should().BeTrue();
@@ -328,7 +328,7 @@ public class DiagnosticDescriptorsTests
         // Assert
         descriptor.Id.Should().Be("DYNDB105");
         descriptor.Title.ToString().Should().Be("Multiple TTL fields");
-        descriptor.MessageFormat.ToString().Should().Be("Entity '{0}' has multiple [TimeToLive] properties. Only one TTL field is allowed per entity");
+        descriptor.MessageFormat.ToString().Should().Be("Entity '{0}' has multiple [TimeToLive] properties, but only one TTL field is allowed per entity");
         descriptor.Category.Should().Be("DynamoDb");
         descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
         descriptor.IsEnabledByDefault.Should().BeTrue();
@@ -343,7 +343,7 @@ public class DiagnosticDescriptorsTests
         // Assert
         descriptor.Id.Should().Be("DYNDB106");
         descriptor.Title.ToString().Should().Be("Unsupported collection type");
-        descriptor.MessageFormat.ToString().Should().Be("Property '{0}' has unsupported collection type '{1}'. Use Dictionary<string, T>, HashSet<T>, or List<T>");
+        descriptor.MessageFormat.ToString().Should().Be("Property '{0}' has unsupported collection type '{1}'; use Dictionary<string, T>, HashSet<T>, or List<T> instead");
         descriptor.Category.Should().Be("DynamoDb");
         descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
         descriptor.IsEnabledByDefault.Should().BeTrue();

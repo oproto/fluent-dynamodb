@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
@@ -15,13 +15,69 @@ namespace Oproto.FluentDynamoDb.UnitTests.Expressions;
 /// </summary>
 public class ExpressionCombiningTests
 {
-    private class TestEntity
+    private class TestEntity : IEntityMetadataProvider
     {
         public string PartitionKey { get; set; } = string.Empty;
         public string SortKey { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public int Age { get; set; }
         public string Status { get; set; } = string.Empty;
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata
+            {
+                TableName = "TestTable",
+                Properties = new[]
+                {
+                    new PropertyMetadata
+                    {
+                        PropertyName = "PartitionKey",
+                        AttributeName = "PK",
+                        PropertyType = typeof(string),
+                        IsPartitionKey = true,
+                        IsSortKey = false,
+                        SupportedOperations = new[] { DynamoDbOperation.Equals }
+                    },
+                    new PropertyMetadata
+                    {
+                        PropertyName = "SortKey",
+                        AttributeName = "SK",
+                        PropertyType = typeof(string),
+                        IsPartitionKey = false,
+                        IsSortKey = true,
+                        SupportedOperations = new[] { DynamoDbOperation.Equals, DynamoDbOperation.BeginsWith }
+                    },
+                    new PropertyMetadata
+                    {
+                        PropertyName = "Name",
+                        AttributeName = "Name",
+                        PropertyType = typeof(string),
+                        IsPartitionKey = false,
+                        IsSortKey = false,
+                        SupportedOperations = new[] { DynamoDbOperation.Equals }
+                    },
+                    new PropertyMetadata
+                    {
+                        PropertyName = "Age",
+                        AttributeName = "Age",
+                        PropertyType = typeof(int),
+                        IsPartitionKey = false,
+                        IsSortKey = false,
+                        SupportedOperations = new[] { DynamoDbOperation.GreaterThan }
+                    },
+                    new PropertyMetadata
+                    {
+                        PropertyName = "Status",
+                        AttributeName = "Status",
+                        PropertyType = typeof(string),
+                        IsPartitionKey = false,
+                        IsSortKey = false,
+                        SupportedOperations = new[] { DynamoDbOperation.Equals }
+                    }
+                }
+            };
+        }
     }
 
     private EntityMetadata CreateTestEntityMetadata()

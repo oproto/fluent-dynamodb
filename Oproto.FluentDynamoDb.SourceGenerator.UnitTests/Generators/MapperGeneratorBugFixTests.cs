@@ -3,7 +3,7 @@
 // - Replaced type reference checks with semantic assertions
 // - Preserved bug-specific string checks that verify the fix
 
-using FluentAssertions;
+using AwesomeAssertions;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;

@@ -8,6 +8,19 @@
 
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        
+        <!-- Enable source generator output for debugging -->
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+        <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+        
+        <!-- Suppress AOT/trimming warnings - test code doesn't run in AOT mode -->
+        <!-- Suppress DYNDB021 (reserved words) - test entities intentionally use reserved words -->
+        <!-- Suppress DYNDB023 (complex types) - test entities intentionally use complex types for testing -->
+        <!-- Suppress SEC001 (encryption package) - test entities use [Encrypted] without KMS package for testing -->
+        <!-- Suppress nullable warnings in test code - test assertions handle null checks -->
+        <!-- Suppress CS1998 (async without await) - test methods may be async for consistency -->
+        <!-- Suppress CS0219 (unused variable) - test setup may declare unused variables -->
+        <NoWarn>$(NoWarn);IL2026;IL2060;IL2070;IL2072;IL2075;IL2090;IL3000;IL3050;DYNDB021;DYNDB023;SEC001;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8629;CS1998;CS0219;SYSLIB0053</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -23,16 +36,26 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         
-        <!-- Assertions - Using 7.x to avoid Apache 2.0 licensing issues -->
-        <PackageReference Include="FluentAssertions" Version="6.12.1" />
+        <!-- Assertions - Using AwesomeAssertions (fork of FluentAssertions) -->
+        <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
         
         <!-- AWS SDK for DynamoDB -->
         <PackageReference Include="AWSSDK.DynamoDBv2" Version="[4.0.0,5.0.0)" />
+        
+        <!-- Roslyn for source generator support -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     </ItemGroup>
 
     <ItemGroup>
         <!-- Reference to main library -->
         <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+        
+        <!-- Reference to Geospatial package for integration tests -->
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
+        
+        <!-- Reference to JSON serializer packages for JsonBlob integration tests -->
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.SystemTextJson\Oproto.FluentDynamoDb.SystemTextJson.csproj" />
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.NewtonsoftJson\Oproto.FluentDynamoDb.NewtonsoftJson.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -43,7 +66,7 @@
     </ItemGroup>
 
     <!-- Include source generator as analyzer for compile-time generation -->
-    <ItemGroup Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
         <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false" />

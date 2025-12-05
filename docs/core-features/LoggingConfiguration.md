@@ -2,7 +2,7 @@
 title: "Logging Configuration"
 category: "core-features"
 order: 70
-keywords: ["logging", "diagnostics", "debugging", "IDynamoDbLogger", "Microsoft.Extensions.Logging"]
+keywords: ["logging", "diagnostics", "debugging", "IDynamoDbLogger", "Microsoft.Extensions.Logging", "FluentDynamoDbOptions"]
 ---
 
 [Documentation](../README.md) > [Core Features](README.md) > Logging Configuration
@@ -28,10 +28,10 @@ By default, the library uses a no-op logger with zero overhead:
 
 ```csharp
 var client = new AmazonDynamoDBClient();
-var table = new DynamoDbTableBase(client, "products");
+var table = new ProductsTable(client, "products");
 
-// No logging - works exactly as before
-await table.Get
+// No logging - uses NoOpLogger.Instance by default
+await table.Get<Product>()
     .WithKey("pk", "product-123")
     .ExecuteAsync();
 ```
@@ -44,25 +44,32 @@ Install the adapter package:
 dotnet add package Oproto.FluentDynamoDb.Logging.Extensions
 ```
 
-Configure logging:
+Configure logging using `FluentDynamoDbOptions` and the `ToDynamoDbLogger()` extension method:
 
 ```csharp
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging.Extensions;
 using Microsoft.Extensions.Logging;
 
 // Create logger from ILoggerFactory
 var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
-var logger = loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger();
 
-// Or from ILogger directly
-var logger = serviceProvider.GetRequiredService<ILogger<ProductsTable>>()
-    .ToDynamoDbLogger();
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger());
 
-// Pass logger to table
-var table = new ProductsTable(client, "products", logger);
+var table = new ProductsTable(client, "products", options);
 
 // All operations are now logged
-await table.GetProductAsync("product-123");
+await table.Get<Product>().WithKey("pk", "product-123").ExecuteAsync();
+```
+
+Or use the factory extension directly:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<ProductsTable>());
+
+var table = new ProductsTable(client, "products", options);
 ```
 
 ### With Custom Logger
@@ -114,9 +121,11 @@ public class ConsoleLogger : IDynamoDbLogger
     }
 }
 
-// Use custom logger
-var logger = new ConsoleLogger();
-var table = new ProductsTable(client, "products", logger);
+// Use custom logger with FluentDynamoDbOptions
+var options = new FluentDynamoDbOptions()
+    .WithLogger(new ConsoleLogger());
+
+var table = new ProductsTable(client, "products", options);
 ```
 
 ## Configuration Examples
@@ -132,14 +141,16 @@ builder.Services.AddLogging(logging =>
     logging.SetMinimumLevel(LogLevel.Debug);
 });
 
-// Register table with logger
+// Register table with logger using FluentDynamoDbOptions
 builder.Services.AddSingleton<ProductsTable>(sp =>
 {
     var client = sp.GetRequiredService<IAmazonDynamoDB>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-    var logger = loggerFactory.CreateLogger<ProductsTable>().ToDynamoDbLogger();
     
-    return new ProductsTable(client, "products", logger);
+    var options = new FluentDynamoDbOptions()
+        .WithLogger(loggerFactory.ToDynamoDbLogger<ProductsTable>());
+    
+    return new ProductsTable(client, "products", options);
 });
 ```
 
@@ -147,6 +158,7 @@ builder.Services.AddSingleton<ProductsTable>(sp =>
 
 ```csharp
 using Amazon.Lambda.Core;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging;
 
 public class LambdaLogger : IDynamoDbLogger
@@ -179,11 +191,13 @@ public async Task<APIGatewayProxyResponse> FunctionHandler(
     APIGatewayProxyRequest request, 
     ILambdaContext context)
 {
-    var logger = new LambdaLogger(context);
-    var table = new ProductsTable(_dynamoDbClient, "products", logger);
+    var options = new FluentDynamoDbOptions()
+        .WithLogger(new LambdaLogger(context));
+    
+    var table = new ProductsTable(_dynamoDbClient, "products", options);
     
     // Operations are logged to CloudWatch
-    await table.GetProductAsync(productId);
+    await table.Get<Product>().WithKey("pk", productId).ExecuteAsync();
 }
 ```
 
@@ -191,6 +205,7 @@ public async Task<APIGatewayProxyResponse> FunctionHandler(
 
 ```csharp
 using Microsoft.Extensions.Logging;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging.Extensions;
 
 // Setup logging
@@ -201,75 +216,89 @@ using var loggerFactory = LoggerFactory.Create(builder =>
         .SetMinimumLevel(LogLevel.Debug);
 });
 
-var logger = loggerFactory.CreateLogger("DynamoDB").ToDynamoDbLogger();
-var table = new ProductsTable(client, "products", logger);
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger("DynamoDB"));
+
+var table = new ProductsTable(client, "products", options);
 
 // Operations are logged to console
-await table.GetProductAsync("product-123");
+await table.Get<Product>().WithKey("pk", "product-123").ExecuteAsync();
 ```
 
-## Logger Parameter in Constructors
+## FluentDynamoDbOptions Configuration
+
+### WithLogger() Method
+
+The `WithLogger()` method configures logging for all DynamoDB operations:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithLogger(logger);
+```
+
+Key characteristics:
+- Returns a new `FluentDynamoDbOptions` instance (immutable pattern)
+- Accepts `IDynamoDbLogger?` - pass `null` to use `NoOpLogger.Instance`
+- Can be chained with other configuration methods
+
+### ToDynamoDbLogger() Extension Methods
+
+The `Oproto.FluentDynamoDb.Logging.Extensions` package provides extension methods to convert Microsoft.Extensions.Logging types:
+
+```csharp
+// From ILogger
+ILogger logger = loggerFactory.CreateLogger<MyTable>();
+IDynamoDbLogger dynamoLogger = logger.ToDynamoDbLogger();
+
+// From ILoggerFactory with type category
+IDynamoDbLogger dynamoLogger = loggerFactory.ToDynamoDbLogger<MyTable>();
+
+// From ILoggerFactory with string category
+IDynamoDbLogger dynamoLogger = loggerFactory.ToDynamoDbLogger("MyCategory");
+```
+
+### Combining with Other Features
+
+Chain logging with other configuration options:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<MyTable>())
+    .AddGeospatial()
+    .WithEncryption(encryptor);
+
+var table = new MyTable(client, "my-table", options);
+```
+
+## Table Constructor Signature
 
 ### DynamoDbTableBase
 
-The base class accepts an optional logger parameter:
+The base class accepts an optional `FluentDynamoDbOptions` parameter:
 
 ```csharp
 public abstract class DynamoDbTableBase
 {
-    protected DynamoDbTableBase(
-        IAmazonDynamoDB dynamoDbClient, 
-        string tableName,
-        IDynamoDbLogger? logger = null)
-    {
-        // Logger defaults to NoOpLogger.Instance if null
-    }
+    // Without options - uses defaults
+    protected DynamoDbTableBase(IAmazonDynamoDB client, string tableName)
+    
+    // With options - preferred for configuring logging and other features
+    protected DynamoDbTableBase(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)
 }
 ```
 
 ### Custom Table Classes
 
-Pass the logger to the base class:
+Pass options to the base class:
 
 ```csharp
 public class ProductsTable : DynamoDbTableBase
 {
-    public ProductsTable(
-        IAmazonDynamoDB client, 
-        string tableName,
-        IDynamoDbLogger? logger = null)
-        : base(client, tableName, logger)
-    {
-    }
-    
-    // Existing constructor for backward compatibility
     public ProductsTable(IAmazonDynamoDB client, string tableName)
-        : base(client, tableName)
-    {
-    }
-}
-```
+        : base(client, tableName) { }
 
-### Generated Mapping Methods
-
-The source generator automatically adds logger parameters:
-
-```csharp
-// Generated code
-public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(
-    TSelf entity,
-    IDynamoDbLogger? logger = null) 
-    where TSelf : IDynamoDbEntity
-{
-    // Logging calls throughout
-}
-
-public static TSelf FromDynamoDb<TSelf>(
-    Dictionary<string, AttributeValue> item,
-    IDynamoDbLogger? logger = null) 
-    where TSelf : IDynamoDbEntity
-{
-    // Logging calls throughout
+    public ProductsTable(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)
+        : base(client, tableName, options) { }
 }
 ```
 
@@ -278,13 +307,10 @@ public static TSelf FromDynamoDb<TSelf>(
 ### Operation-Level Logging
 
 ```csharp
-await table.Query
-    .Where("pk = :pk")
-    .WithValue(":pk", "product-123")
-    .ExecuteAsync();
+await table.Query<Product>("pk = {0}", "product-123").ExecuteAsync();
 
 // Logs:
-// [Information] Executing Query on table products. KeyCondition: pk = :pk
+// [Information] Executing Query on table products. KeyCondition: pk = :p0
 // [Debug] Query parameters: 1 values
 // [Information] Query completed. ItemCount: 5, ConsumedCapacity: 2.5
 ```
@@ -292,7 +318,7 @@ await table.Query
 ### Mapping-Level Logging
 
 ```csharp
-var product = Product.FromDynamoDb<Product>(item, logger);
+var product = Product.FromDynamoDb<Product>(item);
 
 // Logs:
 // [Trace] Starting FromDynamoDb mapping for Product with 8 attributes
@@ -308,7 +334,7 @@ var product = Product.FromDynamoDb<Product>(item, logger);
 ```csharp
 try
 {
-    var product = Product.FromDynamoDb<Product>(invalidItem, logger);
+    var product = Product.FromDynamoDb<Product>(invalidItem);
 }
 catch (DynamoDbMappingException ex)
 {
@@ -354,7 +380,7 @@ See [Log Levels and Event IDs](LogLevelsAndEventIds.md) for filtering by specifi
 The library checks if logging is enabled before constructing log messages:
 
 ```csharp
-// Generated code
+// Internal implementation
 if (logger?.IsEnabled(LogLevel.Debug) == true)
 {
     // This code only runs if Debug logging is enabled
@@ -385,28 +411,58 @@ For production builds, disable logging entirely:
 
 See [Conditional Compilation](ConditionalCompilation.md) for details.
 
-## Backward Compatibility
+## Test Isolation
 
-### Existing Code Works Without Changes
+Each table instance has its own configuration, providing excellent test isolation:
 
 ```csharp
-// Old code - still works
-var table = new ProductsTable(client, "products");
+[Fact]
+public async Task Test_WithMockLogger()
+{
+    var mockLogger = new MockDynamoDbLogger();
+    var options = new FluentDynamoDbOptions()
+        .WithLogger(mockLogger);
 
-// New code - with logging
-var table = new ProductsTable(client, "products", logger);
+    var table = new ProductsTable(client, "test-products", options);
+    
+    // Test operations...
+    
+    Assert.True(mockLogger.LoggedMessages.Any());
+}
+
+[Fact]
+public async Task Test_WithoutLogging()
+{
+    // No logging configured - uses NoOpLogger by default
+    var table = new ProductsTable(client, "test-products");
+    
+    // Test operations...
+}
 ```
 
-### Optional Logger Parameters
+### Parallel Test Support
 
-All logger parameters are optional and default to `null`:
+Because configuration is instance-based rather than static, tests can run in parallel without interference:
 
 ```csharp
-// All of these work
-Product.ToDynamoDb(entity);
-Product.ToDynamoDb(entity, logger);
-Product.FromDynamoDb<Product>(item);
-Product.FromDynamoDb<Product>(item, logger);
+// These tests can run in parallel safely
+[Fact]
+public async Task Test1()
+{
+    var options = new FluentDynamoDbOptions()
+        .WithLogger(logger1);
+    var table = new ProductsTable(client, "table1", options);
+    // ...
+}
+
+[Fact]
+public async Task Test2()
+{
+    var options = new FluentDynamoDbOptions()
+        .WithLogger(logger2);
+    var table = new ProductsTable(client, "table2", options);
+    // ...
+}
 ```
 
 ## Troubleshooting
@@ -434,6 +490,7 @@ Product.FromDynamoDb<Product>(item, logger);
 
 ## Next Steps
 
+- **[Configuration Guide](Configuration.md)** - Complete configuration options
 - **[Log Levels and Event IDs](LogLevelsAndEventIds.md)** - Understand when each log level is used
 - **[Structured Logging](StructuredLogging.md)** - Query and analyze logs effectively
 - **[Conditional Compilation](ConditionalCompilation.md)** - Disable logging for production
@@ -442,6 +499,7 @@ Product.FromDynamoDb<Product>(item, logger);
 ---
 
 **See Also:**
+- [Configuration Guide](Configuration.md)
 - [Basic Operations](BasicOperations.md)
 - [Error Handling](../reference/ErrorHandling.md)
 - [Performance Optimization](../advanced-topics/PerformanceOptimization.md)
