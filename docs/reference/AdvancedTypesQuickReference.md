@@ -103,24 +103,69 @@ public DateTimeOffset? ExpiresAt { get; set; }
 
 ## JSON Blobs
 
+JSON serialization is configured at runtime via `FluentDynamoDbOptions`.
+
+### Entity Definition
+```csharp
+[DynamoDbTable("documents")]
+public partial class Document
+{
+    [PartitionKey]
+    [DynamoDbAttribute("doc_id")]
+    public string DocumentId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("content")]
+    [JsonBlob]
+    public ComplexObject Content { get; set; } = new();
+}
+```
+
 ### System.Text.Json (Recommended for AOT)
 ```csharp
-// Assembly-level configuration
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.SystemTextJson)]
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.SystemTextJson;
 
-[DynamoDbAttribute("content")]
-[JsonBlob]
-public ComplexObject Content { get; set; }
+// Default options
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();
+
+// Custom options
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(new JsonSerializerOptions 
+    { 
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+    });
+
+// AOT-compatible with JsonSerializerContext
+[JsonSerializable(typeof(ComplexObject))]
+internal partial class MyJsonContext : JsonSerializerContext { }
+
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson(MyJsonContext.Default);
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
 ```
 
 ### Newtonsoft.Json
 ```csharp
-[assembly: DynamoDbJsonSerializer(JsonSerializerType.NewtonsoftJson)]
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.NewtonsoftJson;
 
-[DynamoDbAttribute("content")]
-[JsonBlob]
-public ComplexObject Content { get; set; }
+// Default settings
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson();
+
+// Custom settings
+var options = new FluentDynamoDbOptions()
+    .WithNewtonsoftJson(new JsonSerializerSettings 
+    { 
+        NullValueHandling = NullValueHandling.Include 
+    });
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
 ```
+
+**Note**: If no JSON serializer is configured, a clear runtime exception is thrown explaining the requirement.
 
 ## Blob References (S3)
 
@@ -211,12 +256,14 @@ else
 | Error | Description | Solution |
 |-------|-------------|----------|
 | DYNDB101 | Invalid TTL type | Use DateTime or DateTimeOffset |
-| DYNDB102 | Missing JSON serializer | Add SystemTextJson or NewtonsoftJson package |
+| DYNDB102 | Missing JSON serializer package | Add SystemTextJson or NewtonsoftJson package and configure via `FluentDynamoDbOptions` |
 | DYNDB103 | Missing blob provider | Add BlobStorage.S3 package |
 | DYNDB104 | Incompatible attributes | Don't combine TTL with JsonBlob/BlobReference |
 | DYNDB105 | Multiple TTL fields | Only one TTL field per entity |
 | DYNDB106 | Unsupported collection | Use Dictionary, HashSet, or List |
 | DYNDB107 | Missing [DynamoDbEntity] | Nested map types need [DynamoDbEntity] |
+
+**Runtime Error**: If `[JsonBlob]` is used without configuring a JSON serializer via `FluentDynamoDbOptions`, an `InvalidOperationException` is thrown with a clear message explaining the requirement.
 
 ## AOT Compatibility
 
@@ -301,6 +348,12 @@ public partial class Document
     [TimeToLive]
     public DateTime? ExpiresAt { get; set; }
 }
+
+// Configure JSON serializer for [JsonBlob] properties
+var options = new FluentDynamoDbOptions()
+    .WithSystemTextJson();
+
+var table = new DocumentTable(dynamoDbClient, "documents", options);
 ```
 
 ## See Also

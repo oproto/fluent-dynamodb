@@ -80,7 +80,7 @@ public class TransactionGetResponse
         try
         {
             // Call the static abstract FromDynamoDb method directly (AOT-safe)
-            return TEntity.FromDynamoDb<TEntity>(item, logger: null);
+            return TEntity.FromDynamoDb<TEntity>(item, options: null);
         }
         catch (DynamoDbMappingException)
         {

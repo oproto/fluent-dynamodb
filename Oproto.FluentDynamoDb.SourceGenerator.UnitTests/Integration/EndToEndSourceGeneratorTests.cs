@@ -83,9 +83,9 @@ namespace TestNamespace
         // Verify entity implementation
         var entityCode = GetGeneratedSource(result, "TransactionEntity.g.cs");
         entityCode.Should().Contain("public partial class TransactionEntity : IDynamoDbEntity"); // Interface included for better UX
-        entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null)");
-        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null)");
-        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, IDynamoDbLogger? logger = null)");
+        entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)");
+        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)");
+        entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)");
         entityCode.Should().Contain("public static string GetPartitionKey(Dictionary<string, AttributeValue> item)");
         entityCode.Should().Contain("public static bool MatchesEntity(Dictionary<string, AttributeValue> item)");
         entityCode.Should().Contain("public static EntityMetadata GetEntityMetadata()");
@@ -322,8 +322,8 @@ namespace TestNamespace
 
             // Verify basic structure is present
             entityCode.Should().Contain("public partial class ComplexTypesEntity : IDynamoDbEntity"); // Interface included for better UX
-            entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, IDynamoDbLogger? logger = null)");
-            entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, IDynamoDbLogger? logger = null)");
+            entityCode.Should().Contain("public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)");
+            entityCode.Should().Contain("public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)");
         }
     }
 

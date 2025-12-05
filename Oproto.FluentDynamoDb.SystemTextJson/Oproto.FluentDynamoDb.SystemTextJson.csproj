@@ -35,4 +35,8 @@
         <PackageReference Include="System.Text.Json" Version="[8.0.5,9.0.0)" />
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+    </ItemGroup>
+
 </Project>

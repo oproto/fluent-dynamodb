@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Amazon.DynamoDBv2;
+using AwesomeAssertions;
 using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
@@ -1134,5 +1135,205 @@ public class ParallelConfigurationTests
         Assert.Empty(errors);
         Assert.Same(originalLogger, table.GetLoggerForTest());
         Assert.Same(originalLogger, originalOptions.Logger);
+    }
+}
+
+
+/// <summary>
+/// Tests for IJsonBlobSerializer configuration and null check behavior.
+/// Validates that JSON serializer is properly configured and null checks work correctly.
+/// </summary>
+public class JsonBlobSerializerTests
+{
+    /// <summary>
+    /// Validates that WithJsonSerializer returns a new instance without modifying the original.
+    /// </summary>
+    [Fact]
+    public void WithJsonSerializer_ReturnsNewInstance_WithoutModifyingOriginal()
+    {
+        // Arrange
+        var mockSerializer = Substitute.For<IJsonBlobSerializer>();
+        var original = new FluentDynamoDbOptions();
+        var originalSerializer = original.JsonSerializer;
+        
+        // Act
+        var modified = original.WithJsonSerializer(mockSerializer);
+        
+        // Assert
+        original.JsonSerializer.Should().Be(originalSerializer);
+        modified.JsonSerializer.Should().Be(mockSerializer);
+        original.Should().NotBeSameAs(modified);
+    }
+    
+    /// <summary>
+    /// Validates that WithJsonSerializer(null) sets JsonSerializer to null.
+    /// </summary>
+    [Fact]
+    public void WithJsonSerializer_Null_SetsJsonSerializerToNull()
+    {
+        // Arrange
+        var mockSerializer = Substitute.For<IJsonBlobSerializer>();
+        var options = new FluentDynamoDbOptions().WithJsonSerializer(mockSerializer);
+        
+        // Act
+        var modified = options.WithJsonSerializer(null);
+        
+        // Assert
+        modified.JsonSerializer.Should().BeNull();
+    }
+    
+    /// <summary>
+    /// Validates that default FluentDynamoDbOptions has null JsonSerializer.
+    /// </summary>
+    [Fact]
+    public void DefaultOptions_HasNullJsonSerializer()
+    {
+        // Arrange & Act
+        var options = new FluentDynamoDbOptions();
+        
+        // Assert
+        options.JsonSerializer.Should().BeNull();
+    }
+    
+    /// <summary>
+    /// Validates that chaining WithJsonSerializer preserves other options.
+    /// </summary>
+    [Fact]
+    public void ChainedWithJsonSerializer_PreservesOtherOptions()
+    {
+        // Arrange
+        var logger = Substitute.For<IDynamoDbLogger>();
+        var blobProvider = Substitute.For<IBlobStorageProvider>();
+        var encryptor = Substitute.For<IFieldEncryptor>();
+        var jsonSerializer = Substitute.For<IJsonBlobSerializer>();
+        
+        // Act
+        var options = new FluentDynamoDbOptions()
+            .WithLogger(logger)
+            .WithBlobStorage(blobProvider)
+            .WithEncryption(encryptor)
+            .WithJsonSerializer(jsonSerializer);
+        
+        // Assert
+        options.Logger.Should().BeSameAs(logger);
+        options.BlobStorageProvider.Should().BeSameAs(blobProvider);
+        options.FieldEncryptor.Should().BeSameAs(encryptor);
+        options.JsonSerializer.Should().BeSameAs(jsonSerializer);
+    }
+    
+    /// <summary>
+    /// Validates that other With* methods preserve JsonSerializer.
+    /// </summary>
+    [Fact]
+    public void OtherWithMethods_PreserveJsonSerializer()
+    {
+        // Arrange
+        var jsonSerializer = Substitute.For<IJsonBlobSerializer>();
+        var options = new FluentDynamoDbOptions().WithJsonSerializer(jsonSerializer);
+        
+        // Act - chain other With* methods
+        var modified = options
+            .WithLogger(Substitute.For<IDynamoDbLogger>())
+            .WithBlobStorage(Substitute.For<IBlobStorageProvider>())
+            .WithEncryption(Substitute.For<IFieldEncryptor>());
+        
+        // Assert - JsonSerializer should be preserved
+        modified.JsonSerializer.Should().BeSameAs(jsonSerializer);
+    }
+    
+    /// <summary>
+    /// Validates that accessing JsonSerializer when null does not throw.
+    /// The exception should only be thrown when trying to use it for serialization.
+    /// </summary>
+    [Fact]
+    public void AccessingNullJsonSerializer_DoesNotThrow()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+        
+        // Act & Assert - accessing null JsonSerializer should not throw
+        var serializer = options.JsonSerializer;
+        serializer.Should().BeNull();
+    }
+    
+    /// <summary>
+    /// Validates that IJsonBlobSerializer.Serialize can be called when configured.
+    /// </summary>
+    [Fact]
+    public void JsonSerializer_Serialize_WhenConfigured_Works()
+    {
+        // Arrange
+        var mockSerializer = Substitute.For<IJsonBlobSerializer>();
+        mockSerializer.Serialize(Arg.Any<object>()).Returns("{\"test\":\"value\"}");
+        var options = new FluentDynamoDbOptions().WithJsonSerializer(mockSerializer);
+        
+        // Act
+        var result = options.JsonSerializer!.Serialize(new { test = "value" });
+        
+        // Assert
+        result.Should().Be("{\"test\":\"value\"}");
+        mockSerializer.Received(1).Serialize(Arg.Any<object>());
+    }
+    
+    /// <summary>
+    /// Validates that IJsonBlobSerializer.Deserialize can be called when configured.
+    /// </summary>
+    [Fact]
+    public void JsonSerializer_Deserialize_WhenConfigured_Works()
+    {
+        // Arrange
+        var mockSerializer = Substitute.For<IJsonBlobSerializer>();
+        var expectedResult = new TestJsonObject { Name = "test" };
+        mockSerializer.Deserialize<TestJsonObject>(Arg.Any<string>()).Returns(expectedResult);
+        var options = new FluentDynamoDbOptions().WithJsonSerializer(mockSerializer);
+        
+        // Act
+        var result = options.JsonSerializer!.Deserialize<TestJsonObject>("{\"Name\":\"test\"}");
+        
+        // Assert
+        result.Should().BeSameAs(expectedResult);
+        mockSerializer.Received(1).Deserialize<TestJsonObject>(Arg.Any<string>());
+    }
+    
+    /// <summary>
+    /// Validates that calling Serialize on null JsonSerializer throws NullReferenceException.
+    /// This simulates what happens when generated code tries to use JsonSerializer without configuration.
+    /// </summary>
+    [Fact]
+    public void JsonSerializer_Serialize_WhenNull_ThrowsNullReferenceException()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+        
+        // Act & Assert
+        // When JsonSerializer is null and code tries to call Serialize, it throws NullReferenceException
+        // The generated code should check for null and throw InvalidOperationException with a helpful message
+        var action = () => options.JsonSerializer!.Serialize(new { test = "value" });
+        action.Should().Throw<NullReferenceException>();
+    }
+    
+    /// <summary>
+    /// Validates that calling Deserialize on null JsonSerializer throws NullReferenceException.
+    /// This simulates what happens when generated code tries to use JsonSerializer without configuration.
+    /// </summary>
+    [Fact]
+    public void JsonSerializer_Deserialize_WhenNull_ThrowsNullReferenceException()
+    {
+        // Arrange
+        var options = new FluentDynamoDbOptions();
+        
+        // Act & Assert
+        // When JsonSerializer is null and code tries to call Deserialize, it throws NullReferenceException
+        // The generated code should check for null and throw InvalidOperationException with a helpful message
+        var action = () => options.JsonSerializer!.Deserialize<TestJsonObject>("{\"Name\":\"test\"}");
+        action.Should().Throw<NullReferenceException>();
+    }
+    
+    /// <summary>
+    /// Test class for JSON serialization tests.
+    /// </summary>
+    private class TestJsonObject
+    {
+        public string? Name { get; set; }
     }
 }

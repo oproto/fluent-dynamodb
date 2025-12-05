@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.SourceGenerator;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
@@ -71,13 +72,14 @@ namespace TestNamespace
         testEntityType.GetProperty("Name")!.SetValue(entity, "Test Name");
 
         var logger = new TestLogger(LogLevel.Trace);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var toDynamoDbMethod = testEntityType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .FirstOrDefault(m => m.Name == "ToDynamoDb" && m.IsGenericMethod);
         
         var genericMethod = toDynamoDbMethod.MakeGenericMethod(testEntityType);
-        var item = genericMethod.Invoke(null, new[] { entity, logger });
+        var item = genericMethod.Invoke(null, new object?[] { entity, options });
         Assert.NotNull(item);
 
         // Assert - Entry logging
@@ -110,10 +112,11 @@ namespace TestNamespace
         testEntityType.GetProperty("Name")!.SetValue(entity, "Test Name");
 
         var logger = new TestLogger(LogLevel.Debug);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static);
-        toDynamoDbMethod.Invoke(null, new[] { entity, logger });
+        toDynamoDbMethod.Invoke(null, new object?[] { entity, options });
 
         // Assert - Property mapping logs
         var propertyLogs = logger.LogEntries
@@ -144,10 +147,11 @@ namespace TestNamespace
         testEntityType.GetProperty("Id")!.SetValue(entity, "test-123");
 
         var logger = new TestLogger(LogLevel.Trace);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static);
-        toDynamoDbMethod.Invoke(null, new[] { entity, logger });
+        toDynamoDbMethod.Invoke(null, new object?[] { entity, options });
 
         // Assert - Structured properties in logs
         var entryLog = logger.GetLogEntry(LogLevel.Trace, LogEventIds.MappingToDynamoDbStart);
@@ -192,11 +196,12 @@ namespace TestNamespace
         testEntityType.GetProperty("Metadata")!.SetValue(entity, metadata);
 
         var logger = new TestLogger(LogLevel.Debug);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        toDynamoDbMethod.Invoke(null, new[] { entity, logger });
+        toDynamoDbMethod.Invoke(null, new object?[] { entity, options });
 
         // Assert - Set conversion logging
         var setLog = logger.LogEntries
@@ -228,11 +233,12 @@ namespace TestNamespace
         };
 
         var logger = new TestLogger(LogLevel.Trace);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var fromDynamoDbMethod = GetGenericMethod(testEntityType, "FromDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var entity = fromDynamoDbMethod.Invoke(null, new object[] { item, logger });
+        var entity = fromDynamoDbMethod.Invoke(null, new object?[] { item, options });
         Assert.NotNull(entity);
 
         // Assert - Entry logging
@@ -265,11 +271,12 @@ namespace TestNamespace
         };
 
         var logger = new TestLogger(LogLevel.Trace);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var fromDynamoDbMethod = GetGenericMethod(testEntityType, "FromDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var entity = fromDynamoDbMethod.Invoke(null, new object[] { item, logger });
+        var entity = fromDynamoDbMethod.Invoke(null, new object?[] { item, options });
         Assert.NotNull(entity);
 
         // Assert - Property mapping logs
@@ -309,11 +316,12 @@ namespace TestNamespace
         };
 
         var logger = new TestLogger(LogLevel.Trace);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var fromDynamoDbMethod = GetGenericMethod(testEntityType, "FromDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        fromDynamoDbMethod.Invoke(null, new object[] { item, logger });
+        fromDynamoDbMethod.Invoke(null, new object?[] { item, options });
 
         // Assert - Structured properties in logs
         var entryLog = logger.GetLogEntry(LogLevel.Trace, LogEventIds.MappingFromDynamoDbStart);
@@ -356,11 +364,12 @@ namespace TestNamespace
         };
 
         var logger = new TestLogger(LogLevel.Debug);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var fromDynamoDbMethod = GetGenericMethod(testEntityType, "FromDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        fromDynamoDbMethod.Invoke(null, new object[] { item, logger });
+        fromDynamoDbMethod.Invoke(null, new object?[] { item, options });
 
         // Assert - Set conversion logging
         var setLog = logger.LogEntries
@@ -419,11 +428,12 @@ namespace TestNamespace
         };
 
         var logger = new TestLogger(LogLevel.Error);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var fromDynamoDbMethod = GetGenericMethod(errorEntityType, "FromDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var exception = Record.Exception(() => fromDynamoDbMethod.Invoke(null, new object[] { item, logger }));
+        var exception = Record.Exception(() => fromDynamoDbMethod.Invoke(null, new object?[] { item, options }));
 
         // Assert - Exception should be logged
         if (exception != null)
@@ -479,11 +489,12 @@ namespace TestNamespace
         };
 
         var logger = new TestLogger(LogLevel.Error);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var fromDynamoDbMethod = GetGenericMethod(entityType, "FromDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var exception = Record.Exception(() => fromDynamoDbMethod.Invoke(null, new object[] { item, logger }));
+        var exception = Record.Exception(() => fromDynamoDbMethod.Invoke(null, new object?[] { item, options }));
 
         // Assert - If conversion error occurs and is logged, verify context
         if (exception != null && logger.LogEntries.Any(e => e.Level == LogLevel.Error))
@@ -515,11 +526,12 @@ namespace TestNamespace
         testEntityType.GetProperty("Id")!.SetValue(entity, null);
 
         var logger = new TestLogger(LogLevel.Error);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var exception = Record.Exception(() => toDynamoDbMethod.Invoke(null, new[] { entity, logger }));
+        var exception = Record.Exception(() => toDynamoDbMethod.Invoke(null, new object?[] { entity, options }));
 
         // Assert - If error is logged, verify structured properties
         if (exception != null && logger.LogEntries.Any(e => e.Level == LogLevel.Error))
@@ -651,11 +663,12 @@ namespace TestNamespace
         testEntityType.GetProperty("Name")!.SetValue(entity, "Test Name");
 
         var noOpLogger = NoOpLogger.Instance;
+        var options = new FluentDynamoDbOptions().WithLogger(noOpLogger);
 
         // Act & Assert - Should not throw
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var exception = Record.Exception(() => toDynamoDbMethod.Invoke(null, new object[] { entity, noOpLogger }));
+        var exception = Record.Exception(() => toDynamoDbMethod.Invoke(null, new object?[] { entity, options }));
         
         Assert.Null(exception);
     }
@@ -676,11 +689,12 @@ namespace TestNamespace
         };
 
         var noOpLogger = NoOpLogger.Instance;
+        var options = new FluentDynamoDbOptions().WithLogger(noOpLogger);
 
         // Act & Assert - Should not throw
         var fromDynamoDbMethod = GetGenericMethod(testEntityType, "FromDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var exception = Record.Exception(() => fromDynamoDbMethod.Invoke(null, new object[] { item, noOpLogger }));
+        var exception = Record.Exception(() => fromDynamoDbMethod.Invoke(null, new object?[] { item, options }));
         
         Assert.Null(exception);
     }
@@ -701,11 +715,12 @@ namespace TestNamespace
         testEntityType.GetProperty("Name")!.SetValue(entity, "Test Name");
 
         var noOpLogger = NoOpLogger.Instance;
+        var options = new FluentDynamoDbOptions().WithLogger(noOpLogger);
 
         // Act
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        toDynamoDbMethod.Invoke(null, new object[] { entity, noOpLogger });
+        toDynamoDbMethod.Invoke(null, new object?[] { entity, options });
 
         // Assert - NoOpLogger should not enable any log level
         Assert.False(noOpLogger.IsEnabled(LogLevel.Trace));
@@ -732,11 +747,12 @@ namespace TestNamespace
         testEntityType.GetProperty("Name")!.SetValue(entity, "Test Name");
 
         var noOpLogger = NoOpLogger.Instance;
+        var options = new FluentDynamoDbOptions().WithLogger(noOpLogger);
 
         // Act
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var item = toDynamoDbMethod.Invoke(null, new object[] { entity, noOpLogger }) 
+        var item = toDynamoDbMethod.Invoke(null, new object?[] { entity, options }) 
             as Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>;
         
         // Assert - Should produce correct output despite NoOpLogger
@@ -792,11 +808,12 @@ namespace TestNamespace
         testEntityType.GetProperty("Name")!.SetValue(entity, "Test Name");
 
         var logger = new TestLogger(LogLevel.Trace);
+        var options = new FluentDynamoDbOptions().WithLogger(logger);
 
         // Act
         var toDynamoDbMethod = GetGenericMethod(testEntityType, "ToDynamoDb", BindingFlags.Public | BindingFlags.Static); 
 
-        var item = toDynamoDbMethod.Invoke(null, new object[] { entity, logger }) 
+        var item = toDynamoDbMethod.Invoke(null, new object?[] { entity, options }) 
             as Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>;
         
         // Assert - Should produce correct output

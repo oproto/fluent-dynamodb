@@ -218,7 +218,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// </example>
     public PutItemRequestBuilder<TEntity> WithItem<T>(T entity) where T : class, TEntity, IDynamoDbEntity
     {
-        _req.Item = T.ToDynamoDb(entity, _logger);
+        _req.Item = T.ToDynamoDb(entity, _options);
         return this;
     }
 

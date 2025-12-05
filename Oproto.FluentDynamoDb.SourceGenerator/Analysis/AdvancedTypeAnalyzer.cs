@@ -39,18 +39,7 @@ internal class AdvancedTypeAnalyzer
             info.ElementType = ExtractElementType(property.PropertyType);
         }
 
-        // Detect JSON serializer type if JsonBlob is used
-        if (info.IsJsonBlob)
-        {
-            var jsonSerializerInfo = JsonSerializerDetector.DetectJsonSerializer(semanticModel.Compilation);
-            info.JsonSerializerType = jsonSerializerInfo.SerializerToUse switch
-            {
-                JsonSerializerType.SystemTextJson => "SystemTextJson",
-                JsonSerializerType.NewtonsoftJson => "NewtonsoftJson",
-                _ => null
-            };
-        }
-
+    
         return info;
     }
 

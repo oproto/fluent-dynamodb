@@ -125,7 +125,7 @@ internal static class HydratorGenerator
         sb.AppendLine($"                item,");
         sb.AppendLine($"                blobProvider,");
         sb.AppendLine($"                fieldEncryptor: null,");
-        sb.AppendLine($"                logger: null,");
+        sb.AppendLine($"                options: null,");
         sb.AppendLine($"                cancellationToken);");
         sb.AppendLine("        }");
         sb.AppendLine();
@@ -158,7 +158,7 @@ internal static class HydratorGenerator
         sb.AppendLine($"                items,");
         sb.AppendLine($"                blobProvider,");
         sb.AppendLine($"                fieldEncryptor: null,");
-        sb.AppendLine($"                logger: null,");
+        sb.AppendLine($"                options: null,");
         sb.AppendLine($"                cancellationToken);");
         sb.AppendLine("        }");
     }
