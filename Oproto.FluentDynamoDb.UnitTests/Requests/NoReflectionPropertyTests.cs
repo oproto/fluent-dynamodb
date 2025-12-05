@@ -49,10 +49,13 @@ public class NoReflectionPropertyTests
     };
 
     // Paths to exclude from reflection checks - only build artifacts, not source code
+    // Include both forward and back slashes for cross-platform compatibility (Linux/macOS vs Windows)
     private static readonly string[] ExcludedBuildArtifactPaths = new[]
     {
         "/obj/",
-        "/bin/"
+        "/bin/",
+        "\\obj\\",
+        "\\bin\\"
     };
     
     // Files with AOT-UNSAFE reflection that need architectural changes to fix
