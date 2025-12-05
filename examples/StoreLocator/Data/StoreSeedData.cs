@@ -98,5 +98,5 @@ public static class StoreSeedData
     /// <summary>
     /// Gets the total count of seed stores.
     /// </summary>
-    public static int StoreCount => 52;
+    public static int StoreCount => 51;
 }

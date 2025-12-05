@@ -1,188 +1,131 @@
 # Implementation Plan
 
-- [x] 1. Clean up OperationSamples entities
-  - [x] 1.1 Update Order.cs - remove `[DynamoDbEntity]`, `CreatePk()`, `CreateSk()`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove the `CreatePk(string orderId)` static method
-    - Remove the `CreateSk()` static method
-    - Keep the `MetaSk` constant for documentation
-    - _Requirements: 1.1, 1.2, 3.1_
-  - [x] 1.2 Update OrderLine.cs - remove `[DynamoDbEntity]`, `CreatePk()`, `CreateSk()`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove the `CreatePk(string orderId)` static method
-    - Remove the `CreateSk(string lineId)` static method
-    - _Requirements: 1.1, 1.2, 3.1_
-  - [x] 1.3 Verify OperationSamples builds successfully
-    - Run `dotnet build examples/OperationSamples/OperationSamples.csproj`
-    - _Requirements: 4.3_
+- [x] 1. Refactor TodoList Example
+  - [x] 1.1 Update TodoItem entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "TodoItems")]` is present
+    - Ensure `[Scannable]` attribute is present
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.1, 7.1, 7.3_
+  - [x] 1.2 Refactor TodoTable to minimal partial class
+    - Remove manually defined `Scan<TEntity>()` method
+    - Remove manual repository methods that duplicate generated functionality
+    - Keep only constructor and table name constant
+    - _Requirements: 1.1, 2.1, 2.2_
+  - [x] 1.3 Update Program.cs to use generated entity accessor methods
+    - Replace `table.Scan<TodoItem>()` with `table.TodoItems.Scan()`
+    - Replace `table.PutAsync(item)` with `table.TodoItems.PutAsync(item)`
+    - Replace `table.Get<TodoItem>().WithKey(...).GetItemAsync()` with `table.TodoItems.GetAsync(id)`
+    - Replace `table.Update<TodoItem>()` with `table.TodoItems.Update(id)`
+    - Replace `table.Delete<TodoItem>()` with `table.TodoItems.Delete(id)`
+    - Use lambda expressions for queries where applicable
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 7.2_
 
-- [x] 1A. Configure key prefixes and update OperationSamples to use generated key methods
-  - [x] 1A.1 Add key prefix configuration to Order.cs
-    - Add `Prefix = "ORDER"` to `[PartitionKey]` attribute
-    - _Requirements: 3.2_
-  - [x] 1A.2 Add key prefix configuration to OrderLine.cs
-    - Add `Prefix = "ORDER"` to `[PartitionKey]` attribute
-    - Add `Prefix = "LINE"` to `[SortKey]` attribute
-    - _Requirements: 3.2_
-  - [x] 1A.3 Update OperationSamples sample files to use generated key methods
-    - Replace `$"ORDER#{orderId}"` with `Order.Keys.Pk(orderId)` or `OrderLine.Keys.Pk(orderId)`
-    - Replace `$"LINE#{lineId}"` with `OrderLine.Keys.Sk(lineId)`
-    - Replace `Order.MetaSk` with direct string `"META"` where appropriate
-    - _Requirements: 3.2_
-  - [x] 1A.4 Verify OperationSamples builds successfully
-    - Run `dotnet build examples/OperationSamples/OperationSamples.csproj`
-    - _Requirements: 4.3_
-
-- [x] 2. Clean up InvoiceManager entities
-  - [x] 2.1 Update Customer.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`, `CreatePk()`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - Remove the `CreatePk(string customerId)` static method
-    - Keep the `ProfileSk` constant for documentation
-    - _Requirements: 1.1, 1.2, 2.1, 3.1_
-  - [x] 2.2 Update Invoice.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`, `CreateSk()`, `CreateSkPrefix()`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - Remove the `CreateSk(string invoiceNumber)` static method
-    - Remove the `CreateSkPrefix(string invoiceNumber)` static method
-    - _Requirements: 1.1, 1.2, 2.1, 3.1_
-  - [x] 2.3 Update InvoiceLine.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`, `CreateSk()`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - Remove the `CreateSk(string invoiceNumber, int lineNumber)` static method
-    - _Requirements: 1.1, 1.2, 2.1, 3.1_
-  - [x] 2.4 Verify InvoiceManager builds successfully
-    - Run `dotnet build examples/InvoiceManager/InvoiceManager.csproj`
-    - _Requirements: 4.3_
-
-- [x] 2A. Configure key prefixes and update InvoiceManager to use generated key methods
-  - [x] 2A.1 Add key prefix configuration to Customer.cs
-    - Add `Prefix = "CUSTOMER"` to `[PartitionKey]` attribute
-    - _Requirements: 3.2_
-  - [x] 2A.2 Add key prefix configuration to Invoice.cs
-    - Add `Prefix = "CUSTOMER"` to `[PartitionKey]` attribute (shares pk with Customer)
-    - Add `Prefix = "INVOICE"` to `[SortKey]` attribute
-    - _Requirements: 3.2_
-  - [x] 2A.3 Add key prefix configuration to InvoiceLine.cs
-    - Add `Prefix = "CUSTOMER"` to `[PartitionKey]` attribute (shares pk with Customer)
-    - Note: InvoiceLine has complex sort key "INVOICE#{invoiceNumber}#LINE#{lineNumber}" - keep manual construction in usage code
-    - _Requirements: 3.2_
-  - [x] 2A.4 Update InvoiceManager table and usage files to use generated key methods
-    - Replace `Customer.CreatePk(customerId)` with `Customer.Keys.Pk(customerId)`
-    - Replace `Invoice.CreateSk(invoiceNumber)` with `Invoice.Keys.Sk(invoiceNumber)`
-    - Replace `Invoice.CreateSkPrefix(invoiceNumber)` with `Invoice.Keys.Sk(invoiceNumber)` (same value)
-    - Keep `InvoiceLine.CreateSk()` usage as-is (complex multi-part key)
-    - Replace `Customer.ProfileSk` with direct string `"PROFILE"` where appropriate
-    - _Requirements: 3.2_
-  - [x] 2A.5 Verify InvoiceManager builds successfully
-    - Run `dotnet build examples/InvoiceManager/InvoiceManager.csproj`
-    - _Requirements: 4.3_
-
-- [x] 3. Clean up StoreLocator entities
-  - [x] 3.1 Update StoreGeoHash.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - _Requirements: 1.1, 1.2, 2.1_
-  - [x] 3.2 Update StoreH3.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - _Requirements: 1.1, 1.2, 2.1_
-  - [x] 3.3 Update StoreS2.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - _Requirements: 1.1, 1.2, 2.1_
-  - [x] 3.4 Verify StoreLocator builds successfully
-    - Run `dotnet build examples/StoreLocator/StoreLocator.csproj`
-    - _Requirements: 4.3_
-
-- [x] 4. Clean up TransactionDemo entities
-  - [x] 4.1 Update Account.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`, `CreatePk()`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - Remove the `CreatePk(string accountId)` static method
-    - Keep the `ProfileSk` constant for documentation
-    - _Requirements: 1.1, 1.2, 2.1, 3.1_
-  - [x] 4.2 Update TransactionRecord.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`, `CreateSk()`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - Remove the `CreateSk(DateTime timestamp, string txnId)` static method
-    - Keep the `TxnSkPrefix` constant for documentation
-    - _Requirements: 1.1, 1.2, 2.1, 3.1_
-  - [x] 4.3 Verify TransactionDemo builds successfully
-    - Run `dotnet build examples/TransactionDemo/TransactionDemo.csproj`
-    - _Requirements: 4.3_
-
-- [x] 4A. Configure key prefixes and update TransactionDemo to use generated key methods
-  - [x] 4A.1 Add key prefix configuration to Account.cs
-    - Add `Prefix = "ACCOUNT"` to `[PartitionKey]` attribute
-    - _Requirements: 3.2_
-  - [x] 4A.2 Add key prefix configuration to TransactionRecord.cs
-    - Add `Prefix = "ACCOUNT"` to `[PartitionKey]` attribute (shares pk with Account)
-    - Note: TransactionRecord has complex sort key "TXN#{timestamp}#{txnId}" - keep manual construction in usage code
-    - _Requirements: 3.2_
-  - [x] 4A.3 Update TransactionDemo table and usage files to use generated key methods
-    - Replace `Account.CreatePk(accountId)` with `Account.Keys.Pk(accountId)`
-    - Keep `TransactionRecord.CreateSk()` usage as-is (complex multi-part key with timestamp formatting)
-    - Replace `Account.ProfileSk` with direct string `"PROFILE"` where appropriate
-    - _Requirements: 3.2_
-  - [x] 4A.4 Verify TransactionDemo builds successfully
-    - Run `dotnet build examples/TransactionDemo/TransactionDemo.csproj`
-    - _Requirements: 4.3_
-
-- [x] 5. Clean up TodoList entity
-  - [x] 5.1 Update TodoItem.cs - remove `[DynamoDbEntity]`, `: IDynamoDbEntity`
-    - Remove the `[DynamoDbEntity]` attribute
-    - Remove `: IDynamoDbEntity` from class declaration
-    - _Requirements: 1.1, 1.2, 2.1_
-  - [x] 5.2 Verify TodoList builds successfully
-    - Run `dotnet build examples/TodoList/TodoList.csproj`
-    - _Requirements: 4.3_
-
-- [x] 6. Checkpoint - Verify all example projects build
+- [x] 2. Checkpoint - Verify TodoList compiles and runs
   - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 7. Clean up documentation files
-  - [x] 7.1 Fix docs/DOCUMENTATION_CHANGELOG.md
-    - Update the example that shows `[DynamoDbEntity]` combined with `[DynamoDbTable]` and `: IDynamoDbEntity`
-    - _Requirements: 5.1, 5.2_
-  - [x] 7.2 Review and fix docs/examples/ProjectionModelsExamples.md
-    - Remove `[DynamoDbEntity]` from table entity examples
-    - _Requirements: 5.1_
-  - [x] 7.3 Review and fix docs/core-features/ProjectionModels.md
-    - Remove `[DynamoDbEntity]` from table entity examples
-    - _Requirements: 5.1_
-  - [x] 7.4 Review and fix docs/advanced-topics/FieldLevelSecurity.md
-    - Remove `[DynamoDbEntity]` from table entity examples
-    - _Requirements: 5.1_
+- [x] 3. Refactor TransactionDemo Example
+  - [x] 3.1 Update Account entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "Accounts")]` is present
+    - Ensure `[Scannable]` attribute is present
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.2, 8.1_
+  - [x] 3.2 Update TransactionRecord entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "Transactions")]` is present
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.2_
+  - [x] 3.3 Refactor TransactionDemoTable to minimal partial class
+    - Remove manually defined `Scan<TEntity>()` method
+    - Remove manual repository methods that duplicate generated functionality
+    - Keep only constructor and table name constant
+    - _Requirements: 1.2, 2.1, 2.2_
+  - [x] 3.4 Update Program.cs and TransactionComparison.cs to use generated entity accessor methods
+    - Replace generic methods with entity accessor methods
+    - Use lambda expressions for queries
+    - Use `table.Accounts.GetAsync(pk, sk)` instead of `table.Get<Account>().WithKey(...).GetItemAsync()`
+    - Use `table.Accounts.Query(x => ...)` instead of `table.Query<Account>().Where(...)`
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 8.2, 8.3_
 
-- [x] 8. Update changelog files
-  - [x] 8.1 Update CHANGELOG.md with entry for example entity cleanup
-    - Add entry describing the cleanup of example entities
-    - _Requirements: 6.1_
-  - [x] 8.2 Update docs/DOCUMENTATION_CHANGELOG.md with before/after patterns
-    - Add entry with before/after code patterns for documentation corrections
-    - _Requirements: 6.2_
+- [x] 4. Checkpoint - Verify TransactionDemo compiles and runs
+  - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 9. Create steering document for entity definition patterns
-  - [x] 9.1 Create .kiro/steering/entity-patterns.md
-    - Document correct entity attribute usage patterns
-    - Clarify that `[DynamoDbEntity]` is only for nested map types
-    - Clarify that `: IDynamoDbEntity` is auto-generated
-    - Document key prefix configuration using `[PartitionKey(Prefix = "...")]` and `[SortKey(Prefix = "...")]`
-    - Document that `Keys.Pk()` and `Keys.Sk()` methods are source-generated and use the configured prefixes
-    - Clarify that manual `CreatePk`/`CreateSk` methods should not be written - use generated `Keys` class instead
-    - _Requirements: 1.3, 3.2, 5.3_
+- [x] 5. Refactor InvoiceManager Example
+  - [x] 5.1 Update Customer entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "Customers")]` is present
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.3_
+  - [x] 5.2 Update Invoice entity to use proper attributes and RelatedEntity
+    - Ensure `[GenerateEntityProperty(Name = "Invoices")]` is present
+    - Ensure `[DynamoDbTable("invoices", IsDefault = true)]` marks Invoice as default entity
+    - Ensure `[RelatedEntity]` attribute properly defines relationship with InvoiceLine
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.3, 5.2_
+  - [x] 5.3 Update InvoiceLine entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "InvoiceLines")]` is present
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.3_
+  - [x] 5.4 Refactor InvoiceTable to minimal partial class
+    - Remove manually defined `Scan<TEntity>()` method
+    - Remove manual `GetCompleteInvoiceAsync` method that manually assembles composite entities
+    - Remove other manual repository methods that duplicate generated functionality
+    - Keep only constructor and table name constant
+    - _Requirements: 1.3, 2.1, 2.2, 2.3_
+  - [x] 5.5 Update Program.cs to use generated entity accessor methods and ToCompoundEntityAsync
+    - Replace manual composite entity assembly with `ToCompoundEntityAsync<Invoice>()`
+    - Replace generic methods with entity accessor methods
+    - Use lambda expressions for queries
+    - Use `table.Invoices.PutAsync(invoice)` instead of `table.PutAsync(invoice)`
+    - Use `table.Customers.GetAsync(pk, sk)` instead of `table.Get<Customer>().WithKey(...).GetItemAsync()`
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.3_
 
-- [x] 10. Documentation sweep for key prefix configuration
-  - [x] 10.1 Review docs/reference/AttributeReference.md for key prefix documentation
-    - Ensure `[PartitionKey]` and `[SortKey]` `Prefix` and `Separator` properties are documented
-    - _Requirements: 5.3_
-  - [x] 10.2 Review docs/getting-started for key configuration examples
-    - Ensure getting started guides show proper key prefix configuration
-    - _Requirements: 5.3_
-  - [x] 10.3 Review docs/core-features for key builder usage
-    - Ensure documentation shows using `Entity.Keys.Pk()` instead of manual key construction
-    - _Requirements: 5.3_
+- [x] 6. Checkpoint - Verify InvoiceManager compiles and runs
+  - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 11. Final Checkpoint - Verify all builds pass
+- [x] 7. Refactor StoreLocator Example - GeoHash Table
+  - [x] 7.1 Update StoreGeoHash entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "Stores")]` is present
+    - Ensure `[Scannable]` attribute is present
+    - Ensure geospatial attributes are correctly configured
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.4, 6.1_
+  - [x] 7.2 Refactor StoreGeoHashTable to minimal partial class
+    - Remove manually defined `Scan<TEntity>()` method
+    - Remove manual `AddStoreAsync` method - use generated `PutAsync`
+    - Remove manual `FindStoresNearbyAsync` method - use generated spatial query extensions
+    - Remove manual `GetAllStoresAsync` and `DeleteAllStoresAsync` methods
+    - Keep only constructor, table name constant, and geospatial options
+    - _Requirements: 1.4, 2.1, 2.2, 6.3_
+
+- [x] 8. Refactor StoreLocator Example - S2 Table
+  - [x] 8.1 Update StoreS2 entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "Stores")]` is present
+    - Ensure `[Scannable]` attribute is present
+    - Ensure S2 geospatial attributes are correctly configured
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.4, 6.1_
+  - [x] 8.2 Refactor StoreS2Table to minimal partial class
+    - Remove manually defined `Scan<TEntity>()` method
+    - Remove manual repository methods
+    - Keep only constructor, table name constant, and geospatial options
+    - _Requirements: 1.4, 2.1, 2.2, 6.3_
+
+- [x] 9. Refactor StoreLocator Example - H3 Table
+  - [x] 9.1 Update StoreH3 entity to use proper attributes
+    - Ensure `[GenerateEntityProperty(Name = "Stores")]` is present
+    - Ensure `[Scannable]` attribute is present
+    - Ensure H3 geospatial attributes are correctly configured
+    - Ensure class is declared as `partial`
+    - _Requirements: 1.4, 6.1_
+  - [x] 9.2 Refactor StoreH3Table to minimal partial class
+    - Remove manually defined `Scan<TEntity>()` method
+    - Remove manual repository methods
+    - Keep only constructor, table name constant, and geospatial options
+    - _Requirements: 1.4, 2.1, 2.2, 6.3_
+
+- [x] 10. Update StoreLocator Program.cs to use generated methods
+  - Replace manual store creation with `table.Stores.PutAsync(store)`
+  - Replace manual spatial queries with generated spatial query extensions
+  - Use lambda expressions for queries where applicable
+  - _Requirements: 3.1, 3.3, 4.1, 6.2_
+
+- [x] 11. Final Checkpoint - Verify all examples compile and run
   - Ensure all tests pass, ask the user if questions arise.

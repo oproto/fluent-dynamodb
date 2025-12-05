@@ -34,7 +34,7 @@ namespace InvoiceManager.Entities;
 /// with a single Query operation using the partition key.
 /// </para>
 /// </remarks>
-[DynamoDbTable("invoices", IsDefault = true)]
+[DynamoDbTable("invoices")]
 [GenerateEntityProperty(Name = "Customers")]
 [Scannable]
 public partial class Customer

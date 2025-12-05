@@ -30,8 +30,8 @@ namespace StoreLocator.Entities;
 /// </para>
 /// </remarks>
 [DynamoDbTable("stores-s2", IsDefault = true)]
+[GenerateEntityProperty(Name = "Stores")]
 [Scannable]
-[GenerateAccessors]
 public partial class StoreS2
 {
     /// <summary>

@@ -4,9 +4,12 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Examples.Shared;
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
+using Oproto.FluentDynamoDb.Pagination;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 using StoreLocator.Data;
-using StoreLocator.Tables;
+using StoreLocator.Entities;
 
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║         StoreLocator - FluentDynamoDb Example              ║");
@@ -47,13 +50,22 @@ if (missingGsis.Count > 0)
 }
 
 // Create table instances
-var geoHashTable = new StoreGeoHashTable(client);
-var s2Table = new StoreS2Table(client);
-var h3Table = new StoreH3Table(client);
+var geoHashTable = new StoresGeohashTable(client);
+var s2Table = new StoresS2Table(client);
+var h3Table = new StoresH3Table(client);
 
 // Default search location: San Francisco downtown
 var defaultCenter = new GeoLocation(37.7879, -122.4074);
 var defaultRadius = 5.0; // km
+
+// Query statistics tracking
+int lastGeoHashQueryCount = 0;
+int lastS2QueryCount = 0;
+int lastH3QueryCount = 0;
+int lastS2Level = 0;
+int lastH3Resolution = 0;
+string lastS2CellSize = "";
+string lastH3CellSize = "";
 
 // Main menu loop
 while (true)
@@ -112,20 +124,20 @@ async Task EnsureTablesExistAsync()
     // GeoHash table with GSI for spatial queries
     var created1 = await DynamoDbSetup.EnsureTableExistsAsync(
         client,
-        StoreGeoHashTable.TableName,
+        StoresGeohashTable.TableName,
         "pk",
         "sk",
         new List<GlobalSecondaryIndex>
         {
             CreateGsi("geohash-index", "geohash_cell", "pk")
         });
-    if (created1) ConsoleHelpers.ShowSuccess($"Created table '{StoreGeoHashTable.TableName}'");
+    if (created1) ConsoleHelpers.ShowSuccess($"Created table '{StoresGeohashTable.TableName}'");
 
     // S2 table with GSIs for multi-precision spatial queries
     // Fine (Level 14, ~284m), Medium (Level 12, ~1.1km), Coarse (Level 10, ~4.5km)
     var created2 = await DynamoDbSetup.EnsureTableExistsAsync(
         client,
-        StoreS2Table.TableName,
+        StoresS2Table.TableName,
         "pk",
         "sk",
         new List<GlobalSecondaryIndex>
@@ -134,13 +146,13 @@ async Task EnsureTablesExistAsync()
             CreateGsi("s2-index-medium", "s2_cell_l12", "pk"),
             CreateGsi("s2-index-coarse", "s2_cell_l10", "pk")
         });
-    if (created2) ConsoleHelpers.ShowSuccess($"Created table '{StoreS2Table.TableName}' with 3 precision GSIs");
+    if (created2) ConsoleHelpers.ShowSuccess($"Created table '{StoresS2Table.TableName}' with 3 precision GSIs");
 
     // H3 table with GSIs for multi-precision spatial queries
     // Fine (Resolution 9, ~174m), Medium (Resolution 7, ~1.2km), Coarse (Resolution 5, ~8.5km)
     var created3 = await DynamoDbSetup.EnsureTableExistsAsync(
         client,
-        StoreH3Table.TableName,
+        StoresH3Table.TableName,
         "pk",
         "sk",
         new List<GlobalSecondaryIndex>
@@ -149,7 +161,7 @@ async Task EnsureTablesExistAsync()
             CreateGsi("h3-index-medium", "h3_cell_r7", "pk"),
             CreateGsi("h3-index-coarse", "h3_cell_r5", "pk")
         });
-    if (created3) ConsoleHelpers.ShowSuccess($"Created table '{StoreH3Table.TableName}' with 3 precision GSIs");
+    if (created3) ConsoleHelpers.ShowSuccess($"Created table '{StoresH3Table.TableName}' with 3 precision GSIs");
 }
 
 /// <summary>
@@ -163,7 +175,7 @@ async Task<List<string>> ValidateGSIsAsync()
     try
     {
         // Check S2 table GSIs
-        var s2Description = await client.DescribeTableAsync(StoreS2Table.TableName);
+        var s2Description = await client.DescribeTableAsync(StoresS2Table.TableName);
         var s2Gsis = s2Description.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
         if (!s2Gsis.Contains("s2-index-fine")) issues.Add("S2 table missing s2-index-fine");
         if (!s2Gsis.Contains("s2-index-medium")) issues.Add("S2 table missing s2-index-medium");
@@ -177,7 +189,7 @@ async Task<List<string>> ValidateGSIsAsync()
     try
     {
         // Check H3 table GSIs
-        var h3Description = await client.DescribeTableAsync(StoreH3Table.TableName);
+        var h3Description = await client.DescribeTableAsync(StoresH3Table.TableName);
         var h3Gsis = h3Description.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
         if (!h3Gsis.Contains("h3-index-fine")) issues.Add("H3 table missing h3-index-fine");
         if (!h3Gsis.Contains("h3-index-medium")) issues.Add("H3 table missing h3-index-medium");
@@ -191,7 +203,7 @@ async Task<List<string>> ValidateGSIsAsync()
     try
     {
         // Check GeoHash table GSI
-        var geoHashDescription = await client.DescribeTableAsync(StoreGeoHashTable.TableName);
+        var geoHashDescription = await client.DescribeTableAsync(StoresGeohashTable.TableName);
         var geoHashGsis = geoHashDescription.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
         if (!geoHashGsis.Contains("geohash-index")) issues.Add("GeoHash table missing geohash-index");
     }
@@ -255,9 +267,9 @@ async Task RecreateTablesAsync()
     ConsoleHelpers.ShowInfo("Deleting existing tables...");
     
     // Delete all three tables
-    await DeleteTableIfExistsAsync(StoreGeoHashTable.TableName);
-    await DeleteTableIfExistsAsync(StoreS2Table.TableName);
-    await DeleteTableIfExistsAsync(StoreH3Table.TableName);
+    await DeleteTableIfExistsAsync(StoresGeohashTable.TableName);
+    await DeleteTableIfExistsAsync(StoresS2Table.TableName);
+    await DeleteTableIfExistsAsync(StoresH3Table.TableName);
     
     Console.WriteLine();
     ConsoleHelpers.ShowInfo("Recreating tables with correct GSIs...");
@@ -291,14 +303,14 @@ GlobalSecondaryIndex CreateGsi(string indexName, string pkName, string skName)
 }
 
 /// <summary>
-/// Seeds store data into all three tables.
+/// Seeds store data into all three tables using generated entity accessor methods.
 /// </summary>
 async Task SeedDataAsync()
 {
     ConsoleHelpers.ShowSection("Seed Store Data");
     
-    // Check if data already exists
-    var existingGeoHash = await geoHashTable.GetAllStoresAsync();
+    // Check if data already exists using generated Scan accessor
+    var existingGeoHash = await geoHashTable.Stores.Scan().ToListAsync();
     if (existingGeoHash.Count > 0)
     {
         Console.Write($"Tables already contain {existingGeoHash.Count} stores. Reseed? (y/n): ");
@@ -310,9 +322,9 @@ async Task SeedDataAsync()
         }
         
         ConsoleHelpers.ShowInfo("Clearing existing data...");
-        await geoHashTable.DeleteAllStoresAsync();
-        await s2Table.DeleteAllStoresAsync();
-        await h3Table.DeleteAllStoresAsync();
+        await DeleteAllGeoHashStoresAsync();
+        await DeleteAllS2StoresAsync();
+        await DeleteAllH3StoresAsync();
     }
 
     ConsoleHelpers.ShowInfo($"Seeding {StoreSeedData.StoreCount} stores in the San Francisco Bay Area...");
@@ -320,10 +332,43 @@ async Task SeedDataAsync()
     int count = 0;
     foreach (var (storeId, name, address, location) in StoreSeedData.GetStores())
     {
-        // Add to all three tables
-        await geoHashTable.AddStoreAsync(storeId, name, address, location);
-        await s2Table.AddStoreAsync(storeId, name, address, location);
-        await h3Table.AddStoreAsync(storeId, name, address, location);
+        // PREFERRED: Using generated entity accessor PutAsync method
+        // Create GeoHash store entity
+        var geoHashStore = new StoreGeoHash
+        {
+            StoreId = storeId,
+            Name = name,
+            Address = address,
+            Location = location,
+            Category = "retail"
+        };
+        await geoHashTable.Stores.PutAsync(geoHashStore);
+
+        // Create S2 store entity (with multi-precision location fields)
+        var s2Store = new StoreS2
+        {
+            StoreId = storeId,
+            Name = name,
+            Address = address,
+            Location = location,
+            LocationMedium = location,
+            LocationCoarse = location,
+            Category = "retail"
+        };
+        await s2Table.Stores.PutAsync(s2Store);
+        
+        // Create H3 store entity (with multi-precision location fields)
+        var h3Store = new StoreH3
+        {
+            StoreId = storeId,
+            Name = name,
+            Address = address,
+            Location = location,
+            LocationMedium = location,
+            LocationCoarse = location,
+            Category = "retail"
+        };
+        await h3Table.Stores.PutAsync(h3Store);
         
         count++;
         if (count % 10 == 0)
@@ -337,7 +382,43 @@ async Task SeedDataAsync()
 }
 
 /// <summary>
-/// Searches for stores using GeoHash indexing.
+/// Deletes all stores from a GeoHash table using generated entity accessor methods.
+/// </summary>
+async Task DeleteAllGeoHashStoresAsync()
+{
+    var stores = await geoHashTable.Stores.Scan().ToListAsync();
+    foreach (var store in stores)
+    {
+        await geoHashTable.Stores.DeleteAsync(store.StoreId, store.Category);
+    }
+}
+
+/// <summary>
+/// Deletes all stores from an S2 table using generated entity accessor methods.
+/// </summary>
+async Task DeleteAllS2StoresAsync()
+{
+    var stores = await s2Table.Stores.Scan().ToListAsync();
+    foreach (var store in stores)
+    {
+        await s2Table.Stores.DeleteAsync(store.StoreId, store.Category);
+    }
+}
+
+/// <summary>
+/// Deletes all stores from an H3 table using generated entity accessor methods.
+/// </summary>
+async Task DeleteAllH3StoresAsync()
+{
+    var stores = await h3Table.Stores.Scan().ToListAsync();
+    foreach (var store in stores)
+    {
+        await h3Table.Stores.DeleteAsync(store.StoreId, store.Category);
+    }
+}
+
+/// <summary>
+/// Searches for stores using GeoHash indexing with generated spatial query extensions.
 /// </summary>
 async Task SearchGeoHashAsync()
 {
@@ -348,19 +429,38 @@ async Task SearchGeoHashAsync()
     ConsoleHelpers.ShowInfo($"Searching within {radius}km of ({center.Latitude:F4}, {center.Longitude:F4})...");
     
     var startTime = DateTime.UtcNow;
-    var results = await geoHashTable.FindStoresNearbyAsync(center, radius);
+    
+    // PREFERRED: Using SpatialQueryAsync extension method on the table
+    var result = await geoHashTable.SpatialQueryAsync<StoreGeoHash>(
+        locationSelector: store => store.Location,
+        spatialIndexType: SpatialIndexType.GeoHash,
+        precision: 7,
+        center: center,
+        radiusKilometers: radius,
+        queryBuilder: (query, cell, pagination) => query
+            .Where($"geohash_cell BETWEEN {0} AND {1}", cell.Split(':')[0], cell.Split(':')[1])
+    );
+    
     var elapsed = DateTime.UtcNow - startTime;
+    lastGeoHashQueryCount = result.TotalCellsQueried;
+    
+    // Transform results to include distance
+    var resultsWithDistance = result.Items
+        .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center)))
+        .OrderBy(r => r.DistanceKm)
+        .ToList();
     
     DisplaySearchResults(
-        results.Select(r => (r.Store.Name, r.Store.Address, r.DistanceKm, r.Store.Location.SpatialIndex ?? "N/A")).ToList(),
+        resultsWithDistance.Select(r => (r.Store.Name, r.Store.Address, r.DistanceKm, r.Store.Location.SpatialIndex ?? "N/A")).ToList(),
         "GeoHash",
-        geoHashTable.LastQueryCount,
+        lastGeoHashQueryCount,
         elapsed,
         "Precision: 7 (~76m cells)");
 }
 
 /// <summary>
-/// Searches for stores using S2 indexing.
+/// Searches for stores using S2 indexing with generated spatial query extensions.
+/// Uses adaptive precision selection based on search radius.
 /// </summary>
 async Task SearchS2Async()
 {
@@ -370,20 +470,55 @@ async Task SearchS2Async()
     
     ConsoleHelpers.ShowInfo($"Searching within {radius}km of ({center.Latitude:F4}, {center.Longitude:F4})...");
     
+    // Select appropriate S2 level based on radius
+    lastS2Level = StoresS2Table.SelectS2Level(radius);
+    var (s2IndexName, s2CellAttribute) = lastS2Level switch
+    {
+        14 => ("s2-index-fine", "s2_cell_l14"),
+        12 => ("s2-index-medium", "s2_cell_l12"),
+        _ => ("s2-index-coarse", "s2_cell_l10")
+    };
+    lastS2CellSize = lastS2Level switch
+    {
+        14 => "~284m",
+        12 => "~1.1km",
+        _ => "~4.5km"
+    };
+    
     var startTime = DateTime.UtcNow;
-    var results = await s2Table.FindStoresNearbyAsync(center, radius);
+    
+    // Using SpatialQueryAsync with UsingIndex to query the appropriate GSI
+    var result = await s2Table.SpatialQueryAsync<StoreS2>(
+        locationSelector: store => store.Location,
+        spatialIndexType: SpatialIndexType.S2,
+        precision: lastS2Level,
+        center: center,
+        radiusKilometers: radius,
+        queryBuilder: (query, cell, pagination) => query
+            .UsingIndex(s2IndexName)
+            .Where($"{s2CellAttribute} = {{0}}", cell)
+    );
+    
     var elapsed = DateTime.UtcNow - startTime;
+    lastS2QueryCount = result.TotalCellsQueried;
+    
+    // Transform results to include distance and cell ID
+    var resultsWithDistance = result.Items
+        .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center), CellId: store.Location.SpatialIndex ?? "N/A"))
+        .OrderBy(r => r.DistanceKm)
+        .ToList();
     
     DisplaySearchResults(
-        results.Select(r => (r.Store.Name, r.Store.Address, r.DistanceKm, r.CellId)).ToList(),
+        resultsWithDistance.Select(r => (r.Store.Name, r.Store.Address, r.DistanceKm, r.CellId)).ToList(),
         "S2",
-        s2Table.LastQueryCount,
+        lastS2QueryCount,
         elapsed,
-        $"Level: {s2Table.LastS2Level}, Cell Size: {s2Table.LastCellSize} (adaptive)");
+        $"Level: {lastS2Level}, Cell Size: {lastS2CellSize} (adaptive)");
 }
 
 /// <summary>
-/// Searches for stores using H3 indexing.
+/// Searches for stores using H3 indexing with generated spatial query extensions.
+/// Uses adaptive precision selection based on search radius.
 /// </summary>
 async Task SearchH3Async()
 {
@@ -393,16 +528,50 @@ async Task SearchH3Async()
     
     ConsoleHelpers.ShowInfo($"Searching within {radius}km of ({center.Latitude:F4}, {center.Longitude:F4})...");
     
+    // Select appropriate H3 resolution based on radius
+    lastH3Resolution = StoresH3Table.SelectH3Resolution(radius);
+    var (h3IndexName, h3CellAttribute) = lastH3Resolution switch
+    {
+        9 => ("h3-index-fine", "h3_cell_r9"),
+        7 => ("h3-index-medium", "h3_cell_r7"),
+        _ => ("h3-index-coarse", "h3_cell_r5")
+    };
+    lastH3CellSize = lastH3Resolution switch
+    {
+        9 => "~174m",
+        7 => "~1.2km",
+        _ => "~8.5km"
+    };
+    
     var startTime = DateTime.UtcNow;
-    var results = await h3Table.FindStoresNearbyAsync(center, radius);
+    
+    // Using SpatialQueryAsync with UsingIndex to query the appropriate GSI
+    var result = await h3Table.SpatialQueryAsync<StoreH3>(
+        locationSelector: store => store.Location,
+        spatialIndexType: SpatialIndexType.H3,
+        precision: lastH3Resolution,
+        center: center,
+        radiusKilometers: radius,
+        queryBuilder: (query, cell, pagination) => query
+            .UsingIndex(h3IndexName)
+            .Where($"{h3CellAttribute} = {{0}}", cell)
+    );
+    
     var elapsed = DateTime.UtcNow - startTime;
+    lastH3QueryCount = result.TotalCellsQueried;
+    
+    // Transform results to include distance and cell ID
+    var resultsWithDistance = result.Items
+        .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center), CellId: store.Location.SpatialIndex ?? "N/A"))
+        .OrderBy(r => r.DistanceKm)
+        .ToList();
     
     DisplaySearchResults(
-        results.Select(r => (r.Store.Name, r.Store.Address, r.DistanceKm, r.CellId)).ToList(),
+        resultsWithDistance.Select(r => (r.Store.Name, r.Store.Address, r.DistanceKm, r.CellId)).ToList(),
         "H3",
-        h3Table.LastQueryCount,
+        lastH3QueryCount,
         elapsed,
-        $"Resolution: {h3Table.LastH3Resolution}, Cell Size: {h3Table.LastCellSize} (adaptive)");
+        $"Resolution: {lastH3Resolution}, Cell Size: {lastH3CellSize} (adaptive)");
 }
 
 /// <summary>
@@ -419,18 +588,87 @@ async Task CompareAllAsync()
     
     // GeoHash search
     var startGeoHash = DateTime.UtcNow;
-    var geoHashResults = await geoHashTable.FindStoresNearbyAsync(center, radius);
+    var geoHashResult = await geoHashTable.SpatialQueryAsync<StoreGeoHash>(
+        locationSelector: store => store.Location,
+        spatialIndexType: SpatialIndexType.GeoHash,
+        precision: 7,
+        center: center,
+        radiusKilometers: radius,
+        queryBuilder: (query, cell, pagination) => query
+            .Where($"geohash_cell BETWEEN {0} AND {1}", cell.Split(':')[0], cell.Split(':')[1])
+    );
     var elapsedGeoHash = DateTime.UtcNow - startGeoHash;
+    lastGeoHashQueryCount = geoHashResult.TotalCellsQueried;
+    var geoHashResults = geoHashResult.Items
+        .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center)))
+        .OrderBy(r => r.DistanceKm)
+        .ToList();
     
-    // S2 search
+    // S2 search with adaptive precision
+    lastS2Level = StoresS2Table.SelectS2Level(radius);
+    var (s2IndexNameCompare, s2CellAttributeCompare) = lastS2Level switch
+    {
+        14 => ("s2-index-fine", "s2_cell_l14"),
+        12 => ("s2-index-medium", "s2_cell_l12"),
+        _ => ("s2-index-coarse", "s2_cell_l10")
+    };
+    lastS2CellSize = lastS2Level switch
+    {
+        14 => "~284m",
+        12 => "~1.1km",
+        _ => "~4.5km"
+    };
+    
     var startS2 = DateTime.UtcNow;
-    var s2Results = await s2Table.FindStoresNearbyAsync(center, radius);
+    var s2Result = await s2Table.SpatialQueryAsync<StoreS2>(
+        locationSelector: store => store.Location,
+        spatialIndexType: SpatialIndexType.S2,
+        precision: lastS2Level,
+        center: center,
+        radiusKilometers: radius,
+        queryBuilder: (query, cell, pagination) => query
+            .UsingIndex(s2IndexNameCompare)
+            .Where($"{s2CellAttributeCompare} = {{0}}", cell)
+    );
     var elapsedS2 = DateTime.UtcNow - startS2;
+    lastS2QueryCount = s2Result.TotalCellsQueried;
+    var s2Results = s2Result.Items
+        .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center), CellId: store.Location.SpatialIndex ?? "N/A"))
+        .OrderBy(r => r.DistanceKm)
+        .ToList();
+
+    // H3 search with adaptive precision
+    lastH3Resolution = StoresH3Table.SelectH3Resolution(radius);
+    var (h3IndexNameCompare, h3CellAttributeCompare) = lastH3Resolution switch
+    {
+        9 => ("h3-index-fine", "h3_cell_r9"),
+        7 => ("h3-index-medium", "h3_cell_r7"),
+        _ => ("h3-index-coarse", "h3_cell_r5")
+    };
+    lastH3CellSize = lastH3Resolution switch
+    {
+        9 => "~174m",
+        7 => "~1.2km",
+        _ => "~8.5km"
+    };
     
-    // H3 search
     var startH3 = DateTime.UtcNow;
-    var h3Results = await h3Table.FindStoresNearbyAsync(center, radius);
+    var h3Result = await h3Table.SpatialQueryAsync<StoreH3>(
+        locationSelector: store => store.Location,
+        spatialIndexType: SpatialIndexType.H3,
+        precision: lastH3Resolution,
+        center: center,
+        radiusKilometers: radius,
+        queryBuilder: (query, cell, pagination) => query
+            .UsingIndex(h3IndexNameCompare)
+            .Where($"{h3CellAttributeCompare} = {{0}}", cell)
+    );
     var elapsedH3 = DateTime.UtcNow - startH3;
+    lastH3QueryCount = h3Result.TotalCellsQueried;
+    var h3Results = h3Result.Items
+        .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center), CellId: store.Location.SpatialIndex ?? "N/A"))
+        .OrderBy(r => r.DistanceKm)
+        .ToList();
     
     // Display comparison table with cell size information
     Console.WriteLine("┌──────────────────────────────────────────────────────────────────────────────┐");
@@ -438,17 +676,17 @@ async Task CompareAllAsync()
     Console.WriteLine("├─────────────┬──────────┬──────────┬──────────┬─────────────┬────────────────┤");
     Console.WriteLine("│ Index Type  │ Results  │ Queries  │ Time     │ Precision   │ Cell Size      │");
     Console.WriteLine("├─────────────┼──────────┼──────────┼──────────┼─────────────┼────────────────┤");
-    Console.WriteLine($"│ GeoHash     │ {geoHashResults.Count,8} │ {geoHashTable.LastQueryCount,8} │ {elapsedGeoHash.TotalMilliseconds,6:F0}ms │ P7 (fixed)  │ ~76m           │");
-    Console.WriteLine($"│ S2          │ {s2Results.Count,8} │ {s2Table.LastQueryCount,8} │ {elapsedS2.TotalMilliseconds,6:F0}ms │ L{s2Table.LastS2Level} (adapt) │ {s2Table.LastCellSize,-14} │");
-    Console.WriteLine($"│ H3          │ {h3Results.Count,8} │ {h3Table.LastQueryCount,8} │ {elapsedH3.TotalMilliseconds,6:F0}ms │ R{h3Table.LastH3Resolution} (adapt) │ {h3Table.LastCellSize,-14} │");
+    Console.WriteLine($"│ GeoHash     │ {geoHashResults.Count,8} │ {lastGeoHashQueryCount,8} │ {elapsedGeoHash.TotalMilliseconds,6:F0}ms │ P7 (fixed)  │ ~76m           │");
+    Console.WriteLine($"│ S2          │ {s2Results.Count,8} │ {lastS2QueryCount,8} │ {elapsedS2.TotalMilliseconds,6:F0}ms │ L{lastS2Level} (adapt) │ {lastS2CellSize,-14} │");
+    Console.WriteLine($"│ H3          │ {h3Results.Count,8} │ {lastH3QueryCount,8} │ {elapsedH3.TotalMilliseconds,6:F0}ms │ R{lastH3Resolution} (adapt) │ {lastH3CellSize,-14} │");
     Console.WriteLine("└─────────────┴──────────┴──────────┴──────────┴─────────────┴────────────────┘");
     Console.WriteLine();
-    
+
     // Show adaptive precision explanation
     Console.WriteLine("Adaptive Precision Selection:");
     Console.WriteLine($"  Search radius: {radius}km");
-    Console.WriteLine($"  S2: Level {s2Table.LastS2Level} ({s2Table.LastCellSize} cells) - " + GetPrecisionReason(radius, "S2"));
-    Console.WriteLine($"  H3: Resolution {h3Table.LastH3Resolution} ({h3Table.LastCellSize} cells) - " + GetPrecisionReason(radius, "H3"));
+    Console.WriteLine($"  S2: Level {lastS2Level} ({lastS2CellSize} cells) - " + GetPrecisionReason(radius, "S2"));
+    Console.WriteLine($"  H3: Resolution {lastH3Resolution} ({lastH3CellSize} cells) - " + GetPrecisionReason(radius, "H3"));
     Console.WriteLine();
     
     // Show top 5 results from each
@@ -493,7 +731,7 @@ string GetPrecisionReason(double radiusKm, string indexType)
 }
 
 /// <summary>
-/// Clears all store data from all tables.
+/// Clears all store data from all tables using generated entity accessor methods.
 /// </summary>
 async Task ClearDataAsync()
 {
@@ -509,9 +747,10 @@ async Task ClearDataAsync()
     
     ConsoleHelpers.ShowInfo("Clearing data from all tables...");
     
-    await geoHashTable.DeleteAllStoresAsync();
-    await s2Table.DeleteAllStoresAsync();
-    await h3Table.DeleteAllStoresAsync();
+    // PREFERRED: Using generated entity accessor methods for scan and delete
+    await DeleteAllGeoHashStoresAsync();
+    await DeleteAllS2StoresAsync();
+    await DeleteAllH3StoresAsync();
     
     ConsoleHelpers.ShowSuccess("All store data cleared");
 }
