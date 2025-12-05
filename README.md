@@ -6,7 +6,16 @@
 
 [![Build](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml)
 [![Tests](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml)
-[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
+
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg?label=FluentDynamoDb)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Streams.svg?label=Streams)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Streams/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Geospatial.svg?label=Geospatial)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Geospatial/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.FluentResults.svg?label=FluentResults)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.FluentResults/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Encryption.Kms.svg?label=Encryption.Kms)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Encryption.Kms/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.BlobStorage.S3.svg?label=BlobStorage.S3)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.BlobStorage.S3/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Logging.Extensions.svg?label=Logging.Extensions)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Logging.Extensions/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.SystemTextJson.svg?label=SystemTextJson)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.SystemTextJson/)
+[![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.NewtonsoftJson.svg?label=NewtonsoftJson)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.NewtonsoftJson/)
 
 A modern, fluent-style API wrapper for Amazon DynamoDB that combines automatic code generation with type-safe operations. Built for .NET 8+, this library eliminates boilerplate through source generation while providing an intuitive, expression-based syntax for all DynamoDB operations. Whether you're building serverless applications, microservices, or enterprise systems, Oproto.FluentDynamoDb delivers a developer-friendly experience without sacrificing performance or flexibility.
 
