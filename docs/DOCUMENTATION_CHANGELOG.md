@@ -59,6 +59,152 @@ Entries may be categorized as:
 
 ## [2025-12-05]
 
+### File: Multiple documentation files - Release 0.8.0 Documentation Corrections
+
+**Category:** Pattern Update - Installation Instructions and API Patterns
+
+**Summary:** Corrected installation instructions and API patterns across documentation for the 0.8.0 release. This includes removing references to non-existent separate packages and updating property-based API patterns to method-based patterns.
+
+---
+
+#### Part 1: Installation Instruction Corrections
+
+**Files corrected:**
+- `README.md` (Quick Start section)
+- `docs/getting-started/QuickStart.md`
+- `docs/getting-started/Installation.md`
+
+**Before (Incorrect - referencing non-existent packages):**
+```bash
+dotnet add package Oproto.FluentDynamoDb
+dotnet add package Oproto.FluentDynamoDb.SourceGenerator
+dotnet add package Oproto.FluentDynamoDb.Attributes
+```
+
+**After (Correct - single package installation):**
+```bash
+dotnet add package Oproto.FluentDynamoDb
+```
+
+**Reason:** The source generator is bundled in the main NuGet package (included as an analyzer). The attributes are also in the main package. There are no separate `Oproto.FluentDynamoDb.SourceGenerator` or `Oproto.FluentDynamoDb.Attributes` packages to install.
+
+---
+
+#### Part 2: API Pattern Corrections (Property-based to Method-based)
+
+**Files corrected:**
+- `README.md`
+- `docs/getting-started/QuickStart.md`
+- `docs/core-features/BasicOperations.md`
+- `docs/core-features/LinqExpressions.md`
+- `docs/advanced-topics/AdvancedTypes.md`
+- `docs/advanced-topics/Discriminators.md`
+- `docs/reference/ErrorHandling.md`
+- `docs/reference/AdoptionGuide.md`
+- `docs/reference/AdvancedTypesQuickReference.md`
+- `docs/reference/LoggingTroubleshooting.md`
+- `docs/TroubleshootingGuide.md`
+- `Oproto.FluentDynamoDb/Expressions/EXPRESSION_EXAMPLES.md`
+
+**Before (Property-based access - deprecated):**
+```csharp
+// Property-based patterns (OLD - do not use)
+await table.Put.WithItem(user).PutAsync();
+await table.Query.Where(...).ToListAsync();
+await table.Get.WithKey(...).GetItemAsync();
+await table.Update.WithKey(...).UpdateAsync();
+await table.Delete.WithKey(...).DeleteAsync();
+await table.Scan.ToListAsync();
+```
+
+**After (Method-based access - correct):**
+```csharp
+// Option 1: Convenience Methods (simplest - for basic operations)
+await table.Users.PutAsync(user);
+await table.Users.GetAsync("user123");
+await table.Users.DeleteAsync("user123");
+
+// Option 2: Entity Accessor + Builder (for operations with options)
+await table.Users.Put(user)
+    .Where(x => x.Pk.AttributeNotExists())
+    .PutAsync();
+
+await table.Users.Query()
+    .Where(x => x.Status == "active")
+    .ToListAsync();
+
+await table.Users.Get("user123")
+    .WithProjection("name, email")
+    .GetItemAsync();
+
+await table.Users.Update("user123")
+    .Set(x => new UserUpdateModel { Status = "inactive" })
+    .UpdateAsync();
+
+await table.Users.Delete("user123")
+    .Where(x => x.Status == "pending")
+    .DeleteAsync();
+
+// Option 3: Generic Methods (for dynamic scenarios)
+await table.Put<User>().WithItem(user).PutAsync();
+await table.Query<User>().Where(...).ToListAsync();
+await table.Get<User>().WithKey(...).GetItemAsync();
+```
+
+**Reason:** The property-based API patterns (`table.Put.`, `table.Query.`, etc.) were deprecated in favor of method-based patterns (`table.Put()`, `table.Query()`, etc.). The method-based patterns provide better IntelliSense support and are consistent with the generated entity accessor patterns.
+
+**API Style Priority (from documentation.md steering):**
+1. **Convenience Methods** - Direct async methods for simple operations (`PutAsync(item)`, `GetAsync(pk)`)
+2. **Entity Accessor + Builder** - For operations requiring conditions, projections, etc.
+3. **Generic Methods** - For dynamic scenarios where entity type is determined at runtime
+
+---
+
+#### Part 3: Additional API Pattern and Package Reference Corrections (Verification Pass)
+
+**Files corrected:**
+- `docs/reference/AdvancedTypesMigration.md`
+- `docs/core-features/encryption-guide.md`
+- `docs/core-features/format-strings-guide.md`
+- `docs/reference/Troubleshooting.md`
+- `docs/advanced-topics/FieldLevelSecurity.md`
+
+**API Pattern Corrections:**
+
+**Before (Property-based access):**
+```csharp
+await _table.Put.WithItem(oldProduct).ExecuteAsync();
+await _table.Scan.ExecuteAsync<Session>();
+await foreach (var user in table.Scan.ExecuteAsync())
+```
+
+**After (Method-based access):**
+```csharp
+await _table.Put<Product>().WithItem(oldProduct).ExecuteAsync();
+await _table.Scan<Session>().ExecuteAsync();
+await foreach (var user in table.Scan().ExecuteAsync())
+```
+
+**Package Reference Corrections:**
+
+**Before (Incorrect - referencing non-existent packages):**
+```bash
+dotnet add package Oproto.FluentDynamoDb
+dotnet add package Oproto.FluentDynamoDb.SourceGenerator
+dotnet add package Oproto.FluentDynamoDb.Attributes
+```
+
+**After (Correct - single package installation):**
+```bash
+dotnet add package Oproto.FluentDynamoDb
+```
+
+**Reason:** These files were missed in the initial documentation correction pass. The verification step identified remaining property-based API patterns and incorrect package references that needed to be updated.
+
+---
+
+## [2025-12-05]
+
 ### File: Multiple documentation files - Namespace Reorganization
 
 **Category:** Documentation Restructuring

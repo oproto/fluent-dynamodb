@@ -37,14 +37,14 @@ error CS0103: The name 'UserKeys' does not exist in the current context
 
 **Solution:**
 
-1. **Verify the source generator package is installed:**
+1. **Verify the main package is installed (source generator is bundled):**
 ```bash
-dotnet list package | grep Oproto.FluentDynamoDb.SourceGenerator
+dotnet list package | grep Oproto.FluentDynamoDb
 ```
 
 If not installed:
 ```bash
-dotnet add package Oproto.FluentDynamoDb.SourceGenerator
+dotnet add package Oproto.FluentDynamoDb
 ```
 
 2. **Ensure your entity class is marked as `partial`:**
@@ -932,8 +932,9 @@ Install required packages:
 ```bash
 dotnet add package AWSSDK.DynamoDBv2
 dotnet add package Oproto.FluentDynamoDb
-dotnet add package Oproto.FluentDynamoDb.SourceGenerator
 ```
+
+Note: The source generator is bundled with the main package.
 
 Verify installation:
 ```bash

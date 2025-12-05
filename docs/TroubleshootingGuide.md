@@ -307,7 +307,7 @@ public async Task<User> CreateUserAsync(User user)
     if (string.IsNullOrEmpty(user.UserId))
         throw new ArgumentException("UserId is required");
 
-    await _table.Put.WithItem(user).ExecuteAsync();
+    await _table.Put().WithItem(user).PutAsync();
     return user;
 }
 ```
