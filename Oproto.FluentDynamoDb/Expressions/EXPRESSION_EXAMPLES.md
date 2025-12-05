@@ -21,41 +21,41 @@ This document provides comprehensive examples of using LINQ expressions with Flu
 
 ```csharp
 // Expression-based
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // String-based equivalent (format string approach)
-table.Query
+table.Query()
     .Where("pk = {0}", userId)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // String-based equivalent (manual approach)
-table.Query
+table.Query()
     .Where("pk = :pk")
     .WithValue(":pk", userId)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Partition Key + Sort Key
 
 ```csharp
 // Expression-based
-table.Query
+table.Query()
     .Where<Order>(x => x.CustomerId == customerId && x.OrderId == orderId)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // String-based equivalent (format string approach)
-table.Query
+table.Query()
     .Where("customerId = {0} AND orderId = {1}", customerId, orderId)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // String-based equivalent (manual approach)
-table.Query
+table.Query()
     .Where("customerId = :cid AND orderId = :oid")
     .WithValue(":cid", customerId)
     .WithValue(":oid", orderId)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## String-Based vs Expression-Based
@@ -64,49 +64,49 @@ table.Query
 
 ```csharp
 // ✓ Compile-time type checking
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId)
-    .ExecuteAsync();
+    .ToListAsync();
 // Compiler catches typos: x.PartitionKye (error!)
 
 // ✗ String-based - typos only caught at runtime
-table.Query
+table.Query()
     .Where("partitionKye = {0}", userId) // Typo not caught until runtime
-    .ExecuteAsync();
+    .ToListAsync();
 
 // ✓ IntelliSense support
-table.Query
+table.Query()
     .Where<User>(x => x.Par... // IntelliSense shows available properties
-    .ExecuteAsync();
+    .ToListAsync();
 
 // ✓ Refactoring safety
 // If you rename PartitionKey to PK, expression-based code updates automatically
-table.Query
+table.Query()
     .Where<User>(x => x.PK == userId) // Automatically updated by refactoring
-    .ExecuteAsync();
+    .ToListAsync();
 
 // ✗ String-based requires manual updates
-table.Query
+table.Query()
     .Where("pk = {0}", userId) // Must manually update string
-    .ExecuteAsync();
+    .ToListAsync();
 
 // ✓ Automatic parameter generation
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId && x.SortKey == sortKey)
-    .ExecuteAsync();
+    .ToListAsync();
 // No need to name parameters :p0, :p1, etc.
 
 // String-based with format strings (simpler than manual)
-table.Query
+table.Query()
     .Where("pk = {0} AND sk = {1}", userId, sortKey)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // String-based with manual parameters (more verbose)
-table.Query
+table.Query()
     .Where("pk = :pk AND sk = :sk")
     .WithValue(":pk", userId)
     .WithValue(":sk", sortKey)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### When to Use String-Based
@@ -115,10 +115,10 @@ table.Query
 // Use string-based for:
 
 // 1. Complex expressions not yet supported
-table.Query
+table.Query()
     .Where("attribute_type(#data, {0})", "S")
     .WithAttribute("#data", "data")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // 2. Dynamic expressions built at runtime
 var conditions = new List<string>();
@@ -134,7 +134,7 @@ if (includeAge)
     values.Add(minAge);
 }
 var expression = string.Join(" AND ", conditions);
-table.Query.Where(expression, values.ToArray())...
+table.Query().Where(expression, values.ToArray())...
 
 // 3. Existing code that works well
 // No need to migrate if string-based code is working
@@ -146,27 +146,27 @@ table.Query.Where(expression, values.ToArray())...
 
 ```csharp
 // Equality
-table.Query.Where<User>(x => x.Id == userId);
+table.Query().Where<User>(x => x.Id == userId);
 // Translates to: #attr0 = :p0
 
 // Inequality
-table.Query.WithFilter<User>(x => x.Status != "DELETED");
+table.Query().WithFilter<User>(x => x.Status != "DELETED");
 // Translates to: #attr0 <> :p0
 
 // Less than
-table.Query.WithFilter<User>(x => x.Age < 65);
+table.Query().WithFilter<User>(x => x.Age < 65);
 // Translates to: #attr0 < :p0
 
 // Greater than
-table.Query.WithFilter<User>(x => x.Score > 100);
+table.Query().WithFilter<User>(x => x.Score > 100);
 // Translates to: #attr0 > :p0
 
 // Less than or equal
-table.Query.WithFilter<User>(x => x.Age <= 18);
+table.Query().WithFilter<User>(x => x.Age <= 18);
 // Translates to: #attr0 <= :p0
 
 // Greater than or equal
-table.Query.WithFilter<User>(x => x.Score >= 50);
+table.Query().WithFilter<User>(x => x.Score >= 50);
 // Translates to: #attr0 >= :p0
 ```
 
@@ -174,19 +174,19 @@ table.Query.WithFilter<User>(x => x.Score >= 50);
 
 ```csharp
 // AND
-table.Query.Where<User>(x => x.PartitionKey == userId && x.SortKey == sortKey);
+table.Query().Where<User>(x => x.PartitionKey == userId && x.SortKey == sortKey);
 // Translates to: (#attr0 = :p0) AND (#attr1 = :p1)
 
 // OR
-table.Query.WithFilter<User>(x => x.Type == "A" || x.Type == "B");
+table.Query().WithFilter<User>(x => x.Type == "A" || x.Type == "B");
 // Translates to: (#attr0 = :p0) OR (#attr0 = :p1)
 
 // NOT
-table.Query.WithFilter<User>(x => !x.Deleted);
+table.Query().WithFilter<User>(x => !x.Deleted);
 // Translates to: NOT (#attr0)
 
 // Complex combinations
-table.Query.WithFilter<User>(x => 
+table.Query().WithFilter<User>(x => 
     (x.Active && x.Score > 50) || x.Premium);
 // Translates to: ((#attr0) AND (#attr1 > :p0)) OR (#attr2)
 ```
@@ -197,94 +197,94 @@ table.Query.WithFilter<User>(x =>
 
 ```csharp
 // Expression-based
-table.Query
+table.Query()
     .Where<Order>(x => x.PartitionKey == customerId && x.SortKey.StartsWith("ORDER#"))
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: #attr0 = :p0 AND begins_with(#attr1, :p1)
 
 // String-based equivalent (format string)
-table.Query
+table.Query()
     .Where("pk = {0} AND begins_with(sk, {1})", customerId, "ORDER#")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Contains
 
 ```csharp
 // Expression-based
-table.Query
+table.Query()
     .WithFilter<User>(x => x.Email.Contains("@example.com"))
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: contains(#attr0, :p0)
 
 // String-based equivalent (format string)
-table.Query
+table.Query()
     .WithFilter("contains(#email, {0})", "@example.com")
     .WithAttribute("#email", "email")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Between
 
 ```csharp
 // Expression-based
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId && x.SortKey.Between("2024-01", "2024-12"))
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: #attr0 = :p0 AND #attr1 BETWEEN :p1 AND :p2
 
 // String-based equivalent (format string)
-table.Query
+table.Query()
     .Where("pk = {0} AND sk BETWEEN {1} AND {2}", userId, "2024-01", "2024-12")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### AttributeExists
 
 ```csharp
 // Expression-based
-table.Query
+table.Query()
     .WithFilter<User>(x => x.PhoneNumber.AttributeExists())
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: attribute_exists(#attr0)
 
 // String-based equivalent
-table.Query
+table.Query()
     .WithFilter("attribute_exists(#phone)")
     .WithAttribute("#phone", "phoneNumber")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### AttributeNotExists
 
 ```csharp
 // Expression-based
-table.Scan
+table.Scan()
     .WithFilter<User>(x => x.DeletedAt.AttributeNotExists())
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: attribute_not_exists(#attr0)
 
 // String-based equivalent
-table.Scan
+table.Scan()
     .WithFilter("attribute_not_exists(#deleted)")
     .WithAttribute("#deleted", "deletedAt")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Size
 
 ```csharp
 // Expression-based
-table.Query
+table.Query()
     .WithFilter<User>(x => x.Items.Size() > 5)
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: size(#attr0) > :p0
 
 // String-based equivalent (format string)
-table.Query
+table.Query()
     .WithFilter("size(#items) > {0}", 5)
     .WithAttribute("#items", "items")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Value Capture
@@ -293,19 +293,19 @@ table.Query
 
 ```csharp
 // Direct constant (expression-based)
-table.Query.Where<User>(x => x.Id == "USER#123");
+table.Query().Where<User>(x => x.Id == "USER#123");
 // Value "USER#123" is captured as :p0
 
 // Direct constant (string-based with format string)
-table.Query.Where("id = {0}", "USER#123");
+table.Query().Where("id = {0}", "USER#123");
 // Value "USER#123" is captured as :p0
 
 // Enum constant (expression-based)
-table.Query.WithFilter<Order>(x => x.Status == OrderStatus.Pending);
+table.Query().WithFilter<Order>(x => x.Status == OrderStatus.Pending);
 // Enum value is converted to string and captured
 
 // Enum constant (string-based with format string)
-table.Query.WithFilter("#status = {0}", OrderStatus.Pending);
+table.Query().WithFilter("#status = {0}", OrderStatus.Pending);
 // Enum value is converted to string and captured
 ```
 
@@ -316,18 +316,18 @@ var userId = "USER#123";
 var minAge = 18;
 
 // Expression-based
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => x.Age >= minAge)
-    .ExecuteAsync();
+    .ToListAsync();
 // Variables are captured and converted to AttributeValues
 
 // String-based with format strings
-table.Query
+table.Query()
     .Where("pk = {0}", userId)
     .WithFilter("#age >= {0}", minAge)
     .WithAttribute("#age", "age")
-    .ExecuteAsync();
+    .ToListAsync();
 // Variables are captured and converted to AttributeValues
 ```
 
@@ -337,18 +337,18 @@ table.Query
 var user = GetCurrentUser();
 
 // Expression-based
-table.Query
+table.Query()
     .Where<Order>(x => x.CustomerId == user.Id)
     .WithFilter<Order>(x => x.Total > user.MinOrderAmount)
-    .ExecuteAsync();
+    .ToListAsync();
 // Properties from captured objects are evaluated and captured
 
 // String-based with format strings
-table.Query
+table.Query()
     .Where("customerId = {0}", user.Id)
     .WithFilter("#total > {0}", user.MinOrderAmount)
     .WithAttribute("#total", "total")
-    .ExecuteAsync();
+    .ToListAsync();
 // Properties from captured objects are evaluated and captured
 ```
 
@@ -357,29 +357,29 @@ table.Query
 ```csharp
 // ✓ Valid: Method call on captured value (expression-based)
 var userId = GetUserId();
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId.ToString())
-    .ExecuteAsync();
+    .ToListAsync();
 // userId.ToString() is evaluated and the result is captured
 
 // ✓ Valid: Method call on captured value (string-based)
-table.Query
+table.Query()
     .Where("pk = {0}", userId.ToString())
-    .ExecuteAsync();
+    .ToListAsync();
 // userId.ToString() is evaluated and the result is captured
 
 // ✓ Valid: Complex expression on captured value (expression-based)
 var date = DateTime.Now;
-table.Query
+table.Query()
     .WithFilter<Order>(x => x.CreatedDate > date.AddDays(-30))
-    .ExecuteAsync();
+    .ToListAsync();
 // date.AddDays(-30) is evaluated and the result is captured
 
 // ✓ Valid: Complex expression on captured value (string-based with format)
-table.Query
+table.Query()
     .WithFilter("#created > {0:o}", date.AddDays(-30))
     .WithAttribute("#created", "createdDate")
-    .ExecuteAsync();
+    .ToListAsync();
 // date.AddDays(-30) is evaluated, formatted as ISO 8601, and captured
 ```
 
@@ -388,43 +388,43 @@ table.Query
 ### Multiple AND Conditions
 
 ```csharp
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => 
         x.Status == "ACTIVE" && 
         x.Age >= 18 && 
         x.Score > 50)
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: (#attr0 = :p0) AND (#attr1 >= :p1) AND (#attr2 > :p2)
 ```
 
 ### Multiple OR Conditions
 
 ```csharp
-table.Query
+table.Query()
     .WithFilter<User>(x => 
         x.Type == "ADMIN" || 
         x.Type == "MODERATOR" || 
         x.Type == "OWNER")
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: ((#attr0 = :p0) OR (#attr0 = :p1)) OR (#attr0 = :p2)
 ```
 
 ### Mixed AND/OR with Parentheses
 
 ```csharp
-table.Query
+table.Query()
     .WithFilter<User>(x => 
         (x.Active && x.Score > 50) || 
         (x.Premium && x.Score > 25))
-    .ExecuteAsync();
+    .ToListAsync();
 // Translates to: ((#attr0) AND (#attr1 > :p0)) OR ((#attr2) AND (#attr1 > :p1))
 ```
 
 ### Combining Multiple Functions
 
 ```csharp
-table.Query
+table.Query()
     .Where<Order>(x => 
         x.CustomerId == customerId && 
         x.OrderDate.Between(startDate, endDate))
@@ -432,7 +432,7 @@ table.Query
         x.Status == "SHIPPED" && 
         x.Items.Size() > 0 && 
         x.TrackingNumber.AttributeExists())
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Valid vs Invalid Patterns
@@ -503,35 +503,35 @@ x => x.Items.Size() > 0 // ✓ Correct
 // - Only partition key and sort key allowed
 // - Efficient - only reads matching items
 // - Reduces consumed read capacity
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId && x.SortKey.StartsWith("ORDER#"))
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Filter Expression (WithFilter) - Applied AFTER reading items
 // - Any property allowed
 // - Less efficient - reads then filters
 // - Reduces data transfer but not read capacity
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => x.Status == "ACTIVE")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Common Mistake
 
 ```csharp
 // ✗ Error: Non-key property in Where()
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId && x.Status == "ACTIVE")
-    .ExecuteAsync();
+    .ToListAsync();
 // Throws: InvalidKeyExpressionException
 // "Property 'Status' is not a key attribute..."
 
 // ✓ Correct: Move non-key condition to WithFilter()
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => x.Status == "ACTIVE")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Performance Impact
@@ -540,19 +540,19 @@ table.Query
 // Scenario: Table with 1000 items for userId, 100 are ACTIVE
 
 // Option 1: Filter in DynamoDB
-table.Query
+table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => x.Status == "ACTIVE")
-    .ExecuteAsync();
+    .ToListAsync();
 // - Reads 1000 items (consumes capacity for 1000)
 // - Filters to 100 items
 // - Returns 100 items (transfers 100)
 // - Cost: Read capacity for 1000 items
 
 // Option 2: Filter in application
-var allUsers = await table.Query
+var allUsers = await table.Query()
     .Where<User>(x => x.PartitionKey == userId)
-    .ExecuteAsync();
+    .ToListAsync();
 var activeUsers = allUsers.Items.Where(u => u.Status == "ACTIVE");
 // - Reads 1000 items (consumes capacity for 1000)
 // - Returns 1000 items (transfers 1000)
@@ -560,10 +560,10 @@ var activeUsers = allUsers.Items.Where(u => u.Status == "ACTIVE");
 // - Cost: Read capacity for 1000 items + transfer for 1000 items
 
 // Best Option: Use GSI with Status as key
-table.Query
+table.Query()
     .OnIndex("StatusIndex")
     .Where<User>(x => x.Status == "ACTIVE" && x.UserId == userId)
-    .ExecuteAsync();
+    .ToListAsync();
 // - Reads 100 items (consumes capacity for 100)
 // - Returns 100 items (transfers 100)
 // - Cost: Read capacity for 100 items
@@ -576,9 +576,9 @@ table.Query
 ```csharp
 try
 {
-    await table.Query
+    await table.Query()
         .Where<User>(x => x.PartitionKey == userId && x.Status == "ACTIVE")
-        .ExecuteAsync();
+        .ToListAsync();
 }
 catch (InvalidKeyExpressionException ex)
 {
@@ -586,10 +586,10 @@ catch (InvalidKeyExpressionException ex)
     Console.WriteLine($"Non-key property: {ex.PropertyName}");
     
     // Fix: Move to filter
-    await table.Query
+    await table.Query()
         .Where<User>(x => x.PartitionKey == userId)
         .WithFilter<User>(x => x.Status == "ACTIVE")
-        .ExecuteAsync();
+        .ToListAsync();
 }
 catch (UnmappedPropertyException ex)
 {
@@ -619,17 +619,17 @@ catch (ExpressionTranslationException ex)
 // Expression translation happens when building the request,
 // not when executing it. Errors are caught early:
 
-var query = table.Query
+var query = table.Query()
     .Where<User>(x => x.Name.ToUpper() == "JOHN"); // ✗ Throws immediately
 
 // This line is never reached
-await query.ExecuteAsync();
+await query.ToListAsync();
 
 // This is better than string-based where errors only occur at runtime:
-var stringQuery = table.Query
+var stringQuery = table.Query()
     .Where("name.ToUpper() = :name"); // No error yet
 
-await stringQuery.ExecuteAsync(); // ✗ Error from DynamoDB at runtime
+await stringQuery.ToListAsync(); // ✗ Error from DynamoDB at runtime
 ```
 
 ## Performance Considerations
@@ -638,14 +638,14 @@ await stringQuery.ExecuteAsync(); // ✗ Error from DynamoDB at runtime
 
 ```csharp
 // First call - translates and caches
-await table.Query
+await table.Query()
     .Where<User>(x => x.PartitionKey == userId1)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Second call - uses cached translation
-await table.Query
+await table.Query()
     .Where<User>(x => x.PartitionKey == userId2)
-    .ExecuteAsync();
+    .ToListAsync();
 // Same expression structure, different value
 // Translation is cached, only parameter values differ
 
@@ -696,7 +696,7 @@ var customerId = "CUSTOMER#123";
 var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
 var minAmount = 50.00m;
 
-var orders = await table.Query
+var orders = await table.Query()
     .Where<Order>(x => 
         x.CustomerId == customerId && 
         x.OrderDate.Between(thirtyDaysAgo, DateTime.UtcNow))
@@ -704,7 +704,7 @@ var orders = await table.Query
         x.Status == "SHIPPED" && 
         x.Total >= minAmount && 
         x.Items.Size() > 0)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### User Search with Multiple Criteria
@@ -714,7 +714,7 @@ var orders = await table.Query
 var region = "US-WEST";
 var minAge = 18;
 
-var users = await table.Query
+var users = await table.Query()
     .OnIndex("RegionIndex")
     .Where<User>(x => x.Region == region)
     .WithFilter<User>(x => 
@@ -722,7 +722,7 @@ var users = await table.Query
         x.Age >= minAge && 
         x.Email.AttributeExists() && 
         x.EmailVerified)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Conditional Put with Expression
@@ -735,9 +735,10 @@ var newUser = new User
     Name = "John Doe" 
 };
 
-await table.PutItem(newUser)
+await table.Put()
+    .WithItem(newUser)
     .WithCondition<User>(x => x.Id.AttributeNotExists())
-    .ExecuteAsync();
+    .PutAsync();
 // Throws ConditionalCheckFailedException if user already exists
 ```
 
@@ -747,11 +748,11 @@ await table.PutItem(newUser)
 // Find all premium users or users with high scores
 var minScore = 1000;
 
-var users = await table.Scan
+var users = await table.Scan()
     .WithFilter<User>(x => 
         x.Premium || 
         (x.Score >= minScore && x.Active))
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Migration Guide
@@ -760,7 +761,7 @@ var users = await table.Scan
 
 ```csharp
 // Before: String-based (manual parameters)
-await table.Query
+await table.Query()
     .Where("pk = :pk AND begins_with(sk, :prefix)")
     .WithFilter("#status = :status AND #age >= :minAge")
     .WithAttribute("#status", "status")
@@ -769,21 +770,21 @@ await table.Query
     .WithValue(":prefix", "ORDER#")
     .WithValue(":status", "ACTIVE")
     .WithValue(":minAge", 18)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Middle: String-based (format strings - simpler)
-await table.Query
+await table.Query()
     .Where("pk = {0} AND begins_with(sk, {1})", userId, "ORDER#")
     .WithFilter("#status = {0} AND #age >= {1}", "ACTIVE", 18)
     .WithAttribute("#status", "status")
     .WithAttribute("#age", "age")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // After: Expression-based (type-safe)
-await table.Query
+await table.Query()
     .Where<User>(x => x.PartitionKey == userId && x.SortKey.StartsWith("ORDER#"))
     .WithFilter<User>(x => x.Status == "ACTIVE" && x.Age >= 18)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Benefits of expression-based:
 // ✓ 60% less code than manual parameters
@@ -801,30 +802,30 @@ await table.Query
 // You can mix string-based and expression-based in the same query:
 
 // Step 1: Migrate Where() to expression-based
-await table.Query
+await table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter("#status = {0}", "ACTIVE") // Use format string for filter
     .WithAttribute("#status", "status")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Step 2: Migrate WithFilter() to expression-based
-await table.Query
+await table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => x.Status == "ACTIVE")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Or migrate to format strings first (easier intermediate step)
-await table.Query
+await table.Query()
     .Where("pk = {0}", userId) // Format string
     .WithFilter("#status = {0}", "ACTIVE") // Format string
     .WithAttribute("#status", "status")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Then to expression-based when ready
-await table.Query
+await table.Query()
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => x.Status == "ACTIVE")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Summary

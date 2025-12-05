@@ -5,17 +5,16 @@ Quick reference for using advanced types in Oproto.FluentDynamoDb.
 ## Package Requirements
 
 ```xml
-<!-- Core (required) -->
-<PackageReference Include="Oproto.FluentDynamoDb" Version="0.3.0" />
-<PackageReference Include="Oproto.FluentDynamoDb.Attributes" Version="0.3.0" />
+<!-- Core (required - includes source generator and attributes) -->
+<PackageReference Include="Oproto.FluentDynamoDb" Version="0.8.0" />
 
 <!-- JSON Serialization (choose one) -->
-<PackageReference Include="Oproto.FluentDynamoDb.SystemTextJson" Version="0.3.0" />
+<PackageReference Include="Oproto.FluentDynamoDb.SystemTextJson" Version="0.8.0" />
 <!-- OR -->
-<PackageReference Include="Oproto.FluentDynamoDb.NewtonsoftJson" Version="0.3.0" />
+<PackageReference Include="Oproto.FluentDynamoDb.NewtonsoftJson" Version="0.8.0" />
 
 <!-- Blob Storage (optional) -->
-<PackageReference Include="Oproto.FluentDynamoDb.BlobStorage.S3" Version="0.3.0" />
+<PackageReference Include="Oproto.FluentDynamoDb.BlobStorage.S3" Version="0.8.0" />
 ```
 
 ## Maps
@@ -201,19 +200,19 @@ public ComplexObject Content { get; set; }
 var metadata = new Dictionary<string, string> { ["key"] = "value" };
 var tags = new HashSet<string> { "tag1", "tag2" };
 
-await table.Update
+await table.Update()
     .WithKey("pk", id)
     .Set("SET metadata = {0}, tags = {1}", metadata, tags)
     .UpdateAsync();
 
 // TTL in expressions
-await table.Update
+await table.Update()
     .WithKey("pk", id)
     .Set("SET expires_at = {0}", DateTime.UtcNow.AddDays(7))
     .UpdateAsync();
 
 // Set operations
-await table.Update
+await table.Update()
     .WithKey("pk", id)
     .Set("ADD tags {0}", new HashSet<string> { "new-tag" })
     .UpdateAsync();
@@ -231,23 +230,23 @@ var product = new Product
 // Format strings validate empty collections
 var emptyTags = new HashSet<string>();
 // This throws ArgumentException:
-await table.Query.Where("tags = {0}", emptyTags).ExecuteAsync();
+await table.Query().Where("tags = {0}", emptyTags).ToListAsync();
 
 // Best practice: Check before using
 if (tags != null && tags.Count > 0)
 {
-    await table.Update
+    await table.Update()
         .WithKey("pk", id)
         .Set("SET tags = {0}", tags)
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 else
 {
     // Remove attribute if empty
-    await table.Update
+    await table.Update()
         .WithKey("pk", id)
         .Remove("REMOVE tags")
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 ```
 

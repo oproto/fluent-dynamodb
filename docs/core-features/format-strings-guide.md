@@ -283,9 +283,9 @@ public static User FromDynamoDb(Dictionary<string, AttributeValue> item)
 
 ```csharp
 // Scan all items and update with new format
-await foreach (var item in table.Scan.ExecuteAsync())
+await foreach (var item in table.Scan().ExecuteAsync())
 {
-    await table.Update
+    await table.Update()
         .WithKey("pk", item.PartitionKey)
         .Set(x => new UpdateModel 
         { 

@@ -560,7 +560,7 @@ while (retryCount < 3)
 {
     try
     {
-        return await table.Query.ToListAsync();
+        return await table.Query().ToListAsync();
     }
     catch (ProvisionedThroughputExceededException)
     {

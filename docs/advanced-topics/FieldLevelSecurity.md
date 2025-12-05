@@ -106,7 +106,6 @@ No additional packages required - logging redaction is built into the core libra
 
 ```bash
 dotnet add package Oproto.FluentDynamoDb
-dotnet add package Oproto.FluentDynamoDb.Attributes
 ```
 
 ---
