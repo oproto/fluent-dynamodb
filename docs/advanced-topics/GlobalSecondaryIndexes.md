@@ -191,16 +191,13 @@ public static class OrderFields
 
 **Usage:**
 ```csharp
-// Use main table fields
-await table.Get
-    .WithKey(OrderFields.OrderId, "order123")
-    .ExecuteAsync<Order>();
+// Use main table fields with entity accessor
+var order = await table.Orders.GetAsync("order123");
 
-// Use GSI fields
-await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+// Use GSI with index accessor (preferred)
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 ```
 
 
@@ -232,12 +229,10 @@ var statusKey = OrderKeys.StatusIndex.Pk("pending");  // Returns "pending"
 // Build GSI sort key
 var dateKey = OrderKeys.StatusIndex.Sk(DateTime.UtcNow);  // Returns ISO 8601 timestamp
 
-// Use in query
-await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", 
-           OrderKeys.StatusIndex.Pk("pending"))
-    .ExecuteAsync<Order>();
+// Use in query with index accessor
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 ```
 
 ### Computed GSI Keys
@@ -283,12 +278,10 @@ public static class EventKeys
 var gsiKey = EventKeys.TenantTypeIndex.Pk("tenant123", "LOGIN");
 // Returns: "TENANT#tenant123#TYPE#LOGIN"
 
-// Use in query
-await table.Query
-    .UsingIndex(EventIndexes.TenantTypeIndex)
-    .Where($"{EventFields.TenantTypeIndex.TenantTypeKey} = {{0}}", 
-           EventKeys.TenantTypeIndex.Pk("tenant123", "LOGIN"))
-    .ExecuteAsync<Event>();
+// Use in query with index accessor
+var events = await table.TenantTypeIndex.Query<Event>()
+    .Where(x => x.TenantTypeKey == EventKeys.TenantTypeIndex.Pk("tenant123", "LOGIN"))
+    .ToListAsync();
 ```
 
 ## Querying GSIs with Expression Formatting
@@ -298,13 +291,12 @@ await table.Query
 Query a GSI using expression formatting:
 
 ```csharp
-// Query orders by status
-var response = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+// Query orders by status using index accessor (preferred)
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 
-foreach (var order in response.Items)
+foreach (var order in orders)
 {
     Console.WriteLine($"Order {order.OrderId}: ${order.Total}");
 }
@@ -315,15 +307,12 @@ foreach (var order in response.Items)
 Query with sort key conditions:
 
 ```csharp
-// Query pending orders created in the last 7 days
+// Query pending orders created in the last 7 days using index accessor
 var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
-var response = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}} AND {OrderFields.StatusIndex.CreatedAt} > {{1:o}}", 
-           "pending", 
-           sevenDaysAgo)
-    .ExecuteAsync<Order>();
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending" && x.CreatedAt > sevenDaysAgo)
+    .ToListAsync();
 ```
 
 ### GSI Query with Filter Expression
@@ -331,12 +320,11 @@ var response = await table.Query
 Add filter expressions for additional filtering:
 
 ```csharp
-// Query pending orders over $100
-var response = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .WithFilter($"{OrderFields.Total} > {{0}}", 100.00m)
-    .ExecuteAsync<Order>();
+// Query pending orders over $100 using index accessor with filter
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .WithFilter(x => x.Total > 100.00m)
+    .ToListAsync();
 ```
 
 **Note:** Filter expressions are applied after the query, so they don't reduce read capacity consumption.
@@ -351,12 +339,11 @@ string? lastEvaluatedKey = null;
 
 do
 {
-    var response = await table.Query
-        .UsingIndex(OrderIndexes.StatusIndex)
-        .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
+    var response = await table.StatusIndex.Query<Order>()
+        .Where(x => x.Status == "pending")
         .Take(100)
         .WithExclusiveStartKey(lastEvaluatedKey)
-        .ExecuteAsync<Order>();
+        .ToResponseAsync();
     
     allOrders.AddRange(response.Items);
     lastEvaluatedKey = response.LastEvaluatedKey;
@@ -386,10 +373,9 @@ When using KEYS_ONLY or INCLUDE projections, only projected attributes are retur
 ```csharp
 // GSI configured with KEYS_ONLY projection
 // Only returns: pk, status, createdAt
-var response = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 
 // order.OrderId, order.Status, order.CreatedAt are populated
 // order.CustomerId, order.Total may be null/default
@@ -400,22 +386,18 @@ var response = await table.Query
 To get full items when using sparse projections:
 
 ```csharp
-// Step 1: Query GSI for keys
-var gsiResponse = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+// Step 1: Query GSI for keys using index accessor
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 
-// Step 2: Batch get full items
-var batchGetBuilder = new BatchGetItemRequestBuilder(client);
-
-foreach (var order in gsiResponse.Items)
+// Step 2: Batch get full items using static entry point
+var batch = DynamoDbBatch.Get;
+foreach (var order in orders)
 {
-    batchGetBuilder.Get(table, builder => builder
-        .WithKey(OrderFields.OrderId, order.OrderId));
+    batch.Add(table.Orders.Get(order.OrderId));
 }
-
-var fullItems = await batchGetBuilder.ExecuteAsync();
+var fullItems = await batch.ExecuteAsync();
 ```
 
 **Trade-off:** Two operations vs. larger GSI storage and throughput costs.
@@ -442,10 +424,9 @@ var fullItems = await batchGetBuilder.ExecuteAsync();
 // GSI projects: pk, status, createdAt, customerId, total
 // Omits: large description field, metadata
 
-var response = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 
 // All projected fields are available
 // No need for second query in most cases
@@ -483,12 +464,9 @@ public partial class Task
 ```csharp
 var nextWeek = DateTime.UtcNow.AddDays(7);
 
-var response = await table.Query
-    .UsingIndex(TaskIndexes.StatusIndex)
-    .Where($"{TaskFields.StatusIndex.Status} = {{0}} AND {TaskFields.StatusIndex.DueDate} < {{1:o}}", 
-           "pending", 
-           nextWeek)
-    .ExecuteAsync<Task>();
+var tasks = await table.StatusIndex.Query<Task>()
+    .Where(x => x.Status == "pending" && x.DueDate < nextWeek)
+    .ToListAsync();
 ```
 
 ### Pattern 2: Multi-Tenant Queries
@@ -520,12 +498,10 @@ public partial class Document
 **Access Pattern:** Get all documents for a tenant, newest first
 
 ```csharp
-var response = await table.Query
-    .UsingIndex(DocumentIndexes.TenantIndex)
-    .Where($"{DocumentFields.TenantIndex.TenantId} = {{0}}", 
-           DocumentKeys.TenantIndex.Pk("tenant123"))
+var documents = await table.TenantIndex.Query<Document>()
+    .Where(x => x.TenantId == DocumentKeys.TenantIndex.Pk("tenant123"))
     .ScanIndexForward(false)  // Descending order
-    .ExecuteAsync<Document>();
+    .ToListAsync();
 ```
 
 ### Pattern 3: Sparse Indexes
@@ -558,10 +534,9 @@ public partial class User
 
 ```csharp
 // Only items with premiumStatus != null are in the index
-var response = await table.Query
-    .UsingIndex(UserIndexes.PremiumIndex)
-    .Where($"{UserFields.PremiumIndex.PremiumStatus} = {{0}}", "active")
-    .ExecuteAsync<User>();
+var premiumUsers = await table.PremiumIndex.Query<User>()
+    .Where(x => x.PremiumStatus == "active")
+    .ToListAsync();
 ```
 
 **Benefits:**
@@ -610,16 +585,13 @@ public partial class Relationship
 ```csharp
 // Pattern 1: Get all followers of a user (main table)
 var followers = await table.Query
-    .Where($"{RelationshipFields.UserId} = {{0}}", 
-           RelationshipKeys.Pk("user123"))
-    .ExecuteAsync<Relationship>();
+    .Where(x => x.UserId == RelationshipKeys.Pk("user123"))
+    .ToListAsync();
 
-// Pattern 2: Get all users that a user is following (GSI)
-var following = await table.Query
-    .UsingIndex(RelationshipIndexes.InvertedIndex)
-    .Where($"{RelationshipFields.InvertedIndex.InvertedPk} = {{0}}", 
-           RelationshipKeys.InvertedIndex.Pk("user123"))
-    .ExecuteAsync<Relationship>();
+// Pattern 2: Get all users that a user is following (GSI) using index accessor
+var following = await table.InvertedIndex.Query<Relationship>()
+    .Where(x => x.InvertedPk == RelationshipKeys.InvertedIndex.Pk("user123"))
+    .ToListAsync();
 ```
 
 ### Pattern 5: Composite GSI Keys for Filtering
@@ -653,11 +625,9 @@ public partial class Product
 **Access Pattern:** Get active products in a category, sorted by price
 
 ```csharp
-var response = await table.Query
-    .UsingIndex(ProductIndexes.CategoryStatusIndex)
-    .Where($"{ProductFields.CategoryStatusIndex.CategoryStatusKey} = {{0}}", 
-           ProductKeys.CategoryStatusIndex.Pk("electronics", "active"))
-    .ExecuteAsync<Product>();
+var products = await table.CategoryStatusIndex.Query<Product>()
+    .Where(x => x.CategoryStatusKey == ProductKeys.CategoryStatusIndex.Pk("electronics", "active"))
+    .ToListAsync();
 
 // Results are automatically sorted by price (GSI sort key)
 ```
@@ -670,10 +640,9 @@ GSI queries consume read capacity from the GSI, not the main table:
 
 ```csharp
 // Consumes RCUs from StatusIndex
-var response = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 ```
 
 **Capacity Calculation:**
@@ -720,36 +689,30 @@ GSIs consume additional storage:
 
 **✅ Efficient GSI Queries:**
 ```csharp
-// Good: Specific partition key
-await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+// Good: Specific partition key using index accessor
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 
 // Good: Partition key + sort key range
-await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}} AND {OrderFields.StatusIndex.CreatedAt} > {{1:o}}", 
-           "pending", sevenDaysAgo)
-    .ExecuteAsync<Order>();
+var recentOrders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending" && x.CreatedAt > sevenDaysAgo)
+    .ToListAsync();
 ```
 
 **❌ Inefficient GSI Queries:**
 ```csharp
 // Bad: Scan entire GSI (no partition key)
 // Note: Requires [Scannable] attribute on table class
-var response = await table.Scan()
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .WithFilter($"{OrderFields.Total} > {{0}}", 100.00m)
-    .ExecuteAsync();
+var response = await table.StatusIndex.Scan<Order>()
+    .WithFilter(x => x.Total > 100.00m)
+    .ToListAsync();
 
 // Bad: Filter expression does heavy lifting
-await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .WithFilter($"{OrderFields.CustomerId} = {{0}} AND {OrderFields.Total} > {{1}}", 
-                "customer123", 100.00m)
-    .ExecuteAsync<Order>();
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .WithFilter(x => x.CustomerId == "customer123" && x.Total > 100.00m)
+    .ToListAsync();
 // Better: Create a GSI with CustomerId as partition key
 ```
 
@@ -765,12 +728,10 @@ await table.Query
 [DynamoDbAttribute("gsi1pk")]
 public string CustomerStatusKey { get; set; } = string.Empty;
 
-// Query efficiently
-await table.Query
-    .UsingIndex(OrderIndexes.CustomerStatusIndex)
-    .Where($"{OrderFields.CustomerStatusIndex.CustomerStatusKey} = {{0}}", 
-           OrderKeys.CustomerStatusIndex.Pk("customer123", "pending"))
-    .ExecuteAsync<Order>();
+// Query efficiently using index accessor
+var orders = await table.CustomerStatusIndex.Query<Order>()
+    .Where(x => x.CustomerStatusKey == OrderKeys.CustomerStatusIndex.Pk("customer123", "pending"))
+    .ToListAsync();
 ```
 
 ### 2. Use Sparse Indexes
@@ -788,14 +749,13 @@ public string? ErrorCode { get; set; }  // null for successful items
 ### 3. Choose Appropriate Projections
 
 ```csharp
-// ✅ Good - KEYS_ONLY for lookup, then batch get
-var keys = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+// ✅ Good - KEYS_ONLY for lookup, then batch get using index accessor
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
 
 // Batch get full items
-var fullOrders = await BatchGetFullItems(keys.Items.Select(o => o.OrderId));
+var fullOrders = await BatchGetFullItems(orders.Select(o => o.OrderId));
 
 // ✅ Good - INCLUDE for common fields
 // GSI includes: pk, status, createdAt, customerId, total
@@ -821,12 +781,11 @@ public string StatusDateKey { get; set; } = string.Empty;
 ### 5. Monitor GSI Performance
 
 ```csharp
-// Monitor consumed capacity
-var response = await table.Query
-    .UsingIndex(OrderIndexes.StatusIndex)
-    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
+// Monitor consumed capacity using index accessor
+var response = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
     .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-    .ExecuteAsync<Order>();
+    .ToResponseAsync();
 
 Console.WriteLine($"Consumed capacity: {response.ConsumedCapacity?.CapacityUnits} RCUs");
 ```

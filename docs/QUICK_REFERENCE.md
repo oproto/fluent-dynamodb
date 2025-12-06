@@ -759,20 +759,11 @@ await table.Update()
 ### Batch Get
 
 ```csharp
-// Single table
-var response = await table.BatchGet
-    .WithKeys(new[]
-    {
-        new Dictionary<string, AttributeValue>
-        {
-            [EntityFields.Id] = new AttributeValue { S = EntityKeys.Pk("id1") }
-        },
-        new Dictionary<string, AttributeValue>
-        {
-            [EntityFields.Id] = new AttributeValue { S = EntityKeys.Pk("id2") }
-        }
-    })
-    .ExecuteAsync<Entity>();
+// Using static entry point with entity accessors
+var response = await DynamoDbBatch.Get
+    .Add(table.Entities.Get("id1"))
+    .Add(table.Entities.Get("id2"))
+    .ExecuteAsync();
 ```
 
 **Details:** [Batch Operations](core-features/BatchOperations.md#batch-get-operations)
@@ -780,18 +771,18 @@ var response = await table.BatchGet
 ### Batch Write
 
 ```csharp
-var batchBuilder = new BatchWriteItemRequestBuilder(client);
+// Add puts and deletes using static entry point
+var response = await DynamoDbBatch.Write
+    .Add(table.Entities.Put(entity1))
+    .Add(table.Entities.Put(entity2))
+    .Add(table.Entities.Delete("id3"))
+    .ExecuteAsync();
 
-// Add puts
-batchBuilder.Put(table, builder => builder.WithItem(entity1));
-batchBuilder.Put(table, builder => builder.WithItem(entity2));
-
-// Add deletes
-batchBuilder.Delete(table, builder => builder
-    .WithKey(EntityFields.Id, EntityKeys.Pk("id3")));
-
-// Execute (up to 25 items)
-await batchBuilder.ExecuteAsync();
+// Check for unprocessed items
+if (response.UnprocessedItems.Count > 0)
+{
+    // Handle retry logic for unprocessed items
+}
 ```
 
 **Details:** [Batch Operations](core-features/BatchOperations.md#batch-write-operations)
@@ -803,30 +794,24 @@ await batchBuilder.ExecuteAsync();
 ### Write Transaction
 
 ```csharp
-var txnBuilder = new TransactWriteItemsRequestBuilder(client);
-
-// Put
-txnBuilder.Put(table, builder => builder
-    .WithItem(entity)
-    .Where($"attribute_not_exists({EntityFields.Id})"));
-
-// Update
-txnBuilder.Update(table, builder => builder
-    .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
-    .Set($"SET {EntityFields.Status} = {{0}}", "completed"));
-
-// Delete
-txnBuilder.Delete(table, builder => builder
-    .WithKey(EntityFields.Id, EntityKeys.Pk("id456"))
-    .Where($"{EntityFields.Status} = {{0}}", "inactive"));
-
-// Condition check
-txnBuilder.ConditionCheck(table, builder => builder
-    .WithKey(EntityFields.Id, EntityKeys.Pk("id789"))
-    .Where($"{EntityFields.Balance} >= {{0}}", 100));
-
-// Execute (up to 100 items)
-await txnBuilder.ExecuteAsync();
+// Put with condition
+await DynamoDbTransactions.Write
+    .Add(table.Put(entity)
+        .Where($"attribute_not_exists({EntityFields.Id})"))
+    // Update
+    .Add(table.Update()
+        .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
+        .Set($"SET {EntityFields.Status} = {{0}}", "completed"))
+    // Delete with condition
+    .Add(table.Delete()
+        .WithKey(EntityFields.Id, EntityKeys.Pk("id456"))
+        .Where($"{EntityFields.Status} = {{0}}", "inactive"))
+    // Condition check
+    .Add(table.ConditionCheck()
+        .WithKey(EntityFields.Id, EntityKeys.Pk("id789"))
+        .Where($"{EntityFields.Balance} >= {{0}}", 100))
+    // Execute (up to 100 items)
+    .ExecuteAsync();
 ```
 
 **Details:** [Transactions](core-features/Transactions.md#write-transactions)
@@ -834,15 +819,12 @@ await txnBuilder.ExecuteAsync();
 ### Read Transaction
 
 ```csharp
-var txnBuilder = new TransactGetItemsRequestBuilder(client);
-
-txnBuilder.Get(table, builder => builder
-    .WithKey(EntityFields.Id, EntityKeys.Pk("id1")));
-
-txnBuilder.Get(table, builder => builder
-    .WithKey(EntityFields.Id, EntityKeys.Pk("id2")));
-
-var response = await txnBuilder.ExecuteAsync();
+var response = await DynamoDbTransactions.Get
+    .Add(table.Get()
+        .WithKey(EntityFields.Id, EntityKeys.Pk("id1")))
+    .Add(table.Get()
+        .WithKey(EntityFields.Id, EntityKeys.Pk("id2")))
+    .ExecuteAsync();
 ```
 
 **Details:** [Transactions](core-features/Transactions.md#read-transactions)
@@ -1040,12 +1022,12 @@ var response = await table.Get()
 
 ```csharp
 // ✅ Good - single batch request
-var batchBuilder = new BatchWriteItemRequestBuilder(client);
+var builder = DynamoDbBatch.Write;
 foreach (var entity in entities)
 {
-    batchBuilder.Put(table, builder => builder.WithItem(entity));
+    builder = builder.Add(table.Put(entity));
 }
-await batchBuilder.ExecuteAsync();
+await builder.ExecuteAsync();
 
 // ❌ Avoid - multiple individual requests
 foreach (var entity in entities)
