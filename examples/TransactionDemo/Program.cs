@@ -6,6 +6,10 @@ using Oproto.FluentDynamoDb.Requests.Extensions;
 using TransactionDemo;
 using TransactionDemo.Entities;
 
+// Table name as external configuration - in real apps this would come from
+// environment variables, configuration files, or other external sources
+const string TableName = "transaction-demo";
+
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║        TransactionDemo - FluentDynamoDb Example            ║");
 Console.WriteLine("║                                                            ║");
@@ -21,22 +25,22 @@ var client = DynamoDbSetup.CreateLocalClient();
 ConsoleHelpers.ShowInfo("Ensuring table exists...");
 var created = await DynamoDbSetup.EnsureTableExistsAsync(
     client,
-    TransactionDemoTable.TableName,
+    TableName,
     "pk",
     "sk");
 
 if (created)
 {
-    ConsoleHelpers.ShowSuccess($"Created table '{TransactionDemoTable.TableName}'");
+    ConsoleHelpers.ShowSuccess($"Created table '{TableName}'");
 }
 else
 {
-    ConsoleHelpers.ShowInfo($"Table '{TransactionDemoTable.TableName}' already exists");
+    ConsoleHelpers.ShowInfo($"Table '{TableName}' already exists");
 }
 
-// Create table and comparison instances
-var table = new TransactionDemoTable(client);
-var comparison = new TransactionComparison(client, table);
+// Create table instance - passing table name explicitly demonstrates configurability
+var table = new TransactionDemoTable(client, TableName);
+var comparison = new TransactionComparison(client, table, TableName);
 
 // Store results for comparison
 TransactionComparison.TransactionResult? fluentResult = null;

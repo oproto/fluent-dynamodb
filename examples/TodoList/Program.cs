@@ -5,6 +5,10 @@ using Examples.Shared;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using TodoList.Entities;
 
+// Table name as external configuration - in real apps this would come from
+// environment variables, configuration files, or other external sources
+const string TableName = "todo-items";
+
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║           TodoList - FluentDynamoDb Example                ║");
 Console.WriteLine("║                                                            ║");
@@ -20,20 +24,20 @@ var client = DynamoDbSetup.CreateLocalClient();
 ConsoleHelpers.ShowInfo("Ensuring table exists...");
 var created = await DynamoDbSetup.EnsureTableExistsAsync(
     client,
-    TodoItemsTable.TableName,
+    TableName,
     "pk");
 
 if (created)
 {
-    ConsoleHelpers.ShowSuccess($"Created table '{TodoItemsTable.TableName}'");
+    ConsoleHelpers.ShowSuccess($"Created table '{TableName}'");
 }
 else
 {
-    ConsoleHelpers.ShowInfo($"Table '{TodoItemsTable.TableName}' already exists");
+    ConsoleHelpers.ShowInfo($"Table '{TableName}' already exists");
 }
 
-// Create table instance
-var table = new TodoItemsTable(client);
+// Create table instance - passing table name explicitly demonstrates configurability
+var table = new TodoItemsTable(client, TableName);
 
 // Main menu loop
 while (true)

@@ -12,13 +12,14 @@ StoreLocator/
 │   ├── StoreGeoHash.cs            # Store entity with GeoHash spatial indexing
 │   ├── StoreS2.cs                 # Store entity with S2 spatial indexing
 │   ├── StoreH3.cs                 # Store entity with H3 spatial indexing
-│   ├── StoresGeohashTable.cs      # Table class for GeoHash-indexed stores
-│   ├── StoresS2Table.cs           # Table class for S2-indexed stores
-│   └── StoresH3Table.cs           # Table class for H3-indexed stores
+│   ├── StoresS2Table.cs           # Table class with SelectS2Level utility method
+│   └── StoresH3Table.cs           # Table class with SelectH3Resolution utility method
 ├── Program.cs                      # Interactive console application
 ├── README.md
 └── StoreLocator.csproj
 ```
+
+Note: The GeoHash table class was removed as it contained no utility methods beyond the source-generated code. The S2 and H3 table classes are retained only for their precision selection utility methods.
 
 ## Features Demonstrated
 
@@ -204,10 +205,19 @@ public partial class StoreH3
 ### Table Setup with Geospatial Support
 
 ```csharp
-// Initialize table with geospatial provider
-var geoHashTable = new StoresGeohashTable(client);
-var s2Table = new StoresS2Table(client);
-var h3Table = new StoresH3Table(client);
+// Table names as external configuration - in real apps these would come from
+// environment variables, configuration files, or other external sources
+const string GeoHashTableName = "stores-geohash";
+const string S2TableName = "stores-s2";
+const string H3TableName = "stores-h3";
+
+// Build options once at application level with geospatial support
+var options = new FluentDynamoDbOptions().AddGeospatial();
+
+// Create table instances - pass client, table name, and options
+var geoHashTable = new StoresGeohashTable(client, GeoHashTableName, options);
+var s2Table = new StoresS2Table(client, S2TableName, options);
+var h3Table = new StoresH3Table(client, H3TableName, options);
 ```
 
 ### CRUD Operations with Generated Entity Accessors

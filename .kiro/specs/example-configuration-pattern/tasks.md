@@ -1,0 +1,66 @@
+# Implementation Plan
+
+- [x] 1. Refactor TodoList example project
+  - [x] 1.1 Update Program.cs to pass table name to constructor
+    - Modify table instantiation to use `new TodoItemsTable(client, TodoItemsTable.TableName)`
+    - _Requirements: 1.1, 2.1, 2.3_
+  - [x] 1.2 Delete TodoItemsTable.cs custom table class
+    - Remove the file as it only contains a constructor with no utility methods
+    - The source-generated partial class provides the necessary constructor
+    - _Requirements: 1.4, 4.1_
+  - [x] 1.3 Update TodoList README.md
+    - Update project structure section to remove reference to deleted table class file
+    - Update any code examples showing table instantiation
+    - _Requirements: 3.1, 3.2, 3.3_
+
+- [x] 2. Refactor TransactionDemo example project
+  - [x] 2.1 Update Program.cs to pass table name to constructor
+    - Modify table instantiation to use `new TransactionDemoTable(client, TransactionDemoTable.TableName)`
+    - _Requirements: 1.1, 2.1, 2.3_
+  - [x] 2.2 Update TransactionComparison.cs to use new table pattern
+    - Update any table instantiation in the comparison class
+    - _Requirements: 1.1, 2.1_
+  - [x] 2.3 Delete TransactionDemoTable.cs custom table class
+    - Remove the file as it only contains a constructor with no utility methods
+    - _Requirements: 1.4, 4.1_
+  - [x] 2.4 Update TransactionDemo README.md
+    - Update project structure section to remove reference to deleted table class file
+    - _Requirements: 3.1, 3.2_
+
+- [x] 3. Refactor InvoiceManager example project
+  - [x] 3.1 Update Program.cs to pass table name to constructor
+    - Modify table instantiation to use `new InvoicesTable(client, InvoicesTable.TableName)`
+    - _Requirements: 1.1, 2.1, 2.3_
+  - [x] 3.2 Delete InvoicesTable.cs custom table class
+    - Remove the file as it only contains a constructor with no utility methods
+    - _Requirements: 1.4, 4.1_
+  - [x] 3.3 Update InvoiceManager README.md
+    - Update project structure section to remove reference to deleted table class file
+    - _Requirements: 3.1, 3.2_
+
+- [x] 4. Refactor StoreLocator example project
+  - [x] 4.1 Update Program.cs to build options at application level
+    - Create `FluentDynamoDbOptions` with geospatial support once
+    - Pass options to all three table constructors
+    - _Requirements: 1.1, 1.3_
+  - [x] 4.2 Update Program.cs table instantiation
+    - Modify all three table instantiations to pass client, table name, and options
+    - _Requirements: 2.1, 2.3_
+  - [x] 4.3 Simplify StoresGeohashTable.cs
+    - Delete the file as it only contains a constructor with no utility methods
+    - _Requirements: 1.4, 4.1_
+  - [x] 4.4 Simplify StoresS2Table.cs
+    - Remove the custom constructor
+    - Keep only the `SelectS2Level` utility method and `TableName` constant
+    - _Requirements: 1.3, 4.2_
+  - [x] 4.5 Simplify StoresH3Table.cs
+    - Remove the custom constructor
+    - Keep only the `SelectH3Resolution` utility method and `TableName` constant
+    - _Requirements: 1.3, 4.2_
+  - [x] 4.6 Update StoreLocator README.md
+    - Update project structure section to reflect file changes
+    - Update code examples showing table setup
+    - _Requirements: 3.1, 3.2, 3.3_
+
+- [x] 5. Checkpoint - Verify all projects build and run
+  - Ensure all tests pass, ask the user if questions arise.

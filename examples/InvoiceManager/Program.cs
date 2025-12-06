@@ -5,6 +5,10 @@ using Examples.Shared;
 using InvoiceManager.Entities;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
+// Table name as external configuration - in real apps this would come from
+// environment variables, configuration files, or other external sources
+const string TableName = "invoices";
+
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║         InvoiceManager - FluentDynamoDb Example            ║");
 Console.WriteLine("║                                                            ║");
@@ -21,21 +25,21 @@ var client = DynamoDbSetup.CreateLocalClient();
 ConsoleHelpers.ShowInfo("Ensuring table exists...");
 var created = await DynamoDbSetup.EnsureTableExistsAsync(
     client,
-    InvoicesTable.TableName,
+    TableName,
     "pk",
     "sk");  // This table has a sort key for single-table design
 
 if (created)
 {
-    ConsoleHelpers.ShowSuccess($"Created table '{InvoicesTable.TableName}'");
+    ConsoleHelpers.ShowSuccess($"Created table '{TableName}'");
 }
 else
 {
-    ConsoleHelpers.ShowInfo($"Table '{InvoicesTable.TableName}' already exists");
+    ConsoleHelpers.ShowInfo($"Table '{TableName}' already exists");
 }
 
-// Create table instance
-var table = new InvoicesTable(client);
+// Create table instance - pass table name explicitly to demonstrate configurability
+var table = new InvoicesTable(client, TableName);
 
 // Main menu loop
 while (true)

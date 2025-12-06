@@ -86,14 +86,26 @@ The application provides an interactive menu:
 ```
 TodoList/
 ├── Entities/
-│   ├── TodoItem.cs          # Entity with DynamoDB attributes
-│   └── TodoItemsTable.cs    # Table class with generated entity accessor
-├── Program.cs               # Interactive console application
+│   └── TodoItem.cs          # Entity with DynamoDB attributes
+├── Program.cs               # Interactive console application with table configuration
 ├── TodoList.csproj          # Project file
 └── README.md                # This file
 ```
 
+Note: The `TodoItemsTable` class is source-generated from the `[DynamoDbTable]` attribute on `TodoItem`. No custom table class file is needed when there are no additional utility methods.
+
 ## Code Highlights
+
+### Table Instantiation
+
+```csharp
+// Table name as external configuration - in real apps this would come from
+// environment variables, configuration files, or other external sources
+const string TableName = "todo-items";
+
+// Create table instance - passing table name explicitly for configurability
+var table = new TodoItemsTable(client, TableName);
+```
 
 ### Entity Definition
 

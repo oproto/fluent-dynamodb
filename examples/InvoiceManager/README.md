@@ -106,12 +106,15 @@ InvoiceManager/
 ├── Entities/
 │   ├── Customer.cs       # Customer entity (pk=CUSTOMER#id, sk=PROFILE)
 │   ├── Invoice.cs        # Invoice entity with [RelatedEntity] Lines
-│   ├── InvoiceLine.cs    # Line item entity
-│   └── InvoicesTable.cs  # Table class with generated entity accessors
-├── Program.cs            # Interactive console application
+│   └── InvoiceLine.cs    # Line item entity
+├── Program.cs            # Interactive console application (table configuration here)
 ├── InvoiceManager.csproj # Project file
 └── README.md             # This file
 ```
+
+Note: The `InvoicesTable` class is source-generated from the entity definitions. The table name
+is configured in `Program.cs` and passed to the constructor, demonstrating the recommended
+pattern for runtime-configurable table names.
 
 ## Code Highlights
 

@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- **Example Projects Configuration Pattern** - Refactored all example projects (TodoList, TransactionDemo, InvoiceManager, StoreLocator) to follow the recommended configuration pattern
+  - Configuration now built once at application level in Program.cs
+  - Table names passed explicitly to constructors for runtime configurability
+  - Removed redundant custom table classes that only contained constructors
+  - StoreLocator retains utility methods (`SelectS2Level`, `SelectH3Resolution`) while removing constructor boilerplate
+  - Updated README files to reflect new project structure and patterns
 
 ### Deprecated
 
