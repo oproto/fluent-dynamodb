@@ -807,14 +807,13 @@ foreach (var userId in userIds)
         .ExecuteAsync<User>();
 }
 
-// ✅ Single batch request
-var response = await table.BatchGet
-    .FromTable("users", userIds.Select(id => 
-        new Dictionary<string, AttributeValue>
-        {
-            [UserFields.UserId] = new AttributeValue { S = UserKeys.Pk(id) }
-        }))
-    .ExecuteAsync();
+// ✅ Single batch request using static entry point
+var batch = DynamoDbBatch.Get;
+foreach (var userId in userIds)
+{
+    batch.Add(table.Users.Get(userId));
+}
+var response = await batch.ExecuteAsync();
 ```
 
 2. **Use eventually consistent reads:**

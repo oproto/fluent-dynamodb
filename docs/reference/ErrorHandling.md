@@ -216,13 +216,12 @@ using Amazon.DynamoDBv2.Model;
 
 try
 {
-    await table.TransactWrite
-        .AddPut(new User { UserId = "user123", Name = "John" })
-            .WithCondition($"attribute_not_exists({UserFields.UserId})")
-        .AddUpdate()
-            .WithKey(AccountFields.AccountId, AccountKeys.Pk("acct123"))
+    await DynamoDbTransactions.Write
+        .Add(table.Users.Put(new User { UserId = "user123", Name = "John" })
+            .Where(x => x.UserId.AttributeNotExists()))
+        .Add(table.Accounts.Update("acct123")
             .Set($"SET {AccountFields.Balance} = {AccountFields.Balance} - {{0}}", 100m)
-            .WithCondition($"{AccountFields.Balance} >= {{0}}", 100m)
+            .Where($"{AccountFields.Balance} >= {{0}}", 100m))
         .ExecuteAsync();
 }
 catch (TransactionCanceledException ex)
@@ -245,14 +244,12 @@ public async Task TransferFundsAsync(string fromAccount, string toAccount, decim
 {
     try
     {
-        await table.TransactWrite
-            .AddUpdate()
-                .WithKey(AccountFields.AccountId, AccountKeys.Pk(fromAccount))
+        await DynamoDbTransactions.Write
+            .Add(table.Accounts.Update(fromAccount)
                 .Set($"SET {AccountFields.Balance} = {AccountFields.Balance} - {{0}}", amount)
-                .WithCondition($"{AccountFields.Balance} >= {{0}}", amount)
-            .AddUpdate()
-                .WithKey(AccountFields.AccountId, AccountKeys.Pk(toAccount))
-                .Set($"SET {AccountFields.Balance} = {AccountFields.Balance} + {{0}}", amount)
+                .Where($"{AccountFields.Balance} >= {{0}}", amount))
+            .Add(table.Accounts.Update(toAccount)
+                .Set($"SET {AccountFields.Balance} = {AccountFields.Balance} + {{0}}", amount))
             .ExecuteAsync();
     }
     catch (TransactionCanceledException ex)

@@ -10,12 +10,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- **Documentation Reorganization** - Split `STSIntegration.md` into two focused documents for better discoverability
+  - New `docs/advanced-topics/ClientConfiguration.md` covering development environments (DynamoDB Local, LocalStack), custom client settings, multi-region deployments, and proxy configuration
+  - New `docs/advanced-topics/ScopedSecurity.md` covering `WithClient()` method for per-request client customization, STS-scoped credentials, and multi-tenancy patterns
+  - Deleted `docs/advanced-topics/STSIntegration.md` after content migration
+  - Updated `docs/advanced-topics/README.md` to reflect new document structure
+- **Example Projects Configuration Pattern** - Refactored all example projects (TodoList, TransactionDemo, InvoiceManager, StoreLocator) to follow the recommended configuration pattern
+  - Configuration now built once at application level in Program.cs
+  - Table names passed explicitly to constructors for runtime configurability
+  - Removed redundant custom table classes that only contained constructors
+  - StoreLocator retains utility methods (`SelectS2Level`, `SelectH3Resolution`) while removing constructor boilerplate
+  - Updated README files to reflect new project structure and patterns
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- **Documentation API Pattern Corrections** - Fixed incorrect batch and transaction operation examples across documentation
+  - Corrected batch operation examples to use `DynamoDbBatch.Write` and `DynamoDbBatch.Get` static entry points instead of constructor-based patterns
+  - Corrected transaction operation examples to use `DynamoDbTransactions.Write` and `DynamoDbTransactions.Get` static entry points instead of constructor-based patterns
+  - Corrected `CommitAsync()` to `ExecuteAsync()` for transaction execution
+  - Files corrected: `BasicOperations.md`, `PerformanceOptimization.md`, `GlobalSecondaryIndexes.md`, `CompositeEntities.md`, `MultiEntityTables.md`, `QUICK_REFERENCE.md`, `DeveloperGuide.md`
+  - See `docs/DOCUMENTATION_CHANGELOG.md` for detailed before/after patterns
+- **Documentation API Style Corrections** - Fixed incorrect API method names and patterns
+  - Corrected `ExecuteAsync<T>()` to `GetItemAsync<T>()` on GetItemRequestBuilder in multiple files
+  - Corrected non-existent `DynamoDbTableBase<T>` generic type to use concrete typed table classes with entity accessors
+  - Updated migration examples to use lambda expressions and entity accessor patterns
+  - Files corrected: `AdvancedTypesMigration.md`, `CodeExamples.md`, `PerformanceOptimization.md`, `AdoptionGuide.md`
+  - See `docs/DOCUMENTATION_CHANGELOG.md` Part 6 for detailed before/after patterns
 
 ### Security
 

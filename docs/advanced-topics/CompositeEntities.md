@@ -495,18 +495,17 @@ do
 Use batch operations for efficient writes:
 
 ```csharp
-// Batch write for composite entity
-var batchBuilder = new BatchWriteItemRequestBuilder(client);
+// Batch write for composite entity using static entry point
+var batchBuilder = DynamoDbBatch.Write
+    .WithClient(client);
 
 // Add order header
-batchBuilder.Put(table, builder => builder
-    .WithItem(/* order header attributes */));
+batchBuilder.Add(table.Orders.Put(orderHeader));
 
 // Add all line items in batch
 foreach (var item in order.Items)
 {
-    batchBuilder.Put(table, builder => builder
-        .WithItem(/* line item attributes */));
+    batchBuilder.Add(table.OrderLines.Put(item));
 }
 
 // Execute batch (up to 25 items per batch)
@@ -860,18 +859,18 @@ public List<object>? AllRelated { get; set; }
 
 ```csharp
 // ✅ Good - atomic write of composite entity
-var txnBuilder = new TransactWriteItemsRequestBuilder(client);
+var txnBuilder = DynamoDbTransactions.Write;
 
 // Add order header
-txnBuilder.Put(table, builder => builder.WithItem(/* order header */));
+txnBuilder = txnBuilder.Add(table.Put(/* order header */));
 
 // Add all items in same transaction
 foreach (var item in order.Items)
 {
-    txnBuilder.Put(table, builder => builder.WithItem(/* item */));
+    txnBuilder = txnBuilder.Add(table.Put(/* item */));
 }
 
-await txnBuilder.CommitAsync();
+await txnBuilder.ExecuteAsync();
 ```
 
 ### 5. Consider Item Count Limits

@@ -238,7 +238,7 @@ public partial class Order
 // Usage - key builder generated automatically
 var order = await table.Get
     .WithKey(OrderFields.Pk, OrderKeys.Pk("tenant123", "order456"))
-    .ExecuteAsync<Order>();
+    .GetItemAsync<Order>();
 ```
 
 #### Manual Approach
@@ -415,26 +415,7 @@ var response = await table.Query()
     .ToListAsync<User>(); // Still uses generated mapping
 ```
 
-### Use Case 2: Dynamic Table Names with Generated Entities
-
-```csharp
-[DynamoDbTable("users")] // Default table name
-public partial class User
-{
-    [PartitionKey]
-    [DynamoDbAttribute("pk")]
-    public string UserId { get; set; } = string.Empty;
-}
-
-// Use different table at runtime
-var table = new DynamoDbTableBase(client, GetTableNameForTenant(tenantId));
-
-var response = await table.Get()
-    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .GetItemAsync<User>();
-```
-
-### Use Case 3: Generated Entities with Manual Client Management
+### Use Case 2: Generated Entities with Manual Client Management
 
 ```csharp
 // Use source generation for entities

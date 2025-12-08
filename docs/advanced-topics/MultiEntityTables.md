@@ -132,17 +132,6 @@ public partial class EcommerceTable : DynamoDbTableBase
     public OrderAccessor Orders { get; }
     public OrderLineAccessor OrderLines { get; }
     
-    // Transaction and batch operations (table level only)
-    public TransactWriteItemsRequestBuilder TransactWrite()
-    {
-        return new TransactWriteItemsRequestBuilder(Client);
-    }
-    
-    public BatchWriteItemBuilder BatchWrite()
-    {
-        return new BatchWriteItemBuilder(Client);
-    }
-    
     // Nested accessor classes
     public class OrderAccessor
     {
@@ -395,12 +384,12 @@ var line2 = new OrderLine
     Price = 99.99m
 };
 
-// Transaction across multiple entity types
-await ecommerceTable.TransactWrite()
-    .AddPut(ecommerceTable.Orders, order)
-    .AddPut(ecommerceTable.OrderLines, line1)
-    .AddPut(ecommerceTable.OrderLines, line2)
-    .CommitAsync();
+// Transaction across multiple entity types using static entry point
+await DynamoDbTransactions.Write
+    .Add(ecommerceTable.Orders.Put(order))
+    .Add(ecommerceTable.OrderLines.Put(line1))
+    .Add(ecommerceTable.OrderLines.Put(line2))
+    .ExecuteAsync();
 
 // All items are created atomically or none are created
 ```
@@ -408,24 +397,24 @@ await ecommerceTable.TransactWrite()
 ### Batch Operations
 
 ```csharp
-// Batch write multiple entity types
-await ecommerceTable.BatchWrite()
-    .AddPut(order1)
-    .AddPut(order2)
-    .AddPut(line1)
-    .AddPut(line2)
-    .AddPut(line3)
+// Batch write multiple entity types using static entry point
+await DynamoDbBatch.Write
+    .Add(ecommerceTable.Orders.Put(order1))
+    .Add(ecommerceTable.Orders.Put(order2))
+    .Add(ecommerceTable.OrderLines.Put(line1))
+    .Add(ecommerceTable.OrderLines.Put(line2))
+    .Add(ecommerceTable.OrderLines.Put(line3))
     .ExecuteAsync();
 
 // Batch get items of different types
-var batchResponse = await ecommerceTable.BatchGet()
-    .AddKey(OrderKeys.Pk("customer123"), OrderKeys.Sk("ORDER#order456"))
-    .AddKey(OrderLineKeys.Pk("customer123"), OrderLineKeys.Sk("ORDER#order456#LINE#1"))
-    .AddKey(OrderLineKeys.Pk("customer123"), OrderLineKeys.Sk("ORDER#order456#LINE#2"))
+var batchResponse = await DynamoDbBatch.Get
+    .Add(ecommerceTable.Orders.Get("customer123", "ORDER#order456"))
+    .Add(ecommerceTable.OrderLines.Get("customer123", "ORDER#order456#LINE#1"))
+    .Add(ecommerceTable.OrderLines.Get("customer123", "ORDER#order456#LINE#2"))
     .ExecuteAsync();
 ```
 
-**Important:** Transaction and batch operations are only available at the table level, not on entity accessors. This ensures you can coordinate operations across entity types.
+**Important:** Transaction and batch operations use static entry points (`DynamoDbTransactions.Write`, `DynamoDbBatch.Write`, `DynamoDbBatch.Get`) and can coordinate operations across multiple tables and entity types.
 
 
 ## Complete Example: E-Commerce Application
@@ -600,13 +589,13 @@ var payment = new Payment
     Status = "pending"
 };
 
-// Create everything atomically
-await ecommerceTable.TransactWrite()
-    .AddPut(ecommerceTable.Orders, order)
-    .AddPut(ecommerceTable.OrderLines, line1)
-    .AddPut(ecommerceTable.OrderLines, line2)
-    .AddPut(ecommerceTable.Payments, payment)
-    .CommitAsync();
+// Create everything atomically using static entry point
+await DynamoDbTransactions.Write
+    .Add(ecommerceTable.Orders.Put(order))
+    .Add(ecommerceTable.OrderLines.Put(line1))
+    .Add(ecommerceTable.OrderLines.Put(line2))
+    .Add(ecommerceTable.Payments.Put(payment))
+    .ExecuteAsync();
 
 // Query all items for an order (efficient single query)
 var allOrderItems = await ecommerceTable.Query()
@@ -635,14 +624,11 @@ var pendingOrders = await ecommerceTable.Query<Order>()
     .Where($"{Order.Fields.StatusIndexPk} = {{0}}", "pending")
     .ToListAsync();
 
-// Update order status and create shipment atomically
-await ecommerceTable.TransactWrite()
-    .AddUpdate(ecommerceTable.Orders, 
-        update => update
-            .WithKey(OrderFields.CustomerId, "customer123")
-            .WithKey(OrderFields.OrderId, "ORDER#order456")
-            .Set($"SET {OrderFields.Status} = :status", new { status = "shipped" }))
-    .AddPut(ecommerceTable.Shipments, new Shipment
+// Update order status and create shipment atomically using static entry point
+await DynamoDbTransactions.Write
+    .Add(ecommerceTable.Orders.Update("customer123", "ORDER#order456")
+        .Set(x => new { Status = "shipped" }))
+    .Add(ecommerceTable.Shipments.Put(new Shipment
     {
         CustomerId = "customer123",
         OrderId = "order456",
@@ -650,8 +636,8 @@ await ecommerceTable.TransactWrite()
         Carrier = "UPS",
         Status = "in_transit",
         ShippedAt = DateTime.UtcNow
-    })
-    .CommitAsync();
+    }))
+    .ExecuteAsync();
 ```
 
 
@@ -982,12 +968,12 @@ var line2 = await table.OrderLines.Get()...
 Ensure related entities are created/updated atomically:
 
 ```csharp
-// ✅ Good - Atomic creation
-await table.TransactWrite()
-    .AddPut(table.Orders, order)
-    .AddPut(table.OrderLines, line1)
-    .AddPut(table.OrderLines, line2)
-    .CommitAsync();
+// ✅ Good - Atomic creation using static entry point
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(line1))
+    .Add(table.OrderLines.Put(line2))
+    .ExecuteAsync();
 
 // ❌ Bad - Non-atomic, can leave partial data
 await table.Orders.Put(order).PutAsync();
@@ -1225,10 +1211,18 @@ public partial class MyAppTable : DynamoDbTableBase
     // Entity accessors
     public OrderAccessor Orders { get; }
     public OrderLineAccessor OrderLines { get; }
-    
-    // Transactions (table level only)
-    public TransactWriteItemsRequestBuilder TransactWrite() { }
 }
+
+// Transaction and batch operations use static entry points:
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(line))
+    .ExecuteAsync();
+
+await DynamoDbBatch.Write
+    .Add(table.Orders.Put(order1))
+    .Add(table.Orders.Put(order2))
+    .ExecuteAsync();
 ```
 
 For simpler scenarios with one entity per table, see [Single-Entity Tables](../getting-started/SingleEntityTables.md).

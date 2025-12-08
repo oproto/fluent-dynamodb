@@ -57,6 +57,540 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-06]
+
+### File: Multiple documentation files - Batch and Transaction API Pattern Corrections
+
+**Category:** API Correction - Static Entry Point Patterns
+
+**Summary:** Corrected batch and transaction operation examples across documentation to use the correct static entry point patterns (`DynamoDbBatch.Write`, `DynamoDbBatch.Get`, `DynamoDbTransactions.Write`, `DynamoDbTransactions.Get`) instead of incorrect constructor-based patterns. Also corrected `CommitAsync()` to `ExecuteAsync()` for transaction execution.
+
+---
+
+#### Part 1: Batch Operation Pattern Corrections
+
+**Files corrected:**
+- `docs/core-features/BasicOperations.md`
+- `docs/advanced-topics/PerformanceOptimization.md`
+- `docs/advanced-topics/GlobalSecondaryIndexes.md`
+- `docs/QUICK_REFERENCE.md`
+
+**Before (Incorrect - constructor-based patterns):**
+```csharp
+// Batch Write - INCORRECT
+var batchWrite = new BatchWriteItemRequestBuilder(client);
+batchWrite.AddPutItem(table, user1);
+batchWrite.AddPutItem(table, user2);
+await batchWrite.ExecuteAsync();
+
+// Batch Get - INCORRECT
+var batchGet = new BatchGetItemRequestBuilder(client);
+batchGet.AddKey(table, pk1, sk1);
+batchGet.AddKey(table, pk2, sk2);
+var response = await batchGet.ExecuteAsync();
+```
+
+**After (Correct - static entry point patterns):**
+```csharp
+// Batch Write - CORRECT
+await DynamoDbBatch.Write
+    .Add(table.Users.Put(user1))
+    .Add(table.Users.Put(user2))
+    .ExecuteAsync(client);
+
+// Batch Get - CORRECT
+var response = await DynamoDbBatch.Get
+    .Add(table.Users.Get(pk1, sk1))
+    .Add(table.Users.Get(pk2, sk2))
+    .ExecuteAsync(client);
+```
+
+**Reason:** The `BatchWriteItemRequestBuilder` and `BatchGetItemRequestBuilder` constructors are internal implementation details. The correct public API uses `DynamoDbBatch.Write` and `DynamoDbBatch.Get` static entry points with the fluent `.Add()` pattern.
+
+---
+
+#### Part 2: Transaction Operation Pattern Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/CompositeEntities.md`
+- `docs/QUICK_REFERENCE.md`
+- `docs/DeveloperGuide.md`
+
+**Before (Incorrect - constructor-based patterns):**
+```csharp
+// Transaction Write - INCORRECT
+var transaction = new TransactWriteItemsRequestBuilder(client);
+transaction.AddPut(table, order);
+transaction.AddPut(table, orderLine);
+await transaction.CommitAsync();
+
+// Transaction Get - INCORRECT
+var transaction = new TransactGetItemsRequestBuilder(client);
+transaction.AddGet(table, pk1, sk1);
+var response = await transaction.ExecuteAsync();
+```
+
+**After (Correct - static entry point patterns):**
+```csharp
+// Transaction Write - CORRECT
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(orderLine))
+    .ExecuteAsync(client);
+
+// Transaction Get - CORRECT
+var response = await DynamoDbTransactions.Get
+    .Add(table.Orders.Get(pk1, sk1))
+    .Add(table.OrderLines.Get(pk2, sk2))
+    .ExecuteAsync(client);
+```
+
+**Reason:** The `TransactWriteItemsRequestBuilder` and `TransactGetItemsRequestBuilder` constructors are internal implementation details. The correct public API uses `DynamoDbTransactions.Write` and `DynamoDbTransactions.Get` static entry points with the fluent `.Add()` pattern.
+
+---
+
+#### Part 3: CommitAsync to ExecuteAsync Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/CompositeEntities.md`
+- `docs/advanced-topics/MultiEntityTables.md`
+- `docs/getting-started/SingleEntityTables.md`
+
+**Before (Incorrect method name):**
+```csharp
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(orderLine))
+    .CommitAsync(client);
+```
+
+**After (Correct method name):**
+```csharp
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(orderLine))
+    .ExecuteAsync(client);
+```
+
+**Reason:** The `CommitAsync()` method does not exist on `TransactionWriteBuilder`. The correct method is `ExecuteAsync()`, which is consistent with other builder patterns in the library.
+
+---
+
+#### Part 4: STSIntegration.md Reorganization
+
+**Files affected:**
+- `docs/advanced-topics/STSIntegration.md` (deleted)
+- `docs/advanced-topics/ClientConfiguration.md` (created)
+- `docs/advanced-topics/ScopedSecurity.md` (created)
+- `docs/advanced-topics/README.md` (updated)
+
+**Before (Single conflated document):**
+```
+docs/advanced-topics/STSIntegration.md
+- Mixed client configuration topics (DynamoDB Local, LocalStack, multi-region)
+- Mixed STS-scoped credentials topics (WithClient, multi-tenancy)
+```
+
+**After (Focused documents):**
+```
+docs/advanced-topics/ClientConfiguration.md
+- Development environments (DynamoDB Local, LocalStack)
+- Custom client settings (timeouts, retries, connection pooling)
+- Multi-region deployments (static routing)
+- Proxy configuration
+
+docs/advanced-topics/ScopedSecurity.md
+- WithClient() method for per-request client customization
+- STS-scoped credentials for multi-tenancy
+- Complete multi-tenancy implementation example
+- Security best practices
+- Performance considerations (client reuse, credential caching)
+```
+
+**Reason:** The original `STSIntegration.md` conflated two distinct topics: client configuration (applied at table creation time) and scoped security (per-request client customization). Splitting into focused documents improves discoverability and allows developers to find relevant information more easily.
+
+---
+
+#### Part 5: Verification Pass - Additional Pattern Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/CompositeEntities.md`
+- `docs/advanced-topics/MultiEntityTables.md`
+
+**CompositeEntities.md - Batch Operations Section:**
+
+**Before (Incorrect - constructor-based pattern):**
+```csharp
+// Batch write for composite entity
+var batchBuilder = new BatchWriteItemRequestBuilder(client);
+
+// Add order header
+batchBuilder.Put(table, builder => builder
+    .WithItem(/* order header attributes */));
+
+// Add all line items in batch
+foreach (var item in order.Items)
+{
+    batchBuilder.Put(table, builder => builder
+        .WithItem(/* line item attributes */));
+}
+
+// Execute batch (up to 25 items per batch)
+await batchBuilder.ExecuteAsync();
+```
+
+**After (Correct - static entry point pattern):**
+```csharp
+// Batch write for composite entity using static entry point
+var batchBuilder = DynamoDbBatch.Write
+    .WithClient(client);
+
+// Add order header
+batchBuilder.Add(table.Orders.Put(orderHeader));
+
+// Add all line items in batch
+foreach (var item in order.Items)
+{
+    batchBuilder.Add(table.OrderLines.Put(item));
+}
+
+// Execute batch (up to 25 items per batch)
+await batchBuilder.ExecuteAsync();
+```
+
+**MultiEntityTables.md - Generated Table Class Example:**
+
+**Before (Incorrect - showing transaction/batch methods as generated):**
+```csharp
+// Transaction and batch operations (table level only)
+public TransactWriteItemsRequestBuilder TransactWrite()
+{
+    return new TransactWriteItemsRequestBuilder(Client);
+}
+
+public BatchWriteItemBuilder BatchWrite()
+{
+    return new BatchWriteItemBuilder(Client);
+}
+```
+
+**After (Correct - removed from generated code example):**
+Transaction and batch methods removed from the generated code example because the source generator does not generate these methods. Transaction and batch operations are inherently cross-table and should use the static entry points `DynamoDbTransactions.Write` and `DynamoDbBatch.Write` directly.
+
+**Reason:** These patterns were missed in the initial documentation correction pass. The verification step identified remaining constructor-based patterns that needed to be updated to use the correct static entry point patterns.
+
+---
+
+#### Part 6: Documentation API Style Corrections
+
+**Files corrected:**
+- `docs/reference/AdvancedTypesMigration.md`
+- `docs/CodeExamples.md`
+- `docs/advanced-topics/PerformanceOptimization.md`
+- `docs/reference/AdoptionGuide.md`
+
+**Summary:** Corrected API patterns to use typed table classes, entity accessors, and lambda expressions following the documentation style priority (lambda expressions preferred over format strings over manual WithValue).
+
+---
+
+**AdvancedTypesMigration.md - Multiple Corrections:**
+
+**Before (Incorrect - non-existent generic type):**
+```csharp
+private readonly DynamoDbTableBase<Product> _table;
+
+var response = await _table.Get
+    .WithKey("pk", productId)
+    .ExecuteAsync<Product>();
+
+await _table.Put
+    .WithItem(product)
+    .ExecuteAsync();
+```
+
+**After (Correct - typed table class with entity accessors):**
+```csharp
+private readonly ProductTable _table;
+
+var product = await _table.Products.GetAsync(productId);
+
+await _table.Products.PutAsync(product);
+```
+
+**Reason:** `DynamoDbTableBase<T>` does not exist - `DynamoDbTableBase` is not generic. Use concrete typed table classes with entity accessors for type-safe operations.
+
+---
+
+**CodeExamples.md - Get Request Method Correction:**
+
+**Before (Incorrect method name):**
+```csharp
+var response = await _table.Get()
+    .WithClient(scopedClient)
+    .WithKey(TenantResourceFields.Pk, TenantResourceKeys.Pk(tenantId, resourceType))
+    .WithKey(TenantResourceFields.Sk, TenantResourceKeys.Sk(resourceId))
+    .ExecuteAsync<TenantResource>();
+```
+
+**After (Correct method name):**
+```csharp
+var response = await _table.Get()
+    .WithClient(scopedClient)
+    .WithKey(TenantResourceFields.Pk, TenantResourceKeys.Pk(tenantId, resourceType))
+    .WithKey(TenantResourceFields.Sk, TenantResourceKeys.Sk(resourceId))
+    .GetItemAsync<TenantResource>();
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()`.
+
+---
+
+**PerformanceOptimization.md - Get Request Method Correction:**
+
+**Before (Incorrect method name):**
+```csharp
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .ExecuteAsync<User>();
+
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .UsingConsistentRead()
+    .ExecuteAsync<User>();
+```
+
+**After (Correct method name):**
+```csharp
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .GetItemAsync<User>();
+
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .UsingConsistentRead()
+    .GetItemAsync<User>();
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()`.
+
+---
+
+**AdoptionGuide.md - Get Request Method Correction:**
+
+**Before (Incorrect method name):**
+```csharp
+var order = await table.Get
+    .WithKey(OrderFields.Pk, OrderKeys.Pk("tenant123", "order456"))
+    .ExecuteAsync<Order>();
+```
+
+**After (Correct method name):**
+```csharp
+var order = await table.Get
+    .WithKey(OrderFields.Pk, OrderKeys.Pk("tenant123", "order456"))
+    .GetItemAsync<Order>();
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()`.
+
+---
+
+**AdvancedTypesMigration.md - Versioned Entities Section:**
+
+**Before (Incorrect method name):**
+```csharp
+public async Task<IProduct> GetProductAsync(string id, int version = 2)
+{
+    if (version == 1)
+    {
+        return await _tableV1.Get.WithKey("pk", id).ExecuteAsync<ProductV1>();
+    }
+    else
+    {
+        return await _tableV2.Get.WithKey("pk", id).ExecuteAsync<ProductV2>();
+    }
+}
+```
+
+**After (Correct method name and return pattern):**
+```csharp
+public async Task<IProduct?> GetProductAsync(string id, int version = 2)
+{
+    if (version == 1)
+    {
+        var response = await _tableV1.Get.WithKey("pk", id).GetItemAsync<ProductV1>();
+        return response.Item;
+    }
+    else
+    {
+        var response = await _tableV2.Get.WithKey("pk", id).GetItemAsync<ProductV2>();
+        return response.Item;
+    }
+}
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()` which returns a response object containing the `Item` property.
+
+---
+
+**AdoptionGuide.md - Removed Misleading "Dynamic Table Names" Example:**
+
+**Before (Removed - misleading pattern):**
+```csharp
+### Use Case 2: Dynamic Table Names with Generated Entities
+
+[DynamoDbTable("users")] // Default table name
+public partial class User
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+}
+
+// Use different table at runtime
+var table = new DynamoDbTableBase(client, GetTableNameForTenant(tenantId));
+
+var response = await table.Get()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .GetItemAsync<User>();
+```
+
+**After:** Section removed entirely. Use Case 3 renumbered to Use Case 2.
+
+**Reason:** This example was misleading because it showed creating a raw `DynamoDbTableBase` with a dynamic table name, then using generated field constants (`UserFields`, `UserKeys`) which are generated for typed table classes, not for raw `DynamoDbTableBase`. The generated entity accessors, indexes, and convenience methods are all part of the generated table class - using `DynamoDbTableBase` directly loses most of what the library provides. For multi-tenant scenarios with different table names, use the generated table class constructor which accepts a table name parameter.
+
+---
+
+#### Part 7: Batch Static Entry Point Client Parameter Correction
+
+**Files corrected:**
+- `docs/getting-started/SingleEntityTables.md`
+
+**Before (Incorrect - client as constructor parameter, generic methods):**
+```csharp
+// Batch write operations - INCORRECT
+await DynamoDbBatch.Write(client)
+    .Add(usersTable.Put<User>().WithItem(user1))
+    .Add(usersTable.Put<User>().WithItem(user2))
+    .Add(usersTable.Delete<User>().WithKey(User.Fields.UserId, "user3"))
+    .ExecuteAsync();
+
+// Batch get operations - INCORRECT
+var batchGetResponse = await DynamoDbBatch.Get(client)
+    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user1"))
+    .ExecuteAsync();
+```
+
+**After (Correct - static property, entity accessor pattern):**
+```csharp
+// Batch write operations - CORRECT
+await DynamoDbBatch.Write
+    .Add(usersTable.Users.Put(user1))
+    .Add(usersTable.Users.Put(user2))
+    .Add(usersTable.Users.Delete("user3"))
+    .ExecuteAsync();
+
+// Batch get operations - CORRECT
+var batchGetResponse = await DynamoDbBatch.Get
+    .Add(usersTable.Users.Get("user1"))
+    .ExecuteAsync();
+```
+
+**Reason:** 
+1. `DynamoDbBatch.Write` and `DynamoDbBatch.Get` are static properties that return new builder instances, not methods that accept a client parameter. The client is automatically inferred from the first request builder added, or can be explicitly specified using `.WithClient(client)` or by passing to `.ExecuteAsync(client: client)`.
+2. Use entity accessor pattern (`usersTable.Users.Put(user)`) instead of generic methods (`usersTable.Put<User>().WithItem(user)`) for cleaner, more readable code.
+
+---
+
+#### Part 8: Transaction and Batch Pattern Corrections (Multiple Files)
+
+**Files corrected:**
+- `docs/advanced-topics/MultiEntityTables.md`
+- `docs/DeveloperGuide.md`
+- `docs/reference/ErrorHandling.md`
+- `docs/QUICK_REFERENCE.md`
+- `docs/reference/LoggingTroubleshooting.md`
+- `docs/reference/Troubleshooting.md`
+- `docs/core-features/encryption-guide.md`
+
+**Before (Incorrect - table-level TransactWrite/BatchWrite methods):**
+```csharp
+// Transaction - INCORRECT (table method doesn't exist)
+await ecommerceTable.TransactWrite()
+    .AddPut(ecommerceTable.Orders, order)
+    .AddPut(ecommerceTable.OrderLines, line1)
+    .ExecuteAsync();
+
+// Batch write - INCORRECT
+await ecommerceTable.BatchWrite()
+    .AddPut(order1)
+    .AddPut(line1)
+    .ExecuteAsync();
+
+// Batch get - INCORRECT
+var batchResponse = await ecommerceTable.BatchGet()
+    .AddKey(OrderKeys.Pk("customer123"), OrderKeys.Sk("ORDER#order456"))
+    .ExecuteAsync();
+```
+
+**After (Correct - static entry points with entity accessors):**
+```csharp
+// Transaction - CORRECT (static entry point)
+await DynamoDbTransactions.Write
+    .Add(ecommerceTable.Orders.Put(order))
+    .Add(ecommerceTable.OrderLines.Put(line1))
+    .ExecuteAsync();
+
+// Batch write - CORRECT
+await DynamoDbBatch.Write
+    .Add(ecommerceTable.Orders.Put(order1))
+    .Add(ecommerceTable.OrderLines.Put(line1))
+    .ExecuteAsync();
+
+// Batch get - CORRECT
+var batchResponse = await DynamoDbBatch.Get
+    .Add(ecommerceTable.Orders.Get("customer123", "ORDER#order456"))
+    .ExecuteAsync();
+```
+
+**Reason:** The source generator does not generate `TransactWrite()`, `BatchWrite()`, or `BatchGet()` methods on table classes. Transaction and batch operations are inherently cross-table and use static entry points (`DynamoDbTransactions.Write`, `DynamoDbBatch.Write`, `DynamoDbBatch.Get`). Also updated to use entity accessor pattern for cleaner code.
+
+---
+
+#### Part 9: GlobalSecondaryIndexes.md API Pattern Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/GlobalSecondaryIndexes.md`
+
+**Before (Incorrect - UsingIndex pattern, ExecuteAsync on queries):**
+```csharp
+// Query using UsingIndex - INCORRECT
+var response = await table.Query
+    .UsingIndex(OrderIndexes.StatusIndex)
+    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
+    .ExecuteAsync<Order>();
+
+foreach (var order in response.Items) { ... }
+```
+
+**After (Correct - index accessor, lambda expressions, ToListAsync):**
+```csharp
+// Query using index accessor - CORRECT
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
+
+foreach (var order in orders) { ... }
+```
+
+**Reason:** 
+1. Use index accessor pattern (`table.StatusIndex.Query<Order>()`) instead of `table.Query.UsingIndex()` for cleaner, more discoverable API
+2. Use lambda expressions (`x => x.Status == "pending"`) instead of format strings for type-safe queries
+3. Use `ToListAsync()` instead of `ExecuteAsync<T>()` for queries - `ExecuteAsync<T>()` does not exist on QueryRequestBuilder
+4. When pagination is needed, use `ToResponseAsync()` to get the full response with `LastEvaluatedKey`
+
+---
+
 ## [2025-12-05]
 
 ### File: Multiple documentation files - Release 0.8.0 Documentation Corrections

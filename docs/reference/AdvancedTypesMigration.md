@@ -130,7 +130,12 @@ public partial class Product
 ```csharp
 public class ProductService
 {
-    private readonly DynamoDbTableBase<Product> _table;
+    private readonly ProductTable _table;
+    
+    public ProductService(ProductTable table)
+    {
+        _table = table;
+    }
     
     public async Task SaveProductAsync(Product product)
     {
@@ -144,18 +149,14 @@ public class ProductService
             product.TagsString = string.Join(",", product.Tags);
         }
         
-        await _table.Put
-            .WithItem(product)
-            .ExecuteAsync();
+        await _table.Products.PutAsync(product);
     }
     
-    public async Task<Product> GetProductAsync(string productId)
+    public async Task<Product?> GetProductAsync(string productId)
     {
-        var result = await _table.Get
-            .WithKey("pk", productId)
-            .ExecuteAsync<Product>();
+        var product = await _table.Products.GetAsync(productId);
         
-        var product = result.Item;
+        if (product == null) return null;
         
         // Migrate on read if needed
         if (product.Tags == null && !string.IsNullOrEmpty(product.TagsString))
@@ -174,21 +175,25 @@ public class ProductService
 ```csharp
 public class ProductMigrationService
 {
-    private readonly DynamoDbTableBase<Product> _table;
+    private readonly ProductTable _table;
+    
+    public ProductMigrationService(ProductTable table)
+    {
+        _table = table;
+    }
     
     public async Task MigrateAllProductsAsync()
     {
-        var scanRequest = _table.Scan;
         var hasMore = true;
-        Dictionary<string, AttributeValue> lastKey = null;
+        Dictionary<string, AttributeValue>? lastKey = null;
         int migratedCount = 0;
         
         while (hasMore)
         {
-            var response = await scanRequest
+            var response = await _table.Products.Scan()
                 .WithExclusiveStartKey(lastKey)
                 .Take(100)
-                .ExecuteAsync<Product>();
+                .ToListAsync();
             
             foreach (var product in response.Items)
             {
@@ -227,9 +232,7 @@ public class ProductMigrationService
                 .Select(t => t.Trim()));
         
         // Save migrated product
-        await _table.Put
-            .WithItem(product)
-            .ExecuteAsync();
+        await _table.Products.PutAsync(product);
         
         return true;
     }
@@ -240,12 +243,11 @@ public class ProductMigrationService
 
 ```csharp
 // Before: Using old string format
-var products = await _table.Query
-    .Where("pk = :pk")
-    .WithValue(":pk", "PRODUCT")
-    .ExecuteAsync<Product>();
+var products = await _table.Products.Query()
+    .Where(x => x.Pk == "PRODUCT")
+    .ToListAsync();
 
-foreach (var product in products.Items)
+foreach (var product in products)
 {
     var tags = product.TagsString?.Split(',') ?? Array.Empty<string>();
     if (tags.Contains("sale"))
@@ -255,12 +257,11 @@ foreach (var product in products.Items)
 }
 
 // After: Using new set format
-var products = await _table.Query
-    .Where("pk = :pk")
-    .WithValue(":pk", "PRODUCT")
-    .ExecuteAsync<Product>();
+var products = await _table.Products.Query()
+    .Where(x => x.Pk == "PRODUCT")
+    .ToListAsync();
 
-foreach (var product in products.Items)
+foreach (var product in products)
 {
     if (product.Tags?.Contains("sale") == true)
     {
@@ -268,12 +269,11 @@ foreach (var product in products.Items)
     }
 }
 
-// Or use DynamoDB set operations
-var saleProducts = await _table.Query
-    .Where("pk = :pk AND contains(tags_set, :tag)")
-    .WithValue(":pk", "PRODUCT")
-    .WithValue(":tag", "sale")
-    .ExecuteAsync<Product>();
+// Or use DynamoDB set operations with filter
+var saleProducts = await _table.Products.Query()
+    .Where(x => x.Pk == "PRODUCT")
+    .WithFilter(x => x.Tags.Contains("sale"))
+    .ToListAsync();
 ```
 
 ### Phase 5: Remove Old Properties
@@ -312,18 +312,16 @@ public partial class Product
 Existing items without new attributes will load with null values:
 
 ```csharp
-var product = await _table.Get
-    .WithKey("pk", "old-product")
-    .ExecuteAsync<Product>();
+var product = await _table.Products.GetAsync("old-product");
 
 // For old items, Tags will be null
-if (product.Item.Tags == null)
+if (product?.Tags == null)
 {
-    product.Item.Tags = new HashSet<string>();
+    product!.Tags = new HashSet<string>();
 }
 
 // Or use null-coalescing
-var tags = product.Item.Tags ?? new HashSet<string>();
+var tags = product?.Tags ?? new HashSet<string>();
 ```
 
 ### Default Values
@@ -350,10 +348,9 @@ public partial class Product
 Only update if the new attribute doesn't exist:
 
 ```csharp
-await _table.Update
-    .WithKey("pk", productId)
-    .Set("SET tags = {0}", newTags)
-    .WithConditionExpression("attribute_not_exists(tags)")
+await _table.Products.Update(productId)
+    .Set(x => new { Tags = newTags })
+    .Where(x => x.Tags.AttributeNotExists())
     .ExecuteAsync();
 ```
 
@@ -412,16 +409,18 @@ public void MigrateMetadata(Product product)
 [DynamoDbTable("sessions")]
 public partial class Session
 {
+    [PartitionKey]
     [DynamoDbAttribute("session_id")]
-    public string SessionId { get; set; }
+    public string SessionId { get; set; } = string.Empty;
 }
 
 // After: With TTL
 [DynamoDbTable("sessions")]
 public partial class Session
 {
+    [PartitionKey]
     [DynamoDbAttribute("session_id")]
-    public string SessionId { get; set; }
+    public string SessionId { get; set; } = string.Empty;
     
     [DynamoDbAttribute("ttl")]
     [TimeToLive]
@@ -429,17 +428,16 @@ public partial class Session
 }
 
 // Migration: Add TTL to existing sessions
-public async Task AddTtlToExistingSessions(TimeSpan sessionDuration)
+public async Task AddTtlToExistingSessions(SessionTable table, TimeSpan sessionDuration)
 {
-    var sessions = await _table.Scan<Session>().ExecuteAsync();
+    var sessions = await table.Sessions.Scan().ToListAsync();
     
-    foreach (var session in sessions.Items)
+    foreach (var session in sessions)
     {
         if (session.ExpiresAt == null)
         {
-            await _table.Update<Session>()
-                .WithKey("session_id", session.SessionId)
-                .Set("SET ttl = {0}", DateTime.UtcNow.Add(sessionDuration))
+            await table.Sessions.Update(session.SessionId)
+                .Set(x => new { ExpiresAt = DateTime.UtcNow.Add(sessionDuration) })
                 .ExecuteAsync();
         }
     }
@@ -464,7 +462,7 @@ public string Content { get; set; }
 public byte[] Content { get; set; }
 
 // Migration code
-public async Task MigrateToS3(Document document, IBlobStorageProvider blobProvider)
+public async Task MigrateToS3(DocumentTable table, Document document, IBlobStorageProvider blobProvider)
 {
     if (document.Content != null && !string.IsNullOrEmpty(document.ContentOld))
     {
@@ -474,16 +472,15 @@ public async Task MigrateToS3(Document document, IBlobStorageProvider blobProvid
         
         // Save will automatically upload to S3
         var item = await Document.ToDynamoDbAsync(document, blobProvider);
-        await _dynamoDbClient.PutItemAsync(new PutItemRequest
+        await table.Client.PutItemAsync(new PutItemRequest
         {
             TableName = "documents",
             Item = item
         });
         
         // Optionally remove old attribute
-        await _table.Update
-            .WithKey("doc_id", document.DocumentId)
-            .Remove("REMOVE content_old")
+        await table.Documents.Update(document.DocumentId)
+            .Remove(x => x.ContentOld)
             .ExecuteAsync();
     }
 }
@@ -518,23 +515,30 @@ Use feature flags to control migration:
 ```csharp
 public class ProductService
 {
+    private readonly ProductTable _table;
     private readonly IFeatureFlags _featureFlags;
     
-    public async Task<Product> GetProductAsync(string id)
+    public ProductService(ProductTable table, IFeatureFlags featureFlags)
     {
-        var product = await _table.Get
-            .WithKey("pk", id)
-            .ExecuteAsync<Product>();
+        _table = table;
+        _featureFlags = featureFlags;
+    }
+    
+    public async Task<Product?> GetProductAsync(string id)
+    {
+        var product = await _table.Products.GetAsync(id);
+        
+        if (product == null) return null;
         
         if (_featureFlags.IsEnabled("UseAdvancedTypes"))
         {
-            return product.Item; // Use new Tags property
+            return product; // Use new Tags property
         }
         else
         {
             // Fallback to old format
-            product.Item.TagsString = string.Join(",", product.Item.Tags ?? new HashSet<string>());
-            return product.Item;
+            product.TagsString = string.Join(",", product.Tags ?? new HashSet<string>());
+            return product;
         }
     }
 }
@@ -564,15 +568,17 @@ public partial class ProductV2
 // Service layer handles version
 public class ProductService
 {
-    public async Task<IProduct> GetProductAsync(string id, int version = 2)
+    public async Task<IProduct?> GetProductAsync(string id, int version = 2)
     {
         if (version == 1)
         {
-            return await _tableV1.Get.WithKey("pk", id).ExecuteAsync<ProductV1>();
+            var response = await _tableV1.Get.WithKey("pk", id).GetItemAsync<ProductV1>();
+            return response.Item;
         }
         else
         {
-            return await _tableV2.Get.WithKey("pk", id).ExecuteAsync<ProductV2>();
+            var response = await _tableV2.Get.WithKey("pk", id).GetItemAsync<ProductV2>();
+            return response.Item;
         }
     }
 }
@@ -634,24 +640,20 @@ public async Task Migration_RoundTrip_PreservesData()
         TagsString = "tag1,tag2"
     };
     
-    await _table.Put<Product>().WithItem(oldProduct).ExecuteAsync();
+    await _table.Products.PutAsync(oldProduct);
     
     // Act - Migrate
-    var loaded = await _table.Get<Product>()
-        .WithKey("pk", "test-1")
-        .ExecuteAsync();
+    var loaded = await _table.Products.GetAsync("test-1");
     
-    MigrateProduct(loaded.Item);
+    MigrateProduct(loaded!);
     
-    await _table.Put<Product>().WithItem(loaded.Item).ExecuteAsync();
+    await _table.Products.PutAsync(loaded);
     
     // Assert - Verify new format
-    var migrated = await _table.Get<Product>()
-        .WithKey("pk", "test-1")
-        .ExecuteAsync();
+    var migrated = await _table.Products.GetAsync("test-1");
     
-    migrated.Item.Tags.Should().HaveCount(2);
-    migrated.Item.Tags.Should().Contain("tag1");
+    migrated!.Tags.Should().HaveCount(2);
+    migrated.Tags.Should().Contain("tag1");
 }
 ```
 

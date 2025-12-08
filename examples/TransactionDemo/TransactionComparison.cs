@@ -14,11 +14,13 @@ public class TransactionComparison
 {
     private readonly IAmazonDynamoDB _client;
     private readonly TransactionDemoTable _table;
+    private readonly string _tableName;
 
-    public TransactionComparison(IAmazonDynamoDB client, TransactionDemoTable table)
+    public TransactionComparison(IAmazonDynamoDB client, TransactionDemoTable table, string tableName)
     {
         _client = client;
         _table = table;
+        _tableName = tableName;
     }
 
     public record TransactionResult(
@@ -117,7 +119,7 @@ public class TransactionComparison
                     {
                         Put = new Put
                         {
-                            TableName = TransactionDemoTable.TableName,
+                            TableName = _tableName,
                             Item = item
                         }
                     });
@@ -143,7 +145,7 @@ public class TransactionComparison
                     {
                         Put = new Put
                         {
-                            TableName = TransactionDemoTable.TableName,
+                            TableName = _tableName,
                             Item = item
                         }
                     });

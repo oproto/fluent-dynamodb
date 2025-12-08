@@ -2,8 +2,8 @@
 title: "Advanced Topics"
 category: "advanced-topics"
 order: 0
-keywords: ["advanced", "composite entities", "GSI", "STS", "performance", "manual patterns"]
-related: ["CompositeEntities.md", "GlobalSecondaryIndexes.md", "PerformanceOptimization.md"]
+keywords: ["advanced", "composite entities", "GSI", "client configuration", "scoped security", "performance", "manual patterns"]
+related: ["CompositeEntities.md", "GlobalSecondaryIndexes.md", "ClientConfiguration.md", "ScopedSecurity.md", "PerformanceOptimization.md"]
 ---
 
 [Documentation](../README.md) > Advanced Topics
@@ -80,13 +80,21 @@ Master GSI configuration and querying for alternative access patterns. Covers:
 - Querying GSIs with expression formatting
 - Projection considerations and design patterns
 
-### [STS Integration](STSIntegration.md)
-Use custom DynamoDB clients for multi-tenancy and advanced scenarios. Covers:
-- `.WithClient()` method overview
+### [Client Configuration](ClientConfiguration.md)
+Configure DynamoDB clients for different environments and scenarios. Covers:
+- Development environments (DynamoDB Local, LocalStack)
+- Custom client settings (timeouts, retries, connection pooling)
+- Multi-region deployments (static routing)
+- Proxy configuration
+- Environment-based configuration patterns
+
+### [Scoped Security](ScopedSecurity.md)
+Use the `.WithClient()` method for per-request client customization and multi-tenancy. Covers:
 - STS-scoped credentials for tenant isolation
-- Custom client configurations
-- Multi-region deployments
-- Performance considerations
+- Complete multi-tenancy implementation example
+- Using WithClient() in all operation types
+- Performance considerations (client reuse, credential caching)
+- Security best practices
 
 ### [Performance Optimization](PerformanceOptimization.md)
 Optimize your DynamoDB operations for better performance and lower costs. Covers:
