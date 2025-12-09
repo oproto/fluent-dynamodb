@@ -749,6 +749,18 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "When multiple entities in the same table have stream conversion enabled, they should all use the same discriminator property to ensure consistent stream processing behavior. The OnStream method will use the discriminator property from the first entity.");
 
+    /// <summary>
+    /// Error when multiple entities in the same table specify different custom namespaces.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingTableNamespaces = new(
+        "FDDB006",
+        "Conflicting table namespaces",
+        "Table '{0}' has entities with different custom namespaces specified ({1}); all entities sharing a table must use the same namespace or leave it unspecified",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities share the same table, they must all specify the same custom namespace or leave the Namespace property unspecified. The generated table class can only be in one namespace.");
+
     // Extension Method Wrapper Generation Diagnostics (DYNDB1001-DYNDB1004)
 
     /// <summary>
@@ -860,4 +872,18 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Spatial index configuration requires the Oproto.FluentDynamoDb.Geospatial package to provide GeoLocation type and spatial encoding functionality.");
+
+    // Deprecation Diagnostics (DYNDB113+)
+
+    /// <summary>
+    /// Warning when the deprecated [Queryable] attribute is used.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DeprecatedQueryableAttribute = new(
+        "DYNDB113",
+        "Deprecated [Queryable] attribute",
+        "Property '{0}' uses the deprecated [Queryable] attribute. Query capabilities are now derived from [PartitionKey] and [SortKey] attributes. This attribute will be removed in v1.0.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The [Queryable] attribute is deprecated. Partition keys automatically support equality operations, and sort keys automatically support range operations (equals, begins_with, between, greater_than, less_than). Remove the [Queryable] attribute from your properties.");
 }

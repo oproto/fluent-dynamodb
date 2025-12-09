@@ -64,6 +64,9 @@ public class TransactionWriteBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     #region 17.1 Test Add() method overloads

@@ -271,4 +271,6 @@ public partial class TestEntity : IDynamoDbEntity
             Relationships = Array.Empty<RelationshipMetadata>()
         };
     }
+
+    public static bool RequiresWriteTransaction => false;
 }

@@ -192,7 +192,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// Derived classes should override to provide key-specific overloads.
     /// </summary>
     /// <returns>An UpdateItemRequestBuilder configured for this table.</returns>
-    public virtual UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class => 
+    public virtual UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity => 
         new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options)
             .ForTable(Name)
             .SetFieldEncryptor(FieldEncryptor);
@@ -203,7 +203,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     /// Derived classes should override to provide key-specific overloads.
     /// </summary>
     /// <returns>A DeleteItemRequestBuilder configured for this table.</returns>
-    public virtual DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class => 
+    public virtual DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class, IDynamoDbEntity => 
         new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
@@ -225,7 +225,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     ///     .ExecuteAsync();
     /// </code>
     /// </example>
-    public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class => 
+    public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class, IDynamoDbEntity => 
         new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
@@ -297,7 +297,7 @@ public abstract class DynamoDbTableBase : IDynamoDbTable
     public async Task PutAsync<TEntity>(
         Dictionary<string, AttributeValue> item,
         CancellationToken cancellationToken = default)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
         var builder = Put<TEntity>().WithItem(item);
         await Requests.Extensions.EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken);

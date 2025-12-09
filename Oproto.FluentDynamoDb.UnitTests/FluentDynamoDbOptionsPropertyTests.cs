@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using AwesomeAssertions;
 using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests;
@@ -340,10 +343,24 @@ internal class TestTableForLoggerPropagation : DynamoDbTableBase
 /// <summary>
 /// Simple test entity for property tests.
 /// </summary>
-internal class TestEntity
+internal class TestEntity : IDynamoDbEntity
 {
     public string? Id { get; set; }
     public string? Name { get; set; }
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => new();
+
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();
+
+    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();
+
+    public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
+    public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
+    public static bool RequiresWriteTransaction => false;
+    public static EntityMetadata GetEntityMetadata() => new() { TableName = "test-table" };
 }
 
 /// <summary>
@@ -942,10 +959,24 @@ internal class TestTableForDefaultOptions : DynamoDbTableBase
 /// <summary>
 /// Simple test entity for default options property tests.
 /// </summary>
-internal class TestEntityForDefaultOptions
+internal class TestEntityForDefaultOptions : IDynamoDbEntity
 {
     public string? Id { get; set; }
     public string? Name { get; set; }
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => new();
+
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityForDefaultOptions();
+
+    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityForDefaultOptions();
+
+    public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
+    public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
+    public static bool RequiresWriteTransaction => false;
+    public static EntityMetadata GetEntityMetadata() => new() { TableName = "test-table" };
 }
 
 /// <summary>

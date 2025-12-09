@@ -60,6 +60,9 @@ public class RequestBuilderLoggingTests
         {
             return new EntityMetadata { TableName = "test-table" };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
     private class TestLogger : IDynamoDbLogger
     {

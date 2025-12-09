@@ -66,6 +66,9 @@ public class DynamoDbOperationContextIsolationTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using AwesomeAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
@@ -16,7 +17,7 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests.Extensions;
 public class WithUpdateExpressionExtensionsTests
 {
     // Test entity classes
-    private class TestEntity : IEntityMetadataProvider
+    private class TestEntity : IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public string? Name { get; set; }
@@ -29,6 +30,19 @@ public class WithUpdateExpressionExtensionsTests
         public List<string> History { get; set; } = new();
         public string? TempData { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)
+            where TSelf : IDynamoDbEntity => new();
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+            where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
+            where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
+        public static bool RequiresWriteTransaction => false;
 
         public static EntityMetadata GetEntityMetadata()
         {

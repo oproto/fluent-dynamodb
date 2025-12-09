@@ -39,7 +39,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </example>
 public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequestBuilder<TEntity>>, IWithAttributeValues<PutItemRequestBuilder<TEntity>>,
     IWithConditionExpression<PutItemRequestBuilder<TEntity>>, ITransactablePutBuilder, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IDynamoDbEntity
 {
     /// <summary>
     /// Initializes a new instance of the PutItemRequestBuilder.
@@ -203,9 +203,8 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
 
     /// <summary>
     /// Sets the item to put using an entity instance.
-    /// The entity must implement IDynamoDbEntity for automatic mapping.
+    /// The entity is automatically mapped to DynamoDB attributes using the generated mapper.
     /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="entity">The entity instance to put.</param>
     /// <returns>The builder instance for method chaining.</returns>
     /// <example>
@@ -216,9 +215,9 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     ///     .PutAsync();
     /// </code>
     /// </example>
-    public PutItemRequestBuilder<TEntity> WithItem<T>(T entity) where T : class, TEntity, IDynamoDbEntity
+    public PutItemRequestBuilder<TEntity> WithItem(TEntity entity)
     {
-        _req.Item = T.ToDynamoDb(entity, _options);
+        _req.Item = TEntity.ToDynamoDb(entity, _options);
         return this;
     }
 
@@ -276,8 +275,19 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the raw PutItemResponse from AWS SDK.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the entity type is marked with [RequireWriteTransaction] attribute.
+    /// Use DynamoDbTransactions.Write() to perform transactional writes for such entities.
+    /// </exception>
     public async Task<PutItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         var request = ToPutItemRequest();
         
         #if !DISABLE_DYNAMODB_LOGGING

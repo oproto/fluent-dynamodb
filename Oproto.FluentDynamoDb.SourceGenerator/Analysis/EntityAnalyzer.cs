@@ -120,7 +120,7 @@ internal class EntityAnalyzer
             entityModel.TableName = tableNameLiteral.Token.ValueText;
         }
 
-        // Extract IsDefault property from named arguments
+        // Extract IsDefault and Namespace properties from named arguments
         if (tableAttribute.ArgumentList != null)
         {
             foreach (var arg in tableAttribute.ArgumentList.Arguments)
@@ -129,7 +129,11 @@ internal class EntityAnalyzer
                     arg.Expression is LiteralExpressionSyntax isDefaultLiteral)
                 {
                     entityModel.IsDefault = bool.Parse(isDefaultLiteral.Token.ValueText);
-                    break;
+                }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "Namespace" &&
+                    arg.Expression is LiteralExpressionSyntax namespaceLiteral)
+                {
+                    entityModel.TableNamespace = namespaceLiteral.Token.ValueText;
                 }
             }
         }
@@ -150,6 +154,9 @@ internal class EntityAnalyzer
         // Extract scannable attribute
         ExtractScannableAttribute(classDecl, semanticModel, entityModel);
 
+        // Extract require write transaction attribute
+        ExtractRequireWriteTransactionAttribute(classDecl, semanticModel, entityModel);
+
         // Extract entity property configuration
         ExtractEntityPropertyConfiguration(classDecl, semanticModel, entityModel);
 
@@ -166,6 +173,12 @@ internal class EntityAnalyzer
     {
         var scannableAttribute = GetAttribute(classDecl, semanticModel, "ScannableAttribute");
         entityModel.IsScannable = scannableAttribute != null;
+    }
+
+    private void ExtractRequireWriteTransactionAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var requireWriteTransactionAttribute = GetAttribute(classDecl, semanticModel, "RequireWriteTransactionAttribute");
+        entityModel.RequiresWriteTransaction = requireWriteTransactionAttribute != null;
     }
 
     private void ExtractEntityPropertyConfiguration(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
@@ -591,6 +604,11 @@ internal class EntityAnalyzer
         var queryableAttr = GetAttribute(propertyDecl, semanticModel, "QueryableAttribute");
         if (queryableAttr == null)
             return;
+
+        // Emit deprecation warning for [Queryable] attribute usage
+        ReportDiagnostic(DiagnosticDescriptors.DeprecatedQueryableAttribute,
+            queryableAttr.GetLocation(),
+            propertyModel.PropertyName);
 
         var queryableModel = new QueryableModel();
 

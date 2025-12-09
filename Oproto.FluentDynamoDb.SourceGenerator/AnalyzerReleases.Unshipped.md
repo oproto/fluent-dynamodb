@@ -5,3 +5,5 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+FDDB006 | DynamoDb | Error | Conflicting table namespaces in multi-entity tables
+DYNDB113 | DynamoDb | Warning | Deprecated [Queryable] attribute usage

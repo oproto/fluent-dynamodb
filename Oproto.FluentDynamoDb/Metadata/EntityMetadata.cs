@@ -36,4 +36,11 @@ public class EntityMetadata
     /// Gets or sets whether this entity spans multiple DynamoDB items.
     /// </summary>
     public bool IsMultiItemEntity { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this entity requires write operations to be performed within a transaction.
+    /// When true, Put, Update, Delete, and BatchWrite operations will throw
+    /// <see cref="InvalidOperationException"/> unless performed within a TransactWrite operation.
+    /// </summary>
+    public bool RequiresWriteTransaction { get; set; }
 }

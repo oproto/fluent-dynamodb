@@ -1,4 +1,6 @@
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 
@@ -19,13 +21,30 @@ public class FormatStringExamples
     }
     
     // Placeholder entity for examples
-    public class ExampleEntity
+    public class ExampleEntity : IDynamoDbEntity
     {
         public string Pk { get; set; } = string.Empty;
         public string Sk { get; set; } = string.Empty;
         public DateTime Created { get; set; }
         public OrderStatus Status { get; set; }
         public decimal Amount { get; set; }
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+            => new Dictionary<string, AttributeValue>();
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+            => throw new NotImplementedException();
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+            => throw new NotImplementedException();
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => false;
+
+        public static EntityMetadata GetEntityMetadata() => new EntityMetadata();
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     public enum OrderStatus { Pending, Processing, Completed, Cancelled }

@@ -69,6 +69,9 @@ public class MarkerInterfaceTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     #region PutItemRequestBuilder Marker Interface Tests

@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -41,8 +42,15 @@ public class BatchWriteBuilder
     /// </code>
     /// </example>
     public BatchWriteBuilder Add<TEntity>(PutItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         InferClientIfNeeded(builder);
         
         var putBuilder = (ITransactablePutBuilder)builder;
@@ -80,8 +88,15 @@ public class BatchWriteBuilder
     /// </code>
     /// </example>
     public BatchWriteBuilder Add<TEntity>(DeleteItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         InferClientIfNeeded(builder);
         
         var deleteBuilder = (ITransactableDeleteBuilder)builder;
