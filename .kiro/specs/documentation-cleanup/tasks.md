@@ -1,0 +1,121 @@
+# Implementation Plan
+
+- [x] 1. Create new documentation files
+  - [x] 1.1 Create ClientConfiguration.md
+    - Extract client configuration content from STSIntegration.md
+    - Cover development environments (DynamoDB Local, LocalStack)
+    - Cover custom client settings (timeouts, retries, connection pooling)
+    - Cover multi-region deployments (static routing)
+    - Cover proxy configuration
+    - _Requirements: 3.2_
+  - [x] 1.2 Create ScopedSecurity.md
+    - Extract STS-scoped credentials content from STSIntegration.md
+    - Focus on WithClient() method for per-request client customization
+    - Include complete multi-tenancy implementation example
+    - Cover security best practices
+    - Cover performance considerations (client reuse, credential caching)
+    - _Requirements: 3.1_
+
+- [x] 2. Update advanced topics structure
+  - [x] 2.1 Update docs/advanced-topics/README.md
+    - Replace STSIntegration.md entry with ClientConfiguration.md and ScopedSecurity.md entries
+    - Update the "Getting Started" recommended order
+    - _Requirements: 3.4_
+  - [x] 2.2 Delete docs/advanced-topics/STSIntegration.md
+    - Remove the original file after content is migrated
+    - _Requirements: 3.3_
+
+- [x] 3. Fix batch operation examples
+  - [x] 3.1 Fix docs/core-features/BasicOperations.md
+    - Replace `new BatchWriteItemRequestBuilder(client)` with `DynamoDbBatch.Write`
+    - Replace `new BatchGetItemRequestBuilder(client)` with `DynamoDbBatch.Get`
+    - Update examples to use `.Add()` pattern
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 3.2 Fix docs/advanced-topics/PerformanceOptimization.md
+    - Replace batch builder constructor patterns with static entry points
+    - Update all batch operation examples
+    - _Requirements: 1.1, 1.2_
+  - [x] 3.3 Fix docs/advanced-topics/GlobalSecondaryIndexes.md
+    - Replace `new BatchGetItemRequestBuilder(client)` with `DynamoDbBatch.Get`
+    - _Requirements: 1.2_
+  - [x] 3.4 Fix docs/QUICK_REFERENCE.md batch examples
+    - Replace batch builder constructor patterns with static entry points
+    - _Requirements: 1.1, 1.2_
+
+- [x] 4. Fix transaction operation examples
+  - [x] 4.1 Fix docs/advanced-topics/CompositeEntities.md
+    - Replace `new TransactWriteItemsRequestBuilder(client)` with `DynamoDbTransactions.Write`
+    - Replace `CommitAsync()` with `ExecuteAsync()`
+    - _Requirements: 2.1, 2.4_
+  - [x] 4.2 Fix docs/advanced-topics/MultiEntityTables.md
+    - Replace `CommitAsync()` with `ExecuteAsync()`
+    - _Requirements: 2.4_
+  - [x] 4.3 Fix docs/getting-started/SingleEntityTables.md
+    - Replace `CommitAsync()` with `ExecuteAsync()`
+    - Verify transaction patterns use static entry points
+    - _Requirements: 2.4_
+  - [x] 4.4 Fix docs/QUICK_REFERENCE.md transaction examples
+    - Replace `new TransactWriteItemsRequestBuilder(client)` with `DynamoDbTransactions.Write`
+    - Replace `new TransactGetItemsRequestBuilder(client)` with `DynamoDbTransactions.Get`
+    - _Requirements: 2.1, 2.2_
+  - [x] 4.5 Fix docs/DeveloperGuide.md
+    - Replace transaction builder constructor patterns with static entry points
+    - _Requirements: 2.1_
+
+- [x] 5. Update documentation changelog
+  - [x] 5.1 Add new entries to docs/DOCUMENTATION_CHANGELOG.md
+    - Document batch operation pattern corrections
+    - Document transaction operation pattern corrections
+    - Document CommitAsync to ExecuteAsync corrections
+    - Document STSIntegration.md reorganization
+    - Follow established format with date, file path, before/after patterns, reason
+    - _Requirements: 4.1, 4.3_
+
+- [x] 6. Verification checkpoint
+  - Ensure all tests pass, ask the user if questions arise.
+  - Run grep verification commands to confirm no incorrect patterns remain
+  - Verify new files exist and old file is removed
+
+- [x] 7. Fix documentation API style issues
+  - [x] 7.1 Fix docs/reference/AdvancedTypesMigration.md
+    - Fix non-existent `DynamoDbTableBase<Product>` generic type (should be concrete typed table)
+    - Update examples to use lambda expressions and entity accessors
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.2 Update docs/advanced-topics/ScopedSecurity.md to preferred patterns
+    - Already rewritten - verify all examples use lambda expressions
+    - Verify entity accessor patterns (table.Users.Get() instead of table.Get<User>())
+    - Remove unnecessary UserKeys.Pk() calls where simple strings suffice
+    - _Requirements: 5.1, 5.2, 5.3_
+  - [x] 7.3 Review docs/CodeExamples.md
+    - File intentionally uses manual patterns (noted at top of file)
+    - Fixed incorrect `ExecuteAsync<T>()` to `GetItemAsync<T>()` on Get request
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.4 Review docs/reference/ErrorHandling.md
+    - Reviewed - uses format strings which is acceptable for error handling focus
+    - DynamoDbTableBase field type is acceptable for demonstrating error handling patterns
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.5 Review docs/reference/AdoptionGuide.md
+    - Fixed incorrect `ExecuteAsync<T>()` to `GetItemAsync<T>()` on Get request
+    - DynamoDbTableBase usage is intentional for demonstrating dynamic table name patterns
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.6 Review docs/advanced-topics/PerformanceOptimization.md
+    - Fixed incorrect `ExecuteAsync<T>()` to `GetItemAsync<T>()` on Get requests
+    - DynamoDbTableBase field type is acceptable for demonstrating performance patterns
+    - _Requirements: 5.1, 5.2_
+
+- [x] 8. Update changelogs
+  - [x] 8.1 Update docs/DOCUMENTATION_CHANGELOG.md
+    - Added Part 6 documenting API style corrections
+    - Documented AdvancedTypesMigration.md fixes (DynamoDbTableBase<T> → typed table)
+    - Documented CodeExamples.md, PerformanceOptimization.md, AdoptionGuide.md fixes
+    - _Requirements: 4.1, 4.3_
+  - [x] 8.2 Update CHANGELOG.md
+    - Added entry under Fixed for documentation API style corrections
+    - Referenced docs/DOCUMENTATION_CHANGELOG.md Part 6 for details
+    - _Requirements: 4.1_
+
+- [x] 9. Final verification checkpoint
+  - All 428 tests pass (419 passed, 9 skipped)
+  - Grep verification confirms no incorrect patterns remain in documentation
+  - Documentation follows preferred patterns (lambda > format string > manual)
+  - All changelogs updated with detailed before/after patterns

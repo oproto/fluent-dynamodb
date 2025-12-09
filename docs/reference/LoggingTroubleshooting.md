@@ -581,10 +581,13 @@ logging.AddFilter((category, level, eventId) =>
 3. **Use batch operations:**
 
 ```csharp
-// More efficient than individual operations
-await table.BatchGet
-    .WithKeys(keys)
-    .ExecuteAsync();
+// More efficient than individual operations using static entry point
+var batch = DynamoDbBatch.Get;
+foreach (var key in keys)
+{
+    batch.Add(table.Entities.Get(key));
+}
+await batch.ExecuteAsync();
 ```
 
 ## Log Analysis Examples

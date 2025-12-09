@@ -257,15 +257,14 @@ var dropdown = response.Items.Select(item => new
 **✅ Efficient: Batch get**
 ```csharp
 // Single request for multiple items
-var batchBuilder = new BatchGetItemRequestBuilder(client);
+var builder = DynamoDbBatch.Get;
 
 foreach (var userId in userIds)
 {
-    batchBuilder.Get(table, builder => builder
-        .WithKey(UserFields.UserId, UserKeys.Pk(userId)));
+    builder = builder.Add(table.Get(userId));
 }
 
-var response = await batchBuilder.ExecuteAsync();
+var response = await builder.ExecuteAsync();
 
 // 1 request for up to 100 items
 // Latency: ~10ms
@@ -299,15 +298,14 @@ foreach (var userId in userIds)
 **✅ Efficient: Batch write**
 ```csharp
 // Single request for multiple writes
-var batchBuilder = new BatchWriteItemRequestBuilder(client);
+var builder = DynamoDbBatch.Write;
 
 foreach (var order in orders)
 {
-    batchBuilder.Put(table, builder => builder
-        .WithItem(order));
+    builder = builder.Add(table.Put(order));
 }
 
-await batchBuilder.ExecuteAsync();
+await builder.ExecuteAsync();
 
 // 1 request for up to 25 items
 ```
@@ -340,15 +338,14 @@ var batches = userIds
     .Chunk(100)  // DynamoDB batch limit
     .Select(async batch =>
     {
-        var batchBuilder = new BatchGetItemRequestBuilder(client);
+        var builder = DynamoDbBatch.Get;
         
         foreach (var userId in batch)
         {
-            batchBuilder.Get(table, builder => builder
-                .WithKey(UserFields.UserId, UserKeys.Pk(userId)));
+            builder = builder.Add(table.Get(userId));
         }
         
-        return await batchBuilder.ExecuteAsync();
+        return await builder.ExecuteAsync();
     });
 
 var results = await Task.WhenAll(batches);
@@ -783,9 +780,10 @@ await table.Scan().ToListAsync();
 
 ```csharp
 // ✅ Batch get for multiple items
-var batchBuilder = new BatchGetItemRequestBuilder(client);
-// Add items...
-await batchBuilder.ExecuteAsync();
+var response = await DynamoDbBatch.Get
+    .Add(table.Get(id1))
+    .Add(table.Get(id2))
+    .ExecuteAsync();
 
 // ❌ Avoid individual gets in loop
 foreach (var id in ids)
@@ -810,13 +808,13 @@ await table.Query
 // ✅ Eventually consistent (default)
 await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync<User>();
 
 // Only use strongly consistent when necessary
 await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .UsingConsistentRead()
-    .ExecuteAsync<User>();
+    .GetItemAsync<User>();
 ```
 
 ### 6. Monitor Capacity Usage

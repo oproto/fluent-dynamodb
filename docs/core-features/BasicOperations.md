@@ -1188,14 +1188,10 @@ var users = new List<User>
     new User { UserId = "user3", Name = "Charlie", Email = "charlie@example.com" }
 };
 
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        foreach (var user in users)
-        {
-            builder.PutItem(user, UserMapper.ToAttributeMap);
-        }
-    })
+var response = await DynamoDbBatch.Write
+    .Add(table.Put(users[0]))
+    .Add(table.Put(users[1]))
+    .Add(table.Put(users[2]))
     .ExecuteAsync();
 
 // Check for unprocessed items
@@ -1211,14 +1207,10 @@ if (response.UnprocessedItems.Count > 0)
 ```csharp
 var userIdsToDelete = new[] { "user1", "user2", "user3" };
 
-var response = await new BatchWriteItemRequestBuilder(client)
-    .WriteToTable("users", builder =>
-    {
-        foreach (var userId in userIdsToDelete)
-        {
-            builder.DeleteItem(UserFields.UserId, UserKeys.Pk(userId));
-        }
-    })
+var response = await DynamoDbBatch.Write
+    .Add(table.Delete(userIdsToDelete[0]))
+    .Add(table.Delete(userIdsToDelete[1]))
+    .Add(table.Delete(userIdsToDelete[2]))
     .ExecuteAsync();
 ```
 
@@ -1227,14 +1219,10 @@ var response = await new BatchWriteItemRequestBuilder(client)
 ```csharp
 var userIds = new[] { "user1", "user2", "user3" };
 
-var response = await new BatchGetItemRequestBuilder(client)
-    .GetFromTable("users", builder =>
-    {
-        foreach (var userId in userIds)
-        {
-            builder.WithKey(UserFields.UserId, UserKeys.Pk(userId));
-        }
-    })
+var response = await DynamoDbBatch.Get
+    .Add(table.Get(userIds[0]))
+    .Add(table.Get(userIds[1]))
+    .Add(table.Get(userIds[2]))
     .ExecuteAsync();
 
 // Process results
@@ -1292,7 +1280,10 @@ See [Batch Operations](BatchOperations.md) for detailed batch operation patterns
 3. **Use Batch Operations**
    ```csharp
    // ✅ Good - single request for multiple items
-   await new BatchGetItemRequestBuilder(client)...
+   await DynamoDbBatch.Get
+       .Add(table.Get(id1))
+       .Add(table.Get(id2))
+       .ExecuteAsync();
    
    // ❌ Avoid - multiple requests
    foreach (var id in ids)

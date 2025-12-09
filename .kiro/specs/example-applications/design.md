@@ -361,7 +361,7 @@ The demo shows identical operations using FluentDynamoDb vs raw SDK:
 // FluentDynamoDb approach (concise)
 public async Task ExecuteFluentTransactionAsync()
 {
-    var transaction = DynamoDbTransactions.Write(client);
+    var transaction = DynamoDbTransactions.Write;
     
     for (int i = 0; i < 25; i++)
     {
