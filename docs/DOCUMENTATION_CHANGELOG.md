@@ -59,6 +59,176 @@ Entries may be categorized as:
 
 ## [2025-12-09]
 
+### File: Multiple documentation files - Logging Runtime Configuration Update
+
+**Category:** Pattern Update - Logging Configuration
+
+**Summary:** Updated logging documentation to reflect the removal of `DISABLE_DYNAMODB_LOGGING` conditional compilation in favor of runtime configuration via `FluentDynamoDbOptions`. All conditional compilation documentation has been removed as the library no longer uses any conditional compilation.
+
+---
+
+#### Part 0: docs/core-features/ConditionalCompilation.md (DELETED)
+
+**Files deleted:**
+- `docs/core-features/ConditionalCompilation.md` (deleted entirely)
+
+**Action Required:** Remove this file from any derived documentation. The content was redundant with `docs/core-features/LoggingConfiguration.md` and the filename was misleading since the library no longer uses conditional compilation.
+
+**References removed from:**
+- `README.md` - Removed link from logging documentation section
+- `docs/README.md` - Removed from core features list
+- `docs/core-features/README.md` - Removed from numbered list
+- `docs/core-features/StructuredLogging.md` - Removed from related topics
+- `docs/core-features/LogLevelsAndEventIds.md` - Updated references to point to LoggingConfiguration.md
+
+---
+
+#### Part 1: docs/advanced-topics/runtime-logging-configuration.md
+
+**Files updated:**
+- `docs/advanced-topics/conditional-compilation-logging.md` (removed and replaced with `runtime-logging-configuration.md`)
+
+**Before:**
+```markdown
+# Conditional Compilation for Logging
+
+All logging code in the library is wrapped in conditional compilation directives:
+
+```csharp
+#if !DISABLE_DYNAMODB_LOGGING
+logger?.LogInformation(LogEventIds.ExecutingQuery, ...);
+#endif
+```
+
+When you define the `DISABLE_DYNAMODB_LOGGING` symbol, the C# compiler completely removes all logging code.
+```
+
+**After:** File removed. Conditional compilation for logging is no longer supported.
+
+**Reason:** The `DISABLE_DYNAMODB_LOGGING` preprocessor directive has been removed. Logging is now controlled entirely at runtime via `FluentDynamoDbOptions.WithLogger()`. The `NoOpLogger.Instance` provides zero-overhead logging when disabled through the `IsEnabled()` check pattern.
+
+---
+
+#### Part 2: docs/core-features/LoggingConfiguration.md
+
+**Files updated:**
+- `docs/core-features/LoggingConfiguration.md`
+
+**Before:**
+```markdown
+### Conditional Compilation (Zero Overhead in Production)
+
+Disable logging completely in production builds:
+
+```xml
+<!-- .csproj -->
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
+</PropertyGroup>
+```
+
+See [Logging Configuration](LoggingConfiguration.md) for details.
+```
+
+**After:**
+```markdown
+### Disabling Logging (Zero Overhead)
+
+Use `NoOpLogger.Instance` (the default) for zero-overhead logging:
+
+```csharp
+// Default behavior - no logging, zero overhead
+var table = new ProductsTable(client, "products");
+
+// Explicit NoOpLogger
+var options = new FluentDynamoDbOptions()
+    .WithLogger(NoOpLogger.Instance);
+var table = new ProductsTable(client, "products", options);
+```
+
+The `NoOpLogger.IsEnabled()` method always returns `false`, causing all logging calls to be skipped with minimal overhead.
+```
+
+**Reason:** Conditional compilation is no longer supported. Runtime configuration via `NoOpLogger` provides equivalent zero-overhead behavior.
+
+---
+
+#### Part 3: docs/reference/LoggingTroubleshooting.md
+
+**Files updated:**
+- `docs/reference/LoggingTroubleshooting.md`
+
+**Before:**
+```markdown
+#### Issue: Conditional compilation disabled logging
+
+**Symptoms:**
+- Logs worked in Debug build
+- No logs in Release build
+
+**Diagnosis:**
+```bash
+dotnet build -c Release -v detailed | grep DISABLE_DYNAMODB_LOGGING
+```
+
+**Solution:**
+```xml
+<!-- Remove or comment out in .csproj -->
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <!-- <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants> -->
+</PropertyGroup>
+```
+```
+
+**After:** Section removed. Conditional compilation is no longer supported.
+
+**Reason:** The `DISABLE_DYNAMODB_LOGGING` preprocessor directive has been removed from the library.
+
+---
+
+#### Part 4: README.md
+
+**Files updated:**
+- `README.md`
+
+**Before:**
+```markdown
+### Conditional Compilation (Zero Overhead in Production)
+
+Disable logging completely in production builds:
+
+```xml
+<!-- .csproj -->
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
+</PropertyGroup>
+```
+
+When `DISABLE_DYNAMODB_LOGGING` is defined:
+- All logging code is removed at compile time
+- Zero runtime overhead
+- Zero allocations
+- Smaller binary size
+```
+
+**After:**
+```markdown
+### Disabling Logging
+
+By default, the library uses `NoOpLogger.Instance` which provides zero-overhead logging:
+
+```csharp
+// Default - no logging configured, uses NoOpLogger
+var table = new ProductsTable(client, "products");
+```
+
+The `NoOpLogger.IsEnabled()` method always returns `false`, causing all logging calls to be skipped with minimal overhead.
+```
+
+**Reason:** Conditional compilation is no longer supported. Runtime configuration via `NoOpLogger` is the recommended approach.
+
+---
+
 ### File: docs/reference/AttributeReference.md - v0.9.0 Attribute Updates
 
 **Category:** Documentation Update - New and Updated Attributes

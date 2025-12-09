@@ -395,28 +395,27 @@ var options = new FluentDynamoDbOptions()
 var table = new ProductsTable(client, "products", options);
 ```
 
-### Conditional Compilation (Zero Overhead in Production)
+### Disabling Logging (Zero Overhead)
 
-Disable logging completely in production builds:
+By default, the library uses `NoOpLogger.Instance` which provides near-zero overhead:
 
-```xml
-<!-- .csproj -->
-<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
-</PropertyGroup>
+```csharp
+// Default - no logging configured, uses NoOpLogger
+var table = new ProductsTable(client, "products");
+
+// Explicit NoOpLogger for clarity
+var options = new FluentDynamoDbOptions()
+    .WithLogger(NoOpLogger.Instance);
+var table = new ProductsTable(client, "products", options);
 ```
 
-When `DISABLE_DYNAMODB_LOGGING` is defined:
-- All logging code is removed at compile time
-- Zero runtime overhead
-- Zero allocations
-- Smaller binary size
+The `NoOpLogger.IsEnabled()` method always returns `false`, causing all logging calls to be skipped with minimal overhead.
 
 **Learn more:**
 - [Logging Configuration Guide](docs/core-features/LoggingConfiguration.md) - Setup and configuration
 - [Log Levels and Event IDs](docs/core-features/LogLevelsAndEventIds.md) - Filtering and analysis
 - [Structured Logging](docs/core-features/StructuredLogging.md) - Query logs by properties
-- [Conditional Compilation](docs/core-features/ConditionalCompilation.md) - Disable for production
+- [Runtime Logging Configuration](docs/advanced-topics/runtime-logging-configuration.md) - Environment-based control
 - [Logging Troubleshooting](docs/reference/LoggingTroubleshooting.md) - Common issues
 
 ## Documentation Guide
@@ -440,7 +439,6 @@ Master the essential operations and patterns.
 - [Logging Configuration](docs/core-features/LoggingConfiguration.md) - Logging and diagnostics
 - [Log Levels and Event IDs](docs/core-features/LogLevelsAndEventIds.md) - Event filtering
 - [Structured Logging](docs/core-features/StructuredLogging.md) - Query and analyze logs
-- [Conditional Compilation](docs/core-features/ConditionalCompilation.md) - Disable for production
 
 ### 🚀 [Advanced Topics](docs/advanced-topics/README.md)
 Explore advanced patterns and optimizations.

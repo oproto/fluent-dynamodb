@@ -2520,11 +2520,12 @@ internal static class MapperGenerator
         sb.AppendLine("        {");
         
         // Generate entry logging for multi-item
-        sb.AppendLine("            #if !DISABLE_DYNAMODB_LOGGING");
-        sb.AppendLine("            options?.Logger?.LogTrace(LogEventIds.MappingFromDynamoDbStart,");
-        sb.AppendLine($"                \"Starting FromDynamoDb mapping for {{EntityType}} with {{ItemCount}} items\",");
-        sb.AppendLine($"                \"{entity.ClassName}\", items?.Count ?? 0);");
-        sb.AppendLine("            #endif");
+        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Trace) == true)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                options.Logger.LogTrace(LogEventIds.MappingFromDynamoDbStart,");
+        sb.AppendLine($"                    \"Starting FromDynamoDb mapping for {{EntityType}} with {{ItemCount}} items\",");
+        sb.AppendLine($"                    \"{entity.ClassName}\", items?.Count ?? 0);");
+        sb.AppendLine("            }");
         sb.AppendLine();
         
         sb.AppendLine("            if (items == null || items.Count == 0)");

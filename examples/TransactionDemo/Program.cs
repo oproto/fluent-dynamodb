@@ -2,6 +2,7 @@
 // This example compares FluentDynamoDb's fluent transaction API with raw AWS SDK usage
 
 using Examples.Shared;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using TransactionDemo;
 using TransactionDemo.Entities;
@@ -55,6 +56,7 @@ while (true)
         "Run Raw SDK Transaction",
         "Compare Results",
         "Demonstrate Failure Rollback",
+        "Demonstrate RequireWriteTransaction",
         "View Current Items",
         "Clear All Items",
         "Exit");
@@ -76,12 +78,15 @@ while (true)
                 await DemonstrateRollbackAsync(table, comparison);
                 break;
             case 5:
-                await ViewCurrentItemsAsync(table);
+                await DemonstrateRequireWriteTransactionAsync(table);
                 break;
             case 6:
-                await ClearAllItemsAsync(table);
+                await ViewCurrentItemsAsync(table);
                 break;
             case 7:
+                await ClearAllItemsAsync(table);
+                break;
+            case 8:
                 ConsoleHelpers.ShowInfo("Goodbye!");
                 return;
             case 0:
@@ -283,6 +288,113 @@ static async Task DemonstrateRollbackAsync(
     {
         ConsoleHelpers.ShowError("Unexpected: Item count changed during failed transaction");
     }
+    
+    ConsoleHelpers.WaitForKey();
+}
+
+/// <summary>
+/// Demonstrates the [RequireWriteTransaction] attribute behavior.
+/// Shows that direct writes fail while transactional writes succeed.
+/// </summary>
+static async Task DemonstrateRequireWriteTransactionAsync(TransactionDemoTable table)
+{
+    ConsoleHelpers.ShowSection("RequireWriteTransaction Demonstration");
+    
+    Console.WriteLine();
+    Console.WriteLine("  The [RequireWriteTransaction] attribute enforces that certain entities");
+    Console.WriteLine("  can ONLY be written within a DynamoDB transaction. This is useful for:");
+    Console.WriteLine();
+    Console.WriteLine("  • Financial transactions that must be atomic");
+    Console.WriteLine("  • Inventory updates requiring consistency");
+    Console.WriteLine("  • Multi-entity operations that must succeed or fail together");
+    Console.WriteLine("  • Audit-critical records needing transactional guarantees");
+    Console.WriteLine();
+    
+    // Create a sample financial transaction
+    var accountId = "DEMO-ACCOUNT";
+    var txnId = Guid.NewGuid().ToString("N")[..8];
+    var timestamp = DateTime.UtcNow;
+    
+    var financialTxn = new FinancialTransaction
+    {
+        Pk = FinancialTransaction.Keys.Pk(accountId),
+        Sk = FinancialTransaction.Keys.Sk($"{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}"),
+        AccountId = accountId,
+        TransactionId = txnId,
+        Amount = 500.00m,
+        Type = "CREDIT",
+        Timestamp = timestamp,
+        Description = "Demo transaction"
+    };
+    
+    Console.WriteLine("  Entity Definition:");
+    Console.WriteLine("  ┌────────────────────────────────────────────────────────────┐");
+    Console.WriteLine("  │ [DynamoDbTable(\"transaction-demo\")]                        │");
+    Console.WriteLine("  │ [RequireWriteTransaction]  // <-- This attribute enforces  │");
+    Console.WriteLine("  │ public partial class FinancialTransaction { ... }          │");
+    Console.WriteLine("  └────────────────────────────────────────────────────────────┘");
+    Console.WriteLine();
+    
+    // Demonstrate direct write failure
+    ConsoleHelpers.ShowInfo("Attempting direct Put operation (should fail)...");
+    Console.WriteLine();
+    
+    try
+    {
+        // This should throw InvalidOperationException
+        // Note: We use ToDynamoDbResponseAsync() which enforces the RequireWriteTransaction check
+        await table.FinancialTransactions.Put(financialTxn).ToDynamoDbResponseAsync();
+        ConsoleHelpers.ShowError("Unexpected: Direct write succeeded (should have failed)");
+    }
+    catch (InvalidOperationException ex)
+    {
+        ConsoleHelpers.ShowSuccess("Direct write blocked as expected!");
+        Console.WriteLine();
+        Console.WriteLine("  Exception message:");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"  \"{ex.Message}\"");
+        Console.ResetColor();
+    }
+    
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Attempting transactional write (should succeed)...");
+    Console.WriteLine();
+    
+    try
+    {
+        // This should succeed
+        var transaction = DynamoDbTransactions.Write
+            .Add(table.FinancialTransactions.Put(financialTxn));
+        
+        await transaction.ExecuteAsync();
+        
+        ConsoleHelpers.ShowSuccess("Transactional write succeeded!");
+        Console.WriteLine();
+        Console.WriteLine("  Transaction Code:");
+        Console.WriteLine("  ┌────────────────────────────────────────────────────────────┐");
+        Console.WriteLine("  │ var transaction = DynamoDbTransactions.Write              │");
+        Console.WriteLine("  │     .Add(table.FinancialTransactions.Put(financialTxn));  │");
+        Console.WriteLine("  │ await transaction.ExecuteAsync();                         │");
+        Console.WriteLine("  └────────────────────────────────────────────────────────────┘");
+        
+        // Clean up the demo item
+        var deleteTransaction = DynamoDbTransactions.Write
+            .Add(table.FinancialTransactions.Delete(financialTxn.Pk, financialTxn.Sk));
+        await deleteTransaction.ExecuteAsync();
+    }
+    catch (Exception ex)
+    {
+        ConsoleHelpers.ShowError(ex, "Transactional write failed unexpectedly");
+    }
+    
+    Console.WriteLine();
+    Console.WriteLine("  Summary:");
+    Console.WriteLine("  ┌────────────────────────────────────────────────────────────┐");
+    Console.WriteLine("  │ Operation                    │ Result                      │");
+    Console.WriteLine("  ├──────────────────────────────┼─────────────────────────────┤");
+    Console.WriteLine("  │ Direct Put/Update/Delete     │ ❌ InvalidOperationException │");
+    Console.WriteLine("  │ TransactWrite operations     │ ✓ Allowed                   │");
+    Console.WriteLine("  └────────────────────────────────────────────────────────────┘");
     
     ConsoleHelpers.WaitForKey();
 }

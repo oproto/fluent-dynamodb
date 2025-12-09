@@ -304,11 +304,13 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         
         var request = ToPutItemRequest();
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingPutItem,
-            "Executing PutItem on table {TableName}. Condition: {ConditionExpression}",
-            request.TableName ?? "Unknown", 
-            request.ConditionExpression ?? "None");
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingPutItem,
+                "Executing PutItem on table {TableName}. Condition: {ConditionExpression}",
+                request.TableName ?? "Unknown", 
+                request.ConditionExpression ?? "None");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Item != null)
         {
@@ -316,27 +318,25 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
                 "PutItem attributes: {AttributeCount}",
                 request.Item.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.PutItemAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "PutItem completed. ConsumedCapacity: {ConsumedCapacity}",
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
-            #endif
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "PutItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                    response.ConsumedCapacity?.CapacityUnits ?? 0);
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "PutItem failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

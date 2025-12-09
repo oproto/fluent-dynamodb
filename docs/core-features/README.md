@@ -25,4 +25,3 @@ This section covers the essential features of Oproto.FluentDynamoDb.
 9. [Logging Configuration](LoggingConfiguration.md) - Configure logging and diagnostics
 10. [Log Levels and Event IDs](LogLevelsAndEventIds.md) - Understand and filter logs
 11. [Structured Logging](StructuredLogging.md) - Query and analyze structured logs
-12. [Conditional Compilation](ConditionalCompilation.md) - Disable logging for production

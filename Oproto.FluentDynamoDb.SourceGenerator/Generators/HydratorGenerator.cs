@@ -129,8 +129,8 @@ internal static class HydratorGenerator
         sb.AppendLine($"            return await {entity.ClassName}.FromDynamoDbAsync<{entity.ClassName}>(");
         sb.AppendLine($"                item,");
         sb.AppendLine($"                blobProvider,");
-        sb.AppendLine($"                fieldEncryptor: options?.FieldEncryptor,");
-        sb.AppendLine($"                options: options,");
+        sb.AppendLine($"                options?.FieldEncryptor,");
+        sb.AppendLine($"                options,");
         sb.AppendLine($"                cancellationToken);");
         sb.AppendLine("        }");
         sb.AppendLine();
@@ -164,8 +164,8 @@ internal static class HydratorGenerator
         sb.AppendLine($"            return await {entity.ClassName}.FromDynamoDbAsync<{entity.ClassName}>(");
         sb.AppendLine($"                items,");
         sb.AppendLine($"                blobProvider,");
-        sb.AppendLine($"                fieldEncryptor: options?.FieldEncryptor,");
-        sb.AppendLine($"                options: options,");
+        sb.AppendLine($"                options?.FieldEncryptor,");
+        sb.AppendLine($"                options,");
         sb.AppendLine($"                cancellationToken);");
         sb.AppendLine("        }");
     }
@@ -194,6 +194,7 @@ internal static class HydratorGenerator
         sb.AppendLine($"            return await {entity.ClassName}.ToDynamoDbAsync(");
         sb.AppendLine($"                entity,");
         sb.AppendLine($"                blobProvider,");
+        sb.AppendLine($"                options?.FieldEncryptor,");
         sb.AppendLine($"                options,");
         sb.AppendLine($"                cancellationToken);");
         sb.AppendLine("        }");
