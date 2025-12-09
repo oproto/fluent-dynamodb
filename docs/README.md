@@ -31,7 +31,6 @@ Learn the essential features you'll use every day.
 - **[Logging Configuration](core-features/LoggingConfiguration.md)** - Configure logging and diagnostics
 - **[Log Levels and Event IDs](core-features/LogLevelsAndEventIds.md)** - Understand and filter logs
 - **[Structured Logging](core-features/StructuredLogging.md)** - Query and analyze structured logs
-- **[Conditional Compilation](core-features/ConditionalCompilation.md)** - Disable logging for production
 
 ### 🎯 Advanced Topics
 Explore advanced patterns and optimizations.

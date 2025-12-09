@@ -74,7 +74,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   // Generated UsersTable class is in MyApp.Data.Tables namespace
   ```
 
+- **New Example Applications** - Three new example applications demonstrating advanced features
+  - **JsonBlobDemo** - Demonstrates JSON blob serialization with System.Text.Json (AOT and reflection modes) and Newtonsoft.Json
+  - **S3BlobDemo** - Demonstrates S3 blob storage integration with `[BlobReference]` attribute for storing large data externally
+  - **EncryptionDemo** - Demonstrates field encryption with `[Encrypted]` attribute and sensitive data logging with `[Sensitive]` attribute
+  - All examples follow the established pattern with interactive console menus and comprehensive README documentation
+  - _Requirements: 2.1-2.8, 3.1-3.8, 4.1-4.11_
+
+- **TransactionDemo RequireWriteTransaction Demonstration** - Updated TransactionDemo example to showcase the `[RequireWriteTransaction]` attribute
+  - New `FinancialTransaction` entity demonstrating transactional write enforcement
+  - Interactive demonstration showing direct write failure and transactional write success
+  - _Requirements: 5.1-5.6_
+
 ### Changed
+- **Logging Runtime Configuration** - Removed `DISABLE_DYNAMODB_LOGGING` conditional compilation in favor of runtime configuration
+  - All `#if !DISABLE_DYNAMODB_LOGGING` preprocessor directives removed from source code
+  - Logging is now controlled entirely via `FluentDynamoDbOptions.WithLogger()` at runtime
+  - `NoOpLogger.Instance` provides zero-overhead logging when disabled (via `IsEnabled()` check pattern)
+  - Users no longer need to recompile to enable/disable logging
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
+  
+  **Migration:**
+  ```csharp
+  // Before: Compile-time conditional (no longer supported)
+  // <DefineConstants>DISABLE_DYNAMODB_LOGGING</DefineConstants>
+  
+  // After: Runtime configuration
+  // Logging disabled (default - zero overhead)
+  var table = new UsersTable(client, "users");
+  
+  // Logging enabled
+  var options = new FluentDynamoDbOptions()
+      .WithLogger(loggerFactory.ToDynamoDbLogger<UsersTable>());
+  var table = new UsersTable(client, "users", options);
+  ```
+
 - **Documentation Reorganization** - Split `STSIntegration.md` into two focused documents for better discoverability
   - New `docs/advanced-topics/ClientConfiguration.md` covering development environments (DynamoDB Local, LocalStack), custom client settings, multi-region deployments, and proxy configuration
   - New `docs/advanced-topics/ScopedSecurity.md` covering `WithClient()` method for per-request client customization, STS-scoped credentials, and multi-tenancy patterns
@@ -149,6 +183,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `<IsPackable>false</IsPackable>` to AOT and API consistency test projects
   - Removed duplicate icon files from test/example project directories
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
+- **HydratorGenerator Parameter Mismatch** - Fixed source generator bug causing compilation errors for entities with `[BlobReference]` attributes
+  - `HydratorGenerator` was generating calls to `FromDynamoDbAsync` and `ToDynamoDbAsync` with incorrect parameter order
+  - Named parameters were incorrectly used, causing type mismatch errors (e.g., `FluentDynamoDbOptions` passed where `IFieldEncryptor?` expected)
+  - Fixed by using positional parameters matching the generated method signatures
+  - Affected file: `Oproto.FluentDynamoDb.SourceGenerator/Generators/HydratorGenerator.cs`
 
 ### Security
 
