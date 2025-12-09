@@ -57,6 +57,186 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-09]
+
+### File: docs/reference/AttributeReference.md - v0.9.0 Attribute Updates
+
+**Category:** Documentation Update - New and Updated Attributes
+
+**Summary:** Updated attribute reference documentation for v0.9.0 release including new `[RequireWriteTransaction]` attribute, `[Queryable]` deprecation notice, and `[DynamoDbTable]` `Namespace` parameter.
+
+---
+
+#### Part 1: New [RequireWriteTransaction] Attribute
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Added:**
+```markdown
+## [RequireWriteTransaction]
+
+Marks an entity class as requiring write operations within a transaction.
+
+### Purpose
+
+Enforces transactional consistency for entities where atomic operations are required.
+When applied, Put, Update, Delete, and BatchWrite operations throw `InvalidOperationException`
+unless performed within a TransactWrite operation.
+
+### Example
+
+```csharp
+[DynamoDbTable("FinancialTransactions")]
+[RequireWriteTransaction]
+public partial class Transaction
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string AccountId { get; set; } = string.Empty;
+}
+
+// Throws InvalidOperationException:
+await table.Transactions.Put(transaction).PutAsync();
+
+// Allowed:
+await DynamoDbTransactions.Write()
+    .Put(table.Transactions, transaction)
+    .ExecuteAsync();
+```
+```
+
+**Reason:** New attribute added in v0.9.0 for enforcing transactional writes.
+
+---
+
+#### Part 2: [Queryable] Deprecation Notice
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Before:**
+```markdown
+## [Queryable]
+
+Marks a property as queryable and specifies the supported operations and indexes.
+```
+
+**After:**
+```markdown
+## [Queryable] ⚠️ DEPRECATED
+
+> **Deprecation Notice:** The `[Queryable]` attribute is deprecated as of v0.9.0.
+> Query capabilities are now automatically derived from `[PartitionKey]` and `[SortKey]` attributes.
+> This attribute will be removed in v1.0.
+>
+> **Migration:** Remove `[Queryable]` attributes from your entities. The source generator
+> automatically determines supported operations based on key attributes.
+
+Marks a property as queryable and specifies the supported operations and indexes.
+```
+
+**Reason:** `[Queryable]` is deprecated in v0.9.0 - query capabilities are now derived from key metadata.
+
+---
+
+#### Part 3: [DynamoDbTable] Namespace Parameter
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Before:**
+```markdown
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tableName` | `string` | Yes | The DynamoDB table name |
+```
+
+**After:**
+```markdown
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tableName` | `string` | Yes | The DynamoDB table name |
+
+### Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Namespace` | `string?` | `null` | Custom namespace for the generated table class. If null, uses the entity's namespace. |
+```
+
+**Reason:** New `Namespace` property added in v0.9.0 for controlling generated table class namespace.
+
+---
+
+### File: docs/core-features/Configuration.md - Default Request Options
+
+**Category:** Documentation Update - New Configuration Options
+
+**Summary:** Added documentation for new default request options in `FluentDynamoDbOptions`.
+
+**Added:**
+```markdown
+## Default Request Options
+
+Configure default settings that apply to all request builders.
+
+### Consistent Reads
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .UseConsistentRead(true);
+
+// All Get and Query operations now use consistent reads by default
+var user = await table.Users.Get(userId).GetItemAsync();
+```
+
+### Return Consumed Capacity
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
+
+// All operations return consumed capacity
+var response = await table.Users.Query()
+    .Where(x => x.Pk == tenantId)
+    .ToDynamoDbResponseAsync();
+// response.ConsumedCapacity is populated
+```
+
+### Return Values
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .ReturnValues(ReturnValue.ALL_NEW);
+
+// Update operations return the new values by default
+var response = await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Name = "Jane" })
+    .ToDynamoDbResponseAsync();
+// response.Attributes contains the updated item
+```
+
+### Overriding Defaults
+
+Explicit builder method calls override default options:
+
+```csharp
+// Default is consistent read
+var options = new FluentDynamoDbOptions().UseConsistentRead(true);
+
+// This specific query uses eventually consistent read
+var users = await table.Users.Query()
+    .Where(x => x.Pk == tenantId)
+    .UseConsistentRead(false)  // Overrides default
+    .ToListAsync();
+```
+```
+
+**Reason:** New default request options feature added in v0.9.0.
+
+---
+
 ## [2025-12-05]
 
 ### File: Multiple documentation files - Release 0.8.0 Documentation Corrections

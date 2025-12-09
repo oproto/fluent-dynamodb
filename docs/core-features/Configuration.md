@@ -200,6 +200,119 @@ var options = new FluentDynamoDbOptions()
     .WithEncryption(encryptor);
 ```
 
+## Default Request Options
+
+Configure default settings that apply to all request builders. These defaults reduce boilerplate when you want consistent behavior across operations.
+
+### Consistent Reads
+
+Enable consistent reads by default for all Get and Query operations:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .UseConsistentRead(true);
+
+var table = new UsersTable(client, "users", options);
+
+// All Get and Query operations now use consistent reads by default
+var user = await table.Users.Get(userId).GetItemAsync();
+var users = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .ToListAsync();
+```
+
+### Return Consumed Capacity
+
+Track consumed capacity for all operations:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
+
+var table = new UsersTable(client, "users", options);
+
+// All operations return consumed capacity
+var response = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .ToDynamoDbResponseAsync();
+
+Console.WriteLine($"Consumed: {response.ConsumedCapacity.CapacityUnits} RCUs");
+```
+
+### Return Item Collection Metrics
+
+Track item collection metrics for write operations (useful for tables with LSIs):
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .ReturnItemCollectionMetrics(ReturnItemCollectionMetrics.SIZE);
+
+var table = new UsersTable(client, "users", options);
+
+// Write operations return item collection metrics
+var response = await table.Users.Put(user).ToDynamoDbResponseAsync();
+
+if (response.ItemCollectionMetrics != null)
+{
+    Console.WriteLine($"Collection size: {response.ItemCollectionMetrics.SizeEstimateRangeGB}");
+}
+```
+
+### Return Values
+
+Configure default return values for Put, Update, and Delete operations:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .ReturnValues(ReturnValue.ALL_NEW);
+
+var table = new UsersTable(client, "users", options);
+
+// Update operations return the new values by default
+var response = await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .ToDynamoDbResponseAsync();
+
+// response.Attributes contains the updated item
+var updatedUser = User.FromDynamoDb<User>(response.Attributes);
+```
+
+### Overriding Defaults
+
+Explicit builder method calls always override default options:
+
+```csharp
+// Default is consistent read
+var options = new FluentDynamoDbOptions()
+    .UseConsistentRead(true);
+
+var table = new UsersTable(client, "users", options);
+
+// This specific query uses eventually consistent read (overrides default)
+var users = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .UseConsistentRead(false)  // Explicit override
+    .ToListAsync();
+
+// This query uses the default (consistent read)
+var otherUsers = await table.Users.Query()
+    .Where(x => x.TenantId == otherTenantId)
+    .ToListAsync();
+```
+
+### Combining Default Options
+
+Chain multiple default options together:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .UseConsistentRead(true)
+    .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+    .ReturnValues(ReturnValue.ALL_NEW);
+
+var table = new UsersTable(client, "users", options);
+```
+
 ## Combining Features
 
 Chain configuration methods to enable multiple features:
@@ -276,6 +389,10 @@ public async Task Test2()
 | `GeospatialProvider` | `IGeospatialProvider?` | Provider for geospatial operations. Null if not configured. |
 | `BlobStorageProvider` | `IBlobStorageProvider?` | Provider for blob storage. Null if not configured. |
 | `FieldEncryptor` | `IFieldEncryptor?` | Encryptor for sensitive fields. Null if not configured. |
+| `DefaultConsistentRead` | `bool?` | Default consistent read setting for Get and Query operations. |
+| `DefaultReturnConsumedCapacity` | `ReturnConsumedCapacity?` | Default consumed capacity reporting for all operations. |
+| `DefaultReturnItemCollectionMetrics` | `ReturnItemCollectionMetrics?` | Default item collection metrics for write operations. |
+| `DefaultReturnValues` | `ReturnValue?` | Default return values for Put, Update, and Delete operations. |
 
 ## Configuration Methods
 
@@ -286,6 +403,10 @@ public async Task Test2()
 | `AddGeospatial(IGeospatialProvider)` | Enables geospatial support with a custom provider. |
 | `WithBlobStorage(IBlobStorageProvider?)` | Sets the blob storage provider. |
 | `WithEncryption(IFieldEncryptor?)` | Sets the field encryptor. |
+| `UseConsistentRead(bool)` | Sets the default consistent read setting. |
+| `ReturnConsumedCapacity(ReturnConsumedCapacity)` | Sets the default consumed capacity reporting. |
+| `ReturnItemCollectionMetrics(ReturnItemCollectionMetrics)` | Sets the default item collection metrics. |
+| `ReturnValues(ReturnValue)` | Sets the default return values for write operations. |
 
 ## See Also
 

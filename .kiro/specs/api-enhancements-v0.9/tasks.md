@@ -181,34 +181,34 @@
     - Verify only main library assemblies, README, icon, and source generator are included
     - _Requirements: 6.4_
 
-- [ ] 10. Documentation updates
-  - [ ] 10.1 Add XML documentation to RequireWriteTransactionAttribute
+- [x] 10. Documentation updates
+  - [x] 10.1 Add XML documentation to RequireWriteTransactionAttribute
     - Update `Oproto.FluentDynamoDb/Attributes/RequireWriteTransactionAttribute.cs`
     - Add comprehensive XML docs with examples
     - _Requirements: 7.1_
-  - [ ] 10.2 Add XML documentation to FluentDynamoDbOptions new methods
+  - [x] 10.2 Add XML documentation to FluentDynamoDbOptions new methods
     - Update `Oproto.FluentDynamoDb/FluentDynamoDbOptions.cs`
     - Add XML docs with usage examples for each new configuration method
     - _Requirements: 7.2_
-  - [ ] 10.3 Update CHANGELOG.md with v0.9.0 changes
+  - [x] 10.3 Update CHANGELOG.md with v0.9.0 changes
     - Add new [Unreleased] section entries for all changes
     - Document breaking changes with migration guidance
     - _Requirements: 7.3, 8.1, 8.2, 8.3_
-  - [ ] 10.4 Update docs/DOCUMENTATION_CHANGELOG.md
+  - [x] 10.4 Update docs/DOCUMENTATION_CHANGELOG.md
     - Add entries for all documentation changes
     - Follow established format with before/after examples
     - _Requirements: 7.4_
-  - [ ] 10.5 Update attribute reference documentation
+  - [x] 10.5 Update attribute reference documentation
     - Update `docs/reference/AttributeReference.md`
     - Add `[RequireWriteTransaction]` documentation
     - Update `[Queryable]` with deprecation notice
     - Update `[DynamoDbTable]` with `Namespace` parameter
     - _Requirements: 7.1_
-  - [ ] 10.6 Update configuration guide documentation
+  - [x] 10.6 Update configuration guide documentation
     - Update or create `docs/core-features/configuration-guide.md`
     - Document default request options configuration
     - _Requirements: 7.2_
-  - [ ] 10.7 Create BREAKING_CHANGES.md for v0.9.0
+  - [x] 10.7 Create BREAKING_CHANGES.md for v0.9.0
     - Create `docs/BREAKING_CHANGES_v0.9.md`
     - Document `[Queryable]` deprecation and migration
     - Document `[RequireWriteTransaction]` runtime exceptions
