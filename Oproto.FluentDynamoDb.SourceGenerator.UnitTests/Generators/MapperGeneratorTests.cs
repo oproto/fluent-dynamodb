@@ -823,6 +823,8 @@ public class MapperGeneratorTests
             sb.AppendLine("    {");
             sb.AppendLine("        public string Id { get; set; } = string.Empty;");
             sb.AppendLine();
+            sb.AppendLine("        public static bool RequiresWriteTransaction => false;");
+            sb.AppendLine();
             sb.AppendLine("        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
             sb.AppendLine("        {");
             sb.AppendLine("            return new Dictionary<string, AttributeValue>();");

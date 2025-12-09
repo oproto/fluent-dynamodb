@@ -151,32 +151,32 @@
     - **Property 8: Explicit builder calls override default options**
     - **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5**
 
-- [ ] 8. Checkpoint - Ensure all tests pass
+- [x] 8. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. NuGet packaging fixes
-  - [ ] 9.1 Add IsPackable=false to unit test projects
+- [x] 9. NuGet packaging fixes
+  - [x] 9.1 Add IsPackable=false to unit test projects
     - Modify all `*.UnitTests.csproj` files
     - Add `<IsPackable>false</IsPackable>` to PropertyGroup
     - _Requirements: 6.1_
-  - [ ] 9.2 Add IsPackable=false to integration test project
+  - [x] 9.2 Add IsPackable=false to integration test project
     - Modify `Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj`
     - Add `<IsPackable>false</IsPackable>` to PropertyGroup
     - _Requirements: 6.1_
-  - [ ] 9.3 Add IsPackable=false to example projects
+  - [x] 9.3 Add IsPackable=false to example projects
     - Modify all project files in `examples/` directory
     - Add `<IsPackable>false</IsPackable>` to PropertyGroup
     - _Requirements: 6.2_
-  - [ ] 9.4 Add IsPackable=false to AOT and API consistency test projects
+  - [x] 9.4 Add IsPackable=false to AOT and API consistency test projects
     - Modify `Oproto.FluentDynamoDb.AotTests/Oproto.FluentDynamoDb.AotTests.csproj`
     - Modify `Oproto.FluentDynamoDb.ApiConsistencyTests/Oproto.FluentDynamoDb.ApiConsistencyTests.csproj`
     - Add `<IsPackable>false</IsPackable>` to PropertyGroup
     - _Requirements: 6.1_
-  - [ ] 9.5 Remove duplicate icon files from test/example projects
+  - [x] 9.5 Remove duplicate icon files from test/example projects
     - Search for and delete any `icon.png` files in test and example project directories
     - Verify icon is only in `docs/assets/icon.png`
     - _Requirements: 6.3_
-  - [ ] 9.6 Verify package contents after build
+  - [x] 9.6 Verify package contents after build
     - Run `dotnet pack` and inspect package contents
     - Verify only main library assemblies, README, icon, and source generator are included
     - _Requirements: 6.4_
