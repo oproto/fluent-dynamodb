@@ -52,6 +52,20 @@ public class UpdateItemRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
+        if (_options.DefaultReturnItemCollectionMetrics is { } defaultItemCollectionMetrics)
+        {
+            _req.ReturnItemCollectionMetrics = defaultItemCollectionMetrics;
+        }
+        if (_options.DefaultReturnValues is { } defaultReturnValues)
+        {
+            _req.ReturnValues = defaultReturnValues;
+        }
     }
 
     private UpdateItemRequest _req = new();

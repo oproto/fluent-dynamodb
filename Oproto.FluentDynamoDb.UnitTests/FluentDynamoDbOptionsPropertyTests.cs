@@ -1370,3 +1370,495 @@ public class JsonBlobSerializerTests
         public string? Name { get; set; }
     }
 }
+
+/// <summary>
+/// Property-based tests for default request options propagation.
+/// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+/// **Feature: api-enhancements-v0.9, Property 8: Explicit builder calls override default options**
+/// **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5**
+/// </summary>
+public class DefaultRequestOptionsPropertyTests
+{
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultConsistentRead configured and any GetItemRequestBuilder
+    /// created with those options, the builder's request SHALL reflect the configured default.
+    /// **Validates: Requirements 5.1**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultConsistentRead_PropagatesTo_GetItemRequestBuilder()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            consistentRead =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().UseConsistentRead(consistentRead);
+                
+                // Act
+                var builder = new GetItemRequestBuilder<TestEntity>(mockClient, options)
+                    .ForTable("test-table");
+                var request = builder.ToGetItemRequest();
+                
+                // Assert
+                var hasCorrectConsistentRead = request.ConsistentRead == consistentRead;
+                
+                return hasCorrectConsistentRead.ToProperty()
+                    .Label($"GetItemRequestBuilder should have ConsistentRead={consistentRead}. " +
+                           $"Actual: {request.ConsistentRead}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultConsistentRead configured and any QueryRequestBuilder
+    /// created with those options, the builder's request SHALL reflect the configured default.
+    /// **Validates: Requirements 5.1**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultConsistentRead_PropagatesTo_QueryRequestBuilder()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            consistentRead =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().UseConsistentRead(consistentRead);
+                
+                // Act
+                var builder = new QueryRequestBuilder<TestEntity>(mockClient, options)
+                    .ForTable("test-table");
+                var request = builder.ToQueryRequest();
+                
+                // Assert
+                var hasCorrectConsistentRead = request.ConsistentRead == consistentRead;
+                
+                return hasCorrectConsistentRead.ToProperty()
+                    .Label($"QueryRequestBuilder should have ConsistentRead={consistentRead}. " +
+                           $"Actual: {request.ConsistentRead}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultConsistentRead configured and any ScanRequestBuilder
+    /// created with those options, the builder's request SHALL reflect the configured default.
+    /// **Validates: Requirements 5.1**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultConsistentRead_PropagatesTo_ScanRequestBuilder()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            consistentRead =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().UseConsistentRead(consistentRead);
+                
+                // Act
+                var builder = new ScanRequestBuilder<TestEntity>(mockClient, options)
+                    .ForTable("test-table");
+                var request = builder.ToScanRequest();
+                
+                // Assert
+                var hasCorrectConsistentRead = request.ConsistentRead == consistentRead;
+                
+                return hasCorrectConsistentRead.ToProperty()
+                    .Label($"ScanRequestBuilder should have ConsistentRead={consistentRead}. " +
+                           $"Actual: {request.ConsistentRead}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultReturnConsumedCapacity configured,
+    /// all request builders created with those options SHALL reflect the configured default.
+    /// **Validates: Requirements 5.2**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultReturnConsumedCapacity_PropagatesTo_AllRequestBuilders()
+    {
+        return Prop.ForAll(
+            Gen.Elements(
+                ReturnConsumedCapacity.NONE,
+                ReturnConsumedCapacity.TOTAL,
+                ReturnConsumedCapacity.INDEXES
+            ).ToArbitrary(),
+            consumedCapacity =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().ReturnConsumedCapacity(consumedCapacity);
+                
+                // Act - create all builder types
+                var getBuilder = new GetItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var queryBuilder = new QueryRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var scanBuilder = new ScanRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var putBuilder = new PutItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var updateBuilder = new UpdateItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var deleteBuilder = new DeleteItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                
+                // Get requests
+                var getRequest = getBuilder.ToGetItemRequest();
+                var queryRequest = queryBuilder.ToQueryRequest();
+                var scanRequest = scanBuilder.ToScanRequest();
+                var putRequest = putBuilder.ToPutItemRequest();
+                var updateRequest = updateBuilder.ToUpdateItemRequest();
+                var deleteRequest = deleteBuilder.ToDeleteItemRequest();
+                
+                // Assert
+                var allCorrect = 
+                    getRequest.ReturnConsumedCapacity == consumedCapacity &&
+                    queryRequest.ReturnConsumedCapacity == consumedCapacity &&
+                    scanRequest.ReturnConsumedCapacity == consumedCapacity &&
+                    putRequest.ReturnConsumedCapacity == consumedCapacity &&
+                    updateRequest.ReturnConsumedCapacity == consumedCapacity &&
+                    deleteRequest.ReturnConsumedCapacity == consumedCapacity;
+                
+                return allCorrect.ToProperty()
+                    .Label($"All request builders should have ReturnConsumedCapacity={consumedCapacity}. " +
+                           $"Get: {getRequest.ReturnConsumedCapacity}, Query: {queryRequest.ReturnConsumedCapacity}, " +
+                           $"Scan: {scanRequest.ReturnConsumedCapacity}, Put: {putRequest.ReturnConsumedCapacity}, " +
+                           $"Update: {updateRequest.ReturnConsumedCapacity}, Delete: {deleteRequest.ReturnConsumedCapacity}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultReturnItemCollectionMetrics configured,
+    /// write request builders (Put, Update, Delete) SHALL reflect the configured default.
+    /// **Validates: Requirements 5.3**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultReturnItemCollectionMetrics_PropagatesTo_WriteRequestBuilders()
+    {
+        return Prop.ForAll(
+            Gen.Elements(
+                ReturnItemCollectionMetrics.NONE,
+                ReturnItemCollectionMetrics.SIZE
+            ).ToArbitrary(),
+            itemCollectionMetrics =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().ReturnItemCollectionMetrics(itemCollectionMetrics);
+                
+                // Act - create write builder types
+                var putBuilder = new PutItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var updateBuilder = new UpdateItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var deleteBuilder = new DeleteItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                
+                // Get requests
+                var putRequest = putBuilder.ToPutItemRequest();
+                var updateRequest = updateBuilder.ToUpdateItemRequest();
+                var deleteRequest = deleteBuilder.ToDeleteItemRequest();
+                
+                // Assert
+                var allCorrect = 
+                    putRequest.ReturnItemCollectionMetrics == itemCollectionMetrics &&
+                    updateRequest.ReturnItemCollectionMetrics == itemCollectionMetrics &&
+                    deleteRequest.ReturnItemCollectionMetrics == itemCollectionMetrics;
+                
+                return allCorrect.ToProperty()
+                    .Label($"Write request builders should have ReturnItemCollectionMetrics={itemCollectionMetrics}. " +
+                           $"Put: {putRequest.ReturnItemCollectionMetrics}, Update: {updateRequest.ReturnItemCollectionMetrics}, " +
+                           $"Delete: {deleteRequest.ReturnItemCollectionMetrics}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultReturnValues configured,
+    /// Put and Update request builders SHALL reflect the configured default.
+    /// **Validates: Requirements 5.4**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultReturnValues_PropagatesTo_PutAndUpdateRequestBuilders()
+    {
+        return Prop.ForAll(
+            Gen.Elements(
+                ReturnValue.NONE,
+                ReturnValue.ALL_OLD,
+                ReturnValue.ALL_NEW,
+                ReturnValue.UPDATED_OLD,
+                ReturnValue.UPDATED_NEW
+            ).ToArbitrary(),
+            returnValue =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().ReturnValues(returnValue);
+                
+                // Act - create Put and Update builders
+                var putBuilder = new PutItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var updateBuilder = new UpdateItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                
+                // Get requests
+                var putRequest = putBuilder.ToPutItemRequest();
+                var updateRequest = updateBuilder.ToUpdateItemRequest();
+                
+                // Assert
+                var putCorrect = putRequest.ReturnValues == returnValue;
+                var updateCorrect = updateRequest.ReturnValues == returnValue;
+                
+                return (putCorrect && updateCorrect).ToProperty()
+                    .Label($"Put and Update request builders should have ReturnValues={returnValue}. " +
+                           $"Put: {putRequest.ReturnValues}, Update: {updateRequest.ReturnValues}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultReturnValues configured to NONE or ALL_OLD,
+    /// Delete request builder SHALL reflect the configured default.
+    /// (Delete only supports NONE and ALL_OLD for ReturnValues)
+    /// **Validates: Requirements 5.4**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultReturnValues_PropagatesTo_DeleteRequestBuilder_WhenValid()
+    {
+        return Prop.ForAll(
+            Gen.Elements(ReturnValue.NONE, ReturnValue.ALL_OLD).ToArbitrary(),
+            returnValue =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().ReturnValues(returnValue);
+                
+                // Act
+                var deleteBuilder = new DeleteItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var deleteRequest = deleteBuilder.ToDeleteItemRequest();
+                
+                // Assert
+                var deleteCorrect = deleteRequest.ReturnValues == returnValue;
+                
+                return deleteCorrect.ToProperty()
+                    .Label($"Delete request builder should have ReturnValues={returnValue}. " +
+                           $"Actual: {deleteRequest.ReturnValues}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with DefaultReturnValues configured to invalid values for Delete
+    /// (ALL_NEW, UPDATED_OLD, UPDATED_NEW), Delete request builder SHALL NOT apply the default.
+    /// **Validates: Requirements 5.4**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DefaultReturnValues_NotAppliedTo_DeleteRequestBuilder_WhenInvalid()
+    {
+        return Prop.ForAll(
+            Gen.Elements(ReturnValue.ALL_NEW, ReturnValue.UPDATED_OLD, ReturnValue.UPDATED_NEW).ToArbitrary(),
+            returnValue =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().ReturnValues(returnValue);
+                
+                // Act
+                var deleteBuilder = new DeleteItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var deleteRequest = deleteBuilder.ToDeleteItemRequest();
+                
+                // Assert - Delete should NOT have the invalid return value applied
+                var deleteNotApplied = deleteRequest.ReturnValues != returnValue;
+                
+                return deleteNotApplied.ToProperty()
+                    .Label($"Delete request builder should NOT have invalid ReturnValues={returnValue}. " +
+                           $"Actual: {deleteRequest.ReturnValues}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 8: Explicit builder calls override default options**
+    /// *For any* FluentDynamoDbOptions with DefaultConsistentRead configured and any GetItemRequestBuilder
+    /// where UsingConsistentRead() is explicitly called, the explicit value SHALL take precedence.
+    /// **Validates: Requirements 5.5**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property ExplicitConsistentRead_Overrides_DefaultOption_GetItemRequestBuilder()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            defaultConsistentRead =>
+            {
+                // Arrange - set default to one value
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().UseConsistentRead(defaultConsistentRead);
+                
+                // Act - explicitly call UsingConsistentRead() which always sets to true
+                var builder = new GetItemRequestBuilder<TestEntity>(mockClient, options)
+                    .ForTable("test-table")
+                    .UsingConsistentRead(); // This always sets ConsistentRead = true
+                var request = builder.ToGetItemRequest();
+                
+                // Assert - explicit call should override default
+                var hasExplicitValue = request.ConsistentRead == true;
+                
+                return hasExplicitValue.ToProperty()
+                    .Label($"Explicit UsingConsistentRead() should override default={defaultConsistentRead}. " +
+                           $"Actual: {request.ConsistentRead}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 8: Explicit builder calls override default options**
+    /// *For any* FluentDynamoDbOptions with DefaultReturnConsumedCapacity configured and any request builder
+    /// where ReturnConsumedCapacity() is explicitly called, the explicit value SHALL take precedence.
+    /// **Validates: Requirements 5.5**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property ExplicitReturnConsumedCapacity_Overrides_DefaultOption()
+    {
+        return Prop.ForAll(
+            Gen.Elements(
+                ReturnConsumedCapacity.NONE,
+                ReturnConsumedCapacity.TOTAL,
+                ReturnConsumedCapacity.INDEXES
+            ).ToArbitrary(),
+            Gen.Elements(
+                ReturnConsumedCapacity.NONE,
+                ReturnConsumedCapacity.TOTAL,
+                ReturnConsumedCapacity.INDEXES
+            ).ToArbitrary(),
+            (defaultValue, explicitValue) =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().ReturnConsumedCapacity(defaultValue);
+                
+                // Act - explicitly call ReturnConsumedCapacity with different value
+                var builder = new GetItemRequestBuilder<TestEntity>(mockClient, options)
+                    .ForTable("test-table")
+                    .ReturnConsumedCapacity(explicitValue);
+                var request = builder.ToGetItemRequest();
+                
+                // Assert - explicit call should override default
+                var hasExplicitValue = request.ReturnConsumedCapacity == explicitValue;
+                
+                return hasExplicitValue.ToProperty()
+                    .Label($"Explicit ReturnConsumedCapacity({explicitValue}) should override default={defaultValue}. " +
+                           $"Actual: {request.ReturnConsumedCapacity}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 8: Explicit builder calls override default options**
+    /// *For any* FluentDynamoDbOptions with DefaultReturnValues configured and any PutItemRequestBuilder
+    /// where ReturnValues() is explicitly called, the explicit value SHALL take precedence.
+    /// **Validates: Requirements 5.5**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property ExplicitReturnValues_Overrides_DefaultOption_PutItemRequestBuilder()
+    {
+        return Prop.ForAll(
+            Gen.Elements(
+                ReturnValue.NONE,
+                ReturnValue.ALL_OLD,
+                ReturnValue.ALL_NEW
+            ).ToArbitrary(),
+            Gen.Elements(
+                ReturnValue.NONE,
+                ReturnValue.ALL_OLD,
+                ReturnValue.ALL_NEW
+            ).ToArbitrary(),
+            (defaultValue, explicitValue) =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions().ReturnValues(defaultValue);
+                
+                // Act - explicitly call ReturnValues with different value
+                var builder = new PutItemRequestBuilder<TestEntity>(mockClient, options)
+                    .ForTable("test-table")
+                    .ReturnValues(explicitValue);
+                var request = builder.ToPutItemRequest();
+                
+                // Assert - explicit call should override default
+                var hasExplicitValue = request.ReturnValues == explicitValue;
+                
+                return hasExplicitValue.ToProperty()
+                    .Label($"Explicit ReturnValues({explicitValue}) should override default={defaultValue}. " +
+                           $"Actual: {request.ReturnValues}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with no defaults configured,
+    /// request builders SHALL use DynamoDB's default behavior (null/unset values).
+    /// **Validates: Requirements 5.1, 5.2, 5.3, 5.4**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property NoDefaultsConfigured_RequestBuildersUse_DynamoDbDefaults()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            _ =>
+            {
+                // Arrange - options with no defaults
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions();
+                
+                // Act
+                var getBuilder = new GetItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var queryBuilder = new QueryRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                var putBuilder = new PutItemRequestBuilder<TestEntity>(mockClient, options).ForTable("test");
+                
+                var getRequest = getBuilder.ToGetItemRequest();
+                var queryRequest = queryBuilder.ToQueryRequest();
+                var putRequest = putBuilder.ToPutItemRequest();
+                
+                // Assert - values should be null/default (DynamoDB defaults)
+                // ConsistentRead is nullable bool - when not set, it's null (which DynamoDB treats as false)
+                var getConsistentReadDefault = getRequest.ConsistentRead == null || getRequest.ConsistentRead == false;
+                var queryConsistentReadDefault = queryRequest.ConsistentRead == null || queryRequest.ConsistentRead == false;
+                var getConsumedCapacityDefault = getRequest.ReturnConsumedCapacity == null;
+                var putReturnValuesDefault = putRequest.ReturnValues == null;
+                
+                return (getConsistentReadDefault && queryConsistentReadDefault && 
+                        getConsumedCapacityDefault && putReturnValuesDefault).ToProperty()
+                    .Label($"Request builders with no defaults should use DynamoDB defaults. " +
+                           $"GetConsistentRead: {getRequest.ConsistentRead}, QueryConsistentRead: {queryRequest.ConsistentRead}, " +
+                           $"GetConsumedCapacity: {getRequest.ReturnConsumedCapacity}, PutReturnValues: {putRequest.ReturnValues}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: api-enhancements-v0.9, Property 7: Default options propagate to request builders**
+    /// *For any* FluentDynamoDbOptions with all defaults configured,
+    /// chaining multiple builder methods SHALL preserve the default values for unmodified settings.
+    /// **Validates: Requirements 5.1, 5.2, 5.3, 5.4**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property ChainedBuilderMethods_PreserveDefaultValues()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            consistentRead =>
+            {
+                // Arrange
+                var mockClient = Substitute.For<IAmazonDynamoDB>();
+                var options = new FluentDynamoDbOptions()
+                    .UseConsistentRead(consistentRead)
+                    .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
+                
+                // Act - chain multiple builder methods (but not the ones that override defaults)
+                var builder = new GetItemRequestBuilder<TestEntity>(mockClient, options)
+                    .ForTable("test-table")
+                    .WithProjection("id, name");
+                var request = builder.ToGetItemRequest();
+                
+                // Assert - defaults should be preserved
+                var consistentReadPreserved = request.ConsistentRead == consistentRead;
+                var consumedCapacityPreserved = request.ReturnConsumedCapacity == ReturnConsumedCapacity.TOTAL;
+                
+                return (consistentReadPreserved && consumedCapacityPreserved).ToProperty()
+                    .Label($"Chained builder methods should preserve defaults. " +
+                           $"ConsistentRead: {request.ConsistentRead} (expected {consistentRead}), " +
+                           $"ConsumedCapacity: {request.ReturnConsumedCapacity} (expected TOTAL)");
+            });
+    }
+}

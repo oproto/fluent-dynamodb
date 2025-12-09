@@ -41,6 +41,16 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultConsistentRead.HasValue)
+        {
+            _req.ConsistentRead = _options.DefaultConsistentRead.Value;
+        }
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
     }
 
     private GetItemRequest _req = new GetItemRequest();

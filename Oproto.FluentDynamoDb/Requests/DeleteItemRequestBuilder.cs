@@ -47,6 +47,24 @@ public class DeleteItemRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
+        if (_options.DefaultReturnItemCollectionMetrics is { } defaultItemCollectionMetrics)
+        {
+            _req.ReturnItemCollectionMetrics = defaultItemCollectionMetrics;
+        }
+        // Note: DeleteItemRequest only supports NONE and ALL_OLD for ReturnValues
+        // We apply the default only if it's a valid value for delete operations
+        if (_options.DefaultReturnValues is { } defaultReturnValues && 
+            (defaultReturnValues == ReturnValue.NONE || 
+             defaultReturnValues == ReturnValue.ALL_OLD))
+        {
+            _req.ReturnValues = defaultReturnValues;
+        }
     }
 
     private DeleteItemRequest _req = new();

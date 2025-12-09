@@ -112,41 +112,41 @@
 - [x] 6. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Default request options in FluentDynamoDbOptions
-  - [ ] 7.1 Add default option properties to FluentDynamoDbOptions
+- [x] 7. Default request options in FluentDynamoDbOptions
+  - [x] 7.1 Add default option properties to FluentDynamoDbOptions
     - Modify `Oproto.FluentDynamoDb/FluentDynamoDbOptions.cs`
     - Add `DefaultConsistentRead`, `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` properties
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
-  - [ ] 7.2 Add builder methods for default options
+  - [x] 7.2 Add builder methods for default options
     - Modify `Oproto.FluentDynamoDb/FluentDynamoDbOptions.cs`
     - Add `UseConsistentRead()`, `ReturnConsumedCapacity()`, `ReturnItemCollectionMetrics()`, `ReturnValues()` methods
     - Use same method names as request builder methods for consistency
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.6_
-  - [ ] 7.3 Update GetItemRequestBuilder to apply default options
+  - [x] 7.3 Update GetItemRequestBuilder to apply default options
     - Modify `Oproto.FluentDynamoDb/Requests/GetItemRequestBuilder.cs`
     - Apply `DefaultConsistentRead` and `DefaultReturnConsumedCapacity` from options during construction
     - _Requirements: 5.1, 5.2_
-  - [ ] 7.4 Update QueryRequestBuilder to apply default options
+  - [x] 7.4 Update QueryRequestBuilder to apply default options
     - Modify `Oproto.FluentDynamoDb/Requests/QueryRequestBuilder.cs`
     - Apply `DefaultConsistentRead` and `DefaultReturnConsumedCapacity` from options during construction
     - _Requirements: 5.1, 5.2_
-  - [ ] 7.5 Update PutItemRequestBuilder to apply default options
+  - [x] 7.5 Update PutItemRequestBuilder to apply default options
     - Modify `Oproto.FluentDynamoDb/Requests/PutItemRequestBuilder.cs`
     - Apply `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` from options
     - _Requirements: 5.2, 5.3, 5.4_
-  - [ ] 7.6 Update UpdateItemRequestBuilder to apply default options
+  - [x] 7.6 Update UpdateItemRequestBuilder to apply default options
     - Modify `Oproto.FluentDynamoDb/Requests/UpdateItemRequestBuilder.cs`
     - Apply `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` from options
     - _Requirements: 5.2, 5.3, 5.4_
-  - [ ] 7.7 Update DeleteItemRequestBuilder to apply default options
+  - [x] 7.7 Update DeleteItemRequestBuilder to apply default options
     - Modify `Oproto.FluentDynamoDb/Requests/DeleteItemRequestBuilder.cs`
     - Apply `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` from options
     - _Requirements: 5.2, 5.3, 5.4_
-  - [ ] 7.8 Update ScanRequestBuilder to apply default options
+  - [x] 7.8 Update ScanRequestBuilder to apply default options
     - Modify `Oproto.FluentDynamoDb/Requests/ScanRequestBuilder.cs`
     - Apply `DefaultConsistentRead` and `DefaultReturnConsumedCapacity` from options
     - _Requirements: 5.1, 5.2_
-  - [ ] 7.9 Write property tests for default options propagation
+  - [x] 7.9 Write property tests for default options propagation
     - **Property 7: Default options propagate to request builders**
     - **Property 8: Explicit builder calls override default options**
     - **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5**
