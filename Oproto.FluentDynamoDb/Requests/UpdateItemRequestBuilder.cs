@@ -376,7 +376,6 @@ public class UpdateItemRequestBuilder<TEntity> :
                     B = new System.IO.MemoryStream(ciphertext)
                 };
 
-                #if !DISABLE_DYNAMODB_LOGGING
                 if (_logger?.IsEnabled(Logging.LogLevel.Debug) == true)
                 {
                     _logger.LogDebug(LogEventIds.EncryptingField,
@@ -387,7 +386,6 @@ public class UpdateItemRequestBuilder<TEntity> :
                         param.AttributeName ?? "unknown",
                         ciphertext.Length);
                 }
-                #endif
             }
             catch (Exception ex) when (ex is not InvalidOperationException)
             {
@@ -462,12 +460,14 @@ public class UpdateItemRequestBuilder<TEntity> :
             await EncryptParametersAsync(request, cancellationToken);
         }
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingUpdate,
-            "Executing UpdateItem on table {TableName}. UpdateExpression: {UpdateExpression}, Condition: {ConditionExpression}",
-            request.TableName ?? "Unknown", 
-            request.UpdateExpression ?? "None", 
-            request.ConditionExpression ?? "None");
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingUpdate,
+                "Executing UpdateItem on table {TableName}. UpdateExpression: {UpdateExpression}, Condition: {ConditionExpression}",
+                request.TableName ?? "Unknown", 
+                request.UpdateExpression ?? "None", 
+                request.ConditionExpression ?? "None");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
         {
@@ -475,27 +475,25 @@ public class UpdateItemRequestBuilder<TEntity> :
                 "UpdateItem parameters: {ParameterCount} values",
                 _attrV.AttributeValues.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.UpdateItemAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "UpdateItem completed. ConsumedCapacity: {ConsumedCapacity}",
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
-            #endif
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "UpdateItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                    response.ConsumedCapacity?.CapacityUnits ?? 0);
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "UpdateItem failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

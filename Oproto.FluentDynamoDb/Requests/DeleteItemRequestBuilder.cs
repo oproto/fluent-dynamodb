@@ -289,11 +289,13 @@ public class DeleteItemRequestBuilder<TEntity> :
         
         var request = ToDeleteItemRequest();
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingPutItem,
-            "Executing DeleteItem on table {TableName}. Condition: {ConditionExpression}",
-            request.TableName ?? "Unknown", 
-            request.ConditionExpression ?? "None");
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingPutItem,
+                "Executing DeleteItem on table {TableName}. Condition: {ConditionExpression}",
+                request.TableName ?? "Unknown", 
+                request.ConditionExpression ?? "None");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Key != null)
         {
@@ -301,27 +303,25 @@ public class DeleteItemRequestBuilder<TEntity> :
                 "DeleteItem key attributes: {KeyCount}",
                 request.Key.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.DeleteItemAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "DeleteItem completed. ConsumedCapacity: {ConsumedCapacity}",
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
-            #endif
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "DeleteItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                    response.ConsumedCapacity?.CapacityUnits ?? 0);
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "DeleteItem failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }
