@@ -130,6 +130,7 @@ internal static class MapperGenerator
         GenerateGetPartitionKeyMethod(sb, entity);
         GenerateMatchesEntityMethod(sb, entity);
         GenerateGetEntityMetadataMethod(sb, entity);
+        GenerateRequiresWriteTransactionProperty(sb, entity);
 
         // Generate nested Keys class (skip for nested entities)
         if (!entity.TableName?.StartsWith("_entity_") == true)
@@ -2890,6 +2891,17 @@ internal static class MapperGenerator
         sb.AppendLine("                }");
         sb.AppendLine("            };");
         sb.AppendLine("        }");
+    }
+
+    private static void GenerateRequiresWriteTransactionProperty(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Gets whether this entity type requires write operations within a transaction.");
+        sb.AppendLine("        /// When true, Put, Update, Delete, and BatchWrite operations will throw");
+        sb.AppendLine("        /// <see cref=\"InvalidOperationException\"/> unless performed within a TransactWrite operation.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine($"        public static bool RequiresWriteTransaction => {entity.RequiresWriteTransaction.ToString().ToLowerInvariant()};");
     }
 
     private static void GeneratePropertyMetadata(StringBuilder sb, PropertyModel property)

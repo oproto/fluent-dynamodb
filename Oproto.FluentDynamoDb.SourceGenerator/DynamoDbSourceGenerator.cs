@@ -184,10 +184,11 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         // Group entities by table name for table class generation
         var entitiesByTable = GroupEntitiesByTableName(validEntityModels);
 
-        // Validate default entity configuration for each table
+        // Validate default entity and namespace configuration for each table
         foreach (var tableGroup in entitiesByTable)
         {
             ValidateDefaultEntity(tableGroup.Value, context);
+            ValidateTableNamespaceConsistency(tableGroup.Value, context);
         }
 
         // Generate table classes for each table group
@@ -351,6 +352,42 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 DiagnosticDescriptors.MultipleDefaultEntities,
                 location,
                 tableName));
+        }
+    }
+
+    /// <summary>
+    /// Validates that multi-entity tables have consistent namespace configuration.
+    /// All entities must either not specify a custom namespace, or all specify the same namespace.
+    /// </summary>
+    /// <param name="entities">List of entities in the table.</param>
+    /// <param name="context">Source production context for reporting diagnostics.</param>
+    private static void ValidateTableNamespaceConsistency(List<EntityModel> entities, SourceProductionContext context)
+    {
+        if (entities.Count <= 1)
+            return;
+
+        var tableName = entities[0].TableName;
+        
+        // Get all distinct custom namespaces (excluding null)
+        var customNamespaces = entities
+            .Where(e => e.TableNamespace != null)
+            .Select(e => e.TableNamespace!)
+            .Distinct()
+            .ToList();
+
+        // If more than one distinct custom namespace is specified, report an error
+        if (customNamespaces.Count > 1)
+        {
+            // Find the second entity with a different namespace to report the error on
+            var firstNamespace = customNamespaces[0];
+            var conflictingEntity = entities.First(e => e.TableNamespace != null && e.TableNamespace != firstNamespace);
+            var location = conflictingEntity.ClassDeclaration?.Identifier.GetLocation() ?? Location.None;
+            
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ConflictingTableNamespaces,
+                location,
+                tableName,
+                string.Join(", ", customNamespaces)));
         }
     }
 

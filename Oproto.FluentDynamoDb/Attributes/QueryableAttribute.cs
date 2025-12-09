@@ -47,6 +47,13 @@ public enum DynamoDbOperation
 /// Marks a property as queryable and specifies the supported operations and indexes.
 /// This metadata is used for future LINQ expression support.
 /// </summary>
+/// <remarks>
+/// This attribute is deprecated. Query capabilities are now automatically derived from
+/// <see cref="PartitionKeyAttribute"/> and <see cref="SortKeyAttribute"/> attributes.
+/// Partition keys support equality operations, while sort keys support range operations
+/// (equals, begins_with, between, greater_than, less_than).
+/// </remarks>
+[Obsolete("The [Queryable] attribute is deprecated. Query capabilities are now derived from [PartitionKey] and [SortKey] attributes. This attribute will be removed in v1.0.")]
 [AttributeUsage(AttributeTargets.Property)]
 public class QueryableAttribute : Attribute
 {

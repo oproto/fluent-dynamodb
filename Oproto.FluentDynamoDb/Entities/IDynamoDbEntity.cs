@@ -57,5 +57,13 @@ public interface IDynamoDbEntity : IEntityMetadataProvider
     /// <returns>True if the item matches this entity type, false otherwise.</returns>
     static abstract bool MatchesEntity(Dictionary<string, AttributeValue> item);
 
+    /// <summary>
+    /// Gets whether this entity type requires write operations within a transaction.
+    /// Source-generated based on the <see cref="Attributes.RequireWriteTransactionAttribute"/> attribute.
+    /// When true, Put, Update, Delete, and BatchWrite operations will throw
+    /// <see cref="InvalidOperationException"/> unless performed within a TransactWrite operation.
+    /// </summary>
+    static abstract bool RequiresWriteTransaction { get; }
+
     // GetEntityMetadata() is inherited from IEntityMetadataProvider
 }

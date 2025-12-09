@@ -34,6 +34,10 @@ internal class SecurityAttributeAnalyzer
         {
             securityInfo.IsEncrypted = true;
             securityInfo.EncryptionConfig = ExtractEncryptionConfig(encryptedAttr);
+            
+            // Encrypted properties are automatically treated as sensitive
+            // This ensures encrypted data is redacted in logs without requiring both attributes
+            securityInfo.IsSensitive = true;
         }
 
         return securityInfo;

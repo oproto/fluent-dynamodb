@@ -49,11 +49,30 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
+        
+        // Determine the table namespace:
+        // 1. If any entity specifies a custom namespace, use that (validation ensures they're all the same)
+        // 2. Otherwise, use the first entity's namespace
+        var primaryEntity = entities[0];
+        var customNamespace = entities.FirstOrDefault(e => e.TableNamespace != null)?.TableNamespace;
+        var tableNamespace = customNamespace ?? primaryEntity.Namespace;
+        
+        // Add using directives for entity namespaces that differ from the table namespace
+        var entityNamespaces = entities
+            .Select(e => e.Namespace)
+            .Where(ns => ns != tableNamespace)
+            .Distinct()
+            .OrderBy(ns => ns);
+        
+        foreach (var ns in entityNamespaces)
+        {
+            sb.AppendLine($"using {ns};");
+        }
+        
         sb.AppendLine();
         
-        // Namespace (use the first entity's namespace)
-        var primaryEntity = entities[0];
-        sb.AppendLine($"namespace {primaryEntity.Namespace};");
+        // Namespace
+        sb.AppendLine($"namespace {tableNamespace};");
         sb.AppendLine();
         
         // Class declaration
@@ -139,10 +158,20 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
+        
+        // Determine the table namespace (use custom namespace if specified, otherwise use entity's namespace)
+        var tableNamespace = entity.TableNamespace ?? entity.Namespace;
+        
+        // Add using directive for entity namespace if it differs from the table namespace
+        if (entity.Namespace != tableNamespace)
+        {
+            sb.AppendLine($"using {entity.Namespace};");
+        }
+        
         sb.AppendLine();
         
         // Namespace
-        sb.AppendLine($"namespace {entity.Namespace};");
+        sb.AppendLine($"namespace {tableNamespace};");
         sb.AppendLine();
         
         // Class declaration
@@ -790,6 +819,7 @@ internal static class TableGenerator
             sb.AppendLine();
             
             // DeleteAsync express-route method
+            // Note: Transaction validation is handled in DeleteItemRequestBuilder.ToDynamoDbResponseAsync()
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
             sb.AppendLine($"        /// This is an express-route method that combines Delete() and DeleteAsync().");

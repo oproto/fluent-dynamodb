@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -34,7 +35,7 @@ public class DeleteItemRequestBuilder<TEntity> :
     IWithAttributeValues<DeleteItemRequestBuilder<TEntity>>,
     ITransactableDeleteBuilder,
     IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IDynamoDbEntity
 {
     /// <summary>
     /// Initializes a new instance of the DeleteItemRequestBuilder.
@@ -46,6 +47,24 @@ public class DeleteItemRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
+        if (_options.DefaultReturnItemCollectionMetrics is { } defaultItemCollectionMetrics)
+        {
+            _req.ReturnItemCollectionMetrics = defaultItemCollectionMetrics;
+        }
+        // Note: DeleteItemRequest only supports NONE and ALL_OLD for ReturnValues
+        // We apply the default only if it's a valid value for delete operations
+        if (_options.DefaultReturnValues is { } defaultReturnValues && 
+            (defaultReturnValues == ReturnValue.NONE || 
+             defaultReturnValues == ReturnValue.ALL_OLD))
+        {
+            _req.ReturnValues = defaultReturnValues;
+        }
     }
 
     private DeleteItemRequest _req = new();
@@ -253,10 +272,21 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the raw DeleteItemResponse from AWS SDK.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the entity type is marked with [RequireWriteTransaction] attribute.
+    /// Use DynamoDbTransactions.Write() to perform transactional writes for such entities.
+    /// </exception>
     /// <exception cref="ConditionalCheckFailedException">Thrown when a condition expression fails.</exception>
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table doesn't exist.</exception>
     public async Task<DeleteItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         var request = ToDeleteItemRequest();
         
         #if !DISABLE_DYNAMODB_LOGGING

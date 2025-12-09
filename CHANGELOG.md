@@ -9,6 +9,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`[RequireWriteTransaction]` Attribute** - New attribute to enforce transactional writes for specific entity types
+  - Marks entity classes as requiring write operations within a transaction
+  - Put, Update, Delete, and BatchWrite operations throw `InvalidOperationException` when attempted outside a transaction
+  - TransactWrite operations are allowed and proceed normally
+  - `RequiresWriteTransaction` static property added to `IDynamoDbEntity` interface
+  - `RequiresWriteTransaction` property added to `EntityMetadata` for tooling support
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("FinancialTransactions")]
+  [RequireWriteTransaction]
+  public partial class Transaction
+  {
+      // Properties...
+  }
+  
+  // This throws InvalidOperationException:
+  await table.Transactions.Put(transaction).PutAsync();
+  
+  // This is allowed:
+  await DynamoDbTransactions.Write()
+      .Put(table.Transactions, transaction)
+      .ExecuteAsync();
+  ```
+
+- **Default Request Options in FluentDynamoDbOptions** - Configure common request settings once and apply to all operations
+  - `UseConsistentRead(bool)` - Default consistent read setting for Get and Query operations
+  - `ReturnConsumedCapacity(ReturnConsumedCapacity)` - Default consumed capacity reporting for all operations
+  - `ReturnItemCollectionMetrics(ReturnItemCollectionMetrics)` - Default item collection metrics for write operations
+  - `ReturnValues(ReturnValue)` - Default return values for Put, Update, and Delete operations
+  - Explicit builder method calls override default options
+  - Method names match existing request builder methods for consistency
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
+  
+  **Usage:**
+  ```csharp
+  var options = new FluentDynamoDbOptions()
+      .UseConsistentRead(true)
+      .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+      .ReturnValues(ReturnValue.ALL_NEW);
+  
+  var table = new UsersTable(client, "users", options);
+  
+  // All operations now use these defaults
+  var user = await table.Users.Get(userId).GetItemAsync();  // Uses consistent read
+  ```
+
+- **Custom Namespace Support for Generated Table Classes** - Control the namespace of generated table classes
+  - New `Namespace` property on `[DynamoDbTable]` attribute
+  - When specified, generated table class is placed in the custom namespace
+  - When not specified, uses the entity's namespace (existing behavior)
+  - Appropriate using directives generated for referenced types
+  - _Requirements: 2.1, 2.2, 2.3_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("users", Namespace = "MyApp.Data.Tables")]
+  public partial class User
+  {
+      // Entity stays in its declared namespace
+  }
+  // Generated UsersTable class is in MyApp.Data.Tables namespace
+  ```
+
 ### Changed
 - **Documentation Reorganization** - Split `STSIntegration.md` into two focused documents for better discoverability
   - New `docs/advanced-topics/ClientConfiguration.md` covering development environments (DynamoDB Local, LocalStack), custom client settings, multi-region deployments, and proxy configuration
@@ -22,7 +87,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - StoreLocator retains utility methods (`SelectS2Level`, `SelectH3Resolution`) while removing constructor boilerplate
   - Updated README files to reflect new project structure and patterns
 
+- **Encrypted Properties Automatically Marked as Sensitive** - Properties with `[Encrypted]` attribute now automatically have `IsSensitive = true`
+  - No need to apply both `[Encrypted]` and `[Sensitive]` attributes
+  - Encrypted property values are automatically redacted in logs
+  - Existing entities with both attributes continue to work without changes
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- **Query Capabilities Derived from Key Attributes** - `SupportedOperations` now automatically derived from key metadata
+  - Partition key properties: Support `Equals` operation
+  - Sort key properties: Support `Equals`, `BeginsWith`, `Between`, `GreaterThan`, `LessThan` operations
+  - No longer need to manually specify operations via `[Queryable]` attribute
+  - _Requirements: 3.2, 3.3, 3.4_
+
+- **Write Request Builder Type Constraints** - `PutItemRequestBuilder<TEntity>`, `UpdateItemRequestBuilder<TEntity>`, and `DeleteItemRequestBuilder<TEntity>` now require `TEntity : class, IDynamoDbEntity`
+  - Enables AOT-safe transaction validation via static interface members
+  - Existing code using entities that implement `IDynamoDbEntity` (all source-generated entities) is unaffected
+  - _Requirements: 4.2, 4.3, 4.4_
+
 ### Deprecated
+
+- **`[Queryable]` Attribute** - Deprecated in favor of automatic derivation from key attributes
+  - Compiler warning `DYNDB103` emitted when `[Queryable]` is used
+  - Query capabilities are now derived from `[PartitionKey]` and `[SortKey]` attributes
+  - Will be removed in v1.0
+  - _Requirements: 3.1_
+  
+  **Migration:**
+  ```csharp
+  // Before (deprecated):
+  [Queryable(SupportedOperations = new[] { DynamoDbOperation.Equals })]
+  [PartitionKey]
+  [DynamoDbAttribute("pk")]
+  public string UserId { get; set; }
+  
+  // After (automatic):
+  [PartitionKey]  // Automatically supports Equals
+  [DynamoDbAttribute("pk")]
+  public string UserId { get; set; }
+  ```
 
 ### Removed
 
@@ -39,6 +141,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated migration examples to use lambda expressions and entity accessor patterns
   - Files corrected: `AdvancedTypesMigration.md`, `CodeExamples.md`, `PerformanceOptimization.md`, `AdoptionGuide.md`
   - See `docs/DOCUMENTATION_CHANGELOG.md` Part 6 for detailed before/after patterns
+
+- **NuGet Package Contents** - Fixed packaging to exclude test and example projects
+  - Added `<IsPackable>false</IsPackable>` to all unit test projects
+  - Added `<IsPackable>false</IsPackable>` to integration test project
+  - Added `<IsPackable>false</IsPackable>` to example projects
+  - Added `<IsPackable>false</IsPackable>` to AOT and API consistency test projects
+  - Removed duplicate icon files from test/example project directories
+  - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
 ### Security
 

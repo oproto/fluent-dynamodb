@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Mapping;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
@@ -42,7 +43,7 @@ public class TransactionWriteBuilder
     /// </code>
     /// </example>
     public TransactionWriteBuilder Add<TEntity>(PutItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
         InferClientIfNeeded(builder);
         
@@ -74,7 +75,7 @@ public class TransactionWriteBuilder
     /// </code>
     /// </example>
     public TransactionWriteBuilder Add<TEntity>(UpdateItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
         InferClientIfNeeded(builder);
         
@@ -112,7 +113,7 @@ public class TransactionWriteBuilder
     /// </code>
     /// </example>
     public TransactionWriteBuilder Add<TEntity>(DeleteItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
         InferClientIfNeeded(builder);
         

@@ -1,0 +1,219 @@
+# Implementation Plan
+
+- [x] 1. Encrypted properties automatically marked as sensitive
+  - [x] 1.1 Update EntityAnalyzer to set IsSensitive when IsEncrypted is true
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Analysis/EntityAnalyzer.cs`
+    - In property analysis, when `[Encrypted]` is detected, also set `IsSensitive = true`
+    - _Requirements: 1.1, 1.2_
+  - [x] 1.2 Update MapperGenerator to emit IsSensitive=true for encrypted properties
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Generators/MapperGenerator.cs`
+    - Ensure generated PropertyMetadata includes `IsSensitive = true` when `IsEncrypted = true`
+    - _Requirements: 1.1_
+  - [x] 1.3 Write property test for encrypted properties sensitivity
+    - **Property 1: Encrypted properties are automatically sensitive**
+    - **Validates: Requirements 1.1, 1.3**
+
+- [x] 2. Custom namespace support for generated table classes
+  - [x] 2.1 Add Namespace property to DynamoDbTableAttribute
+    - Modify `Oproto.FluentDynamoDb/Attributes/DynamoDbTableAttribute.cs`
+    - Add `public string? Namespace { get; set; }` property with XML documentation
+    - _Requirements: 2.1, 2.2_
+  - [x] 2.2 Update EntityAnalyzer to capture custom namespace
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Analysis/EntityAnalyzer.cs`
+    - Read `Namespace` property from attribute and store in entity model
+    - _Requirements: 2.1_
+  - [x] 2.3 Update TableGenerator to use custom namespace
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Generators/TableGenerator.cs`
+    - Entities must remain in their declared namespace as the user creates the partial entity classes.
+    - Use specified namespace or fall back to entity namespace
+    - Generate appropriate using directives for referenced types
+    - _Requirements: 2.1, 2.2, 2.3_
+  - [x] 2.4 Write property test for custom namespace generation
+    - **Property 2: Custom namespace is applied to generated table class**
+    - **Validates: Requirements 2.1**
+
+- [x] 3. Deprecate [Queryable] attribute and derive from key metadata
+  - [x] 3.1 Add Obsolete attribute to QueryableAttribute
+    - Modify `Oproto.FluentDynamoDb/Attributes/QueryableAttribute.cs`
+    - Add `[Obsolete("...")]` with migration guidance message
+    - _Requirements: 3.1_
+  - [x] 3.2 Add DYNDB103 diagnostic for [Queryable] usage
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Diagnostics/DiagnosticDescriptors.cs`
+    - Add new diagnostic descriptor for deprecated attribute warning
+    - _Requirements: 3.1_
+  - [x] 3.3 Update EntityAnalyzer to emit DYNDB103 warning
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Analysis/EntityAnalyzer.cs`
+    - Emit warning when `[Queryable]` attribute is detected
+    - _Requirements: 3.1_
+  - [x] 3.4 Update EntityAnalyzer to derive SupportedOperations from key attributes
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Analysis/EntityAnalyzer.cs`
+    - For `[PartitionKey]`: set `SupportedOperations = [Equals]`
+    - For `[SortKey]`: set `SupportedOperations = [Equals, BeginsWith, Between, GreaterThan, LessThan]`
+    - _Requirements: 3.2, 3.3, 3.4_
+  - [x] 3.5 Write property tests for key-derived operations
+    - **Property 3: Partition key properties support equality operations**
+    - **Property 4: Sort key properties support range operations**
+    - **Validates: Requirements 3.3, 3.4**
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. RequireWriteTransaction attribute and validation
+  - [x] 5.1 Create RequireWriteTransactionAttribute
+    - Create `Oproto.FluentDynamoDb/Attributes/RequireWriteTransactionAttribute.cs`
+    - Implement as marker attribute with XML documentation
+    - _Requirements: 4.1_
+  - [x] 5.2 Add RequiresWriteTransaction to IDynamoDbEntity interface
+    - Modify `Oproto.FluentDynamoDb/Entities/IDynamoDbEntity.cs`
+    - Add `static abstract bool RequiresWriteTransaction { get; }` property
+    - _Requirements: 4.1_
+  - [x] 5.3 Update EntityAnalyzer to detect RequireWriteTransaction
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Analysis/EntityAnalyzer.cs`
+    - Detect `[RequireWriteTransaction]` and set flag in entity model
+    - _Requirements: 4.1_
+  - [x] 5.4 Update MapperGenerator to emit RequiresWriteTransaction property
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Generators/MapperGenerator.cs`
+    - Generate `public static bool RequiresWriteTransaction => true/false;`
+    - _Requirements: 4.1_
+  - [x] 5.5 Update EntityMetadata with RequiresWriteTransaction property
+    - Modify `Oproto.FluentDynamoDb/Metadata/EntityMetadata.cs`
+    - Add `public bool RequiresWriteTransaction { get; set; }` property
+    - _Requirements: 4.1_
+  - [x] 5.6 Tighten TEntity constraint and add unified transaction validation to write builders
+    - Modify `Oproto.FluentDynamoDb/Requests/PutItemRequestBuilder.cs`
+      - Change constraint from `where TEntity : class` to `where TEntity : class, IDynamoDbEntity`
+      - Add validation in `ToDynamoDbResponseAsync()` checking `TEntity.RequiresWriteTransaction`
+      - Simplified `WithItem<T>()` to `WithItem(TEntity)` since TEntity now implements IDynamoDbEntity
+    - Modify `Oproto.FluentDynamoDb/Requests/UpdateItemRequestBuilder.cs`
+      - Change constraint from `where TEntity : class` to `where TEntity : class, IDynamoDbEntity`
+      - Add validation in `ToDynamoDbResponseAsync()` checking `TEntity.RequiresWriteTransaction`
+    - Modify `Oproto.FluentDynamoDb/Requests/DeleteItemRequestBuilder.cs`
+      - Change constraint from `where TEntity : class` to `where TEntity : class, IDynamoDbEntity`
+      - Add validation in `ToDynamoDbResponseAsync()` checking `TEntity.RequiresWriteTransaction`
+    - Update related builders that reference these types (TransactionWriteBuilder, BatchWriteBuilder)
+    - _Requirements: 4.2, 4.3, 4.4_
+  - [x] 5.7 Remove transaction validation from entity-specific Update builder
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Generators/EntitySpecificUpdateBuilderGenerator.cs`
+    - Remove `GenerateTransactionValidationOverride` method (validation now in base class)
+    - _Requirements: 4.3_
+  - [x] 5.8 Revert transaction validation from generated DeleteAsync methods
+    - Modify `Oproto.FluentDynamoDb.SourceGenerator/Generators/TableGenerator.cs`
+    - Remove validation from generated `DeleteAsync()` methods (validation now in base DeleteItemRequestBuilder)
+    - _Requirements: 4.4_
+  - [x] 5.9 Add transaction validation to BatchWriteBuilder
+    - Modify `Oproto.FluentDynamoDb/Requests/BatchWriteBuilder.cs`
+    - Validate entities when added via `WithItem<T>()` using `T.RequiresWriteTransaction`
+    - _Requirements: 4.5_
+  - [x] 5.10 Write property tests for transaction requirement validation
+    - **Property 5: Transaction-required entities block non-transactional writes**
+    - **Property 6: Transaction-required entities allow transactional writes**
+    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6**
+
+- [x] 6. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 7. Default request options in FluentDynamoDbOptions
+  - [x] 7.1 Add default option properties to FluentDynamoDbOptions
+    - Modify `Oproto.FluentDynamoDb/FluentDynamoDbOptions.cs`
+    - Add `DefaultConsistentRead`, `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` properties
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+  - [x] 7.2 Add builder methods for default options
+    - Modify `Oproto.FluentDynamoDb/FluentDynamoDbOptions.cs`
+    - Add `UseConsistentRead()`, `ReturnConsumedCapacity()`, `ReturnItemCollectionMetrics()`, `ReturnValues()` methods
+    - Use same method names as request builder methods for consistency
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.6_
+  - [x] 7.3 Update GetItemRequestBuilder to apply default options
+    - Modify `Oproto.FluentDynamoDb/Requests/GetItemRequestBuilder.cs`
+    - Apply `DefaultConsistentRead` and `DefaultReturnConsumedCapacity` from options during construction
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.4 Update QueryRequestBuilder to apply default options
+    - Modify `Oproto.FluentDynamoDb/Requests/QueryRequestBuilder.cs`
+    - Apply `DefaultConsistentRead` and `DefaultReturnConsumedCapacity` from options during construction
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.5 Update PutItemRequestBuilder to apply default options
+    - Modify `Oproto.FluentDynamoDb/Requests/PutItemRequestBuilder.cs`
+    - Apply `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` from options
+    - _Requirements: 5.2, 5.3, 5.4_
+  - [x] 7.6 Update UpdateItemRequestBuilder to apply default options
+    - Modify `Oproto.FluentDynamoDb/Requests/UpdateItemRequestBuilder.cs`
+    - Apply `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` from options
+    - _Requirements: 5.2, 5.3, 5.4_
+  - [x] 7.7 Update DeleteItemRequestBuilder to apply default options
+    - Modify `Oproto.FluentDynamoDb/Requests/DeleteItemRequestBuilder.cs`
+    - Apply `DefaultReturnConsumedCapacity`, `DefaultReturnItemCollectionMetrics`, `DefaultReturnValues` from options
+    - _Requirements: 5.2, 5.3, 5.4_
+  - [x] 7.8 Update ScanRequestBuilder to apply default options
+    - Modify `Oproto.FluentDynamoDb/Requests/ScanRequestBuilder.cs`
+    - Apply `DefaultConsistentRead` and `DefaultReturnConsumedCapacity` from options
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.9 Write property tests for default options propagation
+    - **Property 7: Default options propagate to request builders**
+    - **Property 8: Explicit builder calls override default options**
+    - **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5**
+
+- [x] 8. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. NuGet packaging fixes
+  - [x] 9.1 Add IsPackable=false to unit test projects
+    - Modify all `*.UnitTests.csproj` files
+    - Add `<IsPackable>false</IsPackable>` to PropertyGroup
+    - _Requirements: 6.1_
+  - [x] 9.2 Add IsPackable=false to integration test project
+    - Modify `Oproto.FluentDynamoDb.IntegrationTests/Oproto.FluentDynamoDb.IntegrationTests.csproj`
+    - Add `<IsPackable>false</IsPackable>` to PropertyGroup
+    - _Requirements: 6.1_
+  - [x] 9.3 Add IsPackable=false to example projects
+    - Modify all project files in `examples/` directory
+    - Add `<IsPackable>false</IsPackable>` to PropertyGroup
+    - _Requirements: 6.2_
+  - [x] 9.4 Add IsPackable=false to AOT and API consistency test projects
+    - Modify `Oproto.FluentDynamoDb.AotTests/Oproto.FluentDynamoDb.AotTests.csproj`
+    - Modify `Oproto.FluentDynamoDb.ApiConsistencyTests/Oproto.FluentDynamoDb.ApiConsistencyTests.csproj`
+    - Add `<IsPackable>false</IsPackable>` to PropertyGroup
+    - _Requirements: 6.1_
+  - [x] 9.5 Remove duplicate icon files from test/example projects
+    - Search for and delete any `icon.png` files in test and example project directories
+    - Verify icon is only in `docs/assets/icon.png`
+    - _Requirements: 6.3_
+  - [x] 9.6 Verify package contents after build
+    - Run `dotnet pack` and inspect package contents
+    - Verify only main library assemblies, README, icon, and source generator are included
+    - _Requirements: 6.4_
+
+- [x] 10. Documentation updates
+  - [x] 10.1 Add XML documentation to RequireWriteTransactionAttribute
+    - Update `Oproto.FluentDynamoDb/Attributes/RequireWriteTransactionAttribute.cs`
+    - Add comprehensive XML docs with examples
+    - _Requirements: 7.1_
+  - [x] 10.2 Add XML documentation to FluentDynamoDbOptions new methods
+    - Update `Oproto.FluentDynamoDb/FluentDynamoDbOptions.cs`
+    - Add XML docs with usage examples for each new configuration method
+    - _Requirements: 7.2_
+  - [x] 10.3 Update CHANGELOG.md with v0.9.0 changes
+    - Add new [Unreleased] section entries for all changes
+    - Document breaking changes with migration guidance
+    - _Requirements: 7.3, 8.1, 8.2, 8.3_
+  - [x] 10.4 Update docs/DOCUMENTATION_CHANGELOG.md
+    - Add entries for all documentation changes
+    - Follow established format with before/after examples
+    - _Requirements: 7.4_
+  - [x] 10.5 Update attribute reference documentation
+    - Update `docs/reference/AttributeReference.md`
+    - Add `[RequireWriteTransaction]` documentation
+    - Update `[Queryable]` with deprecation notice
+    - Update `[DynamoDbTable]` with `Namespace` parameter
+    - _Requirements: 7.1_
+  - [x] 10.6 Update configuration guide documentation
+    - Update or create `docs/core-features/configuration-guide.md`
+    - Document default request options configuration
+    - _Requirements: 7.2_
+  - [x] 10.7 Create BREAKING_CHANGES.md for v0.9.0
+    - Create `docs/BREAKING_CHANGES_v0.9.md`
+    - Document `[Queryable]` deprecation and migration
+    - Document `[RequireWriteTransaction]` runtime exceptions
+    - Document default options behavior changes
+    - _Requirements: 8.1, 8.2, 8.3_
+
+- [ ] 11. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

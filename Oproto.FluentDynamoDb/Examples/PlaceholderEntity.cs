@@ -39,4 +39,6 @@ public class PlaceholderEntity : IDynamoDbEntity
     {
         return new EntityMetadata();
     }
+
+    public static bool RequiresWriteTransaction => false;
 }

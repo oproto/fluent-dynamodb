@@ -217,6 +217,8 @@ public class TestHydrationEntity : IDynamoDbEntity
         TableName = "TestTable",
         Properties = Array.Empty<PropertyMetadata>()
     };
+
+    public static bool RequiresWriteTransaction => false;
 }
 
 /// <summary>
@@ -250,4 +252,6 @@ public class AnotherTestEntity : IDynamoDbEntity
         TableName = "AnotherTestTable",
         Properties = Array.Empty<PropertyMetadata>()
     };
+
+    public static bool RequiresWriteTransaction => false;
 }

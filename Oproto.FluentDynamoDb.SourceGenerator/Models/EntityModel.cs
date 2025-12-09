@@ -24,6 +24,12 @@ internal class EntityModel
     public string TableName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the custom namespace for the generated table class.
+    /// If null, the entity's namespace is used.
+    /// </summary>
+    public string? TableNamespace { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional entity discriminator for multi-type tables.
     /// </summary>
     [Obsolete("Use Discriminator property instead")]
@@ -53,6 +59,13 @@ internal class EntityModel
     /// Gets or sets a value indicating whether this entity spans multiple DynamoDB items.
     /// </summary>
     public bool IsMultiItemEntity { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this entity requires write operations within a transaction.
+    /// When true, Put, Update, Delete, and BatchWrite operations will throw InvalidOperationException
+    /// unless performed within a TransactWrite operation.
+    /// </summary>
+    public bool RequiresWriteTransaction { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether this table supports scan operations.
