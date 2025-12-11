@@ -59,6 +59,240 @@ Entries may be categorized as:
 
 ## [2025-12-09]
 
+### File: docs/advanced-topics/AdvancedTypes.md - Blob Storage Redesign
+
+**Category:** Pattern Update - Blob Storage API
+
+**Summary:** Updated blob storage documentation to reflect the redesign from `[BlobReference]` to `[BlobStorage]` with `BlobData<T>` wrapper type. This is a breaking change that introduces lazy/eager loading control and failure handling strategies.
+
+---
+
+#### Part 1: External Blob Storage Section Rewrite
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Before:**
+```csharp
+// External Blob Storage with [BlobReference]
+[DynamoDbTable("files")]
+public partial class FileMetadata
+{
+    [DynamoDbAttribute("file_id")]
+    public string FileId { get; set; }
+    
+    [DynamoDbAttribute("data_ref")]
+    [BlobReference(BlobProvider.S3, BucketName = "my-files-bucket", KeyPrefix = "uploads")]
+    public byte[] Data { get; set; }
+}
+
+// Save entity with blob
+var file = new FileMetadata
+{
+    FileId = "file-123",
+    Data = File.ReadAllBytes("large-file.pdf")
+};
+
+var item = await FileMetadata.ToDynamoDbAsync(file, blobProvider);
+```
+
+**After:**
+```csharp
+// External Blob Storage with [BlobStorage] and BlobData<T>
+[DynamoDbTable("files")]
+public partial class FileMetadata
+{
+    [PartitionKey]
+    [DynamoDbAttribute("file_id")]
+    public string FileId { get; set; } = string.Empty;
+    
+    // Eager loading (default) - data loaded during deserialization
+    [BlobStorage]
+    [DynamoDbAttribute("data")]
+    public BlobData<byte[]> Data { get; set; } = default!;
+    
+    // Lazy loading - data loaded on explicit LoadAsync() call
+    [BlobStorage(LazyLoad = true)]
+    [DynamoDbAttribute("thumbnail")]
+    public BlobData<byte[]> Thumbnail { get; set; } = default!;
+}
+
+// Configuration with strategy
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(new S3BlobProvider(s3Client, "my-bucket"))
+    .WithBlobStorageStrategy(new BestEffortCleanupStrategy(provider)); // Optional, default
+
+var table = new FileTable(dynamoDbClient, "files", options);
+
+// Save entity with blob
+var file = new FileMetadata
+{
+    FileId = "file-123",
+    Data = BlobData<byte[]>.Create(File.ReadAllBytes("large-file.pdf")),
+    Thumbnail = BlobData<byte[]>.Create(thumbnailBytes)
+};
+
+await table.Files.PutAsync(file);
+
+// Retrieve with eager loading
+var loaded = await table.Files.GetAsync("file-123");
+var data = loaded.Data.Value; // Already loaded
+
+// Retrieve with lazy loading
+await loaded.Thumbnail.LoadAsync(); // Explicit load
+var thumbnail = loaded.Thumbnail.Value;
+```
+
+**Reason:** The `[BlobReference]` attribute has been replaced with `[BlobStorage]` and `BlobData<T>` wrapper type. The new design provides:
+- Clearer semantics (attribute name indicates storage, not reference)
+- Lazy/eager loading control via `LazyLoad` property
+- Failure handling strategies via `IBlobStorageStrategy`
+- Better encapsulation of blob state via `BlobData<T>` wrapper
+
+---
+
+#### Part 2: New Blob Storage Strategies Section
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Added:**
+```markdown
+### Blob Storage Strategies
+
+Configure how failures between blob storage and DynamoDB operations are handled:
+
+#### BestEffortCleanupStrategy (Default)
+
+Attempts to clean up orphaned blobs when DynamoDB operations fail:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(provider)
+    .WithBlobStorageStrategy(new BestEffortCleanupStrategy(provider, logger));
+```
+
+- Uploads blobs before DynamoDB write
+- Attempts to delete uploaded blobs if DynamoDB write fails
+- Logs cleanup failures but doesn't throw
+- Deletes blobs after successful DynamoDB delete
+
+#### NoCleanupStrategy
+
+Simple strategy for non-critical data where orphaned blobs are acceptable:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(provider)
+    .WithBlobStorageStrategy(new NoCleanupStrategy(provider));
+```
+
+- Uploads blobs before DynamoDB write
+- No cleanup on DynamoDB write failure (orphaned blobs may remain)
+- No blob deletion on DynamoDB delete
+```
+
+**Reason:** New section documenting the `IBlobStorageStrategy` interface and built-in implementations.
+
+---
+
+#### Part 3: BlobData<T> API Reference
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Added:**
+```markdown
+### BlobData<T> Wrapper Type
+
+The `BlobData<T>` wrapper encapsulates blob storage behavior:
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `Value` | Gets the loaded data. Throws `InvalidOperationException` if not loaded. |
+| `ReferenceKey` | Gets the storage key, or null if not yet stored. |
+| `IsLoaded` | Returns true when data has been loaded from storage. |
+| `HasPendingData` | Returns true when instance has data to be stored. |
+| `Create(T value)` | Static factory to create instance with data to be stored. |
+| `LoadAsync()` | Loads data from storage. Idempotent - returns immediately if already loaded. |
+
+**Error Handling:**
+
+| Scenario | Exception |
+|----------|-----------|
+| Access `Value` before load | `InvalidOperationException` |
+| `LoadAsync()` without provider | `InvalidOperationException` |
+| Provider store/retrieve failure | `BlobStorageException` |
+| `[Encrypted]` without encryptor | `EncryptionRequiredException` |
+```
+
+**Reason:** New section documenting the `BlobData<T>` wrapper type API.
+
+---
+
+#### Part 4: Attribute Combinations
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Before:**
+```csharp
+// Combined JSON Blob + Blob Reference
+[DynamoDbAttribute("content_ref")]
+[JsonBlob]
+[BlobReference(BlobProvider.S3, BucketName = "large-docs")]
+public ComplexContent Content { get; set; }
+```
+
+**After:**
+```csharp
+// Combined [BlobStorage] + [JsonBlob] - serialize to JSON before blob upload
+[BlobStorage]
+[JsonBlob]
+[DynamoDbAttribute("content")]
+public BlobData<ComplexContent> Content { get; set; } = default!;
+
+// Combined [BlobStorage] + [Encrypted] - encrypt before blob upload
+[BlobStorage]
+[Encrypted]
+[DynamoDbAttribute("secret")]
+public BlobData<byte[]> SecretData { get; set; } = default!;
+
+// Combined [BlobStorage] + [Sensitive] - redact in logs
+[BlobStorage]
+[Sensitive]
+[DynamoDbAttribute("pii")]
+public BlobData<byte[]> PersonalData { get; set; } = default!;
+
+// All three combined - JSON serialize, then encrypt, then upload
+[BlobStorage]
+[JsonBlob]
+[Encrypted]
+[DynamoDbAttribute("encrypted_content")]
+public BlobData<SensitiveContent> EncryptedContent { get; set; } = default!;
+```
+
+**Reason:** Updated attribute combination examples to use new `[BlobStorage]` and `BlobData<T>` pattern.
+
+---
+
+### File: examples/S3BlobDemo - Complete Rewrite
+
+**Category:** Example Update - Blob Storage Redesign
+
+**Summary:** Updated S3BlobDemo example application to demonstrate the new `[BlobStorage]` attribute and `BlobData<T>` wrapper type, including lazy/eager loading and strategy demonstrations.
+
+**Files updated:**
+- `examples/S3BlobDemo/Entities/MediaItem.cs`
+- `examples/S3BlobDemo/Program.cs`
+- `examples/S3BlobDemo/README.md`
+
+**Reason:** Example application updated to demonstrate new blob storage API patterns.
+
+---
+
+## [2025-12-09]
+
 ### File: Multiple documentation files - Logging Runtime Configuration Update
 
 **Category:** Pattern Update - Logging Configuration

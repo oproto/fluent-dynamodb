@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -73,6 +74,7 @@ public class DeleteItemRequestBuilder<TEntity> :
     private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+    private List<string>? _blobReferenceKeys;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -148,6 +150,18 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// Gets the builder instance for method chaining.
     /// </summary>
     public DeleteItemRequestBuilder<TEntity> Self => this;
+
+    /// <summary>
+    /// Sets the blob reference keys for cleanup after delete.
+    /// Used internally when deleting entities with blob storage properties.
+    /// </summary>
+    /// <param name="referenceKeys">The blob reference keys to clean up after delete.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal DeleteItemRequestBuilder<TEntity> WithBlobReferenceKeys(List<string> referenceKeys)
+    {
+        _blobReferenceKeys = referenceKeys;
+        return this;
+    }
 
     /// <summary>
     /// Specifies the table name for the delete operation.
@@ -289,6 +303,30 @@ public class DeleteItemRequestBuilder<TEntity> :
         
         var request = ToDeleteItemRequest();
         
+        // Check if we have blob reference keys to clean up
+        if (_blobReferenceKeys != null && _blobReferenceKeys.Count > 0 && _options.BlobStorageStrategy != null)
+        {
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+        }
+        
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+    }
+
+    private async Task<DeleteItemResponse> ExecuteWithBlobStorageAsync(
+        DeleteItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await BlobStorageHelper.ExecuteDeleteWithBlobStrategyAsync<TEntity, DeleteItemResponse>(
+            _blobReferenceKeys!,
+            _options,
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<DeleteItemResponse> ExecuteDynamoDbOperationAsync(
+        DeleteItemRequest request,
+        CancellationToken cancellationToken)
+    {
         if (_logger?.IsEnabled(LogLevel.Information) == true)
         {
             _logger.LogInformation(LogEventIds.ExecutingPutItem,

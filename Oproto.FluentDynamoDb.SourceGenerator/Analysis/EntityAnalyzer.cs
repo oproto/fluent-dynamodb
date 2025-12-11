@@ -965,7 +965,7 @@ internal class EntityAnalyzer
         // Validate computed and extracted keys
         ValidateComputedAndExtractedKeys(entityModel);
 
-        // Validate complex types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        // Validate complex types (Map, Set, List, TTL, JsonBlob, BlobStorage)
         ValidateComplexTypes(entityModel);
 
         // Validate security attributes (Sensitive, Encrypted)
@@ -989,7 +989,7 @@ internal class EntityAnalyzer
         }
 
         // Validate property type support
-        // Skip validation for complex types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        // Skip validation for complex types (Map, Set, List, TTL, JsonBlob, BlobStorage)
         // as they are validated separately
         var isComplexType = propertyModel.ComplexType != null && (
             propertyModel.ComplexType.IsMap ||
@@ -997,7 +997,7 @@ internal class EntityAnalyzer
             propertyModel.ComplexType.IsList ||
             propertyModel.ComplexType.IsTtl ||
             propertyModel.ComplexType.IsJsonBlob ||
-            propertyModel.ComplexType.IsBlobReference);
+            propertyModel.ComplexType.IsBlobStorage);
 
         if (!isComplexType && !IsSupportedPropertyType(propertyModel.PropertyType))
         {

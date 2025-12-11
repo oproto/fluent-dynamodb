@@ -201,6 +201,40 @@ public static class LogEventIds
     /// </summary>
     public const int BlobStorageError = 9030;
     
+    // ========================================
+    // Blob Storage Operations (4000-4099)
+    // ========================================
+    
+    /// <summary>
+    /// Event ID for when a blob is successfully uploaded.
+    /// </summary>
+    public const int BlobUploadSuccess = 4000;
+    
+    /// <summary>
+    /// Event ID for when a blob upload fails.
+    /// </summary>
+    public const int BlobUploadFailed = 4001;
+    
+    /// <summary>
+    /// Event ID for when orphaned blob cleanup succeeds after DynamoDB write failure.
+    /// </summary>
+    public const int BlobCleanupSuccess = 4010;
+    
+    /// <summary>
+    /// Event ID for when orphaned blob cleanup fails after DynamoDB write failure.
+    /// </summary>
+    public const int BlobCleanupFailed = 4011;
+    
+    /// <summary>
+    /// Event ID for when a blob is successfully deleted after entity deletion.
+    /// </summary>
+    public const int BlobDeleteSuccess = 4020;
+    
+    /// <summary>
+    /// Event ID for when blob deletion fails after entity deletion.
+    /// </summary>
+    public const int BlobDeleteFailed = 4021;
+    
     /// <summary>
     /// Event ID for errors during DynamoDB operations.
     /// </summary>

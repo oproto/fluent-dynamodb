@@ -57,17 +57,21 @@ public partial class MediaItem
     public string ContentType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the binary data for the media item.
-    /// This property is automatically stored in S3 and only a reference key is kept in DynamoDB.
+    /// Gets or sets the S3 reference key for the blob data.
+    /// The actual binary data is stored in S3, and only this reference key is stored in DynamoDB.
     /// </summary>
     /// <remarks>
-    /// This property is marked with [BlobReference(BlobProvider.S3)] to indicate that
-    /// the data should be stored in S3. The S3BlobProvider handles the upload/download
-    /// operations automatically when using the async methods (ToDynamoDbAsync/FromDynamoDbAsync).
+    /// This property stores the S3 object key that points to the actual binary data.
+    /// The S3BlobProvider handles upload/download operations using this key.
     /// </remarks>
-    [BlobReference(BlobProvider.S3)]
-    [DynamoDbAttribute("blobData")]
-    public byte[]? BlobData { get; set; }
+    [DynamoDbAttribute("dataRef")]
+    public string DataReference { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the size of the blob data in bytes.
+    /// </summary>
+    [DynamoDbAttribute("sizeBytes")]
+    public long SizeBytes { get; set; }
 
     /// <summary>
     /// Gets or sets the timestamp when the media item was uploaded.

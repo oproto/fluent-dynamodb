@@ -65,7 +65,7 @@ The application will prompt for:
 
 ## Code Highlights
 
-### Entity with BlobReference
+### Entity with Reference Key
 
 ```csharp
 [DynamoDbTable("s3-blob-demo")]
@@ -80,8 +80,7 @@ public partial class MediaItem
     [DynamoDbAttribute("name")]
     public string Name { get; set; } = string.Empty;
 
-    // The actual data is stored in S3, only the key is in DynamoDB
-    [BlobReference(BlobProvider.S3)]
+    // The S3 key is stored in DynamoDB, actual data is in S3
     [DynamoDbAttribute("dataRef")]
     public string DataReference { get; set; } = string.Empty;
 
@@ -184,4 +183,4 @@ The example demonstrates handling common S3 errors:
 ## Related Documentation
 
 - [Oproto.FluentDynamoDb.BlobStorage.S3 README](../../Oproto.FluentDynamoDb.BlobStorage.S3/README.md)
-- [BlobReference Attribute](../../docs/reference/Attributes.md)
+- [Advanced Types - Blob Storage](../../docs/advanced-topics/AdvancedTypes.md#external-blob-storage)

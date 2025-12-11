@@ -46,13 +46,10 @@ internal class ComplexTypeValidator
                 property.PropertyName);
         }
 
-        // Validate blob reference requires provider package
-        if (complexType.IsBlobReference && !hasBlobProviderPackage)
+        // Validate BlobStorage attribute
+        if (complexType.IsBlobStorage)
         {
-            ReportDiagnostic(
-                DiagnosticDescriptors.MissingBlobProvider,
-                property.PropertyDeclaration?.Identifier.GetLocation(),
-                property.PropertyName);
+            ValidateBlobStorageProperty(property, complexType, hasBlobProviderPackage);
         }
 
         // Validate attribute combinations
@@ -99,14 +96,15 @@ internal class ComplexTypeValidator
     /// </summary>
     private void ValidateAttributeCombinations(PropertyModel property, ComplexTypeInfo complexType)
     {
-        // TTL cannot be combined with JsonBlob or BlobReference
-        if (complexType.IsTtl && (complexType.IsJsonBlob || complexType.IsBlobReference))
+        // TTL cannot be combined with JsonBlob or BlobStorage
+        if (complexType.IsTtl && (complexType.IsJsonBlob || complexType.IsBlobStorage))
         {
+            var conflictingAttr = complexType.IsJsonBlob ? "[JsonBlob]" : "[BlobStorage]";
             ReportDiagnostic(
                 DiagnosticDescriptors.IncompatibleAttributes,
                 property.PropertyDeclaration?.Identifier.GetLocation(),
                 property.PropertyName,
-                "[TimeToLive] cannot be combined with [JsonBlob] or [BlobReference]");
+                $"[TimeToLive] cannot be combined with {conflictingAttr}");
         }
 
         // Map/Set/List cannot be combined with TTL
@@ -119,7 +117,7 @@ internal class ComplexTypeValidator
                 "[TimeToLive] cannot be used on collection types");
         }
 
-        // JsonBlob and BlobReference can be combined - this is a valid pattern
+        // JsonBlob and BlobStorage can be combined - this is a valid pattern
         // When both are present, the property is serialized to JSON then stored as an external blob
         // No validation error needed for this combination
     }
@@ -197,6 +195,44 @@ internal class ComplexTypeValidator
                 property.PropertyDeclaration?.Identifier.GetLocation(),
                 property.PropertyName,
                 propertyType);
+        }
+    }
+
+    /// <summary>
+    /// Validates BlobStorage property configuration.
+    /// </summary>
+    private void ValidateBlobStorageProperty(PropertyModel property, ComplexTypeInfo complexType, bool hasBlobProviderPackage)
+    {
+        // Check if property type is BlobData<T>
+        var propertyType = property.PropertyType.TrimEnd('?');
+        var isBlobDataType = propertyType.StartsWith("BlobData<") ||
+                             propertyType.StartsWith("Oproto.FluentDynamoDb.Providers.BlobStorage.BlobData<");
+
+        if (!isBlobDataType)
+        {
+            // Try to suggest the correct type
+            var suggestedType = propertyType;
+            
+            // Remove common wrapper types to get the inner type
+            if (propertyType.EndsWith("[]"))
+            {
+                suggestedType = propertyType; // Keep byte[] as is
+            }
+            
+            ReportDiagnostic(
+                DiagnosticDescriptors.BlobStorageRequiresBlobDataType,
+                property.PropertyDeclaration?.Identifier.GetLocation(),
+                property.PropertyName,
+                suggestedType);
+        }
+
+        // Check for missing blob provider package
+        if (!hasBlobProviderPackage)
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.MissingBlobStorageProvider,
+                property.PropertyDeclaration?.Identifier.GetLocation(),
+                property.PropertyName);
         }
     }
 

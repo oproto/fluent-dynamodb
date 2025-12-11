@@ -1862,3 +1862,206 @@ public class DefaultRequestOptionsPropertyTests
             });
     }
 }
+
+
+/// <summary>
+/// Unit tests for FluentDynamoDbOptions blob storage configuration.
+/// Tests the WithBlobStorage and WithBlobStorageStrategy methods.
+/// </summary>
+public class BlobStorageConfigurationTests
+{
+    /// <summary>
+    /// Test that WithBlobStorage sets the provider correctly.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorage_SetsProvider()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var options = new FluentDynamoDbOptions();
+        
+        // Act
+        var result = options.WithBlobStorage(provider);
+        
+        // Assert
+        Assert.Same(provider, result.BlobStorageProvider);
+    }
+    
+    /// <summary>
+    /// Test that WithBlobStorage sets BestEffortCleanupStrategy as default when provider is configured.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorage_SetsDefaultStrategy_ToBestEffortCleanupStrategy()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var options = new FluentDynamoDbOptions();
+        
+        // Act
+        var result = options.WithBlobStorage(provider);
+        
+        // Assert
+        Assert.NotNull(result.BlobStorageStrategy);
+        Assert.IsType<BestEffortCleanupStrategy>(result.BlobStorageStrategy);
+    }
+    
+    /// <summary>
+    /// Test that WithBlobStorageStrategy overrides the default strategy.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorageStrategy_OverridesDefaultStrategy()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var customStrategy = new NoCleanupStrategy(provider);
+        var options = new FluentDynamoDbOptions()
+            .WithBlobStorage(provider);
+        
+        // Act
+        var result = options.WithBlobStorageStrategy(customStrategy);
+        
+        // Assert
+        Assert.Same(customStrategy, result.BlobStorageStrategy);
+        Assert.IsType<NoCleanupStrategy>(result.BlobStorageStrategy);
+    }
+    
+    /// <summary>
+    /// Test that WithBlobStorage with null clears both provider and strategy.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorage_Null_ClearsBothProviderAndStrategy()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var options = new FluentDynamoDbOptions()
+            .WithBlobStorage(provider);
+        
+        // Act
+        var result = options.WithBlobStorage(null);
+        
+        // Assert
+        Assert.Null(result.BlobStorageProvider);
+        Assert.Null(result.BlobStorageStrategy);
+    }
+    
+    /// <summary>
+    /// Test that WithBlobStorageStrategy can be set before WithBlobStorage.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorageStrategy_BeforeWithBlobStorage_PreservesStrategy()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var customStrategy = new NoCleanupStrategy(provider);
+        
+        // Act - set strategy first, then provider
+        var options = new FluentDynamoDbOptions()
+            .WithBlobStorageStrategy(customStrategy)
+            .WithBlobStorage(provider);
+        
+        // Assert - custom strategy should be preserved (not overwritten by default)
+        Assert.Same(customStrategy, options.BlobStorageStrategy);
+        Assert.Same(provider, options.BlobStorageProvider);
+    }
+    
+    /// <summary>
+    /// Test that WithBlobStorage returns a new instance without modifying the original.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorage_ReturnsNewInstance_OriginalUnchanged()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var original = new FluentDynamoDbOptions();
+        
+        // Act
+        var modified = original.WithBlobStorage(provider);
+        
+        // Assert
+        Assert.Null(original.BlobStorageProvider);
+        Assert.Null(original.BlobStorageStrategy);
+        Assert.Same(provider, modified.BlobStorageProvider);
+        Assert.NotSame(original, modified);
+    }
+    
+    /// <summary>
+    /// Test that WithBlobStorageStrategy returns a new instance without modifying the original.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorageStrategy_ReturnsNewInstance_OriginalUnchanged()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var strategy = new NoCleanupStrategy(provider);
+        var original = new FluentDynamoDbOptions();
+        
+        // Act
+        var modified = original.WithBlobStorageStrategy(strategy);
+        
+        // Assert
+        Assert.Null(original.BlobStorageStrategy);
+        Assert.Same(strategy, modified.BlobStorageStrategy);
+        Assert.NotSame(original, modified);
+    }
+    
+    /// <summary>
+    /// Test that chaining WithBlobStorage and WithBlobStorageStrategy preserves both values.
+    /// </summary>
+    [Fact]
+    public void ChainedConfiguration_PreservesBothProviderAndStrategy()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var strategy = new NoCleanupStrategy(provider);
+        
+        // Act
+        var options = new FluentDynamoDbOptions()
+            .WithBlobStorage(provider)
+            .WithBlobStorageStrategy(strategy);
+        
+        // Assert
+        Assert.Same(provider, options.BlobStorageProvider);
+        Assert.Same(strategy, options.BlobStorageStrategy);
+    }
+    
+    /// <summary>
+    /// Test that WithBlobStorageStrategy with null clears the strategy.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorageStrategy_Null_ClearsStrategy()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var options = new FluentDynamoDbOptions()
+            .WithBlobStorage(provider);
+        
+        // Act
+        var result = options.WithBlobStorageStrategy(null);
+        
+        // Assert
+        Assert.Null(result.BlobStorageStrategy);
+        Assert.Same(provider, result.BlobStorageProvider); // Provider should be preserved
+    }
+    
+    /// <summary>
+    /// Test that default strategy uses the configured logger.
+    /// </summary>
+    [Fact]
+    public void WithBlobStorage_DefaultStrategy_UsesConfiguredLogger()
+    {
+        // Arrange
+        var provider = Substitute.For<IBlobStorageProvider>();
+        var logger = Substitute.For<IDynamoDbLogger>();
+        
+        // Act
+        var options = new FluentDynamoDbOptions()
+            .WithLogger(logger)
+            .WithBlobStorage(provider);
+        
+        // Assert
+        Assert.NotNull(options.BlobStorageStrategy);
+        Assert.IsType<BestEffortCleanupStrategy>(options.BlobStorageStrategy);
+        // The strategy should have been created with the logger
+        // We can't directly verify this without reflection, but we can verify the strategy exists
+    }
+}

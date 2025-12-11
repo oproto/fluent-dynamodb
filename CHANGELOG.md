@@ -86,6 +86,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Interactive demonstration showing direct write failure and transactional write success
   - _Requirements: 5.1-5.6_
 
+- **Blob Storage Redesign** - Complete redesign of the blob storage feature with improved semantics, lazy loading, and failure handling strategies
+  - New `[BlobStorage]` attribute replaces `[BlobReference]` with clearer semantics
+  - New `BlobData<T>` wrapper type for lazy/eager loading control
+  - New `IBlobStorageStrategy` interface for coordinating failure handling between blob storage and DynamoDB operations
+  - Built-in `BestEffortCleanupStrategy` (default) - attempts to clean up orphaned blobs on DynamoDB write failure
+  - Built-in `NoCleanupStrategy` - simple implementation for non-critical data where orphaned blobs are acceptable
+  - `LazyLoad` property on `[BlobStorage]` attribute to defer blob loading until explicitly requested
+  - `BlobData<T>.LoadAsync()` method for explicit lazy loading
+  - `BlobData<T>.Value`, `ReferenceKey`, `IsLoaded`, `HasPendingData` properties for state inspection
+  - `BlobData<T>.Create(T value)` factory method for creating instances with data to be stored
+  - `BlobStoreOptions` class for optional metadata (ContentType, Metadata, Tags)
+  - `BlobStorageException` for blob storage operation failures
+  - Integration with `[JsonBlob]` attribute for JSON serialization before blob upload
+  - Integration with `[Encrypted]` attribute for encryption before blob upload
+  - Integration with `[Sensitive]` attribute for log redaction
+  - Automatic strategy lifecycle invocation in Put, Update, Delete, Batch, and Transaction operations
+  - `FluentDynamoDbOptions.WithBlobStorageStrategy(IBlobStorageStrategy)` for custom strategy configuration
+  - _Requirements: 1.1-1.3, 2.1-2.7, 3.1-3.4, 4.1-4.6, 5.1-5.4, 6.1-6.3, 7.1-7.4, 8.1-8.4, 9.1-9.3, 10.1-10.3, 11.1-11.5, 12.1-12.6, 13.1-13.4_
+  
+  **Usage:**
+  ```csharp
+  // Entity definition with BlobStorage
+  [DynamoDbTable("documents")]
+  public partial class Document
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string Id { get; set; } = string.Empty;
+      
+      // Eager loading (default) - data loaded during deserialization
+      [BlobStorage]
+      [DynamoDbAttribute("content")]
+      public BlobData<byte[]> Content { get; set; } = default!;
+      
+      // Lazy loading - data loaded on explicit LoadAsync() call
+      [BlobStorage(LazyLoad = true)]
+      [DynamoDbAttribute("thumbnail")]
+      public BlobData<byte[]> Thumbnail { get; set; } = default!;
+  }
+  
+  // Configuration
+  var options = new FluentDynamoDbOptions()
+      .WithBlobStorage(new S3BlobProvider(s3Client, "my-bucket"))
+      .WithBlobStorageStrategy(new BestEffortCleanupStrategy(provider)); // Optional, this is the default
+  
+  var table = new DocumentTable(dynamoDbClient, "documents", options);
+  
+  // Creating and storing blob data
+  var document = new Document
+  {
+      Id = "doc-123",
+      Content = BlobData<byte[]>.Create(fileBytes),
+      Thumbnail = BlobData<byte[]>.Create(thumbnailBytes)
+  };
+  await table.Documents.PutAsync(document);
+  
+  // Retrieving with eager loading
+  var loaded = await table.Documents.GetAsync("doc-123");
+  var content = loaded.Content.Value; // Already loaded
+  
+  // Retrieving with lazy loading
+  var lazyLoaded = await table.Documents.GetAsync("doc-123");
+  await lazyLoaded.Thumbnail.LoadAsync(); // Explicit load
+  var thumbnail = lazyLoaded.Thumbnail.Value;
+  ```
+
 ### Changed
 - **Logging Runtime Configuration** - Removed `DISABLE_DYNAMODB_LOGGING` conditional compilation in favor of runtime configuration
   - All `#if !DISABLE_DYNAMODB_LOGGING` preprocessor directives removed from source code
@@ -158,6 +224,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [PartitionKey]  // Automatically supports Equals
   [DynamoDbAttribute("pk")]
   public string UserId { get; set; }
+  ```
+
+- **`[BlobReference]` Attribute** - Deprecated in favor of `[BlobStorage]` with `BlobData<T>` wrapper type
+  - Compiler warning `DYNDB104` emitted when `[BlobReference]` is used
+  - New `[BlobStorage]` attribute provides clearer semantics and lazy/eager loading control
+  - New `BlobData<T>` wrapper type encapsulates blob storage behavior
+  - Will be removed in v1.0
+  - _Requirements: 1.2_
+  
+  **Migration:**
+  ```csharp
+  // Before (deprecated):
+  [BlobReference(BlobProvider.S3)]
+  [DynamoDbAttribute("data")]
+  public byte[] Data { get; set; }
+  
+  // After (new pattern):
+  [BlobStorage]
+  [DynamoDbAttribute("data")]
+  public BlobData<byte[]> Data { get; set; } = default!;
+  
+  // Creating data:
+  // Before: entity.Data = bytes;
+  // After:  entity.Data = BlobData<byte[]>.Create(bytes);
+  
+  // Accessing data:
+  // Before: var bytes = entity.Data;
+  // After:  var bytes = entity.Data.Value;
   ```
 
 ### Removed
