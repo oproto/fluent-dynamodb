@@ -4,6 +4,7 @@ using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Mapping;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -77,6 +78,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     private UpdateExpressionSource? _updateExpressionSource;
     private Expressions.ExpressionContext? _expressionContext;
     private IFieldEncryptor? _fieldEncryptor;
+    private List<BlobPropertyContext>? _blobPropertyContexts;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -174,6 +176,18 @@ public class UpdateItemRequestBuilder<TEntity> :
     internal UpdateItemRequestBuilder<TEntity> SetFieldEncryptor(IFieldEncryptor? fieldEncryptor)
     {
         _fieldEncryptor = fieldEncryptor;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the blob property contexts for this builder.
+    /// Used internally by expression translators when blob properties are being updated.
+    /// </summary>
+    /// <param name="contexts">The blob property contexts for properties being updated.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal UpdateItemRequestBuilder<TEntity> SetBlobPropertyContexts(List<BlobPropertyContext> contexts)
+    {
+        _blobPropertyContexts = contexts;
         return this;
     }
 
@@ -460,6 +474,77 @@ public class UpdateItemRequestBuilder<TEntity> :
             await EncryptParametersAsync(request, cancellationToken);
         }
         
+        // Check if we have blob properties to upload
+        if (_blobPropertyContexts != null && _blobPropertyContexts.Count > 0 && _options.BlobStorageStrategy != null)
+        {
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+        }
+        
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+    }
+
+    private async Task<UpdateItemResponse> ExecuteWithBlobStorageAsync(
+        UpdateItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var strategy = _options.BlobStorageStrategy!;
+        var context = new BlobWriteContext
+        {
+            EntityType = typeof(TEntity).Name,
+            BlobProperties = _blobPropertyContexts!
+        };
+        
+        try
+        {
+            // Step 1: Upload blobs before DynamoDB write
+            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken);
+            
+            // Step 2: Update request with reference keys
+            foreach (var prop in _blobPropertyContexts!)
+            {
+                if (result.ReferenceKeys.TryGetValue(prop.PropertyName, out var referenceKey))
+                {
+                    // Find the parameter name for this property and update it
+                    var paramName = $":blob_{prop.PropertyName.ToLowerInvariant()}";
+                    if (request.ExpressionAttributeValues.ContainsKey(paramName))
+                    {
+                        request.ExpressionAttributeValues[paramName] = new AttributeValue { S = referenceKey };
+                    }
+                }
+            }
+            
+            // Step 3: Execute DynamoDB operation
+            UpdateItemResponse response;
+            try
+            {
+                response = await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Step 4a: Handle DynamoDB write failure
+                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken);
+                throw;
+            }
+            
+            // Step 4b: Handle DynamoDB write success
+            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken);
+            
+            return response;
+        }
+        finally
+        {
+            // Dispose streams
+            foreach (var prop in _blobPropertyContexts!)
+            {
+                prop.Data.Dispose();
+            }
+        }
+    }
+
+    private async Task<UpdateItemResponse> ExecuteDynamoDbOperationAsync(
+        UpdateItemRequest request,
+        CancellationToken cancellationToken)
+    {
         if (_logger?.IsEnabled(LogLevel.Information) == true)
         {
             _logger.LogInformation(LogEventIds.ExecutingUpdate,

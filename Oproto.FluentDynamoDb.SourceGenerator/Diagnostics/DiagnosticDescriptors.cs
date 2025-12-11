@@ -466,16 +466,16 @@ internal static class DiagnosticDescriptors
         description: "JSON blob serialization requires a JSON serializer package reference.");
 
     /// <summary>
-    /// Error when [BlobReference] is used without referencing a blob provider package.
+    /// Error when [BlobStorage] is used without referencing a blob provider package.
     /// </summary>
-    public static readonly DiagnosticDescriptor MissingBlobProvider = new(
+    public static readonly DiagnosticDescriptor MissingBlobStorageProvider = new(
         "DYNDB103",
         "Missing blob provider package",
-        "[BlobReference] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3",
+        "[BlobStorage] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Blob reference storage requires a blob provider package reference.");
+        description: "Blob storage requires a blob provider package reference.");
 
     /// <summary>
     /// Error when incompatible attributes are combined on a property.
@@ -886,4 +886,18 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "The [Queryable] attribute is deprecated. Partition keys automatically support equality operations, and sort keys automatically support range operations (equals, begins_with, between, greater_than, less_than). Remove the [Queryable] attribute from your properties.");
+
+    // Blob Storage Redesign Diagnostics (DYNDB114+)
+
+    /// <summary>
+    /// Error when [BlobStorage] is used on a property that is not of type BlobData&lt;T&gt;.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BlobStorageRequiresBlobDataType = new(
+        "DYNDB115",
+        "BlobStorage requires BlobData<T> type",
+        "Property '{0}' is marked with [BlobStorage] but is not of type BlobData<T>. Change the property type to BlobData<{1}> to use blob storage.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Properties marked with [BlobStorage] must be of type BlobData<T> where T is the data type to be stored. The BlobData<T> wrapper provides lazy/eager loading control and reference key access.");
 }

@@ -260,28 +260,6 @@ internal static class LoggingCodeGenerator
     }
 
     /// <summary>
-    /// Generates logging code for blob reference operations.
-    /// Logs at Debug level with property name, reference key, and provider type.
-    /// </summary>
-    /// <param name="propertyName">The name of the blob reference property.</param>
-    /// <param name="referenceKeyExpression">Expression that evaluates to the blob reference key.</param>
-    /// <param name="operation">The blob operation ("Store" or "Retrieve").</param>
-    /// <returns>Generated logging code wrapped in conditional compilation directives.</returns>
-    public static string GenerateBlobReferenceLogging(string propertyName, string referenceKeyExpression, string operation = "Store")
-    {
-        var sb = new StringBuilder();
-        
-        sb.AppendLine("            if (options?.Logger?.IsEnabled(LogLevel.Debug) == true)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                options.Logger.LogDebug(LogEventIds.ConvertingBlobReference,");
-        sb.AppendLine($"                    \"{operation} blob reference for {{PropertyName}} with key {{ReferenceKey}}\",");
-        sb.AppendLine($"                    \"{propertyName}\", {referenceKeyExpression});");
-        sb.AppendLine("            }");
-        
-        return sb.ToString();
-    }
-
-    /// <summary>
     /// Generates logging code for format string application during serialization.
     /// Logs at Debug level with property name, format string, and property type.
     /// </summary>

@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Mapping;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -30,6 +31,9 @@ public class TransactionWriteBuilder
     private ReturnItemCollectionMetrics? _returnItemCollectionMetrics;
     private string? _clientRequestToken;
     private IDynamoDbLogger _logger = NoOpLogger.Instance;
+    private FluentDynamoDbOptions? _options;
+    private readonly List<BlobWriteContext> _blobWriteContexts = new();
+    private readonly List<BlobDeleteContext> _blobDeleteContexts = new();
 
     /// <summary>
     /// Adds a put operation to the transaction.
@@ -46,6 +50,7 @@ public class TransactionWriteBuilder
         where TEntity : class, IDynamoDbEntity
     {
         InferClientIfNeeded(builder);
+        InferOptionsIfNeeded(builder);
         
         var item = new TransactWriteItem
         {
@@ -78,6 +83,7 @@ public class TransactionWriteBuilder
         where TEntity : class, IDynamoDbEntity
     {
         InferClientIfNeeded(builder);
+        InferOptionsIfNeeded(builder);
         
         // Store builder reference for encryption handling before execution
         var updateInterface = (ITransactableUpdateBuilder)builder;
@@ -116,6 +122,7 @@ public class TransactionWriteBuilder
         where TEntity : class, IDynamoDbEntity
     {
         InferClientIfNeeded(builder);
+        InferOptionsIfNeeded(builder);
         
         var item = new TransactWriteItem
         {
@@ -265,6 +272,38 @@ public class TransactionWriteBuilder
                     "Use WithClient() to explicitly specify a client if needed.");
             }
         }
+    }
+
+    private void InferOptionsIfNeeded(object builder)
+    {
+        if (_options == null && builder is IHasDynamoDbClient clientProvider)
+        {
+            _options = clientProvider.GetOptions();
+        }
+    }
+
+    /// <summary>
+    /// Adds blob write context for tracking blob uploads in transaction operations.
+    /// Used internally when adding entities with blob storage properties.
+    /// </summary>
+    /// <param name="context">The blob write context to track.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal TransactionWriteBuilder AddBlobWriteContext(BlobWriteContext context)
+    {
+        _blobWriteContexts.Add(context);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds blob delete context for tracking blob deletions in transaction operations.
+    /// Used internally when adding delete operations for entities with blob storage properties.
+    /// </summary>
+    /// <param name="context">The blob delete context to track.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal TransactionWriteBuilder AddBlobDeleteContext(BlobDeleteContext context)
+    {
+        _blobDeleteContexts.Add(context);
+        return this;
     }
 
     private IAmazonDynamoDB? ExtractClientFromBuilder(object builder)
@@ -423,13 +462,55 @@ public class TransactionWriteBuilder
             ClientRequestToken = _clientRequestToken
         };
 
+        // Handle blob storage if configured
+        var strategy = _options?.BlobStorageStrategy;
+        var uploadedContexts = new List<BlobWriteContext>();
+
         try
         {
+            // Step 1: Upload blobs before transaction (if any)
+            if (strategy != null && _blobWriteContexts.Count > 0)
+            {
+                foreach (var blobContext in _blobWriteContexts)
+                {
+                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken);
+                    blobContext.UploadedReferenceKeys = result.ReferenceKeys;
+                    uploadedContexts.Add(blobContext);
+                    
+                    // Update transaction items with reference keys
+                    UpdateTransactionItemsWithReferenceKeys(blobContext, result);
+                }
+            }
+
+            // Step 2: Prepare for blob deletions (if any)
+            if (strategy != null && _blobDeleteContexts.Count > 0)
+            {
+                foreach (var deleteContext in _blobDeleteContexts)
+                {
+                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken);
+                }
+            }
+
+            // Step 3: Execute transaction
             var response = await effectiveClient.TransactWriteItemsAsync(request, cancellationToken);
             
             if (response == null)
             {
                 throw new InvalidOperationException("DynamoDB client returned null response");
+            }
+
+            // Step 4: Handle success callbacks for blob storage
+            if (strategy != null)
+            {
+                foreach (var blobContext in uploadedContexts)
+                {
+                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken);
+                }
+                
+                foreach (var deleteContext in _blobDeleteContexts)
+                {
+                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken);
+                }
             }
             
             // Log successful completion with consumed capacity
@@ -456,6 +537,22 @@ public class TransactionWriteBuilder
         }
         catch (Exception ex)
         {
+            // Handle blob storage cleanup on failure
+            if (strategy != null && uploadedContexts.Count > 0)
+            {
+                foreach (var blobContext in uploadedContexts)
+                {
+                    try
+                    {
+                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken);
+                    }
+                    catch
+                    {
+                        // Swallow cleanup errors - best effort
+                    }
+                }
+            }
+
             // Log error with operation details
             if (_logger.IsEnabled(LogLevel.Error))
             {
@@ -472,6 +569,29 @@ public class TransactionWriteBuilder
             }
             
             throw;
+        }
+        finally
+        {
+            // Dispose blob data streams
+            foreach (var blobContext in _blobWriteContexts)
+            {
+                foreach (var prop in blobContext.BlobProperties)
+                {
+                    prop.Data.Dispose();
+                }
+            }
+        }
+    }
+
+    private void UpdateTransactionItemsWithReferenceKeys(BlobWriteContext context, BlobWriteResult result)
+    {
+        // Find the Put item that corresponds to this blob context and update it
+        foreach (var item in _items)
+        {
+            if (item.Put?.Item != null)
+            {
+                BlobStorageHelper.UpdateItemWithReferenceKeys(item.Put.Item, result, context.BlobProperties);
+            }
         }
     }
 }

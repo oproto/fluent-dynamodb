@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -73,6 +74,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+    private TEntity? _entity;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -231,6 +233,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// </example>
     public PutItemRequestBuilder<TEntity> WithItem(TEntity entity)
     {
+        _entity = entity;
         _req.Item = TEntity.ToDynamoDb(entity, _options);
         return this;
     }
@@ -304,6 +307,32 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         
         var request = ToPutItemRequest();
         
+        // Check if we have an entity with blob storage properties and a strategy configured
+        if (_entity != null && _options.BlobStorageStrategy != null && 
+            BlobStorageHelper.HasBlobStorageProperties<TEntity>())
+        {
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+        }
+        
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+    }
+
+    private async Task<PutItemResponse> ExecuteWithBlobStorageAsync(
+        PutItemRequest request, 
+        CancellationToken cancellationToken)
+    {
+        return await BlobStorageHelper.ExecuteWithBlobStrategyAsync<TEntity, PutItemResponse>(
+            _entity!,
+            request.Item,
+            _options,
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<PutItemResponse> ExecuteDynamoDbOperationAsync(
+        PutItemRequest request, 
+        CancellationToken cancellationToken)
+    {
         if (_logger?.IsEnabled(LogLevel.Information) == true)
         {
             _logger.LogInformation(LogEventIds.ExecutingPutItem,

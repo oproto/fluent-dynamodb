@@ -23,13 +23,13 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 internal static class HydratorGenerator
 {
     /// <summary>
-    /// Determines if an entity requires a hydrator (has blob reference properties).
+    /// Determines if an entity requires a hydrator (has blob storage properties).
     /// </summary>
     /// <param name="entity">The entity model to check.</param>
-    /// <returns>True if the entity has blob reference properties, false otherwise.</returns>
+    /// <returns>True if the entity has blob storage properties, false otherwise.</returns>
     public static bool RequiresHydrator(EntityModel entity)
     {
-        return entity.Properties.Any(p => p.ComplexType?.IsBlobReference == true);
+        return entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
     }
 
     /// <summary>

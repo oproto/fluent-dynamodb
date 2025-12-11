@@ -32,6 +32,13 @@ public sealed class FluentDynamoDbOptions
     public IBlobStorageProvider? BlobStorageProvider { get; private init; }
     
     /// <summary>
+    /// Gets the blob storage strategy for coordinating blob and DynamoDB operations.
+    /// When a blob storage provider is configured, defaults to <see cref="BestEffortCleanupStrategy"/>.
+    /// Null if blob storage is not configured.
+    /// </summary>
+    public IBlobStorageStrategy? BlobStorageStrategy { get; private init; }
+    
+    /// <summary>
     /// Gets the field encryptor for sensitive data.
     /// Null if encryption is not configured.
     /// </summary>
@@ -88,11 +95,52 @@ public sealed class FluentDynamoDbOptions
     
     /// <summary>
     /// Creates a new options instance with the specified blob storage provider.
+    /// When a provider is configured and no strategy is set, <see cref="BestEffortCleanupStrategy"/> is used as the default.
     /// </summary>
     /// <param name="provider">The blob storage provider to use.</param>
     /// <returns>A new FluentDynamoDbOptions instance with the specified blob storage provider.</returns>
+    /// <example>
+    /// <code>
+    /// var options = new FluentDynamoDbOptions()
+    ///     .WithBlobStorage(new S3BlobProvider(s3Client, "my-bucket"));
+    /// 
+    /// // BestEffortCleanupStrategy is automatically configured as the default strategy
+    /// </code>
+    /// </example>
     public FluentDynamoDbOptions WithBlobStorage(IBlobStorageProvider? provider)
-        => CloneWith(blobStorageProvider: provider);
+    {
+        if (provider == null)
+        {
+            return CloneWith(
+                blobStorageProvider: null, 
+                blobStorageStrategy: null, 
+                setBlobStorageProvider: true,
+                setBlobStorageStrategy: true);
+        }
+        
+        // Set default strategy if not already configured
+        var strategy = BlobStorageStrategy ?? new BestEffortCleanupStrategy(provider, Logger);
+        return CloneWith(blobStorageProvider: provider, blobStorageStrategy: strategy);
+    }
+    
+    /// <summary>
+    /// Creates a new options instance with the specified blob storage strategy.
+    /// </summary>
+    /// <param name="strategy">The blob storage strategy to use for coordinating blob and DynamoDB operations.</param>
+    /// <returns>A new FluentDynamoDbOptions instance with the specified blob storage strategy.</returns>
+    /// <remarks>
+    /// Use this method to override the default <see cref="BestEffortCleanupStrategy"/> with a custom strategy
+    /// such as <see cref="NoCleanupStrategy"/> or your own implementation.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var options = new FluentDynamoDbOptions()
+    ///     .WithBlobStorage(new S3BlobProvider(s3Client, "my-bucket"))
+    ///     .WithBlobStorageStrategy(new NoCleanupStrategy(provider));
+    /// </code>
+    /// </example>
+    public FluentDynamoDbOptions WithBlobStorageStrategy(IBlobStorageStrategy? strategy)
+        => CloneWith(blobStorageStrategy: strategy, setBlobStorageStrategy: true);
     
     /// <summary>
     /// Creates a new options instance with the specified field encryptor.
@@ -219,6 +267,7 @@ public sealed class FluentDynamoDbOptions
         IDynamoDbLogger? logger = null,
         IGeospatialProvider? geospatialProvider = null,
         IBlobStorageProvider? blobStorageProvider = null,
+        IBlobStorageStrategy? blobStorageStrategy = null,
         IFieldEncryptor? fieldEncryptor = null,
         IEntityHydratorRegistry? hydratorRegistry = null,
         IJsonBlobSerializer? jsonSerializer = null,
@@ -226,13 +275,16 @@ public sealed class FluentDynamoDbOptions
         ReturnConsumedCapacity? defaultReturnConsumedCapacity = null,
         ReturnItemCollectionMetrics? defaultReturnItemCollectionMetrics = null,
         ReturnValue? defaultReturnValues = null,
-        bool setJsonSerializer = false)
+        bool setJsonSerializer = false,
+        bool setBlobStorageProvider = false,
+        bool setBlobStorageStrategy = false)
     {
         return new FluentDynamoDbOptions
         {
             Logger = logger ?? Logger,
             GeospatialProvider = geospatialProvider ?? GeospatialProvider,
-            BlobStorageProvider = blobStorageProvider ?? BlobStorageProvider,
+            BlobStorageProvider = setBlobStorageProvider ? blobStorageProvider : (blobStorageProvider ?? BlobStorageProvider),
+            BlobStorageStrategy = setBlobStorageStrategy ? blobStorageStrategy : (blobStorageStrategy ?? BlobStorageStrategy),
             FieldEncryptor = fieldEncryptor ?? FieldEncryptor,
             HydratorRegistry = hydratorRegistry ?? HydratorRegistry,
             JsonSerializer = setJsonSerializer ? jsonSerializer : (jsonSerializer ?? JsonSerializer),

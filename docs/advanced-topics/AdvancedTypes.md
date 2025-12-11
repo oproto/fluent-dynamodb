@@ -454,7 +454,22 @@ Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.
 
 ## External Blob Storage
 
-Store large data externally (e.g., S3) with only a reference in DynamoDB using `[BlobReference]`:
+Store large data externally (e.g., S3) with only a reference in DynamoDB using `[BlobStorage]` and `BlobData<T>`:
+
+> **Note**: The `[BlobReference]` attribute is deprecated. Use `[BlobStorage]` with `BlobData<T>` wrapper type instead.
+
+### BlobData<T> Wrapper Type
+
+The `BlobData<T>` wrapper encapsulates blob storage behavior:
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `Value` | Gets the loaded data. Throws `InvalidOperationException` if not loaded. |
+| `ReferenceKey` | Gets the storage key, or null if not yet stored. |
+| `IsLoaded` | Returns true when data has been loaded from storage. |
+| `HasPendingData` | Returns true when instance has new data to be stored. |
+| `Create(T value)` | Static factory to create instance with data to be stored. |
+| `LoadAsync()` | Loads data from storage. Idempotent - returns immediately if already loaded. |
 
 ### S3 Blob Storage
 
@@ -462,73 +477,205 @@ Store large data externally (e.g., S3) with only a reference in DynamoDB using `
 // 1. Install package
 // dotnet add package Oproto.FluentDynamoDb.BlobStorage.S3
 
-// 2. Define entity
+// 2. Define entity with [BlobStorage] and BlobData<T>
+using Oproto.FluentDynamoDb.Attributes;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+
 [DynamoDbTable("files")]
 public partial class FileMetadata
 {
+    [PartitionKey]
     [DynamoDbAttribute("file_id")]
-    public string FileId { get; set; }
+    public string FileId { get; set; } = string.Empty;
     
-    [DynamoDbAttribute("data_ref")]
-    [BlobReference(BlobProvider.S3, BucketName = "my-files-bucket", KeyPrefix = "uploads")]
-    public byte[] Data { get; set; }
+    // Eager loading (default) - data loaded during deserialization
+    [BlobStorage]
+    [DynamoDbAttribute("data")]
+    public BlobData<byte[]> Data { get; set; } = default!;
+    
+    // Lazy loading - data loaded only when LoadAsync() is called
+    [BlobStorage(LazyLoad = true)]
+    [DynamoDbAttribute("thumbnail")]
+    public BlobData<byte[]>? Thumbnail { get; set; }
 }
 
-// 3. Create blob provider
+// 3. Configure blob storage with strategy
+using Oproto.FluentDynamoDb;
+using Oproto.FluentDynamoDb.BlobStorage.S3;
+
 var s3Client = new AmazonS3Client();
 var blobProvider = new S3BlobProvider(s3Client, "my-files-bucket", "uploads");
 
-// 4. Save entity with blob
+// Default configuration uses BestEffortCleanupStrategy
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(blobProvider);
+
+var table = new FileTable(dynamoDbClient, "files", options);
+
+// 4. Save entity with blob using BlobData<T>.Create()
 var file = new FileMetadata
 {
     FileId = "file-123",
-    Data = File.ReadAllBytes("large-file.pdf")
+    Data = BlobData<byte[]>.Create(File.ReadAllBytes("large-file.pdf")),
+    Thumbnail = BlobData<byte[]>.Create(thumbnailBytes)
 };
 
-// Use async methods for blob operations
-var item = await FileMetadata.ToDynamoDbAsync(file, blobProvider);
-await dynamoDbClient.PutItemAsync(new PutItemRequest
-{
-    TableName = "files",
-    Item = item
-});
+await table.Files.PutAsync(file);
 
-// 5. Load entity with blob
-var response = await dynamoDbClient.GetItemAsync(new GetItemRequest
-{
-    TableName = "files",
-    Key = new Dictionary<string, AttributeValue>
-    {
-        ["file_id"] = new AttributeValue { S = "file-123" }
-    }
-});
+// 5. Load entity - eager loaded data is already available
+var loaded = await table.Files.GetAsync("file-123");
+var data = loaded.Data.Value;  // Already loaded (eager)
 
-var loaded = await FileMetadata.FromDynamoDbAsync<FileMetadata>(
-    response.Item, 
-    blobProvider);
+// For lazy loaded properties, call LoadAsync() first
+if (loaded.Thumbnail != null && !loaded.Thumbnail.IsLoaded)
+{
+    await loaded.Thumbnail.LoadAsync();
+    var thumbnail = loaded.Thumbnail.Value;
+}
 ```
 
-### Combined JSON Blob + Blob Reference
+### Blob Storage Strategies
 
-For large complex objects, combine both attributes to serialize to JSON then store as external blob:
+Configure how failures between blob storage and DynamoDB operations are handled:
+
+#### BestEffortCleanupStrategy (Default)
+
+Attempts to clean up orphaned blobs when DynamoDB operations fail:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(blobProvider);  // Uses BestEffortCleanupStrategy by default
+
+// Or explicitly:
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(blobProvider)
+    .WithBlobStorageStrategy(new BestEffortCleanupStrategy(blobProvider, logger));
+```
+
+Behavior:
+- Uploads blobs to S3 **before** DynamoDB write
+- If DynamoDB write fails, attempts to delete uploaded blobs (best effort)
+- Cleanup failures are logged but don't throw exceptions
+- On successful DynamoDB delete, deletes associated blobs from S3
+
+#### NoCleanupStrategy
+
+Simple strategy for non-critical data where orphaned blobs are acceptable:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(blobProvider)
+    .WithBlobStorageStrategy(new NoCleanupStrategy(blobProvider));
+```
+
+Behavior:
+- Uploads blobs to S3 **before** DynamoDB write
+- No cleanup on DynamoDB write failure (orphaned blobs may remain)
+- No blob deletion on DynamoDB delete
+
+### Attribute Combinations
+
+#### [BlobStorage] + [JsonBlob]
+
+Serialize complex objects to JSON before uploading to S3:
 
 ```csharp
 [DynamoDbTable("documents")]
 public partial class LargeDocument
 {
+    [PartitionKey]
     [DynamoDbAttribute("doc_id")]
-    public string DocumentId { get; set; }
+    public string DocumentId { get; set; } = string.Empty;
     
-    [DynamoDbAttribute("content_ref")]
+    // JSON serialize, then upload to S3
+    [BlobStorage]
     [JsonBlob]
-    [BlobReference(BlobProvider.S3, BucketName = "large-docs")]
-    public ComplexContent Content { get; set; }
+    [DynamoDbAttribute("content")]
+    public BlobData<ComplexContent> Content { get; set; } = default!;
 }
 
-// The source generator will:
-// 1. Serialize Content to JSON
-// 2. Store JSON as blob in S3
-// 3. Store S3 reference in DynamoDB
+// Processing order:
+// Save: Object → JSON serialize → Upload to S3 → Store reference in DynamoDB
+// Load: Read reference from DynamoDB → Download from S3 → JSON deserialize → Object
+```
+
+#### [BlobStorage] + [Encrypted]
+
+Encrypt data before uploading to S3:
+
+```csharp
+[DynamoDbTable("secrets")]
+public partial class SecretDocument
+{
+    [PartitionKey]
+    [DynamoDbAttribute("id")]
+    public string Id { get; set; } = string.Empty;
+    
+    // Encrypt before upload
+    [BlobStorage]
+    [Encrypted]
+    [DynamoDbAttribute("secret")]
+    public BlobData<byte[]> SecretData { get; set; } = default!;
+}
+
+// Requires encryption configuration:
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(blobProvider)
+    .WithEncryption(fieldEncryptor);
+```
+
+#### [BlobStorage] + [Sensitive]
+
+Redact blob reference keys and values in logs:
+
+```csharp
+[BlobStorage]
+[Sensitive]
+[DynamoDbAttribute("pii")]
+public BlobData<byte[]> PersonalData { get; set; } = default!;
+```
+
+#### All Three Combined
+
+```csharp
+// JSON serialize → Encrypt → Upload to S3
+[BlobStorage]
+[JsonBlob]
+[Encrypted]
+[DynamoDbAttribute("encrypted_content")]
+public BlobData<SensitiveContent> EncryptedContent { get; set; } = default!;
+```
+
+### Error Handling
+
+| Scenario | Exception |
+|----------|-----------|
+| Access `Value` before `LoadAsync()` | `InvalidOperationException` |
+| `LoadAsync()` without provider configured | `InvalidOperationException` |
+| S3 upload/download failure | `BlobStorageException` |
+| `[Encrypted]` without encryptor | `EncryptionRequiredException` |
+| `[BlobStorage]` without provider | `InvalidOperationException` |
+
+### Migration from [BlobReference]
+
+```csharp
+// Before (deprecated):
+[BlobReference(BlobProvider.S3)]
+[DynamoDbAttribute("data")]
+public byte[] Data { get; set; }
+
+// After:
+[BlobStorage]
+[DynamoDbAttribute("data")]
+public BlobData<byte[]> Data { get; set; } = default!;
+
+// Creating data:
+// Before: entity.Data = bytes;
+// After:  entity.Data = BlobData<byte[]>.Create(bytes);
+
+// Accessing data:
+// Before: var bytes = entity.Data;
+// After:  var bytes = entity.Data.Value;
 ```
 
 ## Empty Collection Handling

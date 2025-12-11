@@ -7,26 +7,26 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
 /// <summary>
 /// Unit tests for HydratorGenerator.
-/// Tests that IAsyncEntityHydrator implementations are correctly generated for entities with blob references.
+/// Tests that IAsyncEntityHydrator implementations are correctly generated for entities with blob storage properties.
 /// </summary>
 [Trait("Category", "Unit")]
 public class HydratorGeneratorTests
 {
     [Fact]
-    public void RequiresHydrator_WithBlobReferenceProperty_ReturnsTrue()
+    public void RequiresHydrator_WithBlobStorageProperty_ReturnsTrue()
     {
         // Arrange
-        var entity = CreateEntityWithBlobReference();
+        var entity = CreateEntityWithBlobStorage();
 
         // Act
         var result = HydratorGenerator.RequiresHydrator(entity);
 
         // Assert
-        result.Should().BeTrue("entity has a blob reference property");
+        result.Should().BeTrue("entity has a blob storage property");
     }
 
     [Fact]
-    public void RequiresHydrator_WithoutBlobReferenceProperty_ReturnsFalse()
+    public void RequiresHydrator_WithoutBlobStorageProperty_ReturnsFalse()
     {
         // Arrange
         var entity = CreateBasicEntity();
@@ -35,20 +35,20 @@ public class HydratorGeneratorTests
         var result = HydratorGenerator.RequiresHydrator(entity);
 
         // Assert
-        result.Should().BeFalse("entity has no blob reference properties");
+        result.Should().BeFalse("entity has no blob storage properties");
     }
 
     [Fact]
-    public void GenerateHydrator_WithBlobReferenceProperty_GeneratesHydratorClass()
+    public void GenerateHydrator_WithBlobStorageProperty_GeneratesHydratorClass()
     {
         // Arrange
-        var entity = CreateEntityWithBlobReference();
+        var entity = CreateEntityWithBlobStorage();
 
         // Act
         var result = HydratorGenerator.GenerateHydrator(entity);
 
         // Assert
-        result.Should().NotBeNull("entity has blob reference property");
+        result.Should().NotBeNull("entity has blob storage property");
         result.Should().Contain("public sealed class TestEntityHydrator : IAsyncEntityHydrator<TestEntity>",
             "should generate hydrator class implementing IAsyncEntityHydrator");
         result.Should().Contain("public static readonly TestEntityHydrator Instance = new();",
@@ -56,10 +56,10 @@ public class HydratorGeneratorTests
     }
 
     [Fact]
-    public void GenerateHydrator_WithBlobReferenceProperty_GeneratesHydrateAsyncMethods()
+    public void GenerateHydrator_WithBlobStorageProperty_GeneratesHydrateAsyncMethods()
     {
         // Arrange
-        var entity = CreateEntityWithBlobReference();
+        var entity = CreateEntityWithBlobStorage();
 
         // Act
         var result = HydratorGenerator.GenerateHydrator(entity);
@@ -83,10 +83,10 @@ public class HydratorGeneratorTests
     }
 
     [Fact]
-    public void GenerateHydrator_WithBlobReferenceProperty_GeneratesRegistrationExtension()
+    public void GenerateHydrator_WithBlobStorageProperty_GeneratesRegistrationExtension()
     {
         // Arrange
-        var entity = CreateEntityWithBlobReference();
+        var entity = CreateEntityWithBlobStorage();
 
         // Act
         var result = HydratorGenerator.GenerateHydrator(entity);
@@ -102,7 +102,7 @@ public class HydratorGeneratorTests
     }
 
     [Fact]
-    public void GenerateHydrator_WithoutBlobReferenceProperty_ReturnsNull()
+    public void GenerateHydrator_WithoutBlobStorageProperty_ReturnsNull()
     {
         // Arrange
         var entity = CreateBasicEntity();
@@ -111,14 +111,14 @@ public class HydratorGeneratorTests
         var result = HydratorGenerator.GenerateHydrator(entity);
 
         // Assert
-        result.Should().BeNull("entity has no blob reference properties");
+        result.Should().BeNull("entity has no blob storage properties");
     }
 
     [Fact]
-    public void GenerateHydrator_WithBlobReferenceProperty_DelegatesToFromDynamoDbAsync()
+    public void GenerateHydrator_WithBlobStorageProperty_DelegatesToFromDynamoDbAsync()
     {
         // Arrange
-        var entity = CreateEntityWithBlobReference();
+        var entity = CreateEntityWithBlobStorage();
 
         // Act
         var result = HydratorGenerator.GenerateHydrator(entity);
@@ -130,10 +130,10 @@ public class HydratorGeneratorTests
     }
 
     [Fact]
-    public void GenerateHydrator_WithBlobReferenceProperty_IncludesNullChecks()
+    public void GenerateHydrator_WithBlobStorageProperty_IncludesNullChecks()
     {
         // Arrange
-        var entity = CreateEntityWithBlobReference();
+        var entity = CreateEntityWithBlobStorage();
 
         // Act
         var result = HydratorGenerator.GenerateHydrator(entity);
@@ -151,10 +151,10 @@ public class HydratorGeneratorTests
     }
 
     [Fact]
-    public void GenerateHydrator_WithBlobReferenceProperty_GeneratesCorrectNamespace()
+    public void GenerateHydrator_WithBlobStorageProperty_GeneratesCorrectNamespace()
     {
         // Arrange
-        var entity = CreateEntityWithBlobReference();
+        var entity = CreateEntityWithBlobStorage();
         entity.Namespace = "MyApp.Entities";
 
         // Act
@@ -167,7 +167,7 @@ public class HydratorGeneratorTests
     }
 
     [Fact]
-    public void GenerateHydrator_WithMultipleBlobReferenceProperties_GeneratesHydrator()
+    public void GenerateHydrator_WithMultipleBlobStorageProperties_GeneratesHydrator()
     {
         // Arrange
         var entity = new EntityModel
@@ -188,20 +188,22 @@ public class HydratorGeneratorTests
                 {
                     PropertyName = "Content",
                     AttributeName = "content_ref",
-                    PropertyType = "byte[]",
+                    PropertyType = "BlobData<byte[]>",
                     ComplexType = new ComplexTypeInfo
                     {
-                        IsBlobReference = true
+                        IsBlobStorage = true,
+                        BlobDataInnerType = "byte[]"
                     }
                 },
                 new PropertyModel
                 {
                     PropertyName = "Thumbnail",
                     AttributeName = "thumbnail_ref",
-                    PropertyType = "byte[]",
+                    PropertyType = "BlobData<byte[]>",
                     ComplexType = new ComplexTypeInfo
                     {
-                        IsBlobReference = true
+                        IsBlobStorage = true,
+                        BlobDataInnerType = "byte[]"
                     }
                 }
             }
@@ -211,13 +213,13 @@ public class HydratorGeneratorTests
         var result = HydratorGenerator.GenerateHydrator(entity);
 
         // Assert
-        result.Should().NotBeNull("entity has multiple blob reference properties");
+        result.Should().NotBeNull("entity has multiple blob storage properties");
         result.Should().Contain("public sealed class DocumentEntityHydrator : IAsyncEntityHydrator<DocumentEntity>",
-            "should generate hydrator for entity with multiple blob references");
+            "should generate hydrator for entity with multiple blob storage properties");
     }
 
     /// <summary>
-    /// Creates a basic entity without blob references for testing.
+    /// Creates a basic entity without blob storage properties for testing.
     /// </summary>
     private static EntityModel CreateBasicEntity()
     {
@@ -246,9 +248,9 @@ public class HydratorGeneratorTests
     }
 
     /// <summary>
-    /// Creates an entity with a blob reference property for testing.
+    /// Creates an entity with a blob storage property for testing.
     /// </summary>
-    private static EntityModel CreateEntityWithBlobReference()
+    private static EntityModel CreateEntityWithBlobStorage()
     {
         return new EntityModel
         {
@@ -274,10 +276,11 @@ public class HydratorGeneratorTests
                 {
                     PropertyName = "LargeData",
                     AttributeName = "large_data_ref",
-                    PropertyType = "byte[]",
+                    PropertyType = "BlobData<byte[]>",
                     ComplexType = new ComplexTypeInfo
                     {
-                        IsBlobReference = true
+                        IsBlobStorage = true,
+                        BlobDataInnerType = "byte[]"
                     }
                 }
             }

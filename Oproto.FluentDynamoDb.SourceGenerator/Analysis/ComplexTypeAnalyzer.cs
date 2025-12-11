@@ -31,7 +31,12 @@ internal class ComplexTypeAnalyzer
         // Detect special attributes
         info.IsTtl = HasAttribute(property, "TimeToLiveAttribute");
         info.IsJsonBlob = HasAttribute(property, "JsonBlobAttribute");
-        info.IsBlobReference = HasAttribute(property, "BlobReferenceAttribute");
+
+        // Detect BlobStorage attribute and extract configuration
+        var blobStorageConfig = ExtractBlobStorageConfig(property);
+        info.IsBlobStorage = blobStorageConfig.HasAttribute;
+        info.BlobStorageLazyLoad = blobStorageConfig.LazyLoad;
+        info.BlobDataInnerType = blobStorageConfig.InnerType;
 
         // Extract element type for collections
         if (info.IsSet || info.IsList)
@@ -41,6 +46,77 @@ internal class ComplexTypeAnalyzer
 
     
         return info;
+    }
+
+    /// <summary>
+    /// Extracts BlobStorage attribute configuration from a property.
+    /// </summary>
+    private (bool HasAttribute, bool LazyLoad, string? InnerType) ExtractBlobStorageConfig(PropertyModel property)
+    {
+        if (property.PropertyDeclaration == null)
+            return (false, false, null);
+
+        var attributeLists = property.PropertyDeclaration.AttributeLists;
+        if (attributeLists.Count == 0)
+            return (false, false, null);
+
+        // Find BlobStorage attribute
+        var blobStorageAttr = attributeLists
+            .SelectMany(al => al.Attributes)
+            .FirstOrDefault(attr =>
+            {
+                var attributeNameText = attr.Name.ToString();
+                return attributeNameText == "BlobStorageAttribute" ||
+                       attributeNameText == "BlobStorage" ||
+                       attributeNameText.EndsWith(".BlobStorageAttribute") ||
+                       attributeNameText.EndsWith(".BlobStorage");
+            });
+
+        if (blobStorageAttr == null)
+            return (false, false, null);
+
+        // Extract LazyLoad property
+        var lazyLoad = false;
+        if (blobStorageAttr.ArgumentList != null)
+        {
+            foreach (var arg in blobStorageAttr.ArgumentList.Arguments)
+            {
+                if (arg.NameEquals?.Name.Identifier.ValueText == "LazyLoad" &&
+                    arg.Expression is Microsoft.CodeAnalysis.CSharp.Syntax.LiteralExpressionSyntax lazyLoadLiteral)
+                {
+                    lazyLoad = bool.Parse(lazyLoadLiteral.Token.ValueText);
+                }
+            }
+        }
+
+        // Extract inner type from BlobData<T>
+        var innerType = ExtractBlobDataInnerType(property.PropertyType);
+
+        return (true, lazyLoad, innerType);
+    }
+
+    /// <summary>
+    /// Extracts the inner type T from BlobData&lt;T&gt;.
+    /// </summary>
+    private string? ExtractBlobDataInnerType(string propertyType)
+    {
+        // Handle nullable types like BlobData<T>?
+        var baseType = propertyType.TrimEnd('?');
+
+        // Check if it's BlobData<T>
+        if (!baseType.StartsWith("BlobData<") && 
+            !baseType.StartsWith("Oproto.FluentDynamoDb.Providers.BlobStorage.BlobData<"))
+            return null;
+
+        // Extract the inner type
+        var startIndex = baseType.IndexOf('<') + 1;
+        var endIndex = baseType.LastIndexOf('>');
+        if (endIndex > startIndex)
+        {
+            return baseType.Substring(startIndex, endIndex - startIndex).Trim();
+        }
+
+        return null;
     }
 
     /// <summary>

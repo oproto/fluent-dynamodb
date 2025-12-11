@@ -290,15 +290,15 @@ public class DiagnosticDescriptorsTests
     }
 
     [Fact]
-    public void MissingBlobProvider_ShouldHaveCorrectProperties()
+    public void MissingBlobStorageProvider_ShouldHaveCorrectProperties()
     {
         // Arrange & Act
-        var descriptor = DiagnosticDescriptors.MissingBlobProvider;
+        var descriptor = DiagnosticDescriptors.MissingBlobStorageProvider;
 
         // Assert
         descriptor.Id.Should().Be("DYNDB103");
         descriptor.Title.ToString().Should().Be("Missing blob provider package");
-        descriptor.MessageFormat.ToString().Should().Be("[BlobReference] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3");
+        descriptor.MessageFormat.ToString().Should().Be("[BlobStorage] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3");
         descriptor.Category.Should().Be("DynamoDb");
         descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Error);
         descriptor.IsEnabledByDefault.Should().BeTrue();

@@ -67,10 +67,19 @@ public class NoReflectionPropertyTests
     // - EntityExecuteAsyncExtensions.cs: Now uses IEntityHydratorRegistry instead of GetMethod()
     // - ExpressionTranslator.cs: Now uses MemberExpression.Member directly (AOT-safe) and IGeospatialProvider
     //
-    // ALL MAIN LIBRARY FILES ARE NOW AOT-SAFE!
-    // The array below should remain empty. Any new AOT-unsafe reflection should be added here
-    // and tracked for refactoring.
-    private static readonly string[] FilesWithAotUnsafeReflection = Array.Empty<string>();
+    // Files with intentional AOT-unsafe reflection:
+    // - BlobStorageHelper.cs: Uses reflection to work with BlobData<T> properties dynamically at runtime.
+    //   This is required because the blob storage feature needs to inspect and manipulate BlobData<T>
+    //   instances without knowing the concrete type T at compile time. The reflection is used to:
+    //   - Check HasPendingData property to detect new blob data
+    //   - Get/Set ReferenceKey property for blob storage references
+    //   - Call GetPendingValue() to retrieve data for upload
+    //   - Serialize complex types with IJsonBlobSerializer
+    //   Future improvement: Consider source-generated accessors for BlobData<T> properties.
+    private static readonly string[] FilesWithAotUnsafeReflection = new[]
+    {
+        "BlobStorageHelper.cs"
+    };
     
     // Files with AOT-SAFE reflection only (expression tree member access)
     // These files use FieldInfo/PropertyInfo from MemberExpression.Member which is AOT-safe

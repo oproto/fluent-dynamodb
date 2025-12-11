@@ -1,0 +1,220 @@
+# Implementation Plan
+
+- [x] 1. Create core types and interfaces
+  - [x] 1.1 Create `BlobStorageAttribute` class
+    - Create `Oproto.FluentDynamoDb/Attributes/BlobStorageAttribute.cs`
+    - Add `LazyLoad` property with default value `false`
+    - _Requirements: 1.1, 3.1, 3.2_
+  - [x] 1.2 Create `BlobData<T>` wrapper type
+    - Create `Oproto.FluentDynamoDb/Providers/BlobStorage/BlobData.cs`
+    - Implement `Value`, `ReferenceKey`, `IsLoaded`, `HasPendingData` properties
+    - Implement `Create(T value)` static factory method
+    - Implement `FromReferenceKey()` internal factory method
+    - Implement `LoadAsync()` method with idempotence check
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 1.3 Write property tests for BlobData<T>
+    - **Property 1: BlobData Value Access Throws When Not Loaded**
+    - **Property 3: BlobData IsLoaded State Consistency**
+    - **Property 4: LoadAsync Idempotence**
+    - **Property 5: BlobData Create Factory Produces Loaded Instance**
+    - **Validates: Requirements 2.1, 2.3, 2.5, 2.6**
+  - [x] 1.4 Create `BlobStoreOptions` class
+    - Create `Oproto.FluentDynamoDb/Providers/BlobStorage/BlobStoreOptions.cs`
+    - Add `ContentType`, `Metadata`, and `Tags` properties
+    - _Requirements: 12.2, 12.3_
+  - [x] 1.5 Update `IBlobStorageProvider` interface
+    - Add `StoreAsync` overload that accepts `BlobStoreOptions`
+    - Maintain backward compatibility with existing overload
+    - _Requirements: 12.1, 12.2_
+  - [x] 1.6 Create `BlobStorageException` class
+    - Create `Oproto.FluentDynamoDb/Providers/BlobStorage/BlobStorageException.cs`
+    - Add `ReferenceKey` property
+    - Add constructors for various error scenarios
+    - _Requirements: 8.3, 8.4_
+
+- [x] 2. Create strategy interfaces and implementations
+  - [x] 2.1 Create `IBlobStorageStrategy` interface
+    - Create `Oproto.FluentDynamoDb/Providers/BlobStorage/IBlobStorageStrategy.cs`
+    - Define `OnBeforeDynamoDbWriteAsync`, `OnAfterDynamoDbWriteSuccessAsync`, `OnAfterDynamoDbWriteFailureAsync`
+    - Define `OnBeforeDynamoDbDeleteAsync`, `OnAfterDynamoDbDeleteSuccessAsync`
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  - [x] 2.2 Create context classes for strategy methods
+    - Create `BlobWriteContext`, `BlobPropertyContext`, `BlobWriteResult`, `BlobDeleteContext`
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  - [x] 2.3 Implement `BestEffortCleanupStrategy`
+    - Create `Oproto.FluentDynamoDb/Providers/BlobStorage/BestEffortCleanupStrategy.cs`
+    - Implement blob upload in `OnBeforeDynamoDbWriteAsync`
+    - Implement cleanup in `OnAfterDynamoDbWriteFailureAsync` with error swallowing
+    - Implement blob deletion in `OnAfterDynamoDbDeleteSuccessAsync`
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+  - [x] 2.4 Write property tests for BestEffortCleanupStrategy
+    - **Property 11: BestEffortCleanupStrategy Attempts Cleanup on Write Failure**
+    - **Property 12: BestEffortCleanupStrategy Cleanup Failures Don't Propagate**
+    - **Validates: Requirements 5.1, 5.2**
+  - [x] 2.5 Implement `NoCleanupStrategy`
+    - Create `Oproto.FluentDynamoDb/Providers/BlobStorage/NoCleanupStrategy.cs`
+    - Implement blob upload in `OnBeforeDynamoDbWriteAsync`
+    - Implement no-op methods for all other lifecycle hooks
+    - _Requirements: 6.1, 6.2, 6.3_
+  - [x] 2.6 Write property tests for NoCleanupStrategy
+    - **Property 13: NoCleanupStrategy Never Deletes Blobs**
+    - **Validates: Requirements 6.1, 6.2, 6.3**
+
+- [x] 3. Update FluentDynamoDbOptions
+  - [x] 3.1 Add blob storage configuration methods
+    - Add `BlobStorageProvider` property
+    - Add `BlobStorageStrategy` property
+    - Add `WithBlobStorage(IBlobStorageProvider)` method
+    - Add `WithBlobStorageStrategy(IBlobStorageStrategy)` method
+    - Set `BestEffortCleanupStrategy` as default when provider is configured
+    - _Requirements: 4.5, 4.6, 12.5_
+  - [x] 3.2 Write unit tests for FluentDynamoDbOptions blob storage configuration
+    - Test `WithBlobStorage` sets provider
+    - Test default strategy is `BestEffortCleanupStrategy`
+    - Test `WithBlobStorageStrategy` overrides default
+    - _Requirements: 4.5, 4.6_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Update source generator for BlobStorage attribute
+  - [x] 5.1 Add `BlobStorageAttribute` detection in `EntityAnalyzer`
+    - Detect `[BlobStorage]` attribute on properties
+    - Extract `LazyLoad` configuration
+    - Validate property type is `BlobData<T>`
+    - _Requirements: 1.1, 1.3_
+  - [x] 5.2 Add deprecation diagnostic for `[BlobReference]`
+    - Emit DYNDB104 warning when `[BlobReference]` is detected
+    - Include migration guidance in diagnostic message
+    - _Requirements: 1.2_
+  - [x] 5.3 Update `MapperGenerator` for BlobData serialization
+    - Generate `ToDynamoDb` code that extracts reference key from `BlobData<T>`
+    - Generate code to handle `HasPendingData` flag for new data
+    - _Requirements: 2.7_
+  - [x] 5.4 Write property test for BlobData serialization round trip
+    - **Property 6: BlobData Serialization Round Trip**
+    - **Validates: Requirements 2.7**
+  - [x] 5.5 Update `HydratorGenerator` for BlobData deserialization
+    - Generate `FromDynamoDb` code that creates `BlobData<T>` from reference key
+    - Generate `FromDynamoDbAsync` code for eager loading
+    - Handle `LazyLoad = true` by skipping automatic load
+    - _Requirements: 3.1, 3.2, 3.4_
+  - [x] 5.6 Write property tests for eager and lazy loading
+    - **Property 7: Eager Loading Populates Value During Deserialization**
+    - **Property 8: Lazy Loading Defers Value Population**
+    - **Validates: Requirements 3.1, 3.2, 3.4**
+
+- [x] 6. Integrate strategy into request builders
+  - [x] 6.1 Update `PutItemRequestBuilder` for blob storage
+    - Detect entities with `[BlobStorage]` properties
+    - Invoke strategy lifecycle methods around DynamoDB operation
+    - Update item with reference keys from strategy result
+    - _Requirements: 7.1_
+  - [x] 6.2 Update `UpdateItemRequestBuilder` for blob storage
+    - Detect updates to `[BlobStorage]` properties
+    - Invoke strategy lifecycle methods for changed blob properties
+    - _Requirements: 7.2_
+  - [x] 6.3 Update `DeleteItemRequestBuilder` for blob storage
+    - Extract reference keys from entity before delete
+    - Invoke strategy lifecycle methods around DynamoDB operation
+    - _Requirements: 7.3_
+  - [x] 6.4 Write property tests for request builder integration
+    - **Property 9: Strategy Lifecycle Order for Writes**
+    - **Property 10: Strategy Lifecycle Order for Deletes**
+    - **Validates: Requirements 7.1, 7.2, 7.3**
+  - [x] 6.5 Update `BatchWriteBuilder` for blob storage
+    - Invoke strategy for each entity with blob properties in batch
+    - Handle cleanup for partial batch failures
+    - _Requirements: 7.4_
+  - [x] 6.6 Update `TransactionWriteBuilder` for blob storage
+    - Invoke strategy for each entity with blob properties in transaction
+    - Handle cleanup on transaction failure
+    - _Requirements: 7.4_
+
+- [x] 7. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 8. Add error handling and validation
+  - [x] 8.1 Add configuration validation
+    - Throw `InvalidOperationException` when `[BlobStorage]` used without provider
+    - Include clear message with configuration guidance
+    - _Requirements: 8.1_
+  - [x] 8.2 Add `LoadAsync` validation
+    - Throw `InvalidOperationException` when called without provider
+    - Throw `InvalidOperationException` when no reference key available
+    - _Requirements: 8.2_
+  - [x] 8.3 Write property tests for error handling
+    - **Property 14: Missing Provider Configuration Throws**
+    - **Property 15: Provider Errors Wrapped in BlobStorageException**
+    - **Validates: Requirements 8.1, 8.2, 8.3, 8.4**
+
+- [x] 9. Add attribute combination support
+  - [x] 9.1 Add `[JsonBlob]` combination support
+    - Update serialization pipeline to JSON serialize before blob upload
+    - Update deserialization pipeline to JSON deserialize after blob download
+    - Use configured JSON serializer from `FluentDynamoDbOptions`
+    - _Requirements: 9.1, 9.2, 9.3_
+  - [x] 9.2 Write property test for JsonBlob combination
+    - **Property 16: JsonBlob Serialization Order**
+    - **Validates: Requirements 9.1, 9.2**
+  - [x] 9.3 Add `[Encrypted]` combination support
+    - Update serialization pipeline to encrypt after JSON (if applicable)
+    - Update deserialization pipeline to decrypt before JSON (if applicable)
+    - Use configured encryptor from `FluentDynamoDbOptions`
+    - Throw `EncryptionRequiredException` when encryptor not configured
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
+  - [x] 9.4 Write property tests for Encrypted combination
+    - **Property 17: Encryption Order**
+    - **Property 18: Missing Encryptor Configuration Throws**
+    - **Validates: Requirements 11.1, 11.2, 11.4, 11.5**
+  - [x] 9.5 Add `[Sensitive]` combination support
+    - Set `IsSensitive = true` in `PropertyMetadata` for combined properties
+    - Ensure reference keys and values are redacted in logs
+    - _Requirements: 10.1, 10.2, 10.3_
+  - [x] 9.6 Write property test for Sensitive combination
+    - **Property 19: Sensitive Properties Redacted in Logs**
+    - **Validates: Requirements 10.1, 10.2**
+
+- [x] 10. Update S3BlobProvider
+  - [x] 10.1 Add `BlobStoreOptions` support to S3BlobProvider
+    - Implement `StoreAsync` overload that accepts `BlobStoreOptions`
+    - Map `ContentType` to S3 `ContentType`
+    - Map `Metadata` to S3 user metadata
+    - Map `Tags` to S3 object tags
+    - _Requirements: 12.2, 12.3_
+  - [x] 10.2 Write property test for provider-agnostic keys
+    - **Property 20: Provider-Agnostic Reference Keys**
+    - **Validates: Requirements 12.6**
+
+- [x] 11. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 12. Update documentation
+  - [x] 12.1 Update CHANGELOG.md
+    - Add breaking changes section for blob storage redesign
+    - Document new `[BlobStorage]` attribute
+    - Document `BlobData<T>` wrapper type
+    - Document `IBlobStorageStrategy` and built-in strategies
+    - Document deprecation of `[BlobReference]`
+    - _Requirements: All_
+  - [x] 12.2 Update docs/DOCUMENTATION_CHANGELOG.md
+    - Document all documentation changes for blob storage
+    - _Requirements: All_
+  - [x] 12.3 Update S3BlobDemo example application
+    - Migrate all entities from `[BlobReference]` to `[BlobStorage]` with `BlobData<T>`
+    - Add menu option demonstrating eager loading (default behavior)
+    - Add menu option demonstrating lazy loading with explicit `LoadAsync()` call
+    - Add menu option demonstrating `BestEffortCleanupStrategy` (show cleanup on simulated failure)
+    - Add menu option demonstrating `NoCleanupStrategy` (show orphaned blob scenario)
+    - Add menu option demonstrating `[BlobStorage]` + `[JsonBlob]` combination for complex objects
+    - Add menu option demonstrating `[BlobStorage]` + `[Encrypted]` combination for sensitive data
+    - Update README.md with documentation for all new features and options
+    - _Requirements: All_
+  - [x] 12.4 Update docs/advanced-topics/AdvancedTypes.md
+    - Replace `[BlobReference]` documentation with `[BlobStorage]`
+    - Document `BlobData<T>` usage patterns
+    - Document strategy configuration
+    - _Requirements: All_
+
+- [x] 13. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

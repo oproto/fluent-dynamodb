@@ -101,12 +101,12 @@ internal static class MapperGenerator
         sb.AppendLine($"    public partial class {entity.ClassName} : IDynamoDbEntity");
         sb.AppendLine("    {");
 
-        // Check if entity has blob reference properties or encrypted properties
-        var hasBlobReferences = entity.Properties.Any(p => p.ComplexType?.IsBlobReference == true);
+        // Check if entity has blob storage properties or encrypted properties
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
         var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
 
         // Generate all required interface methods
-        if (hasBlobReferences || hasEncryptedProperties)
+        if (hasBlobStorage || hasEncryptedProperties)
         {
             // For entities with blob references or encrypted properties, generate both:
             // 1. Stub synchronous methods (to satisfy interface) that throw NotSupportedException
@@ -223,12 +223,12 @@ internal static class MapperGenerator
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         
-        var hasBlobReferences = entity.Properties.Any(p => p.ComplexType?.IsBlobReference == true);
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
         var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
         
-        if (hasBlobReferences && hasEncryptedProperties)
+        if (hasBlobStorage && hasEncryptedProperties)
         {
-            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and encrypted properties and requires async methods.");
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob storage and encrypted properties and requires async methods.");
         }
         else if (hasEncryptedProperties)
         {
@@ -236,7 +236,7 @@ internal static class MapperGenerator
         }
         else
         {
-            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob storage properties and requires async methods.");
         }
         
         sb.AppendLine("        /// Use ToDynamoDbAsync instead.");
@@ -245,10 +245,10 @@ internal static class MapperGenerator
         sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
-        if (hasBlobReferences && hasEncryptedProperties)
+        if (hasBlobStorage && hasEncryptedProperties)
         {
             sb.AppendLine($"            throw new NotSupportedException(");
-            sb.AppendLine($"                \"{entity.ClassName} has blob reference and encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage and encrypted properties and requires async methods. \" +");
             sb.AppendLine($"                \"Use ToDynamoDbAsync with an IBlobStorageProvider and IFieldEncryptor instead.\");");
         }
         else if (hasEncryptedProperties)
@@ -260,7 +260,7 @@ internal static class MapperGenerator
         else
         {
             sb.AppendLine($"            throw new NotSupportedException(");
-            sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage properties and requires async methods. \" +");
             sb.AppendLine($"                \"Use ToDynamoDbAsync with an IBlobStorageProvider instead.\");");
         }
         
@@ -501,17 +501,10 @@ internal static class MapperGenerator
             return;
         }
 
-        // Handle combined JSON blob + blob reference (serialize to JSON, then store as external blob)
-        if (property.ComplexType?.IsJsonBlob == true && property.ComplexType?.IsBlobReference == true)
+        // Handle BlobStorage properties with BlobData<T> wrapper
+        if (property.ComplexType?.IsBlobStorage == true)
         {
-            GenerateCombinedJsonBlobAndBlobReferenceToAttributeValue(sb, property, entity);
-            return;
-        }
-
-        // Handle blob reference properties (async)
-        if (property.ComplexType?.IsBlobReference == true)
-        {
-            GenerateBlobReferencePropertyToAttributeValue(sb, property, entity);
+            GenerateBlobStoragePropertyToAttributeValue(sb, property, entity);
             return;
         }
 
@@ -583,75 +576,34 @@ internal static class MapperGenerator
         }
     }
 
-    private static void GenerateBlobReferencePropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    private static void GenerateBlobStoragePropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
-        var propertyType = property.PropertyType;
-        var baseType = GetBaseType(propertyType);
+        var innerType = property.ComplexType?.BlobDataInnerType ?? "object";
+        var isJsonBlob = property.ComplexType?.IsJsonBlob == true;
+        var isEncrypted = property.Security?.IsEncrypted == true;
+        var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
 
-        // Generate suggested key based on entity keys (declare before try block so it's accessible in catch)
+        // Generate suggested key based on entity keys
         var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
         var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
 
-        sb.AppendLine($"            // Store blob reference property {propertyName} externally");
+        sb.AppendLine($"            // BlobStorage property {propertyName} with BlobData<{innerType}> wrapper");
+        if (isEncrypted)
+        {
+            sb.AppendLine($"            // Combined with [Encrypted] - data will be encrypted before blob storage");
+        }
         sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
         sb.AppendLine("            {");
-        sb.AppendLine("                string suggestedKey;");
-        if (partitionKeyProperty != null)
-        {
-            if (sortKeyProperty != null)
-            {
-                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}\";");
-            }
-            else
-            {
-                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}\";");
-            }
-        }
-        else
-        {
-            sb.AppendLine($"                suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}\";");
-        }
         
-        // Generate logging for blob reference operation
-        sb.Append(LoggingCodeGenerator.GenerateBlobReferenceLogging(propertyName, "suggestedKey", "Store"));
-        
-        sb.AppendLine("                try");
+        // Check if there's pending data to store
+        sb.AppendLine($"                if (typedEntity.{escapedPropertyName}.HasPendingData)");
         sb.AppendLine("                {");
-
-        // Convert property to stream based on type
-        if (baseType == "byte[]" || baseType == "System.Byte[]")
-        {
-            // byte[] - convert to MemoryStream
-            sb.AppendLine($"                    using var stream = new MemoryStream(typedEntity.{escapedPropertyName});");
-        }
-        else if (baseType == "Stream" || baseType == "System.IO.Stream" || baseType == "MemoryStream")
-        {
-            // Already a stream - use directly
-            sb.AppendLine($"                    var stream = typedEntity.{escapedPropertyName};");
-        }
-        else if (baseType == "string" || baseType == "System.String")
-        {
-            // string - convert to UTF8 bytes then stream
-            sb.AppendLine($"                    var bytes = System.Text.Encoding.UTF8.GetBytes(typedEntity.{escapedPropertyName});");
-            sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
-        }
-        else
-        {
-            // Complex type - serialize to JSON first, then to stream using runtime-configured serializer
-            sb.AppendLine($"                    // Serialize complex type to JSON");
-            sb.AppendLine("                    if (options?.JsonSerializer == null)");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        throw new InvalidOperationException(");
-            sb.AppendLine($"                            \"Property '{propertyName}' is a complex type stored as blob reference but no JSON serializer is configured. \" +");
-            sb.AppendLine($"                            \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
-            sb.AppendLine("                    }");
-            sb.AppendLine($"                    var json = options.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
-            sb.AppendLine("                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
-            sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
-        }
+        sb.AppendLine("                    // New data to store - upload to blob storage");
+        sb.AppendLine("                    string suggestedKey;");
+        
         if (partitionKeyProperty != null)
         {
             if (sortKeyProperty != null)
@@ -667,104 +619,113 @@ internal static class MapperGenerator
         {
             sb.AppendLine($"                    suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}\";");
         }
-
-        // Store blob and save reference
-        sb.AppendLine("                    var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken);");
-        sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
-
-        sb.AppendLine("                }");
-        sb.AppendLine("                catch (Exception ex)");
-        sb.AppendLine("                {");
         
-        // Generate error logging for blob storage
-        sb.Append(LoggingCodeGenerator.GenerateBlobStorageErrorLogging(propertyName, "suggestedKey", "Store", "ex"));
+        sb.AppendLine("                    try");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        var pendingValue = typedEntity.{escapedPropertyName}.GetPendingValue();");
+        sb.AppendLine("                        if (pendingValue != null)");
+        sb.AppendLine("                        {");
         
-        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
-        sb.AppendLine($"                        typeof({entity.ClassName}),");
-        sb.AppendLine($"                        \"{propertyName}\",");
-        sb.AppendLine($"                        new AttributeValue {{ S = \"<blob data>\" }},");
-        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-        sb.AppendLine("                        ex)");
-        sb.AppendLine($"                        .WithContext(\"BlobProviderType\", blobProvider.GetType().Name)");
-        sb.AppendLine($"                        .WithContext(\"SuggestedKey\", suggestedKey)");
-        sb.AppendLine($"                        .WithContext(\"Operation\", \"BlobStorage\");");
-        sb.AppendLine("                }");
-        sb.AppendLine("            }");
-    }
-
-    private static void GenerateCombinedJsonBlobAndBlobReferenceToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
-    {
-        var attributeName = property.AttributeName;
-        var propertyName = property.PropertyName;
-        var escapedPropertyName = EscapePropertyName(propertyName);
-        var propertyType = property.PropertyType;
-        var baseType = GetBaseType(propertyType);
-        var serializerType = property.ComplexType?.JsonSerializerType;
-
-        // Generate suggested key based on entity keys (declare before try block so it's accessible in catch)
-        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
-        var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
-
-        sb.AppendLine($"            // Combined JSON blob + blob reference: serialize to JSON, then store as external blob");
-        sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                string suggestedKey;");
-        if (partitionKeyProperty != null)
+        // Handle serialization based on inner type and JsonBlob attribute
+        if (isJsonBlob)
         {
-            if (sortKeyProperty != null)
-            {
-                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{{typedEntity.{sortKeyProperty.PropertyName}}}/{propertyName}.json\";");
-            }
-            else
-            {
-                sb.AppendLine($"                suggestedKey = $\"{{typedEntity.{partitionKeyProperty.PropertyName}}}/{propertyName}.json\";");
-            }
+            // JSON serialization before blob storage
+            sb.AppendLine("                            // Step 1: Serialize to JSON");
+            sb.AppendLine("                            if (options?.JsonSerializer == null)");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                throw new InvalidOperationException(");
+            sb.AppendLine($"                                    \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("                            }");
+            sb.AppendLine("                            var json = options.JsonSerializer.Serialize(pendingValue);");
+            sb.AppendLine("                            var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
+        }
+        else if (innerType == "byte[]" || innerType == "System.Byte[]")
+        {
+            // byte[] - use directly
+            sb.AppendLine("                            var bytes = pendingValue;");
+        }
+        else if (innerType == "string" || innerType == "System.String")
+        {
+            // string - convert to UTF8 bytes
+            sb.AppendLine("                            var bytes = System.Text.Encoding.UTF8.GetBytes(pendingValue);");
         }
         else
         {
-            sb.AppendLine($"                suggestedKey = $\"{propertyName}/{{Guid.NewGuid()}}.json\";");
+            // Complex type - serialize to JSON
+            sb.AppendLine("                            // Step 1: Serialize complex type to JSON");
+            sb.AppendLine("                            if (options?.JsonSerializer == null)");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                throw new InvalidOperationException(");
+            sb.AppendLine($"                                    \"Property '{propertyName}' is a complex type stored as blob but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("                            }");
+            sb.AppendLine("                            var json = options.JsonSerializer.Serialize(pendingValue);");
+            sb.AppendLine("                            var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
         }
         
-        sb.AppendLine("                try");
-        sb.AppendLine("                {");
-
-        // Step 1: Serialize property to JSON using runtime-configured serializer
-        sb.AppendLine($"                    // Step 1: Serialize property to JSON");
-        sb.AppendLine("                    if (options?.JsonSerializer == null)");
-        sb.AppendLine("                    {");
-        sb.AppendLine($"                        throw new InvalidOperationException(");
-        sb.AppendLine($"                            \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
-        sb.AppendLine($"                            \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+        // Handle encryption if [Encrypted] attribute is present
+        if (isEncrypted)
+        {
+            sb.AppendLine();
+            sb.AppendLine("                            // Step 2: Encrypt data before blob storage");
+            sb.AppendLine("                            if (fieldEncryptor == null)");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                throw new Oproto.FluentDynamoDb.Expressions.EncryptionRequiredException(");
+            sb.AppendLine($"                                    \"Property '{propertyName}' has [Encrypted] attribute but no IFieldEncryptor is configured. \" +");
+            sb.AppendLine($"                                    \"Call FluentDynamoDbOptions.WithEncryption() to configure an encryptor.\",");
+            sb.AppendLine($"                                    \"{propertyName}\",");
+            sb.AppendLine($"                                    \"{attributeName}\");");
+            sb.AppendLine("                            }");
+            sb.AppendLine();
+            sb.AppendLine("                            var encryptionContext = new FieldEncryptionContext");
+            sb.AppendLine("                            {");
+            sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
+            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds},");
+            if (partitionKeyProperty != null)
+            {
+                sb.AppendLine($"                                EntityId = typedEntity.{partitionKeyProperty.PropertyName}?.ToString()");
+            }
+            else
+            {
+                sb.AppendLine("                                EntityId = null");
+            }
+            sb.AppendLine("                            };");
+            sb.AppendLine();
+            sb.AppendLine($"                            var encryptedBytes = await fieldEncryptor.EncryptAsync(");
+            sb.AppendLine("                                bytes,");
+            sb.AppendLine($"                                \"{propertyName}\",");
+            sb.AppendLine("                                encryptionContext,");
+            sb.AppendLine("                                cancellationToken);");
+            sb.AppendLine();
+            sb.AppendLine("                            // Step 3: Store encrypted data in blob storage");
+            sb.AppendLine("                            using var stream = new MemoryStream(encryptedBytes);");
+        }
+        else
+        {
+            sb.AppendLine("                            using var stream = new MemoryStream(bytes);");
+        }
+        
+        sb.AppendLine("                            var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken);");
+        sb.AppendLine($"                            typedEntity.{escapedPropertyName}.SetReferenceKey(reference);");
+        sb.AppendLine($"                            item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
+        sb.AppendLine("                        }");
         sb.AppendLine("                    }");
-        sb.AppendLine($"                    var json = options.JsonSerializer.Serialize(typedEntity.{escapedPropertyName});");
-
-        // Step 2: Convert JSON string to stream
-        sb.AppendLine();
-        sb.AppendLine($"                    // Step 2: Convert JSON string to stream");
-        sb.AppendLine("                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);");
-        sb.AppendLine("                    using var stream = new MemoryStream(bytes);");
-
-        // Step 3: Store blob and save reference in DynamoDB
-        sb.AppendLine();
-        sb.AppendLine($"                    // Step 3: Store JSON blob externally and save reference");
-        sb.AppendLine("                    var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken);");
-        sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
-
-        sb.AppendLine("                }");
-        sb.AppendLine("                catch (Exception ex)");
-        sb.AppendLine("                {");
-        
-        // Generate error logging for combined JSON blob + blob storage
+        sb.AppendLine("                    catch (Exception ex)");
+        sb.AppendLine("                    {");
         sb.Append(LoggingCodeGenerator.GenerateBlobStorageErrorLogging(propertyName, "suggestedKey", "Store", "ex"));
-        
-        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
-        sb.AppendLine($"                        typeof({entity.ClassName}),");
-        sb.AppendLine($"                        \"{propertyName}\",");
-        sb.AppendLine($"                        new AttributeValue {{ S = \"<json blob data>\" }},");
-        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-        sb.AppendLine("                        ex)");
-        sb.AppendLine($"                        .WithContext(\"CombinedJsonBlobAndBlobReference\", \"Failed during JSON serialization or blob storage\");");
+        sb.AppendLine("                        throw new BlobStorageException(");
+        sb.AppendLine($"                            $\"Failed to store blob data for property '{propertyName}'. SuggestedKey: {{suggestedKey}}\",");
+        sb.AppendLine("                            suggestedKey,");
+        sb.AppendLine("                            ex);");
+        sb.AppendLine("                    }");
         sb.AppendLine("                }");
+        sb.AppendLine($"                else if (typedEntity.{escapedPropertyName}.ReferenceKey != null)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    // Existing reference key - just store the reference");
+        sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ S = typedEntity.{escapedPropertyName}.ReferenceKey }};");
+        sb.AppendLine("                }");
+        sb.AppendLine("                // If no pending data and no reference key, skip this property");
         sb.AppendLine("            }");
     }
 
@@ -1966,17 +1927,10 @@ internal static class MapperGenerator
             return;
         }
 
-        // Handle combined JSON blob + blob reference (retrieve blob, then deserialize from JSON)
-        if (property.ComplexType?.IsJsonBlob == true && property.ComplexType?.IsBlobReference == true)
+        // Handle BlobStorage properties with BlobData<T> wrapper
+        if (property.ComplexType?.IsBlobStorage == true)
         {
-            GenerateCombinedJsonBlobAndBlobReferenceFromAttributeValue(sb, property, entity);
-            return;
-        }
-
-        // Handle blob reference properties (async)
-        if (property.ComplexType?.IsBlobReference == true)
-        {
-            GenerateBlobReferencePropertyFromAttributeValue(sb, property, entity);
+            GenerateBlobStoragePropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
@@ -2040,133 +1994,185 @@ internal static class MapperGenerator
         sb.AppendLine("            }");
     }
 
-    private static void GenerateBlobReferencePropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    private static void GenerateBlobStoragePropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
-        var propertyType = property.PropertyType;
-        var baseType = GetBaseType(propertyType);
+        var innerType = property.ComplexType?.BlobDataInnerType ?? "object";
+        var isJsonBlob = property.ComplexType?.IsJsonBlob == true;
+        var lazyLoad = property.ComplexType?.BlobStorageLazyLoad ?? false;
+        var isEncrypted = property.Security?.IsEncrypted == true;
+        var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
 
-        sb.AppendLine($"            // Retrieve blob reference property {propertyName} from external storage");
+        sb.AppendLine($"            // BlobStorage property {propertyName} with BlobData<{innerType}> wrapper");
+        if (isEncrypted)
+        {
+            sb.AppendLine($"            // Combined with [Encrypted] - data will be decrypted after blob retrieval");
+        }
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         sb.AppendLine("                try");
         sb.AppendLine("                {");
         sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.S != null)");
         sb.AppendLine("                    {");
-        sb.AppendLine($"                        var reference = {propertyName.ToLowerInvariant()}Value.S;");
-        sb.AppendLine("                        var stream = await blobProvider.RetrieveAsync(reference, cancellationToken);");
+        sb.AppendLine($"                        var referenceKey = {propertyName.ToLowerInvariant()}Value.S;");
         sb.AppendLine();
 
-        // Convert stream back to property type
-        if (baseType == "byte[]" || baseType == "System.Byte[]")
+        // Create deserializer function based on inner type and encryption
+        sb.AppendLine("                        // Create deserializer function for BlobData<T>");
+        
+        if (isEncrypted)
         {
-            // byte[] - read stream to byte array
-            sb.AppendLine("                        using var memoryStream = new MemoryStream();");
-            sb.AppendLine("                        await stream.CopyToAsync(memoryStream, cancellationToken);");
-            sb.AppendLine($"                        entity.{escapedPropertyName} = memoryStream.ToArray();");
+            // Encrypted deserialization - decrypt first, then JSON deserialize if needed
+            sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
+            sb.AppendLine("                        {");
+            sb.AppendLine("                            // Step 1: Read encrypted bytes from blob storage");
+            sb.AppendLine("                            using var memoryStream = new MemoryStream();");
+            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct);");
+            sb.AppendLine("                            var encryptedBytes = memoryStream.ToArray();");
+            sb.AppendLine();
+            sb.AppendLine("                            // Step 2: Decrypt the data");
+            sb.AppendLine("                            if (fieldEncryptor == null)");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                throw new Oproto.FluentDynamoDb.Expressions.EncryptionRequiredException(");
+            sb.AppendLine($"                                    \"Property '{propertyName}' has [Encrypted] attribute but no IFieldEncryptor is configured. \" +");
+            sb.AppendLine($"                                    \"Call FluentDynamoDbOptions.WithEncryption() to configure an encryptor.\",");
+            sb.AppendLine($"                                    \"{propertyName}\",");
+            sb.AppendLine($"                                    \"{attributeName}\");");
+            sb.AppendLine("                            }");
+            sb.AppendLine();
+            sb.AppendLine("                            var encryptionContext = new FieldEncryptionContext");
+            sb.AppendLine("                            {");
+            sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
+            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+            sb.AppendLine("                            };");
+            sb.AppendLine();
+            sb.AppendLine($"                            var decryptedBytes = await fieldEncryptor.DecryptAsync(");
+            sb.AppendLine("                                encryptedBytes,");
+            sb.AppendLine($"                                \"{propertyName}\",");
+            sb.AppendLine("                                encryptionContext,");
+            sb.AppendLine("                                ct);");
+            sb.AppendLine();
+            
+            if (isJsonBlob)
+            {
+                // Decrypt then JSON deserialize
+                sb.AppendLine("                            // Step 3: Deserialize from JSON");
+                sb.AppendLine("                            if (options?.JsonSerializer == null)");
+                sb.AppendLine("                            {");
+                sb.AppendLine($"                                throw new InvalidOperationException(");
+                sb.AppendLine($"                                    \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+                sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+                sb.AppendLine("                            }");
+                sb.AppendLine("                            var json = System.Text.Encoding.UTF8.GetString(decryptedBytes);");
+                sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
+            }
+            else if (innerType == "byte[]" || innerType == "System.Byte[]")
+            {
+                sb.AppendLine("                            // Return decrypted bytes directly");
+                sb.AppendLine("                            return decryptedBytes;");
+            }
+            else if (innerType == "string" || innerType == "System.String")
+            {
+                sb.AppendLine("                            // Convert decrypted bytes to string");
+                sb.AppendLine("                            return System.Text.Encoding.UTF8.GetString(decryptedBytes);");
+            }
+            else
+            {
+                // Complex type - JSON deserialization
+                sb.AppendLine("                            // Step 3: Deserialize complex type from JSON");
+                sb.AppendLine("                            if (options?.JsonSerializer == null)");
+                sb.AppendLine("                            {");
+                sb.AppendLine($"                                throw new InvalidOperationException(");
+                sb.AppendLine($"                                    \"Property '{propertyName}' is a complex type stored as blob but no JSON serializer is configured. \" +");
+                sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+                sb.AppendLine("                            }");
+                sb.AppendLine("                            var json = System.Text.Encoding.UTF8.GetString(decryptedBytes);");
+                sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
+            }
+            sb.AppendLine("                        };");
         }
-        else if (baseType == "Stream" || baseType == "System.IO.Stream" || baseType == "MemoryStream")
+        else if (isJsonBlob)
         {
-            // Stream - use directly (caller must manage disposal)
-            sb.AppendLine($"                        entity.{escapedPropertyName} = stream;");
+            // JSON deserialization (no encryption)
+            sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
+            sb.AppendLine("                        {");
+            sb.AppendLine("                            if (options?.JsonSerializer == null)");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                throw new InvalidOperationException(");
+            sb.AppendLine($"                                    \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("                            }");
+            sb.AppendLine("                            using var reader = new StreamReader(stream);");
+            sb.AppendLine("                            var json = await reader.ReadToEndAsync();");
+            sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
+            sb.AppendLine("                        };");
         }
-        else if (baseType == "string" || baseType == "System.String")
+        else if (innerType == "byte[]" || innerType == "System.Byte[]")
         {
-            // string - read stream as UTF8 string
-            sb.AppendLine("                        using var reader = new StreamReader(stream);");
-            sb.AppendLine($"                        entity.{escapedPropertyName} = await reader.ReadToEndAsync();");
+            // byte[] deserialization
+            sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
+            sb.AppendLine("                        {");
+            sb.AppendLine("                            using var memoryStream = new MemoryStream();");
+            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct);");
+            sb.AppendLine("                            return memoryStream.ToArray();");
+            sb.AppendLine("                        };");
+        }
+        else if (innerType == "string" || innerType == "System.String")
+        {
+            // string deserialization
+            sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
+            sb.AppendLine("                        {");
+            sb.AppendLine("                            using var reader = new StreamReader(stream);");
+            sb.AppendLine("                            return await reader.ReadToEndAsync();");
+            sb.AppendLine("                        };");
         }
         else
         {
-            // Complex type - deserialize from JSON using runtime-configured serializer
-            sb.AppendLine("                        // Deserialize complex type from JSON");
-            sb.AppendLine("                        if (options?.JsonSerializer == null)");
+            // Complex type - JSON deserialization
+            sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
             sb.AppendLine("                        {");
-            sb.AppendLine($"                            throw new InvalidOperationException(");
-            sb.AppendLine($"                                \"Property '{propertyName}' is a complex type stored as blob reference but no JSON serializer is configured. \" +");
-            sb.AppendLine($"                                \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
-            sb.AppendLine("                        }");
-            sb.AppendLine("                        using var reader = new StreamReader(stream);");
-            sb.AppendLine("                        var json = await reader.ReadToEndAsync();");
-            sb.AppendLine($"                        entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>(json);");
+            sb.AppendLine("                            if (options?.JsonSerializer == null)");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                throw new InvalidOperationException(");
+            sb.AppendLine($"                                    \"Property '{propertyName}' is a complex type stored as blob but no JSON serializer is configured. \" +");
+            sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+            sb.AppendLine("                            }");
+            sb.AppendLine("                            using var reader = new StreamReader(stream);");
+            sb.AppendLine("                            var json = await reader.ReadToEndAsync();");
+            sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
+            sb.AppendLine("                        };");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"                        // Create BlobData<{innerType}> from reference key");
+        sb.AppendLine($"                        entity.{escapedPropertyName} = BlobData<{innerType}>.FromReferenceKey(");
+        sb.AppendLine("                            referenceKey,");
+        sb.AppendLine("                            blobProvider,");
+        sb.AppendLine("                            deserializer);");
+        sb.AppendLine();
+
+        // Handle eager loading (LazyLoad = false is default)
+        if (!lazyLoad)
+        {
+            sb.AppendLine("                        // Eager loading: load blob data immediately");
+            sb.AppendLine($"                        await entity.{escapedPropertyName}.LoadAsync(cancellationToken);");
+        }
+        else
+        {
+            sb.AppendLine("                        // Lazy loading: blob data will be loaded when LoadAsync() is called");
         }
 
         sb.AppendLine("                    }");
         sb.AppendLine("                }");
         sb.AppendLine("                catch (Exception ex)");
         sb.AppendLine("                {");
-        
-        // Generate error logging for blob retrieval
         sb.Append(LoggingCodeGenerator.GenerateBlobStorageErrorLogging(propertyName, $"{propertyName.ToLowerInvariant()}Value.S ?? \"<null>\"", "Retrieve", "ex"));
-        
-        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
-        sb.AppendLine($"                        typeof({entity.ClassName}),");
-        sb.AppendLine($"                        \"{propertyName}\",");
-        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
-        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-        sb.AppendLine($"                        ex)");
-        sb.AppendLine($"                        .WithContext(\"BlobReference\", {propertyName.ToLowerInvariant()}Value.S ?? \"<null>\");");
-        sb.AppendLine("                }");
-        sb.AppendLine("            }");
-    }
-
-    private static void GenerateCombinedJsonBlobAndBlobReferenceFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
-    {
-        var attributeName = property.AttributeName;
-        var propertyName = property.PropertyName;
-        var escapedPropertyName = EscapePropertyName(propertyName);
-        var propertyType = property.PropertyType;
-        var baseType = GetBaseType(propertyType);
-        var serializerType = property.ComplexType?.JsonSerializerType;
-
-        sb.AppendLine($"            // Combined JSON blob + blob reference: retrieve blob, then deserialize from JSON");
-        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
-        sb.AppendLine("            {");
-        sb.AppendLine("                try");
-        sb.AppendLine("                {");
-        sb.AppendLine($"                    if ({propertyName.ToLowerInvariant()}Value.S != null)");
-        sb.AppendLine("                    {");
-        sb.AppendLine($"                        var reference = {propertyName.ToLowerInvariant()}Value.S;");
-        sb.AppendLine();
-
-        // Step 1: Retrieve blob using reference
-        sb.AppendLine($"                        // Step 1: Retrieve blob from external storage");
-        sb.AppendLine("                        var stream = await blobProvider.RetrieveAsync(reference, cancellationToken);");
-        sb.AppendLine();
-
-        // Step 2: Read stream as JSON string
-        sb.AppendLine($"                        // Step 2: Read stream as JSON string");
-        sb.AppendLine("                        using var reader = new StreamReader(stream);");
-        sb.AppendLine("                        var json = await reader.ReadToEndAsync();");
-        sb.AppendLine();
-
-        // Step 3: Deserialize JSON to property type using runtime-configured serializer
-        sb.AppendLine($"                        // Step 3: Deserialize JSON to property type");
-        sb.AppendLine("                        if (options?.JsonSerializer == null)");
-        sb.AppendLine("                        {");
-        sb.AppendLine($"                            throw new InvalidOperationException(");
-        sb.AppendLine($"                                \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
-        sb.AppendLine($"                                \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
-        sb.AppendLine("                        }");
-        sb.AppendLine($"                        entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>(json);");
-
-        sb.AppendLine("                    }");
-        sb.AppendLine("                }");
-        sb.AppendLine("                catch (Exception ex)");
-        sb.AppendLine("                {");
-        
-        // Generate error logging for combined JSON blob + blob retrieval
-        sb.Append(LoggingCodeGenerator.GenerateBlobStorageErrorLogging(propertyName, $"{propertyName.ToLowerInvariant()}Value.S ?? \"<null>\"", "Retrieve", "ex"));
-        
-        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
-        sb.AppendLine($"                        typeof({entity.ClassName}),");
-        sb.AppendLine($"                        \"{propertyName}\",");
-        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
-        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-        sb.AppendLine("                        ex)");
-        sb.AppendLine($"                        .WithContext(\"CombinedJsonBlobAndBlobReference\", $\"Failed to retrieve or deserialize blob. Reference: {{{propertyName.ToLowerInvariant()}Value.S ?? \"<null>\"}}\");");
+        sb.AppendLine("                    throw new BlobStorageException(");
+        sb.AppendLine($"                        $\"Failed to load blob data for property '{propertyName}'. ReferenceKey: {{{propertyName.ToLowerInvariant()}Value.S ?? \"<null>\"}}\",");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value.S,");
+        sb.AppendLine("                        ex);");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
     }
