@@ -239,4 +239,28 @@ public static class LogEventIds
     /// Event ID for errors during DynamoDB operations.
     /// </summary>
     public const int DynamoDbOperationError = 9040;
+    
+    // ========================================
+    // Schema Validation (5000-5099)
+    // ========================================
+    
+    /// <summary>
+    /// Event ID for when schema validation starts.
+    /// </summary>
+    public const int SchemaValidationStart = 5000;
+    
+    /// <summary>
+    /// Event ID for when schema validation completes successfully.
+    /// </summary>
+    public const int SchemaValidationSuccess = 5001;
+    
+    /// <summary>
+    /// Event ID for schema validation errors.
+    /// </summary>
+    public const int SchemaValidationError = 5010;
+    
+    /// <summary>
+    /// Event ID for schema validation warnings.
+    /// </summary>
+    public const int SchemaValidationWarning = 5011;
 }

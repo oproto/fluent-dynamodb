@@ -64,7 +64,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     },
                     Projection = new Projection 
                     { 
-                        ProjectionType = ProjectionType.INCLUDE,
+                        ProjectionType = Amazon.DynamoDBv2.ProjectionType.INCLUDE,
                         NonKeyAttributes = new List<string> { "pk", "sk" }
                     }
                 }

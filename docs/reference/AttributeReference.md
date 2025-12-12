@@ -602,6 +602,103 @@ public static class UserIndexes
 - [Querying Data](../core-features/QueryingData.md)
 
 
+## [LocalSecondaryIndex]
+
+Marks a property as the sort key for a Local Secondary Index (LSI).
+
+### Purpose
+
+Identifies the property that serves as the sort key for a Local Secondary Index. LSIs share the same partition key as the base table but have a different sort key, enabling alternative query patterns without the cost of a GSI.
+
+### Key Differences from GSI
+
+| Feature | Local Secondary Index | Global Secondary Index |
+|---------|----------------------|------------------------|
+| Partition Key | Same as base table | Can be different |
+| Sort Key | Different from base table | Can be different |
+| Created | At table creation only | Anytime |
+| Consistency | Strong or eventual | Eventual only |
+| Throughput | Shares with base table | Independent |
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `indexName` | `string` | Yes | The name of the Local Secondary Index |
+
+### Example
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    // LSI for querying orders by date within a customer
+    [LocalSecondaryIndex("orders-by-date")]
+    [DynamoDbAttribute("order_date")]
+    public string OrderDate { get; set; } = string.Empty;
+    
+    // Another LSI for querying by status
+    [LocalSecondaryIndex("orders-by-status")]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("total")]
+    public decimal Total { get; set; }
+}
+```
+
+### Generated Metadata
+
+The source generator creates `IndexMetadata` with `IndexType = LocalSecondaryIndex`:
+
+```csharp
+// Generated index metadata
+new IndexMetadata
+{
+    IndexName = "orders-by-date",
+    IndexType = IndexType.LocalSecondaryIndex,
+    PartitionKeyAttributeName = "pk",  // Same as base table
+    SortKeyAttributeName = "order_date",
+    SortKeyAttributeType = "S"
+}
+```
+
+### Schema Validation
+
+LSIs are validated during schema validation:
+
+```csharp
+var result = await OrdersTable.ValidateSchemaAsync(client);
+
+// Validation checks:
+// - LSI exists on the table
+// - Sort key attribute name matches
+// - Sort key attribute type matches
+```
+
+### Important Notes
+
+- LSIs can only be created when the table is created (cannot be added later)
+- LSIs share read/write capacity with the base table
+- Maximum of 5 LSIs per table
+- LSIs support both strong and eventual consistency
+- The partition key is always the same as the base table (not specified in the attribute)
+
+### See Also
+
+- [Schema Validation Guide](../advanced-topics/SchemaValidation.md)
+- [Global Secondary Indexes](../advanced-topics/GlobalSecondaryIndexes.md)
+- [Querying Data](../core-features/QueryingData.md)
+
+
 ## [Computed]
 
 Specifies that a property value should be computed from other properties before mapping to DynamoDB.
@@ -1471,7 +1568,8 @@ These attributes work together to define your DynamoDB entity schema:
 1. **[DynamoDbTable]**: Required on every entity class (supports custom `Namespace` for generated table class)
 2. **[DynamoDbAttribute]**: Required on every persisted property
 3. **[PartitionKey]** and **[SortKey]**: Define table keys
-4. **[GlobalSecondaryIndex]**: Enable alternative query patterns
+4. **[GlobalSecondaryIndex]**: Enable alternative query patterns with GSIs
+5. **[LocalSecondaryIndex]**: Enable alternative query patterns with LSIs (same partition key)
 
 ### Composite Key Attributes
 5. **[Computed]** and **[Extracted]**: Handle composite keys
@@ -1498,5 +1596,6 @@ The source generator reads these attributes at compile time and generates type-s
 - [Entity Definition](../core-features/EntityDefinition.md) - See attributes used in context
 - [First Entity Guide](../getting-started/FirstEntity.md) - Step-by-step entity creation
 - [Global Secondary Indexes](../advanced-topics/GlobalSecondaryIndexes.md) - GSI attribute usage
+- [Schema Validation](../advanced-topics/SchemaValidation.md) - Validate table schema at startup
 - [Composite Entities](../advanced-topics/CompositeEntities.md) - RelatedEntity attribute usage
 - [Troubleshooting](Troubleshooting.md) - Common attribute-related issues

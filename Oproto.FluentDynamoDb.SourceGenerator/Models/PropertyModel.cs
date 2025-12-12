@@ -58,6 +58,12 @@ internal class PropertyModel
     public GlobalSecondaryIndexModel[] GlobalSecondaryIndexes { get; set; } = Array.Empty<GlobalSecondaryIndexModel>();
 
     /// <summary>
+    /// Gets or sets the Local Secondary Index attributes for this property.
+    /// LSIs share the same partition key as the base table but have a different sort key.
+    /// </summary>
+    public LocalSecondaryIndexModel[] LocalSecondaryIndexes { get; set; } = Array.Empty<LocalSecondaryIndexModel>();
+
+    /// <summary>
     /// Gets or sets the computed key information for this property.
     /// </summary>
     public ComputedKeyModel? ComputedKey { get; set; }
@@ -81,6 +87,11 @@ internal class PropertyModel
     /// Gets a value indicating whether this property is part of any GSI.
     /// </summary>
     public bool IsPartOfGsi => GlobalSecondaryIndexes.Length > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether this property is part of any LSI.
+    /// </summary>
+    public bool IsPartOfLsi => LocalSecondaryIndexes.Length > 0;
 
     /// <summary>
     /// Gets a value indicating whether this property is computed from other properties.

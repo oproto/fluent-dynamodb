@@ -2850,6 +2850,11 @@ internal static class MapperGenerator
 
     private static void GenerateGetEntityMetadataMethod(StringBuilder sb, EntityModel entity)
     {
+        // Find partition key, sort key, and TTL properties
+        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.IsSortKey);
+        var ttlProperty = entity.Properties.FirstOrDefault(p => p.ComplexType?.IsTtl == true);
+
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// Gets metadata about the entity structure for future LINQ support.");
@@ -2866,6 +2871,26 @@ internal static class MapperGenerator
         }
 
         sb.AppendLine($"                IsMultiItemEntity = false,");
+
+        // Add partition key attribute name and type
+        if (partitionKeyProperty != null)
+        {
+            sb.AppendLine($"                PartitionKeyAttributeName = \"{partitionKeyProperty.AttributeName}\",");
+            sb.AppendLine($"                PartitionKeyAttributeType = \"{GetDynamoDbAttributeType(partitionKeyProperty.PropertyType)}\",");
+        }
+
+        // Add sort key attribute name and type
+        if (sortKeyProperty != null)
+        {
+            sb.AppendLine($"                SortKeyAttributeName = \"{sortKeyProperty.AttributeName}\",");
+            sb.AppendLine($"                SortKeyAttributeType = \"{GetDynamoDbAttributeType(sortKeyProperty.PropertyType)}\",");
+        }
+
+        // Add TTL attribute name
+        if (ttlProperty != null)
+        {
+            sb.AppendLine($"                TtlAttributeName = \"{ttlProperty.AttributeName}\",");
+        }
         sb.AppendLine("                Properties = new PropertyMetadata[]");
         sb.AppendLine("                {");
 
@@ -2882,7 +2907,7 @@ internal static class MapperGenerator
         // Generate index metadata
         foreach (var index in entity.Indexes)
         {
-            GenerateIndexMetadata(sb, index);
+            GenerateIndexMetadata(sb, index, entity);
         }
 
         sb.AppendLine("                },");
@@ -2995,11 +3020,24 @@ internal static class MapperGenerator
         sb.AppendLine("                    },");
     }
 
-    private static void GenerateIndexMetadata(StringBuilder sb, IndexModel index)
+    private static void GenerateIndexMetadata(StringBuilder sb, IndexModel index, EntityModel entity)
     {
+        // Look up property information for attribute names and types
+        var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.PropertyName == index.PartitionKeyProperty);
+        var sortKeyProperty = !string.IsNullOrEmpty(index.SortKeyProperty) 
+            ? entity.Properties.FirstOrDefault(p => p.PropertyName == index.SortKeyProperty) 
+            : null;
+
         sb.AppendLine("                    new IndexMetadata");
         sb.AppendLine("                    {");
         sb.AppendLine($"                        IndexName = \"{index.IndexName}\",");
+        
+        // Add IndexType (use full namespace to avoid potential ambiguity)
+        var indexTypeValue = index.IndexType == Models.IndexType.LocalSecondaryIndex 
+            ? "Oproto.FluentDynamoDb.Metadata.IndexType.LocalSecondaryIndex" 
+            : "Oproto.FluentDynamoDb.Metadata.IndexType.GlobalSecondaryIndex";
+        sb.AppendLine($"                        IndexType = {indexTypeValue},");
+        
         sb.AppendLine($"                        PartitionKeyProperty = \"{index.PartitionKeyProperty}\",");
 
         if (!string.IsNullOrEmpty(index.SortKeyProperty))
@@ -3019,8 +3057,28 @@ internal static class MapperGenerator
 
         if (!string.IsNullOrEmpty(index.PartitionKeyFormat))
         {
-            sb.AppendLine($"                        KeyFormat = \"{index.PartitionKeyFormat}\"");
+            sb.AppendLine($"                        KeyFormat = \"{index.PartitionKeyFormat}\",");
         }
+
+        // Add partition key attribute name and type
+        if (partitionKeyProperty != null)
+        {
+            sb.AppendLine($"                        PartitionKeyAttributeName = \"{partitionKeyProperty.AttributeName}\",");
+            sb.AppendLine($"                        PartitionKeyAttributeType = \"{GetDynamoDbAttributeType(partitionKeyProperty.PropertyType)}\",");
+        }
+
+        // Add sort key attribute name and type
+        if (sortKeyProperty != null)
+        {
+            sb.AppendLine($"                        SortKeyAttributeName = \"{sortKeyProperty.AttributeName}\",");
+            sb.AppendLine($"                        SortKeyAttributeType = \"{GetDynamoDbAttributeType(sortKeyProperty.PropertyType)}\",");
+        }
+
+        // Add projection type - default to All (use full namespace to avoid ambiguity with Amazon.DynamoDBv2.ProjectionType)
+        sb.AppendLine("                        ProjectionType = Oproto.FluentDynamoDb.Metadata.ProjectionType.All,");
+        
+        // HasProjectionModel - for now, set to false (can be enhanced later with projection model detection)
+        sb.AppendLine("                        HasProjectionModel = false");
 
         sb.AppendLine("                    },");
     }
@@ -3054,6 +3112,37 @@ internal static class MapperGenerator
         }
 
         return baseType;
+    }
+
+    /// <summary>
+    /// Gets the DynamoDB attribute type (S, N, B) for a C# property type.
+    /// </summary>
+    private static string GetDynamoDbAttributeType(string propertyType)
+    {
+        var baseType = GetBaseType(propertyType);
+        
+        return baseType switch
+        {
+            // Numeric types -> N
+            "int" or "Int32" or "System.Int32" => "N",
+            "long" or "Int64" or "System.Int64" => "N",
+            "short" or "Int16" or "System.Int16" => "N",
+            "byte" or "Byte" or "System.Byte" => "N",
+            "double" or "Double" or "System.Double" => "N",
+            "float" or "Single" or "System.Single" => "N",
+            "decimal" or "Decimal" or "System.Decimal" => "N",
+            "uint" or "UInt32" or "System.UInt32" => "N",
+            "ulong" or "UInt64" or "System.UInt64" => "N",
+            "ushort" or "UInt16" or "System.UInt16" => "N",
+            
+            // Binary types -> B
+            "byte[]" or "Byte[]" or "System.Byte[]" => "B",
+            "MemoryStream" or "System.IO.MemoryStream" => "B",
+            "Stream" or "System.IO.Stream" => "B",
+            
+            // Everything else (string, DateTime, Guid, etc.) -> S
+            _ => "S"
+        };
     }
 
     private static string GetSimpleTypeName(string fullTypeName)
