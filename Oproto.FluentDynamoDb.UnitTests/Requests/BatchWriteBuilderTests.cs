@@ -66,6 +66,9 @@ public class BatchWriteBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     #region 19.1 Test Add() method overloads

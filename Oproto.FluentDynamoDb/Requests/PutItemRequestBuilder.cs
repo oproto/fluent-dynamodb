@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -39,7 +40,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </example>
 public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequestBuilder<TEntity>>, IWithAttributeValues<PutItemRequestBuilder<TEntity>>,
     IWithConditionExpression<PutItemRequestBuilder<TEntity>>, ITransactablePutBuilder, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IDynamoDbEntity
 {
     /// <summary>
     /// Initializes a new instance of the PutItemRequestBuilder.
@@ -51,6 +52,20 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
+        if (_options.DefaultReturnItemCollectionMetrics is { } defaultItemCollectionMetrics)
+        {
+            _req.ReturnItemCollectionMetrics = defaultItemCollectionMetrics;
+        }
+        if (_options.DefaultReturnValues is { } defaultReturnValues)
+        {
+            _req.ReturnValues = defaultReturnValues;
+        }
     }
 
     private PutItemRequest _req = new PutItemRequest();
@@ -59,6 +74,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+    private TEntity? _entity;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -203,9 +219,8 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
 
     /// <summary>
     /// Sets the item to put using an entity instance.
-    /// The entity must implement IDynamoDbEntity for automatic mapping.
+    /// The entity is automatically mapped to DynamoDB attributes using the generated mapper.
     /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="entity">The entity instance to put.</param>
     /// <returns>The builder instance for method chaining.</returns>
     /// <example>
@@ -216,9 +231,10 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     ///     .PutAsync();
     /// </code>
     /// </example>
-    public PutItemRequestBuilder<TEntity> WithItem<T>(T entity) where T : class, TEntity, IDynamoDbEntity
+    public PutItemRequestBuilder<TEntity> WithItem(TEntity entity)
     {
-        _req.Item = T.ToDynamoDb(entity, _options);
+        _entity = entity;
+        _req.Item = TEntity.ToDynamoDb(entity, _options);
         return this;
     }
 
@@ -276,15 +292,54 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the raw PutItemResponse from AWS SDK.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the entity type is marked with [RequireWriteTransaction] attribute.
+    /// Use DynamoDbTransactions.Write() to perform transactional writes for such entities.
+    /// </exception>
     public async Task<PutItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         var request = ToPutItemRequest();
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingPutItem,
-            "Executing PutItem on table {TableName}. Condition: {ConditionExpression}",
-            request.TableName ?? "Unknown", 
-            request.ConditionExpression ?? "None");
+        // Check if we have an entity with blob storage properties and a strategy configured
+        if (_entity != null && _options.BlobStorageStrategy != null && 
+            BlobStorageHelper.HasBlobStorageProperties<TEntity>())
+        {
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+        }
+        
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+    }
+
+    private async Task<PutItemResponse> ExecuteWithBlobStorageAsync(
+        PutItemRequest request, 
+        CancellationToken cancellationToken)
+    {
+        return await BlobStorageHelper.ExecuteWithBlobStrategyAsync<TEntity, PutItemResponse>(
+            _entity!,
+            request.Item,
+            _options,
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<PutItemResponse> ExecuteDynamoDbOperationAsync(
+        PutItemRequest request, 
+        CancellationToken cancellationToken)
+    {
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingPutItem,
+                "Executing PutItem on table {TableName}. Condition: {ConditionExpression}",
+                request.TableName ?? "Unknown", 
+                request.ConditionExpression ?? "None");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Item != null)
         {
@@ -292,27 +347,25 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
                 "PutItem attributes: {AttributeCount}",
                 request.Item.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.PutItemAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "PutItem completed. ConsumedCapacity: {ConsumedCapacity}",
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
-            #endif
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "PutItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                    response.ConsumedCapacity?.CapacityUnits ?? 0);
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "PutItem failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

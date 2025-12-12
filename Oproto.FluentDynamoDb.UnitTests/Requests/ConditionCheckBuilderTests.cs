@@ -89,6 +89,8 @@ public class ConditionCheckBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     #region Builder Configuration Tests (21.1)

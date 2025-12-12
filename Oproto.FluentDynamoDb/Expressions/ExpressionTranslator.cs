@@ -225,6 +225,12 @@ public class ExpressionTranslator
     /// </summary>
     private string Visit(Expression node, ParameterExpression entityParameter, ExpressionContext context)
     {
+        // Check for dynamic field indexer access: x.DynamicFields["fieldName"]
+        if (IsDynamicFieldIndexerAccess(node, entityParameter, out var dynamicFieldName))
+        {
+            return TranslateDynamicFieldAccess(dynamicFieldName!, context);
+        }
+
         return node switch
         {
             BinaryExpression binary => VisitBinary(binary, entityParameter, context),
@@ -232,9 +238,10 @@ public class ExpressionTranslator
             ConstantExpression constant => VisitConstant(constant, context),
             UnaryExpression unary => VisitUnary(unary, entityParameter, context),
             MethodCallExpression methodCall => VisitMethodCall(methodCall, entityParameter, context),
+            IndexExpression index => VisitIndex(index, entityParameter, context),
             _ => throw new UnsupportedExpressionException(
                 $"Expression type '{node.NodeType}' is not supported in DynamoDB expressions. " +
-                $"Supported types: Binary, Member, Constant, Unary, MethodCall.",
+                $"Supported types: Binary, Member, Constant, Unary, MethodCall, Index.",
                 node)
         };
     }
@@ -730,6 +737,18 @@ public class ExpressionTranslator
         if (IsGeospatialMethod(node))
         {
             dynamoDbFunction = TranslateGeospatialMethod(node, entityParameter, context);
+            return true;
+        }
+
+        // Check if this is a dynamic field existence check (Exists/NotExists)
+        if (IsDynamicFieldExistenceCheck(node, entityParameter, context, out dynamoDbFunction))
+        {
+            return true;
+        }
+
+        // Check if this is a string function on a dynamic field (StartsWith/Contains)
+        if (IsDynamicFieldStringFunction(node, entityParameter, context, out dynamoDbFunction))
+        {
             return true;
         }
 
@@ -1369,4 +1388,250 @@ public class ExpressionTranslator
             "options.AddGeospatial() when creating your ExpressionTranslator.",
             node);
     }
+
+    #region Dynamic Field Support
+
+    /// <summary>
+    /// Visits an index expression node (indexer access like x.DynamicFields["fieldName"]).
+    /// </summary>
+    private string VisitIndex(IndexExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // Check if this is a dynamic field indexer access
+        if (IsDynamicFieldIndexExpression(node, entityParameter, out var fieldName))
+        {
+            return TranslateDynamicFieldAccess(fieldName!, context);
+        }
+
+        throw new UnsupportedExpressionException(
+            $"Index expression is not supported in DynamoDB expressions. " +
+            $"Only DynamicFields indexer access is supported (e.g., x.DynamicFields[\"fieldName\"]).",
+            node);
+    }
+
+    /// <summary>
+    /// Checks if an IndexExpression is a dynamic field indexer access pattern.
+    /// </summary>
+    private bool IsDynamicFieldIndexExpression(IndexExpression node, ParameterExpression entityParameter, out string? fieldName)
+    {
+        fieldName = null;
+
+        // Check if the object is a DynamicFields property access
+        if (node.Object is not MemberExpression memberExpr)
+            return false;
+
+        // Check if the member is "DynamicFields" on the entity parameter
+        if (memberExpr.Member.Name != "DynamicFields")
+            return false;
+
+        // Check if the DynamicFields property is on the entity parameter
+        if (memberExpr.Expression != entityParameter)
+            return false;
+
+        // Extract the field name from the indexer argument
+        if (node.Arguments.Count != 1)
+            return false;
+
+        // Evaluate the field name argument
+        try
+        {
+            fieldName = EvaluateConstantExpression<string>(node.Arguments[0]);
+            return fieldName != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression is a dynamic field indexer access pattern: x.DynamicFields["fieldName"]
+    /// </summary>
+    /// <param name="node">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="fieldName">The dynamic field name if this is a dynamic field access.</param>
+    /// <returns>True if this is a dynamic field indexer access, false otherwise.</returns>
+    private bool IsDynamicFieldIndexerAccess(Expression node, ParameterExpression entityParameter, out string? fieldName)
+    {
+        fieldName = null;
+
+        // Handle IndexExpression (from Expression.MakeIndex)
+        if (node is IndexExpression indexExpr)
+        {
+            return IsDynamicFieldIndexExpression(indexExpr, entityParameter, out fieldName);
+        }
+
+        // Pattern: x.DynamicFields["fieldName"] or x.DynamicFields[variable]
+        // This appears as a MethodCallExpression for the indexer (get_Item)
+        if (node is not MethodCallExpression methodCall)
+            return false;
+
+        // Check if this is an indexer call (get_Item)
+        if (methodCall.Method.Name != "get_Item")
+            return false;
+
+        // Check if the object is a DynamicFields property access
+        if (methodCall.Object is not MemberExpression memberExpr)
+            return false;
+
+        // Check if the member is "DynamicFields" on the entity parameter
+        if (memberExpr.Member.Name != "DynamicFields")
+            return false;
+
+        // Check if the DynamicFields property is on the entity parameter
+        if (memberExpr.Expression != entityParameter)
+            return false;
+
+        // Check if the declaring type is DynamicFieldCollection or DynamicFieldAccessor
+        var declaringType = methodCall.Method.DeclaringType;
+        if (declaringType?.Name != "DynamicFieldCollection" && declaringType?.Name != "DynamicFieldAccessor")
+            return false;
+
+        // Extract the field name from the indexer argument
+        if (methodCall.Arguments.Count != 1)
+            return false;
+
+        // Evaluate the field name argument
+        try
+        {
+            fieldName = EvaluateConstantExpression<string>(methodCall.Arguments[0]);
+            return fieldName != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression is a DynamicFields property access: x.DynamicFields
+    /// </summary>
+    /// <param name="node">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <returns>True if this is a DynamicFields property access, false otherwise.</returns>
+    private bool IsDynamicFieldsPropertyAccess(Expression node, ParameterExpression entityParameter)
+    {
+        if (node is not MemberExpression memberExpr)
+            return false;
+
+        return memberExpr.Member.Name == "DynamicFields" && memberExpr.Expression == entityParameter;
+    }
+
+    /// <summary>
+    /// Translates a dynamic field access to a DynamoDB attribute name placeholder.
+    /// </summary>
+    /// <param name="fieldName">The dynamic field name.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The attribute name placeholder.</returns>
+    private string TranslateDynamicFieldAccess(string fieldName, ExpressionContext context)
+    {
+        // Generate attribute name placeholder for the dynamic field
+        var count = context.AttributeNames.AttributeNames.Count;
+        var attributeNamePlaceholder = count < 10 
+            ? string.Concat("#dynField", count.ToString()) 
+            : $"#dynField{count}";
+        
+        context.AttributeNames.WithAttribute(attributeNamePlaceholder, fieldName);
+        return attributeNamePlaceholder;
+    }
+
+    /// <summary>
+    /// Checks if a method call is a DynamicFields.Exists or DynamicFields.NotExists call.
+    /// </summary>
+    /// <param name="node">The method call expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="dynamoDbFunction">The translated DynamoDB function string.</param>
+    /// <returns>True if this is a dynamic field existence check, false otherwise.</returns>
+    private bool IsDynamicFieldExistenceCheck(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context, out string? dynamoDbFunction)
+    {
+        dynamoDbFunction = null;
+
+        // Check if this is Exists or NotExists method
+        if (node.Method.Name != "Exists" && node.Method.Name != "NotExists")
+            return false;
+
+        // Check if the object is a DynamicFields property access
+        if (node.Object is not MemberExpression memberExpr)
+            return false;
+
+        if (!IsDynamicFieldsPropertyAccess(memberExpr, entityParameter))
+            return false;
+
+        // Check if the declaring type is DynamicFieldCollection or DynamicFieldAccessor
+        var declaringType = node.Method.DeclaringType;
+        if (declaringType?.Name != "DynamicFieldCollection" && declaringType?.Name != "DynamicFieldAccessor")
+            return false;
+
+        // Extract the field name from the argument
+        if (node.Arguments.Count != 1)
+            return false;
+
+        string? fieldName;
+        try
+        {
+            fieldName = EvaluateConstantExpression<string>(node.Arguments[0]);
+            if (fieldName == null)
+                return false;
+        }
+        catch
+        {
+            return false;
+        }
+
+        // Translate to attribute name placeholder
+        var attributeName = TranslateDynamicFieldAccess(fieldName, context);
+
+        // Generate the appropriate DynamoDB function
+        var functionName = node.Method.Name == "Exists" ? "attribute_exists" : "attribute_not_exists";
+        var sb = new StringBuilder(functionName.Length + attributeName.Length + 3);
+        sb.Append(functionName).Append('(').Append(attributeName).Append(')');
+        dynamoDbFunction = sb.ToString();
+        return true;
+    }
+
+    /// <summary>
+    /// Checks if a method call is a string function on a dynamic field (StartsWith, Contains).
+    /// </summary>
+    /// <param name="node">The method call expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="dynamoDbFunction">The translated DynamoDB function string.</param>
+    /// <returns>True if this is a string function on a dynamic field, false otherwise.</returns>
+    private bool IsDynamicFieldStringFunction(MethodCallExpression node, ParameterExpression entityParameter, ExpressionContext context, out string? dynamoDbFunction)
+    {
+        dynamoDbFunction = null;
+
+        // Check if this is StartsWith or Contains method on string
+        if (node.Method.Name != "StartsWith" && node.Method.Name != "Contains")
+            return false;
+
+        if (node.Method.DeclaringType != typeof(string))
+            return false;
+
+        if (node.Arguments.Count != 1)
+            return false;
+
+        // Check if the object is a dynamic field indexer access
+        if (node.Object == null)
+            return false;
+
+        if (!IsDynamicFieldIndexerAccess(node.Object, entityParameter, out var fieldName))
+            return false;
+
+        // Translate the dynamic field to attribute name
+        var attributeName = TranslateDynamicFieldAccess(fieldName!, context);
+
+        // Evaluate the argument value
+        var value = EvaluateExpression(node.Arguments[0]);
+        var valueParam = CaptureValue(value, context, propertyMetadata: null);
+
+        // Generate the appropriate DynamoDB function
+        var functionName = node.Method.Name == "StartsWith" ? "begins_with" : "contains";
+        var sb = new StringBuilder(functionName.Length + attributeName.Length + valueParam.Length + 5);
+        sb.Append(functionName).Append('(').Append(attributeName).Append(", ").Append(valueParam).Append(')');
+        dynamoDbFunction = sb.ToString();
+        return true;
+    }
+
+    #endregion
 }

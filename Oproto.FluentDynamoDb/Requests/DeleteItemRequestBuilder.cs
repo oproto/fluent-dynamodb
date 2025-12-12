@@ -1,6 +1,8 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -34,7 +36,7 @@ public class DeleteItemRequestBuilder<TEntity> :
     IWithAttributeValues<DeleteItemRequestBuilder<TEntity>>,
     ITransactableDeleteBuilder,
     IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IDynamoDbEntity
 {
     /// <summary>
     /// Initializes a new instance of the DeleteItemRequestBuilder.
@@ -46,6 +48,24 @@ public class DeleteItemRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
+        if (_options.DefaultReturnItemCollectionMetrics is { } defaultItemCollectionMetrics)
+        {
+            _req.ReturnItemCollectionMetrics = defaultItemCollectionMetrics;
+        }
+        // Note: DeleteItemRequest only supports NONE and ALL_OLD for ReturnValues
+        // We apply the default only if it's a valid value for delete operations
+        if (_options.DefaultReturnValues is { } defaultReturnValues && 
+            (defaultReturnValues == ReturnValue.NONE || 
+             defaultReturnValues == ReturnValue.ALL_OLD))
+        {
+            _req.ReturnValues = defaultReturnValues;
+        }
     }
 
     private DeleteItemRequest _req = new();
@@ -54,6 +74,7 @@ public class DeleteItemRequestBuilder<TEntity> :
     private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+    private List<string>? _blobReferenceKeys;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -129,6 +150,18 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// Gets the builder instance for method chaining.
     /// </summary>
     public DeleteItemRequestBuilder<TEntity> Self => this;
+
+    /// <summary>
+    /// Sets the blob reference keys for cleanup after delete.
+    /// Used internally when deleting entities with blob storage properties.
+    /// </summary>
+    /// <param name="referenceKeys">The blob reference keys to clean up after delete.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal DeleteItemRequestBuilder<TEntity> WithBlobReferenceKeys(List<string> referenceKeys)
+    {
+        _blobReferenceKeys = referenceKeys;
+        return this;
+    }
 
     /// <summary>
     /// Specifies the table name for the delete operation.
@@ -253,17 +286,54 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the raw DeleteItemResponse from AWS SDK.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the entity type is marked with [RequireWriteTransaction] attribute.
+    /// Use DynamoDbTransactions.Write() to perform transactional writes for such entities.
+    /// </exception>
     /// <exception cref="ConditionalCheckFailedException">Thrown when a condition expression fails.</exception>
     /// <exception cref="ResourceNotFoundException">Thrown when the specified table doesn't exist.</exception>
     public async Task<DeleteItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         var request = ToDeleteItemRequest();
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingPutItem,
-            "Executing DeleteItem on table {TableName}. Condition: {ConditionExpression}",
-            request.TableName ?? "Unknown", 
-            request.ConditionExpression ?? "None");
+        // Check if we have blob reference keys to clean up
+        if (_blobReferenceKeys != null && _blobReferenceKeys.Count > 0 && _options.BlobStorageStrategy != null)
+        {
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+        }
+        
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+    }
+
+    private async Task<DeleteItemResponse> ExecuteWithBlobStorageAsync(
+        DeleteItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await BlobStorageHelper.ExecuteDeleteWithBlobStrategyAsync<TEntity, DeleteItemResponse>(
+            _blobReferenceKeys!,
+            _options,
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<DeleteItemResponse> ExecuteDynamoDbOperationAsync(
+        DeleteItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingPutItem,
+                "Executing DeleteItem on table {TableName}. Condition: {ConditionExpression}",
+                request.TableName ?? "Unknown", 
+                request.ConditionExpression ?? "None");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Key != null)
         {
@@ -271,27 +341,25 @@ public class DeleteItemRequestBuilder<TEntity> :
                 "DeleteItem key attributes: {KeyCount}",
                 request.Key.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.DeleteItemAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "DeleteItem completed. ConsumedCapacity: {ConsumedCapacity}",
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
-            #endif
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "DeleteItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                    response.ConsumedCapacity?.CapacityUnits ?? 0);
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "DeleteItem failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

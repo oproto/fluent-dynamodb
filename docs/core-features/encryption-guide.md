@@ -286,10 +286,9 @@ await table.Update
     })
     .ExecuteAsync();
 
-// Transaction updates
-await table.TransactWrite
-    .Update(u => u
-        .WithKey("pk", id)
+// Transaction updates using static entry point
+await DynamoDbTransactions.Write
+    .Add(table.Entities.Update(id)
         .Set(x => new UpdateModel { EncryptedField = "new value" }))
     .ExecuteAsync();
 ```

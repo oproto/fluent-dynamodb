@@ -1,4 +1,5 @@
 using Oproto.FluentDynamoDb.Context;
+using Oproto.FluentDynamoDb.Entities;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -57,7 +58,7 @@ public static class EncryptionExtensions
     public static PutItemRequestBuilder<TEntity> WithEncryptionContext<TEntity>(
         this PutItemRequestBuilder<TEntity> builder,
         string context)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
         _operationContext.Value = context;
         return builder;
@@ -132,7 +133,7 @@ public static class EncryptionExtensions
     public static UpdateItemRequestBuilder<TEntity> WithEncryptionContext<TEntity>(
         this UpdateItemRequestBuilder<TEntity> builder,
         string context)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
         _operationContext.Value = context;
         return builder;
@@ -158,7 +159,7 @@ public static class EncryptionExtensions
     public static DeleteItemRequestBuilder<TEntity> WithEncryptionContext<TEntity>(
         this DeleteItemRequestBuilder<TEntity> builder,
         string context)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
         _operationContext.Value = context;
         return builder;

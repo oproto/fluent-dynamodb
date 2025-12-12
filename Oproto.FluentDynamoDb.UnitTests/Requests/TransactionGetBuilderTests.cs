@@ -62,6 +62,9 @@ public class TransactionGetBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     private class SecondTestEntity : IDynamoDbEntity
@@ -114,6 +117,9 @@ public class TransactionGetBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     #region 18.1 Test Add() method and request extraction

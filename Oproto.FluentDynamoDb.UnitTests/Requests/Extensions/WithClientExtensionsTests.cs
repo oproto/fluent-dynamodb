@@ -53,6 +53,9 @@ public class WithClientExtensionsTests
         {
             return new EntityMetadata { TableName = "test-table" };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
     private readonly IAmazonDynamoDB _originalClient = Substitute.For<IAmazonDynamoDB>();
     private readonly IAmazonDynamoDB _scopedClient = Substitute.For<IAmazonDynamoDB>();

@@ -54,7 +54,7 @@ public class DiscriminatorIntegrationTests : IntegrationTestBase
                         new KeySchemaElement { AttributeName = "gsi1_pk", KeyType = KeyType.HASH },
                         new KeySchemaElement { AttributeName = "gsi1_sk", KeyType = KeyType.RANGE }
                     },
-                    Projection = new Projection { ProjectionType = ProjectionType.ALL }
+                    Projection = new Projection { ProjectionType = Amazon.DynamoDBv2.ProjectionType.ALL }
                 }
             },
             BillingMode = BillingMode.PAY_PER_REQUEST

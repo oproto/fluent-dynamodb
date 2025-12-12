@@ -32,8 +32,20 @@ public class S3BlobProvider : IBlobStorageProvider
         string? suggestedKey = null,
         CancellationToken cancellationToken = default)
     {
+        return await StoreAsync(data, new BlobStoreOptions(), suggestedKey, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<string> StoreAsync(
+        Stream data,
+        BlobStoreOptions options,
+        string? suggestedKey = null,
+        CancellationToken cancellationToken = default)
+    {
         if (data == null)
             throw new ArgumentNullException(nameof(data));
+        
+        options ??= new BlobStoreOptions();
 
         // Generate unique key if not provided
         var key = suggestedKey ?? Guid.NewGuid().ToString();
@@ -50,6 +62,27 @@ public class S3BlobProvider : IBlobStorageProvider
             Key = key,
             InputStream = data
         };
+
+        // Apply content type if specified
+        if (!string.IsNullOrEmpty(options.ContentType))
+        {
+            request.ContentType = options.ContentType;
+        }
+
+        // Apply metadata if specified
+        if (options.Metadata != null)
+        {
+            foreach (var kvp in options.Metadata)
+            {
+                request.Metadata.Add(kvp.Key, kvp.Value);
+            }
+        }
+
+        // Apply tags if specified
+        if (options.Tags != null && options.Tags.Count > 0)
+        {
+            request.TagSet = options.Tags.Select(kvp => new Tag { Key = kvp.Key, Value = kvp.Value }).ToList();
+        }
 
         try
         {

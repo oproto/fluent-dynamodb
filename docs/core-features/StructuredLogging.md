@@ -659,7 +659,6 @@ logging.AddFilter((category, level, eventId) =>
 ## Next Steps
 
 - **[Log Levels and Event IDs](LogLevelsAndEventIds.md)** - Understand event ID ranges
-- **[Conditional Compilation](ConditionalCompilation.md)** - Disable logging in production
 - **[Logging Configuration](LoggingConfiguration.md)** - Configure loggers
 - **[Troubleshooting Guide](../reference/LoggingTroubleshooting.md)** - Common issues
 

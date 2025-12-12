@@ -1,0 +1,195 @@
+# Implementation Plan
+
+- [x] 1. Add new types and enums to the main library
+  - [x] 1.1 Create `IndexType` enum in `Oproto.FluentDynamoDb/Metadata/IndexType.cs`
+    - Add `GlobalSecondaryIndex` and `LocalSecondaryIndex` values
+    - _Requirements: 7.1, 7.2_
+  - [x] 1.2 Create `ProjectionType` enum in `Oproto.FluentDynamoDb/Metadata/ProjectionType.cs`
+    - Add `All`, `KeysOnly`, and `Include` values
+    - _Requirements: 10.1_
+  - [x] 1.3 Create `LocalSecondaryIndexAttribute` in `Oproto.FluentDynamoDb/Attributes/LocalSecondaryIndexAttribute.cs`
+    - Add `IndexName` property
+    - _Requirements: 4.1_
+  - [x] 1.4 Write property test for IndexType enum values
+    - **Property 12: IndexType correctly identifies GSI vs LSI**
+    - **Validates: Requirements 7.1, 7.2**
+
+- [x] 2. Enhance existing metadata types
+  - [x] 2.1 Update `IndexMetadata` class with new properties
+    - Add `IndexType`, `PartitionKeyAttributeName`, `PartitionKeyAttributeType`, `SortKeyAttributeName`, `SortKeyAttributeType`, `ProjectionType`, `HasProjectionModel`
+    - _Requirements: 7.1, 7.2, 10.1, 10.2, 10.3_
+  - [x] 2.2 Update `EntityMetadata` class with new properties
+    - Add `PartitionKeyAttributeName`, `PartitionKeyAttributeType`, `SortKeyAttributeName`, `SortKeyAttributeType`, `TtlAttributeName`
+    - _Requirements: 2.1, 2.2, 5.1, 5.2_
+  - [x] 2.3 Write property test for default projection type
+    - **Property 13: Default projection type is ALL**
+    - **Validates: Requirements 10.3**
+
+- [x] 3. Create validation result types
+  - [x] 3.1 Create `SchemaValidationErrorCode` enum in `Oproto.FluentDynamoDb/Validation/SchemaValidationErrorCode.cs`
+    - Add all error codes for primary key, GSI, LSI, TTL, and projection errors
+    - _Requirements: 8.1, 8.2, 8.3_
+  - [x] 3.2 Create `SchemaValidationWarningCode` enum in `Oproto.FluentDynamoDb/Validation/SchemaValidationWarningCode.cs`
+    - Add warning codes for unexpected GSI, LSI, TTL, and projection recommendations
+    - _Requirements: 8.4_
+  - [x] 3.3 Create `SchemaValidationError` class in `Oproto.FluentDynamoDb/Validation/SchemaValidationError.cs`
+    - Add `Code`, `Element`, `Expected`, `Actual`, `Message` properties
+    - _Requirements: 8.1, 8.2, 8.3_
+  - [x] 3.4 Create `SchemaValidationWarning` class in `Oproto.FluentDynamoDb/Validation/SchemaValidationWarning.cs`
+    - Add `Code`, `Element`, `Message` properties
+    - _Requirements: 8.4_
+  - [x] 3.5 Create `SchemaValidationResult` class in `Oproto.FluentDynamoDb/Validation/SchemaValidationResult.cs`
+    - Add `IsValid`, `Errors`, `Warnings` properties
+    - Add `ThrowOnError()` and `LogResults(IDynamoDbLogger)` methods
+    - _Requirements: 1.1, 1.3, 1.4, 1.5, 9.2, 9.3_
+  - [x] 3.6 Create `SchemaValidationOptions` class in `Oproto.FluentDynamoDb/Validation/SchemaValidationOptions.cs`
+    - Add `Strictness` property with `ValidationStrictness` enum
+    - _Requirements: 6.1, 6.3, 6.4, 9.4_
+  - [x] 3.7 Create `SchemaValidationException` class in `Oproto.FluentDynamoDb/Validation/SchemaValidationException.cs`
+    - Add `ValidationResult` property
+    - _Requirements: 9.3_
+  - [x] 3.8 Write property test for ThrowOnError behavior
+    - **Property 11: ThrowOnError throws only when errors exist**
+    - **Validates: Requirements 9.2, 9.3**
+
+- [x] 4. Implement SchemaValidator core logic
+  - [x] 4.1 Create `SchemaValidator` class in `Oproto.FluentDynamoDb/Validation/SchemaValidator.cs`
+    - Add `ValidateAsync(IAmazonDynamoDB, string, EntityMetadata, SchemaValidationOptions)` method
+    - Implement DescribeTable call and response parsing
+    - _Requirements: 1.1, 1.2_
+  - [x] 4.2 Implement primary key validation logic
+    - Validate partition key name and type
+    - Validate sort key presence, name, and type
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 4.3 Write property test for primary key validation
+    - **Property 2: Primary key mismatches produce errors**
+    - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6**
+  - [x] 4.4 Implement GSI validation logic
+    - Validate GSI existence
+    - Validate GSI partition key name and type
+    - Validate GSI sort key configuration
+    - Detect unexpected GSIs
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - [x] 4.5 Write property tests for GSI validation
+    - **Property 3: Missing GSIs produce errors**
+    - **Property 4: GSI key mismatches produce errors**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
+  - [x] 4.6 Implement LSI validation logic
+    - Validate LSI existence
+    - Validate LSI sort key name and type
+    - Detect unexpected LSIs
+    - _Requirements: 4.2, 4.3, 4.4, 4.5_
+  - [x] 4.7 Write property tests for LSI validation
+    - **Property 5: Missing LSIs produce errors**
+    - **Property 6: LSI key mismatches produce errors**
+    - **Validates: Requirements 4.2, 4.3, 4.4**
+  - [x] 4.8 Implement TTL validation logic
+    - Validate TTL enabled status
+    - Validate TTL attribute name
+    - Detect unexpected TTL
+    - _Requirements: 5.1, 5.2, 5.3_
+  - [x] 4.9 Write property test for TTL validation
+    - **Property 7: TTL mismatches produce errors**
+    - **Validates: Requirements 5.1, 5.2**
+  - [x] 4.10 Implement projection validation logic
+    - Validate projection model compatibility
+    - Apply strictness settings
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+  - [x] 4.11 Write property test for projection validation
+    - **Property 9: Strictness controls projection model enforcement**
+    - **Validates: Requirements 6.1, 6.3, 6.4**
+  - [x] 4.12 Write property test for extra items warnings
+    - **Property 8: Extra DynamoDB items produce warnings**
+    - **Validates: Requirements 3.5, 4.5, 5.3**
+  - [x] 4.13 Write property test for matching schemas
+    - **Property 1: Matching schemas produce valid results**
+    - **Validates: Requirements 1.3**
+  - [x] 4.14 Write property test for error message content
+    - **Property 10: Error messages contain required information**
+    - **Validates: Requirements 8.1, 8.2, 8.3**
+
+- [x] 5. Checkpoint - Ensure all validation logic tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 6. Update source generator for LSI support
+  - [x] 6.1 Update `EntityAnalyzer` to detect `[LocalSecondaryIndex]` attributes
+    - Parse LSI attribute and extract index name
+    - _Requirements: 4.1_
+  - [x] 6.2 Update `IndexModel` in source generator to include `IndexType`
+    - Add `IndexType` property to distinguish GSI from LSI
+    - _Requirements: 7.1, 7.2_
+  - [x] 6.3 Update `MapperGenerator` to emit enhanced `IndexMetadata`
+    - Include `IndexType`, attribute names, attribute types, projection info
+    - _Requirements: 7.1, 7.2, 10.1, 10.2, 10.3_
+  - [x] 6.4 Update `MapperGenerator` to emit enhanced `EntityMetadata`
+    - Include key attribute names, types, and TTL attribute name
+    - _Requirements: 2.1, 2.2, 5.1_
+  - [x] 6.5 Write source generator tests for LSI metadata generation
+    - Verify LSI attributes produce correct IndexMetadata
+    - _Requirements: 4.1, 7.2_
+
+- [x] 7. Generate ValidateSchemaAsync method
+  - [x] 7.1 Create `SchemaValidationGenerator` in source generator
+    - Generate `ValidateSchemaAsync` static method on table classes
+    - _Requirements: 1.1_
+  - [x] 7.2 Update `TableGenerator` to invoke `SchemaValidationGenerator`
+    - Integrate validation method generation into table class generation
+    - _Requirements: 1.1_
+  - [x] 7.3 Write source generator tests for ValidateSchemaAsync generation
+    - Verify method signature and implementation
+    - _Requirements: 1.1_
+
+- [x] 8. Checkpoint - Ensure all source generator tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. Add logging integration
+  - [x] 9.1 Add log event IDs for schema validation in `LogEventIds.cs`
+    - Add IDs for validation start, success, error, warning
+    - _Requirements: 8.5_
+  - [x] 9.2 Implement `LogResults` method in `SchemaValidationResult`
+    - Log errors at Error level, warnings at Warning level
+    - _Requirements: 8.5_
+  - [x] 9.3 Write unit tests for logging integration
+    - Verify correct log levels and messages
+    - _Requirements: 8.5_
+
+- [x] 10. Update documentation
+  - [x] 10.1 Update `CHANGELOG.md` with schema validation feature
+    - Document new types, attributes, and API
+    - _Requirements: All_
+  - [x] 10.2 Update `docs/DOCUMENTATION_CHANGELOG.md`
+    - Document any documentation corrections
+    - _Requirements: All_
+  - [x] 10.3 Create `docs/advanced-topics/SchemaValidation.md`
+    - Document usage, options, error codes, and examples
+    - _Requirements: All_
+  - [x] 10.4 Update `docs/reference/AttributeReference.md`
+    - Add `[LocalSecondaryIndex]` attribute documentation
+    - _Requirements: 4.1_
+
+- [x] 11. Add DynamoDB Local integration tests for LSI support
+  - [x] 11.1 Create LSI test entity in `Oproto.FluentDynamoDb.IntegrationTests/TestEntities/LsiTestEntity.cs`
+    - Define entity with `[LocalSecondaryIndex]` attribute on a sort key property
+    - Include partition key, primary sort key, and LSI sort key
+    - _Requirements: 4.1, 7.2_
+  - [x] 11.2 Create LSI integration tests in `Oproto.FluentDynamoDb.IntegrationTests/RealWorld/LsiIntegrationTests.cs`
+    - Test creating table with LSI in DynamoDB Local
+    - Test querying via LSI
+    - Test that LSI metadata is correctly generated
+    - _Requirements: 4.1, 4.2, 7.2_
+
+- [x] 12. Add DynamoDB Local integration tests for schema validation
+  - [x] 12.1 Create schema validation test entities in `Oproto.FluentDynamoDb.IntegrationTests/TestEntities/SchemaValidationTestEntity.cs`
+    - Define entities with various configurations (GSI, LSI, TTL)
+    - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1_
+  - [x] 12.2 Create schema validation integration tests in `Oproto.FluentDynamoDb.IntegrationTests/RealWorld/SchemaValidationIntegrationTests.cs`
+    - Test ValidateSchemaAsync with matching schema returns IsValid=true
+    - Test ValidateSchemaAsync detects missing GSI
+    - Test ValidateSchemaAsync detects missing LSI
+    - Test ValidateSchemaAsync detects primary key mismatches
+    - Test ValidateSchemaAsync detects unexpected indexes (warnings)
+    - Test ThrowOnError behavior with real validation results
+    - _Requirements: 1.1, 1.3, 1.4, 2.1, 3.1, 4.2, 9.2, 9.3_
+
+- [x] 13. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

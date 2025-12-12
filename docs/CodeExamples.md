@@ -399,7 +399,7 @@ public class TenantResourceService
             .WithClient(scopedClient)
             .WithKey(TenantResourceFields.Pk, TenantResourceKeys.Pk(tenantId, resourceType))
             .WithKey(TenantResourceFields.Sk, TenantResourceKeys.Sk(resourceId))
-            .ExecuteAsync<TenantResource>();
+            .GetItemAsync<TenantResource>();
 
         return response.Item;
     }

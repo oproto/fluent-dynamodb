@@ -1,7 +1,9 @@
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
@@ -324,16 +326,29 @@ public class LambdaExpressionApiGapsPropertyTests
 }
 
 /// <summary>
-/// Test entity that implements IEntityMetadataProvider for property-based testing.
+/// Test entity that implements IDynamoDbEntity for property-based testing.
 /// This entity simulates what the source generator produces for real entities.
 /// </summary>
-internal class TestEntityWithMetadata : IEntityMetadataProvider
+internal class TestEntityWithMetadata : IDynamoDbEntity
 {
     public string Pk { get; set; } = string.Empty;
     public string Sk { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int Age { get; set; }
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => new();
+
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityWithMetadata();
+
+    public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
+        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityWithMetadata();
+
+    public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
+    public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
+    public static bool RequiresWriteTransaction => false;
 
     /// <summary>
     /// Returns entity metadata that maps property names to DynamoDB attribute names.

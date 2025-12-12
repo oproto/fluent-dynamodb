@@ -120,7 +120,7 @@ internal class EntityAnalyzer
             entityModel.TableName = tableNameLiteral.Token.ValueText;
         }
 
-        // Extract IsDefault property from named arguments
+        // Extract IsDefault and Namespace properties from named arguments
         if (tableAttribute.ArgumentList != null)
         {
             foreach (var arg in tableAttribute.ArgumentList.Arguments)
@@ -129,7 +129,11 @@ internal class EntityAnalyzer
                     arg.Expression is LiteralExpressionSyntax isDefaultLiteral)
                 {
                     entityModel.IsDefault = bool.Parse(isDefaultLiteral.Token.ValueText);
-                    break;
+                }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "Namespace" &&
+                    arg.Expression is LiteralExpressionSyntax namespaceLiteral)
+                {
+                    entityModel.TableNamespace = namespaceLiteral.Token.ValueText;
                 }
             }
         }
@@ -150,6 +154,9 @@ internal class EntityAnalyzer
         // Extract scannable attribute
         ExtractScannableAttribute(classDecl, semanticModel, entityModel);
 
+        // Extract require write transaction attribute
+        ExtractRequireWriteTransactionAttribute(classDecl, semanticModel, entityModel);
+
         // Extract entity property configuration
         ExtractEntityPropertyConfiguration(classDecl, semanticModel, entityModel);
 
@@ -159,13 +166,72 @@ internal class EntityAnalyzer
         // Extract stream conversion attribute
         ExtractStreamConversionAttribute(classDecl, semanticModel, entityModel);
 
+        // Extract dynamic fields attribute
+        ExtractEnableDynamicFieldsAttribute(classDecl, semanticModel, entityModel);
+
         return !string.IsNullOrEmpty(entityModel.TableName);
+    }
+
+    private void ExtractEnableDynamicFieldsAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var enableDynamicFieldsAttribute = GetAttribute(classDecl, semanticModel, "EnableDynamicFieldsAttribute");
+        if (enableDynamicFieldsAttribute == null)
+        {
+            entityModel.EnableDynamicFields = false;
+            return;
+        }
+
+        // Check if class is partial - emit diagnostic if not
+        if (!IsPartialClass(classDecl))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.EnableDynamicFieldsRequiresPartial, 
+                enableDynamicFieldsAttribute.GetLocation(), 
+                entityModel.ClassName);
+            entityModel.EnableDynamicFields = false;
+            return;
+        }
+
+        // Check if class already has a DynamicFields property
+        var existingDynamicFieldsProperty = classDecl.Members
+            .OfType<PropertyDeclarationSyntax>()
+            .FirstOrDefault(p => p.Identifier.ValueText == "DynamicFields");
+        
+        if (existingDynamicFieldsProperty != null)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.DynamicFieldsPropertyAlreadyExists,
+                enableDynamicFieldsAttribute.GetLocation(),
+                entityModel.ClassName);
+        }
+
+        entityModel.EnableDynamicFields = true;
+        
+        // Default to sensitive logging (values redacted)
+        entityModel.DynamicFieldsSensitiveLogging = true;
+
+        // Extract SensitiveLogging property if specified
+        if (enableDynamicFieldsAttribute.ArgumentList != null)
+        {
+            foreach (var arg in enableDynamicFieldsAttribute.ArgumentList.Arguments)
+            {
+                if (arg.NameEquals?.Name.Identifier.ValueText == "SensitiveLogging" &&
+                    arg.Expression is LiteralExpressionSyntax sensitiveLoggingLiteral)
+                {
+                    entityModel.DynamicFieldsSensitiveLogging = bool.Parse(sensitiveLoggingLiteral.Token.ValueText);
+                }
+            }
+        }
     }
 
     private void ExtractScannableAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
         var scannableAttribute = GetAttribute(classDecl, semanticModel, "ScannableAttribute");
         entityModel.IsScannable = scannableAttribute != null;
+    }
+
+    private void ExtractRequireWriteTransactionAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var requireWriteTransactionAttribute = GetAttribute(classDecl, semanticModel, "RequireWriteTransactionAttribute");
+        entityModel.RequiresWriteTransaction = requireWriteTransactionAttribute != null;
     }
 
     private void ExtractEntityPropertyConfiguration(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
@@ -472,6 +538,9 @@ internal class EntityAnalyzer
         // Extract GSI attributes
         ExtractGsiAttributes(propertyDecl, semanticModel, propertyModel);
 
+        // Extract LSI attributes
+        ExtractLsiAttributes(propertyDecl, semanticModel, propertyModel);
+
         // Extract queryable attributes
         ExtractQueryableAttributes(propertyDecl, semanticModel, propertyModel);
 
@@ -586,11 +655,37 @@ internal class EntityAnalyzer
         propertyModel.GlobalSecondaryIndexes = gsiModels.ToArray();
     }
 
+    private void ExtractLsiAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    {
+        var lsiAttributes = GetAttributes(propertyDecl, semanticModel, "LocalSecondaryIndexAttribute");
+        var lsiModels = new List<LocalSecondaryIndexModel>();
+
+        foreach (var lsiAttr in lsiAttributes)
+        {
+            var lsiModel = new LocalSecondaryIndexModel();
+
+            // Extract index name from constructor argument
+            if (lsiAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
+            {
+                lsiModel.IndexName = indexNameLiteral.Token.ValueText;
+            }
+
+            lsiModels.Add(lsiModel);
+        }
+
+        propertyModel.LocalSecondaryIndexes = lsiModels.ToArray();
+    }
+
     private void ExtractQueryableAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
     {
         var queryableAttr = GetAttribute(propertyDecl, semanticModel, "QueryableAttribute");
         if (queryableAttr == null)
             return;
+
+        // Emit deprecation warning for [Queryable] attribute usage
+        ReportDiagnostic(DiagnosticDescriptors.DeprecatedQueryableAttribute,
+            queryableAttr.GetLocation(),
+            propertyModel.PropertyName);
 
         var queryableModel = new QueryableModel();
 
@@ -823,13 +918,18 @@ internal class EntityAnalyzer
     {
         var indexes = new Dictionary<string, IndexModel>();
 
+        // Extract GSI indexes
         foreach (var property in entityModel.Properties)
         {
             foreach (var gsi in property.GlobalSecondaryIndexes)
             {
                 if (!indexes.TryGetValue(gsi.IndexName, out var indexModel))
                 {
-                    indexModel = new IndexModel { IndexName = gsi.IndexName };
+                    indexModel = new IndexModel 
+                    { 
+                        IndexName = gsi.IndexName,
+                        IndexType = IndexType.GlobalSecondaryIndex
+                    };
                     indexes[gsi.IndexName] = indexModel;
                 }
 
@@ -849,6 +949,31 @@ internal class EntityAnalyzer
                 {
                     indexModel.GsiDiscriminator = gsi.Discriminator;
                 }
+            }
+        }
+
+        // Extract LSI indexes - LSIs share the partition key with the base table
+        var partitionKeyProperty = entityModel.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        
+        foreach (var property in entityModel.Properties)
+        {
+            foreach (var lsi in property.LocalSecondaryIndexes)
+            {
+                if (!indexes.TryGetValue(lsi.IndexName, out var indexModel))
+                {
+                    indexModel = new IndexModel 
+                    { 
+                        IndexName = lsi.IndexName,
+                        IndexType = IndexType.LocalSecondaryIndex,
+                        // LSIs inherit the partition key from the base table
+                        PartitionKeyProperty = partitionKeyProperty?.PropertyName ?? string.Empty,
+                        PartitionKeyFormat = partitionKeyProperty?.KeyFormat?.Prefix
+                    };
+                    indexes[lsi.IndexName] = indexModel;
+                }
+
+                // The property with [LocalSecondaryIndex] is the sort key for that LSI
+                indexModel.SortKeyProperty = property.PropertyName;
             }
         }
 
@@ -947,7 +1072,7 @@ internal class EntityAnalyzer
         // Validate computed and extracted keys
         ValidateComputedAndExtractedKeys(entityModel);
 
-        // Validate complex types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        // Validate complex types (Map, Set, List, TTL, JsonBlob, BlobStorage)
         ValidateComplexTypes(entityModel);
 
         // Validate security attributes (Sensitive, Encrypted)
@@ -971,7 +1096,7 @@ internal class EntityAnalyzer
         }
 
         // Validate property type support
-        // Skip validation for complex types (Map, Set, List, TTL, JsonBlob, BlobReference)
+        // Skip validation for complex types (Map, Set, List, TTL, JsonBlob, BlobStorage)
         // as they are validated separately
         var isComplexType = propertyModel.ComplexType != null && (
             propertyModel.ComplexType.IsMap ||
@@ -979,7 +1104,7 @@ internal class EntityAnalyzer
             propertyModel.ComplexType.IsList ||
             propertyModel.ComplexType.IsTtl ||
             propertyModel.ComplexType.IsJsonBlob ||
-            propertyModel.ComplexType.IsBlobReference);
+            propertyModel.ComplexType.IsBlobStorage);
 
         if (!isComplexType && !IsSupportedPropertyType(propertyModel.PropertyType))
         {

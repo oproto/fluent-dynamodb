@@ -586,4 +586,96 @@ public static class UpdateExpressionPropertyExtensions
         => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
 
     #endregion
+
+    #region Dynamic Field Operations
+
+    /// <summary>
+    /// Sets a dynamic field value in update expressions.
+    /// </summary>
+    /// <param name="accessor">The DynamicFieldAccessor from the entity's DynamicFields property.</param>
+    /// <param name="fieldName">The name of the dynamic field to set.</param>
+    /// <param name="value">The value to set for the dynamic field.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET action: <c>SET #dynField0 = :p0</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This method enables setting dynamic fields (fields not explicitly mapped to entity properties)
+    /// in update expressions. The field name is automatically escaped to handle reserved words
+    /// and special characters.
+    /// </para>
+    /// 
+    /// <para><strong>DynamoDB Behavior:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>If the attribute doesn't exist, it is created with the specified value</description></item>
+    /// <item><description>If the attribute exists, it is overwritten with the new value</description></item>
+    /// <item><description>Setting null removes the attribute (equivalent to REMOVE)</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Set a dynamic field
+    /// .Set(x => new ProductUpdateModel { DynamicFieldResult = x.DynamicFields.SetDynamicField("customColor", "blue") })
+    /// 
+    /// // Set a numeric dynamic field
+    /// .Set(x => new ProductUpdateModel { DynamicFieldResult = x.DynamicFields.SetDynamicField("customWeight", 1.5) })
+    /// 
+    /// // Set with variable
+    /// var customValue = GetCustomValue();
+    /// .Set(x => new ProductUpdateModel { DynamicFieldResult = x.DynamicFields.SetDynamicField("customField", customValue) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static object? SetDynamicField(this DynamicFieldAccessor accessor, string fieldName, object? value)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly. " +
+            "Use it within a lambda expression passed to the Set() method.");
+
+    /// <summary>
+    /// Removes a dynamic field in update expressions.
+    /// </summary>
+    /// <param name="accessor">The DynamicFieldAccessor from the entity's DynamicFields property.</param>
+    /// <param name="fieldName">The name of the dynamic field to remove.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB REMOVE action: <c>REMOVE #dynField0</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This method enables removing dynamic fields (fields not explicitly mapped to entity properties)
+    /// in update expressions. The field name is automatically escaped to handle reserved words
+    /// and special characters.
+    /// </para>
+    /// 
+    /// <para><strong>DynamoDB Behavior:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>If the attribute exists, it is completely removed from the item</description></item>
+    /// <item><description>If the attribute doesn't exist, the operation succeeds without error</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Remove a dynamic field
+    /// .Set(x => new ProductUpdateModel { DynamicFieldResult = x.DynamicFields.RemoveDynamicField("tempData") })
+    /// 
+    /// // Remove multiple dynamic fields (use multiple Set calls or combine in one expression)
+    /// .Set(x => new ProductUpdateModel 
+    /// { 
+    ///     DynamicFieldResult1 = x.DynamicFields.RemoveDynamicField("field1"),
+    ///     DynamicFieldResult2 = x.DynamicFields.RemoveDynamicField("field2")
+    /// })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static object? RemoveDynamicField(this DynamicFieldAccessor accessor, string fieldName)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly. " +
+            "Use it within a lambda expression passed to the Set() method.");
+
+    #endregion
 }

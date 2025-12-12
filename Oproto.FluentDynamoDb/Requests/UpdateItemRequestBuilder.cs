@@ -1,8 +1,10 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Context;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Mapping;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -39,7 +41,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </example>
 public class UpdateItemRequestBuilder<TEntity> :
     IWithKey<UpdateItemRequestBuilder<TEntity>>, IWithConditionExpression<UpdateItemRequestBuilder<TEntity>>, IWithAttributeNames<UpdateItemRequestBuilder<TEntity>>, IWithAttributeValues<UpdateItemRequestBuilder<TEntity>>, IWithUpdateExpression<UpdateItemRequestBuilder<TEntity>>, ITransactableUpdateBuilder, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IDynamoDbEntity
 {
     /// <summary>
     /// Initializes a new instance of the UpdateItemRequestBuilder.
@@ -51,6 +53,20 @@ public class UpdateItemRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
+        if (_options.DefaultReturnItemCollectionMetrics is { } defaultItemCollectionMetrics)
+        {
+            _req.ReturnItemCollectionMetrics = defaultItemCollectionMetrics;
+        }
+        if (_options.DefaultReturnValues is { } defaultReturnValues)
+        {
+            _req.ReturnValues = defaultReturnValues;
+        }
     }
 
     private UpdateItemRequest _req = new();
@@ -62,6 +78,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     private UpdateExpressionSource? _updateExpressionSource;
     private Expressions.ExpressionContext? _expressionContext;
     private IFieldEncryptor? _fieldEncryptor;
+    private List<BlobPropertyContext>? _blobPropertyContexts;
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -162,14 +179,23 @@ public class UpdateItemRequestBuilder<TEntity> :
         return this;
     }
 
+    /// <summary>
+    /// Sets the blob property contexts for this builder.
+    /// Used internally by expression translators when blob properties are being updated.
+    /// </summary>
+    /// <param name="contexts">The blob property contexts for properties being updated.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal UpdateItemRequestBuilder<TEntity> SetBlobPropertyContexts(List<BlobPropertyContext> contexts)
+    {
+        _blobPropertyContexts = contexts;
+        return this;
+    }
+
     public UpdateItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
         return this;
     }
-
-
-
 
 
     /// <summary>
@@ -361,7 +387,6 @@ public class UpdateItemRequestBuilder<TEntity> :
                     B = new System.IO.MemoryStream(ciphertext)
                 };
 
-                #if !DISABLE_DYNAMODB_LOGGING
                 if (_logger?.IsEnabled(Logging.LogLevel.Debug) == true)
                 {
                     _logger.LogDebug(LogEventIds.EncryptingField,
@@ -372,7 +397,6 @@ public class UpdateItemRequestBuilder<TEntity> :
                         param.AttributeName ?? "unknown",
                         ciphertext.Length);
                 }
-                #endif
             }
             catch (Exception ex) when (ex is not InvalidOperationException)
             {
@@ -426,8 +450,19 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the raw UpdateItemResponse from AWS SDK.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the entity type is marked with [RequireWriteTransaction] attribute.
+    /// Use DynamoDbTransactions.Write() to perform transactional writes for such entities.
+    /// </exception>
     public async Task<UpdateItemResponse> ToDynamoDbResponseAsync(CancellationToken cancellationToken = default)
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         var request = ToUpdateItemRequest();
         
         // Encrypt parameters if needed (for expression-based Set() with encrypted properties)
@@ -436,12 +471,85 @@ public class UpdateItemRequestBuilder<TEntity> :
             await EncryptParametersAsync(request, cancellationToken);
         }
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingUpdate,
-            "Executing UpdateItem on table {TableName}. UpdateExpression: {UpdateExpression}, Condition: {ConditionExpression}",
-            request.TableName ?? "Unknown", 
-            request.UpdateExpression ?? "None", 
-            request.ConditionExpression ?? "None");
+        // Check if we have blob properties to upload
+        if (_blobPropertyContexts != null && _blobPropertyContexts.Count > 0 && _options.BlobStorageStrategy != null)
+        {
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+        }
+        
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+    }
+
+    private async Task<UpdateItemResponse> ExecuteWithBlobStorageAsync(
+        UpdateItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var strategy = _options.BlobStorageStrategy!;
+        var context = new BlobWriteContext
+        {
+            EntityType = typeof(TEntity).Name,
+            BlobProperties = _blobPropertyContexts!
+        };
+        
+        try
+        {
+            // Step 1: Upload blobs before DynamoDB write
+            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken);
+            
+            // Step 2: Update request with reference keys
+            foreach (var prop in _blobPropertyContexts!)
+            {
+                if (result.ReferenceKeys.TryGetValue(prop.PropertyName, out var referenceKey))
+                {
+                    // Find the parameter name for this property and update it
+                    var paramName = $":blob_{prop.PropertyName.ToLowerInvariant()}";
+                    if (request.ExpressionAttributeValues.ContainsKey(paramName))
+                    {
+                        request.ExpressionAttributeValues[paramName] = new AttributeValue { S = referenceKey };
+                    }
+                }
+            }
+            
+            // Step 3: Execute DynamoDB operation
+            UpdateItemResponse response;
+            try
+            {
+                response = await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Step 4a: Handle DynamoDB write failure
+                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken);
+                throw;
+            }
+            
+            // Step 4b: Handle DynamoDB write success
+            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken);
+            
+            return response;
+        }
+        finally
+        {
+            // Dispose streams
+            foreach (var prop in _blobPropertyContexts!)
+            {
+                prop.Data.Dispose();
+            }
+        }
+    }
+
+    private async Task<UpdateItemResponse> ExecuteDynamoDbOperationAsync(
+        UpdateItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingUpdate,
+                "Executing UpdateItem on table {TableName}. UpdateExpression: {UpdateExpression}, Condition: {ConditionExpression}",
+                request.TableName ?? "Unknown", 
+                request.UpdateExpression ?? "None", 
+                request.ConditionExpression ?? "None");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
         {
@@ -449,27 +557,25 @@ public class UpdateItemRequestBuilder<TEntity> :
                 "UpdateItem parameters: {ParameterCount} values",
                 _attrV.AttributeValues.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.UpdateItemAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "UpdateItem completed. ConsumedCapacity: {ConsumedCapacity}",
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
-            #endif
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "UpdateItem completed. ConsumedCapacity: {ConsumedCapacity}",
+                    response.ConsumedCapacity?.CapacityUnits ?? 0);
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "UpdateItem failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

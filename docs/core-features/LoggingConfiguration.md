@@ -16,7 +16,8 @@ Comprehensive logging and diagnostics support for debugging DynamoDB operations,
 Oproto.FluentDynamoDb provides a lightweight logging abstraction that:
 - Has **zero dependencies** in the core library
 - Provides **detailed context** for every operation
-- Supports **conditional compilation** to eliminate overhead in production
+- Uses **runtime configuration** via `FluentDynamoDbOptions` for flexibility
+- Provides **near-zero overhead** when disabled via `NoOpLogger`
 - Integrates seamlessly with **Microsoft.Extensions.Logging**
 - Is **AOT-compatible** with no reflection
 
@@ -398,18 +399,23 @@ public bool IsEnabled(LogLevel logLevel) => false;
 public void LogDebug(int eventId, string message, params object[] args) { }
 ```
 
-### Conditional Compilation
+### Disabling Logging (Zero Overhead)
 
-For production builds, disable logging entirely:
+Use `NoOpLogger.Instance` (the default) for near-zero overhead logging:
 
-```xml
-<!-- .csproj -->
-<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
-</PropertyGroup>
+```csharp
+// Default behavior - no logging, uses NoOpLogger.Instance
+var table = new ProductsTable(client, "products");
+
+// Explicit NoOpLogger
+var options = new FluentDynamoDbOptions()
+    .WithLogger(NoOpLogger.Instance);
+var table = new ProductsTable(client, "products", options);
 ```
 
-See [Conditional Compilation](ConditionalCompilation.md) for details.
+The `NoOpLogger.IsEnabled()` method always returns `false`, causing all logging calls to be skipped with minimal overhead. This is the recommended approach for production environments where logging is not needed.
+
+See the [Advanced Topics](../advanced-topics/README.md) section for more details on environment-based configuration.
 
 ## Test Isolation
 
@@ -472,20 +478,20 @@ public async Task Test2()
 1. **Check log level**: Ensure the minimum log level includes the logs you want
 2. **Check IsEnabled**: Verify your logger's `IsEnabled` method returns true
 3. **Check logger configuration**: Ensure the logger is properly configured
-4. **Check conditional compilation**: Ensure `DISABLE_DYNAMODB_LOGGING` is not defined
+4. **Check options passed to table**: Ensure `FluentDynamoDbOptions` with logger is passed to the table constructor
 
 ### Too Many Logs
 
 1. **Increase minimum log level**: Set to `Information` or `Warning`
 2. **Filter by category**: Configure filters for specific table classes
 3. **Filter by event ID**: See [Log Levels and Event IDs](LogLevelsAndEventIds.md)
-4. **Use conditional compilation**: Disable logging in production builds
+4. **Use NoOpLogger**: Disable logging entirely for specific tables
 
 ### Performance Impact
 
 1. **Use IsEnabled checks**: The library already does this
 2. **Increase minimum log level**: Reduce log volume
-3. **Use conditional compilation**: Eliminate all logging overhead
+3. **Use NoOpLogger**: Near-zero overhead when logging is disabled
 4. **Profile your application**: Measure actual impact
 
 ## Next Steps
@@ -493,8 +499,7 @@ public async Task Test2()
 - **[Configuration Guide](Configuration.md)** - Complete configuration options
 - **[Log Levels and Event IDs](LogLevelsAndEventIds.md)** - Understand when each log level is used
 - **[Structured Logging](StructuredLogging.md)** - Query and analyze logs effectively
-- **[Conditional Compilation](ConditionalCompilation.md)** - Disable logging for production
-- **[Troubleshooting Guide](../reference/LoggingTroubleshooting.md)** - Common logging issues
+- **[Troubleshooting Guide](../reference/LoggingTroubleshooting.md)** - Common logging issues and solutions
 
 ---
 

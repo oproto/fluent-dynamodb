@@ -66,6 +66,9 @@ public class GetItemRequestBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     [Fact]

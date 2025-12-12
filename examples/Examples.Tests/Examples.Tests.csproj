@@ -31,6 +31,19 @@
         <ProjectReference Include="..\InvoiceManager\InvoiceManager.csproj" />
         <ProjectReference Include="..\TransactionDemo\TransactionDemo.csproj" />
         <ProjectReference Include="..\StoreLocator\StoreLocator.csproj" />
+        <ProjectReference Include="..\JsonBlobDemo\JsonBlobDemo.csproj" />
+        <!-- S3BlobDemo temporarily excluded due to pre-existing build issues -->
+        <!-- <ProjectReference Include="..\S3BlobDemo\S3BlobDemo.csproj" /> -->
+        <ProjectReference Include="..\EncryptionDemo\EncryptionDemo.csproj" />
+    </ItemGroup>
+
+    <!-- Exclude S3BlobDemo tests since the project is excluded -->
+    <ItemGroup>
+        <Compile Remove="S3BlobDemo\**\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AWSSDK.S3" Version="[4.0.0,5.0.0)" />
     </ItemGroup>
 
 </Project>

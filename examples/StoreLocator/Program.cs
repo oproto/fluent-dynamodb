@@ -4,12 +4,19 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Examples.Shared;
+using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
 using Oproto.FluentDynamoDb.Pagination;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using StoreLocator.Data;
 using StoreLocator.Entities;
+
+// Table names as external configuration - in real apps these would come from
+// environment variables, configuration files, or other external sources
+const string GeoHashTableName = "stores-geohash";
+const string S2TableName = "stores-s2";
+const string H3TableName = "stores-h3";
 
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║         StoreLocator - FluentDynamoDb Example              ║");
@@ -22,6 +29,9 @@ Console.WriteLine();
 // Initialize DynamoDB Local connection
 ConsoleHelpers.ShowInfo("Connecting to DynamoDB Local...");
 var client = DynamoDbSetup.CreateLocalClient();
+
+// Build options once at application level with geospatial support
+var options = new FluentDynamoDbOptions().AddGeospatial();
 
 // Ensure tables exist (idempotent)
 ConsoleHelpers.ShowInfo("Ensuring tables exist...");
@@ -49,10 +59,10 @@ if (missingGsis.Count > 0)
     }
 }
 
-// Create table instances
-var geoHashTable = new StoresGeohashTable(client);
-var s2Table = new StoresS2Table(client);
-var h3Table = new StoresH3Table(client);
+// Create table instances - pass client, table name, and options
+var geoHashTable = new StoresGeohashTable(client, GeoHashTableName, options);
+var s2Table = new StoresS2Table(client, S2TableName, options);
+var h3Table = new StoresH3Table(client, H3TableName, options);
 
 // Default search location: San Francisco downtown
 var defaultCenter = new GeoLocation(37.7879, -122.4074);
@@ -124,20 +134,20 @@ async Task EnsureTablesExistAsync()
     // GeoHash table with GSI for spatial queries
     var created1 = await DynamoDbSetup.EnsureTableExistsAsync(
         client,
-        StoresGeohashTable.TableName,
+        GeoHashTableName,
         "pk",
         "sk",
         new List<GlobalSecondaryIndex>
         {
             CreateGsi("geohash-index", "geohash_cell", "pk")
         });
-    if (created1) ConsoleHelpers.ShowSuccess($"Created table '{StoresGeohashTable.TableName}'");
+    if (created1) ConsoleHelpers.ShowSuccess($"Created table '{GeoHashTableName}'");
 
     // S2 table with GSIs for multi-precision spatial queries
     // Fine (Level 14, ~284m), Medium (Level 12, ~1.1km), Coarse (Level 10, ~4.5km)
     var created2 = await DynamoDbSetup.EnsureTableExistsAsync(
         client,
-        StoresS2Table.TableName,
+        S2TableName,
         "pk",
         "sk",
         new List<GlobalSecondaryIndex>
@@ -146,13 +156,13 @@ async Task EnsureTablesExistAsync()
             CreateGsi("s2-index-medium", "s2_cell_l12", "pk"),
             CreateGsi("s2-index-coarse", "s2_cell_l10", "pk")
         });
-    if (created2) ConsoleHelpers.ShowSuccess($"Created table '{StoresS2Table.TableName}' with 3 precision GSIs");
+    if (created2) ConsoleHelpers.ShowSuccess($"Created table '{S2TableName}' with 3 precision GSIs");
 
     // H3 table with GSIs for multi-precision spatial queries
     // Fine (Resolution 9, ~174m), Medium (Resolution 7, ~1.2km), Coarse (Resolution 5, ~8.5km)
     var created3 = await DynamoDbSetup.EnsureTableExistsAsync(
         client,
-        StoresH3Table.TableName,
+        H3TableName,
         "pk",
         "sk",
         new List<GlobalSecondaryIndex>
@@ -161,7 +171,7 @@ async Task EnsureTablesExistAsync()
             CreateGsi("h3-index-medium", "h3_cell_r7", "pk"),
             CreateGsi("h3-index-coarse", "h3_cell_r5", "pk")
         });
-    if (created3) ConsoleHelpers.ShowSuccess($"Created table '{StoresH3Table.TableName}' with 3 precision GSIs");
+    if (created3) ConsoleHelpers.ShowSuccess($"Created table '{H3TableName}' with 3 precision GSIs");
 }
 
 /// <summary>
@@ -175,7 +185,7 @@ async Task<List<string>> ValidateGSIsAsync()
     try
     {
         // Check S2 table GSIs
-        var s2Description = await client.DescribeTableAsync(StoresS2Table.TableName);
+        var s2Description = await client.DescribeTableAsync(S2TableName);
         var s2Gsis = s2Description.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
         if (!s2Gsis.Contains("s2-index-fine")) issues.Add("S2 table missing s2-index-fine");
         if (!s2Gsis.Contains("s2-index-medium")) issues.Add("S2 table missing s2-index-medium");
@@ -189,7 +199,7 @@ async Task<List<string>> ValidateGSIsAsync()
     try
     {
         // Check H3 table GSIs
-        var h3Description = await client.DescribeTableAsync(StoresH3Table.TableName);
+        var h3Description = await client.DescribeTableAsync(H3TableName);
         var h3Gsis = h3Description.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
         if (!h3Gsis.Contains("h3-index-fine")) issues.Add("H3 table missing h3-index-fine");
         if (!h3Gsis.Contains("h3-index-medium")) issues.Add("H3 table missing h3-index-medium");
@@ -203,7 +213,7 @@ async Task<List<string>> ValidateGSIsAsync()
     try
     {
         // Check GeoHash table GSI
-        var geoHashDescription = await client.DescribeTableAsync(StoresGeohashTable.TableName);
+        var geoHashDescription = await client.DescribeTableAsync(GeoHashTableName);
         var geoHashGsis = geoHashDescription.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
         if (!geoHashGsis.Contains("geohash-index")) issues.Add("GeoHash table missing geohash-index");
     }
@@ -267,9 +277,9 @@ async Task RecreateTablesAsync()
     ConsoleHelpers.ShowInfo("Deleting existing tables...");
     
     // Delete all three tables
-    await DeleteTableIfExistsAsync(StoresGeohashTable.TableName);
-    await DeleteTableIfExistsAsync(StoresS2Table.TableName);
-    await DeleteTableIfExistsAsync(StoresH3Table.TableName);
+    await DeleteTableIfExistsAsync(GeoHashTableName);
+    await DeleteTableIfExistsAsync(S2TableName);
+    await DeleteTableIfExistsAsync(H3TableName);
     
     Console.WriteLine();
     ConsoleHelpers.ShowInfo("Recreating tables with correct GSIs...");

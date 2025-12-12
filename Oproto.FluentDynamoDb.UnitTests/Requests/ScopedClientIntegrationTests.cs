@@ -59,6 +59,9 @@ public class ScopedClientIntegrationTests
         {
             return new EntityMetadata { TableName = "test-table" };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
     private readonly IAmazonDynamoDB _defaultClient = Substitute.For<IAmazonDynamoDB>();
     private readonly IAmazonDynamoDB _tenantScopedClient = Substitute.For<IAmazonDynamoDB>();

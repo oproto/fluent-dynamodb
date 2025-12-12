@@ -111,6 +111,42 @@ public class DynamoDbTableAttribute : Attribute
     public bool IsDefault { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets the namespace for the generated table class.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// By default, the generated table class is placed in the same namespace as the entity class.
+    /// Use this property to specify a different namespace for the generated table class.
+    /// </para>
+    /// <para>
+    /// This is useful when you want to organize your generated code according to your project's
+    /// namespace conventions, separating entity definitions from table access classes.
+    /// </para>
+    /// <para>
+    /// Note: The entity class itself remains in its declared namespace. Only the generated
+    /// table class is placed in the specified namespace.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <para><strong>Custom namespace for generated table class:</strong></para>
+    /// <code>
+    /// // Entity in MyApp.Domain namespace
+    /// namespace MyApp.Domain;
+    /// 
+    /// [DynamoDbTable("Orders", Namespace = "MyApp.Infrastructure.DynamoDb")]
+    /// public partial class Order
+    /// {
+    ///     // Entity properties...
+    /// }
+    /// 
+    /// // Generated table class will be in MyApp.Infrastructure.DynamoDb namespace:
+    /// // namespace MyApp.Infrastructure.DynamoDb;
+    /// // public partial class OrdersTable : DynamoDbTableBase { ... }
+    /// </code>
+    /// </example>
+    public string? Namespace { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the DynamoDbTableAttribute class.
     /// </summary>
     /// <param name="tableName">The DynamoDB table name.</param>

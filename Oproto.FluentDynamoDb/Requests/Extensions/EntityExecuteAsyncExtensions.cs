@@ -885,7 +885,7 @@ public static class EntityExecuteAsyncExtensions
     public static async Task PutAsync<T>(
         this PutItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         try
         {
@@ -928,7 +928,7 @@ public static class EntityExecuteAsyncExtensions
         this PutItemRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         if (blobProvider == null)
             throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
@@ -971,7 +971,7 @@ public static class EntityExecuteAsyncExtensions
     public static async Task UpdateAsync<T>(
         this UpdateItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         try
         {
@@ -1018,7 +1018,7 @@ public static class EntityExecuteAsyncExtensions
     public static async Task DeleteAsync<T>(
         this DeleteItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         try
         {

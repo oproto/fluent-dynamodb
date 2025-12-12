@@ -51,6 +51,16 @@ public class ScanRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultConsistentRead.HasValue)
+        {
+            _req.ConsistentRead = _options.DefaultConsistentRead.Value;
+        }
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
     }
 
     private ScanRequest _req = new ScanRequest() { ConsistentRead = false };
@@ -308,14 +318,16 @@ public class ScanRequestBuilder<TEntity> :
     {
         var request = ToScanRequest();
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingQuery,
-            "Executing Scan on table {TableName}. Index: {IndexName}, Filter: {FilterExpression}, Segment: {Segment}/{TotalSegments}",
-            request.TableName ?? "Unknown", 
-            request.IndexName ?? "None", 
-            request.FilterExpression ?? "None",
-            (object?)request.Segment ?? "N/A",
-            (object?)request.TotalSegments ?? "N/A");
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingQuery,
+                "Executing Scan on table {TableName}. Index: {IndexName}, Filter: {FilterExpression}, Segment: {Segment}/{TotalSegments}",
+                request.TableName ?? "Unknown", 
+                request.IndexName ?? "None", 
+                request.FilterExpression ?? "None",
+                (object?)request.Segment ?? "N/A",
+                (object?)request.TotalSegments ?? "N/A");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
         {
@@ -323,29 +335,27 @@ public class ScanRequestBuilder<TEntity> :
                 "Scan parameters: {ParameterCount} values",
                 _attrV.AttributeValues.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.ScanAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
 #pragma warning disable CS8601 // Possible null reference assignment - boxing value types to object[]
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "Scan completed. ItemCount: {ItemCount}, ScannedCount: {ScannedCount}, ConsumedCapacity: {ConsumedCapacity}",
-                new object[] { response.Count, response.ScannedCount, response.ConsumedCapacity?.CapacityUnits ?? 0 });
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "Scan completed. ItemCount: {ItemCount}, ScannedCount: {ScannedCount}, ConsumedCapacity: {ConsumedCapacity}",
+                    new object[] { response.Count, response.ScannedCount, response.ConsumedCapacity?.CapacityUnits ?? 0 });
 #pragma warning restore CS8601
-            #endif
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "Scan failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

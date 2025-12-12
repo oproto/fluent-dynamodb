@@ -66,6 +66,9 @@ public class PutItemRequestBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
     [Fact]
     public void ForTableSuccess()
@@ -514,7 +517,7 @@ public class PutItemRequestBuilderTests
     /// from flowing back to the test method after await.
     /// </summary>
     private static async Task<OperationContextData?> ExecutePutAndGetContextAsync<T>(PutItemRequestBuilder<T> builder)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         var tcs = new TaskCompletionSource<OperationContextData?>();
         void Handler(OperationContextData? ctx) => tcs.TrySetResult(ctx);

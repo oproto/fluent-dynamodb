@@ -57,6 +57,1290 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-12]
+
+### File: docs/core-features/DynamicFields.md - Update Pattern Correction
+
+**Category:** API Correction - Removed Redundant Methods
+
+**Before:**
+```csharp
+// Updating dynamic fields section showed builder methods
+await table.Products.Update(pk, sk)
+    .SetDynamicField("sale_price", 24.99m)
+    .RemoveDynamicField("temporary_note")
+    .UpdateAsync();
+```
+
+**After:**
+```csharp
+// PREFERRED: Lambda expression with DynamicFieldCollection
+var changes = new DynamicFieldCollection();
+changes.SetDecimal("sale_price", 24.99m);
+changes.Remove("temporary_note");
+
+await table.Products.Update(pk, sk)
+    .Set(x => new ProductUpdateModel { DynamicFields = changes })
+    .UpdateAsync();
+
+// EXPLICIT CONTROL: Manual expression strings
+await table.Products.Update(pk, sk)
+    .Set("#salePrice = :salePrice")
+    .Remove("#tempNote")
+    .WithAttribute("#salePrice", "sale_price")
+    .WithAttribute("#tempNote", "temporary_note")
+    .WithValue(":salePrice", new AttributeValue { N = "24.99" })
+    .UpdateAsync();
+```
+
+**Reason:** The `SetDynamicField()` and `RemoveDynamicField()` methods were removed from `UpdateItemRequestBuilder` as they were redundant. The same functionality is available via:
+1. Lambda expressions with `DynamicFieldCollection` on update models (preferred)
+2. Manual expression strings with `Set()`, `Remove()`, `WithAttribute()`, `WithValue()`
+
+---
+
+### File: docs/core-features/DynamicFields.md (NEW)
+
+**Category:** New Documentation - Dynamic Fields Feature
+
+**Summary:** Added comprehensive documentation for the new dynamic fields feature, including:
+- Overview and use cases (multi-tenant custom attributes)
+- Enabling dynamic fields with `[EnableDynamicFields]` attribute
+- Reading dynamic fields with typed accessors (`GetString`, `GetInt`, `GetBool`, etc.)
+- Type detection with `GetFieldType()` and `DynamicFieldType` enum
+- Writing dynamic fields with typed setters
+- Updating dynamic fields via lambda expressions with `DynamicFieldCollection` (preferred) or manual expression strings
+- Change tracking with `ChangesOnly()`, `HasChanges`, `RemovedFields`, and `ResetChangeTracking()`
+- Filtering by dynamic fields in expressions
+- Existence checks with `Exists()` and `NotExists()`
+- Security considerations (logging redaction)
+- Performance considerations
+- Limitations and best practices
+
+**Files added:**
+- `docs/core-features/DynamicFields.md`
+
+**Reason:** New feature documentation for dynamic fields support enabling entities to capture unmapped DynamoDB attributes.
+
+---
+
+### File: README.md - Dynamic Fields Feature Section
+
+**Category:** New Documentation - Feature Overview
+
+**Summary:** Added dynamic fields feature to the Key Features section of the main README with a code example demonstrating:
+- Entity definition with `[EnableDynamicFields]`
+- Reading dynamic fields with typed accessors
+- Writing dynamic fields
+- Filtering by dynamic fields
+
+**Files updated:**
+- `README.md`
+
+**Reason:** Feature visibility in main project documentation.
+
+---
+
+### File: examples/DynamicFieldsDemo/README.md (NEW)
+
+**Category:** New Documentation - Example Application
+
+**Summary:** Added README documentation for the DynamicFieldsDemo example application demonstrating:
+- Multi-tenant custom attributes use case
+- Enabling dynamic fields
+- Reading, writing, and updating dynamic fields
+- Filtering by dynamic fields
+- Supported dynamic field types
+- Security considerations
+
+**Files added:**
+- `examples/DynamicFieldsDemo/README.md`
+
+**Reason:** Example application documentation for dynamic fields feature.
+
+---
+
+## [2025-12-11]
+
+### File: docs/advanced-topics/SchemaValidation.md (NEW)
+
+**Category:** New Documentation - Schema Validation Feature
+
+**Summary:** Added comprehensive documentation for the new schema validation feature, including usage examples, error codes, validation options, and best practices.
+
+**Files added:**
+- `docs/advanced-topics/SchemaValidation.md`
+
+**Reason:** New feature documentation for runtime schema validation of DynamoDB tables against entity metadata.
+
+---
+
+### File: docs/reference/AttributeReference.md - LocalSecondaryIndex Attribute
+
+**Category:** New Documentation - LSI Attribute
+
+**Summary:** Added documentation for the new `[LocalSecondaryIndex]` attribute that enables Local Secondary Index definitions in entity metadata.
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Added:**
+```markdown
+## [LocalSecondaryIndex]
+
+Marks a property as the sort key for a Local Secondary Index (LSI).
+
+### Purpose
+
+Identifies the property that serves as the sort key for a Local Secondary Index. LSIs share the same partition key as the base table but have a different sort key, enabling alternative query patterns without the cost of a GSI.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `indexName` | `string` | Yes | The name of the Local Secondary Index |
+
+### Example
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    // LSI for querying orders by date within a customer
+    [LocalSecondaryIndex("orders-by-date")]
+    [DynamoDbAttribute("order_date")]
+    public string OrderDate { get; set; } = string.Empty;
+}
+```
+```
+
+**Reason:** New attribute added for Local Secondary Index support, required for accurate schema validation.
+
+---
+
+## [2025-12-09]
+
+### File: docs/advanced-topics/AdvancedTypes.md - Blob Storage Redesign
+
+**Category:** Pattern Update - Blob Storage API
+
+**Summary:** Updated blob storage documentation to reflect the redesign from `[BlobReference]` to `[BlobStorage]` with `BlobData<T>` wrapper type. This is a breaking change that introduces lazy/eager loading control and failure handling strategies.
+
+---
+
+#### Part 1: External Blob Storage Section Rewrite
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Before:**
+```csharp
+// External Blob Storage with [BlobReference]
+[DynamoDbTable("files")]
+public partial class FileMetadata
+{
+    [DynamoDbAttribute("file_id")]
+    public string FileId { get; set; }
+    
+    [DynamoDbAttribute("data_ref")]
+    [BlobReference(BlobProvider.S3, BucketName = "my-files-bucket", KeyPrefix = "uploads")]
+    public byte[] Data { get; set; }
+}
+
+// Save entity with blob
+var file = new FileMetadata
+{
+    FileId = "file-123",
+    Data = File.ReadAllBytes("large-file.pdf")
+};
+
+var item = await FileMetadata.ToDynamoDbAsync(file, blobProvider);
+```
+
+**After:**
+```csharp
+// External Blob Storage with [BlobStorage] and BlobData<T>
+[DynamoDbTable("files")]
+public partial class FileMetadata
+{
+    [PartitionKey]
+    [DynamoDbAttribute("file_id")]
+    public string FileId { get; set; } = string.Empty;
+    
+    // Eager loading (default) - data loaded during deserialization
+    [BlobStorage]
+    [DynamoDbAttribute("data")]
+    public BlobData<byte[]> Data { get; set; } = default!;
+    
+    // Lazy loading - data loaded on explicit LoadAsync() call
+    [BlobStorage(LazyLoad = true)]
+    [DynamoDbAttribute("thumbnail")]
+    public BlobData<byte[]> Thumbnail { get; set; } = default!;
+}
+
+// Configuration with strategy
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(new S3BlobProvider(s3Client, "my-bucket"))
+    .WithBlobStorageStrategy(new BestEffortCleanupStrategy(provider)); // Optional, default
+
+var table = new FileTable(dynamoDbClient, "files", options);
+
+// Save entity with blob
+var file = new FileMetadata
+{
+    FileId = "file-123",
+    Data = BlobData<byte[]>.Create(File.ReadAllBytes("large-file.pdf")),
+    Thumbnail = BlobData<byte[]>.Create(thumbnailBytes)
+};
+
+await table.Files.PutAsync(file);
+
+// Retrieve with eager loading
+var loaded = await table.Files.GetAsync("file-123");
+var data = loaded.Data.Value; // Already loaded
+
+// Retrieve with lazy loading
+await loaded.Thumbnail.LoadAsync(); // Explicit load
+var thumbnail = loaded.Thumbnail.Value;
+```
+
+**Reason:** The `[BlobReference]` attribute has been replaced with `[BlobStorage]` and `BlobData<T>` wrapper type. The new design provides:
+- Clearer semantics (attribute name indicates storage, not reference)
+- Lazy/eager loading control via `LazyLoad` property
+- Failure handling strategies via `IBlobStorageStrategy`
+- Better encapsulation of blob state via `BlobData<T>` wrapper
+
+---
+
+#### Part 2: New Blob Storage Strategies Section
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Added:**
+```markdown
+### Blob Storage Strategies
+
+Configure how failures between blob storage and DynamoDB operations are handled:
+
+#### BestEffortCleanupStrategy (Default)
+
+Attempts to clean up orphaned blobs when DynamoDB operations fail:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(provider)
+    .WithBlobStorageStrategy(new BestEffortCleanupStrategy(provider, logger));
+```
+
+- Uploads blobs before DynamoDB write
+- Attempts to delete uploaded blobs if DynamoDB write fails
+- Logs cleanup failures but doesn't throw
+- Deletes blobs after successful DynamoDB delete
+
+#### NoCleanupStrategy
+
+Simple strategy for non-critical data where orphaned blobs are acceptable:
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(provider)
+    .WithBlobStorageStrategy(new NoCleanupStrategy(provider));
+```
+
+- Uploads blobs before DynamoDB write
+- No cleanup on DynamoDB write failure (orphaned blobs may remain)
+- No blob deletion on DynamoDB delete
+```
+
+**Reason:** New section documenting the `IBlobStorageStrategy` interface and built-in implementations.
+
+---
+
+#### Part 3: BlobData<T> API Reference
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Added:**
+```markdown
+### BlobData<T> Wrapper Type
+
+The `BlobData<T>` wrapper encapsulates blob storage behavior:
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `Value` | Gets the loaded data. Throws `InvalidOperationException` if not loaded. |
+| `ReferenceKey` | Gets the storage key, or null if not yet stored. |
+| `IsLoaded` | Returns true when data has been loaded from storage. |
+| `HasPendingData` | Returns true when instance has data to be stored. |
+| `Create(T value)` | Static factory to create instance with data to be stored. |
+| `LoadAsync()` | Loads data from storage. Idempotent - returns immediately if already loaded. |
+
+**Error Handling:**
+
+| Scenario | Exception |
+|----------|-----------|
+| Access `Value` before load | `InvalidOperationException` |
+| `LoadAsync()` without provider | `InvalidOperationException` |
+| Provider store/retrieve failure | `BlobStorageException` |
+| `[Encrypted]` without encryptor | `EncryptionRequiredException` |
+```
+
+**Reason:** New section documenting the `BlobData<T>` wrapper type API.
+
+---
+
+#### Part 4: Attribute Combinations
+
+**Files updated:**
+- `docs/advanced-topics/AdvancedTypes.md`
+
+**Before:**
+```csharp
+// Combined JSON Blob + Blob Reference
+[DynamoDbAttribute("content_ref")]
+[JsonBlob]
+[BlobReference(BlobProvider.S3, BucketName = "large-docs")]
+public ComplexContent Content { get; set; }
+```
+
+**After:**
+```csharp
+// Combined [BlobStorage] + [JsonBlob] - serialize to JSON before blob upload
+[BlobStorage]
+[JsonBlob]
+[DynamoDbAttribute("content")]
+public BlobData<ComplexContent> Content { get; set; } = default!;
+
+// Combined [BlobStorage] + [Encrypted] - encrypt before blob upload
+[BlobStorage]
+[Encrypted]
+[DynamoDbAttribute("secret")]
+public BlobData<byte[]> SecretData { get; set; } = default!;
+
+// Combined [BlobStorage] + [Sensitive] - redact in logs
+[BlobStorage]
+[Sensitive]
+[DynamoDbAttribute("pii")]
+public BlobData<byte[]> PersonalData { get; set; } = default!;
+
+// All three combined - JSON serialize, then encrypt, then upload
+[BlobStorage]
+[JsonBlob]
+[Encrypted]
+[DynamoDbAttribute("encrypted_content")]
+public BlobData<SensitiveContent> EncryptedContent { get; set; } = default!;
+```
+
+**Reason:** Updated attribute combination examples to use new `[BlobStorage]` and `BlobData<T>` pattern.
+
+---
+
+### File: examples/S3BlobDemo - Complete Rewrite
+
+**Category:** Example Update - Blob Storage Redesign
+
+**Summary:** Updated S3BlobDemo example application to demonstrate the new `[BlobStorage]` attribute and `BlobData<T>` wrapper type, including lazy/eager loading and strategy demonstrations.
+
+**Files updated:**
+- `examples/S3BlobDemo/Entities/MediaItem.cs`
+- `examples/S3BlobDemo/Program.cs`
+- `examples/S3BlobDemo/README.md`
+
+**Reason:** Example application updated to demonstrate new blob storage API patterns.
+
+---
+
+## [2025-12-09]
+
+### File: Multiple documentation files - Logging Runtime Configuration Update
+
+**Category:** Pattern Update - Logging Configuration
+
+**Summary:** Updated logging documentation to reflect the removal of `DISABLE_DYNAMODB_LOGGING` conditional compilation in favor of runtime configuration via `FluentDynamoDbOptions`. All conditional compilation documentation has been removed as the library no longer uses any conditional compilation.
+
+---
+
+#### Part 0: docs/core-features/ConditionalCompilation.md (DELETED)
+
+**Files deleted:**
+- `docs/core-features/ConditionalCompilation.md` (deleted entirely)
+
+**Action Required:** Remove this file from any derived documentation. The content was redundant with `docs/core-features/LoggingConfiguration.md` and the filename was misleading since the library no longer uses conditional compilation.
+
+**References removed from:**
+- `README.md` - Removed link from logging documentation section
+- `docs/README.md` - Removed from core features list
+- `docs/core-features/README.md` - Removed from numbered list
+- `docs/core-features/StructuredLogging.md` - Removed from related topics
+- `docs/core-features/LogLevelsAndEventIds.md` - Updated references to point to LoggingConfiguration.md
+
+---
+
+#### Part 1: docs/advanced-topics/runtime-logging-configuration.md
+
+**Files updated:**
+- `docs/advanced-topics/conditional-compilation-logging.md` (removed and replaced with `runtime-logging-configuration.md`)
+
+**Before:**
+```markdown
+# Conditional Compilation for Logging
+
+All logging code in the library is wrapped in conditional compilation directives:
+
+```csharp
+#if !DISABLE_DYNAMODB_LOGGING
+logger?.LogInformation(LogEventIds.ExecutingQuery, ...);
+#endif
+```
+
+When you define the `DISABLE_DYNAMODB_LOGGING` symbol, the C# compiler completely removes all logging code.
+```
+
+**After:** File removed. Conditional compilation for logging is no longer supported.
+
+**Reason:** The `DISABLE_DYNAMODB_LOGGING` preprocessor directive has been removed. Logging is now controlled entirely at runtime via `FluentDynamoDbOptions.WithLogger()`. The `NoOpLogger.Instance` provides zero-overhead logging when disabled through the `IsEnabled()` check pattern.
+
+---
+
+#### Part 2: docs/core-features/LoggingConfiguration.md
+
+**Files updated:**
+- `docs/core-features/LoggingConfiguration.md`
+
+**Before:**
+```markdown
+### Conditional Compilation (Zero Overhead in Production)
+
+Disable logging completely in production builds:
+
+```xml
+<!-- .csproj -->
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
+</PropertyGroup>
+```
+
+See [Logging Configuration](LoggingConfiguration.md) for details.
+```
+
+**After:**
+```markdown
+### Disabling Logging (Zero Overhead)
+
+Use `NoOpLogger.Instance` (the default) for zero-overhead logging:
+
+```csharp
+// Default behavior - no logging, zero overhead
+var table = new ProductsTable(client, "products");
+
+// Explicit NoOpLogger
+var options = new FluentDynamoDbOptions()
+    .WithLogger(NoOpLogger.Instance);
+var table = new ProductsTable(client, "products", options);
+```
+
+The `NoOpLogger.IsEnabled()` method always returns `false`, causing all logging calls to be skipped with minimal overhead.
+```
+
+**Reason:** Conditional compilation is no longer supported. Runtime configuration via `NoOpLogger` provides equivalent zero-overhead behavior.
+
+---
+
+#### Part 3: docs/reference/LoggingTroubleshooting.md
+
+**Files updated:**
+- `docs/reference/LoggingTroubleshooting.md`
+
+**Before:**
+```markdown
+#### Issue: Conditional compilation disabled logging
+
+**Symptoms:**
+- Logs worked in Debug build
+- No logs in Release build
+
+**Diagnosis:**
+```bash
+dotnet build -c Release -v detailed | grep DISABLE_DYNAMODB_LOGGING
+```
+
+**Solution:**
+```xml
+<!-- Remove or comment out in .csproj -->
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <!-- <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants> -->
+</PropertyGroup>
+```
+```
+
+**After:** Section removed. Conditional compilation is no longer supported.
+
+**Reason:** The `DISABLE_DYNAMODB_LOGGING` preprocessor directive has been removed from the library.
+
+---
+
+#### Part 4: README.md
+
+**Files updated:**
+- `README.md`
+
+**Before:**
+```markdown
+### Conditional Compilation (Zero Overhead in Production)
+
+Disable logging completely in production builds:
+
+```xml
+<!-- .csproj -->
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
+</PropertyGroup>
+```
+
+When `DISABLE_DYNAMODB_LOGGING` is defined:
+- All logging code is removed at compile time
+- Zero runtime overhead
+- Zero allocations
+- Smaller binary size
+```
+
+**After:**
+```markdown
+### Disabling Logging
+
+By default, the library uses `NoOpLogger.Instance` which provides zero-overhead logging:
+
+```csharp
+// Default - no logging configured, uses NoOpLogger
+var table = new ProductsTable(client, "products");
+```
+
+The `NoOpLogger.IsEnabled()` method always returns `false`, causing all logging calls to be skipped with minimal overhead.
+```
+
+**Reason:** Conditional compilation is no longer supported. Runtime configuration via `NoOpLogger` is the recommended approach.
+
+---
+
+### File: docs/reference/AttributeReference.md - v0.9.0 Attribute Updates
+
+**Category:** Documentation Update - New and Updated Attributes
+
+**Summary:** Updated attribute reference documentation for v0.9.0 release including new `[RequireWriteTransaction]` attribute, `[Queryable]` deprecation notice, and `[DynamoDbTable]` `Namespace` parameter.
+
+---
+
+#### Part 1: New [RequireWriteTransaction] Attribute
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Added:**
+```markdown
+## [RequireWriteTransaction]
+
+Marks an entity class as requiring write operations within a transaction.
+
+### Purpose
+
+Enforces transactional consistency for entities where atomic operations are required.
+When applied, Put, Update, Delete, and BatchWrite operations throw `InvalidOperationException`
+unless performed within a TransactWrite operation.
+
+### Example
+
+```csharp
+[DynamoDbTable("FinancialTransactions")]
+[RequireWriteTransaction]
+public partial class Transaction
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string AccountId { get; set; } = string.Empty;
+}
+
+// Throws InvalidOperationException:
+await table.Transactions.Put(transaction).PutAsync();
+
+// Allowed:
+await DynamoDbTransactions.Write()
+    .Put(table.Transactions, transaction)
+    .ExecuteAsync();
+```
+```
+
+**Reason:** New attribute added in v0.9.0 for enforcing transactional writes.
+
+---
+
+#### Part 2: [Queryable] Deprecation Notice
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Before:**
+```markdown
+## [Queryable]
+
+Marks a property as queryable and specifies the supported operations and indexes.
+```
+
+**After:**
+```markdown
+## [Queryable] ⚠️ DEPRECATED
+
+> **Deprecation Notice:** The `[Queryable]` attribute is deprecated as of v0.9.0.
+> Query capabilities are now automatically derived from `[PartitionKey]` and `[SortKey]` attributes.
+> This attribute will be removed in v1.0.
+>
+> **Migration:** Remove `[Queryable]` attributes from your entities. The source generator
+> automatically determines supported operations based on key attributes.
+
+Marks a property as queryable and specifies the supported operations and indexes.
+```
+
+**Reason:** `[Queryable]` is deprecated in v0.9.0 - query capabilities are now derived from key metadata.
+
+---
+
+#### Part 3: [DynamoDbTable] Namespace Parameter
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Before:**
+```markdown
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tableName` | `string` | Yes | The DynamoDB table name |
+```
+
+**After:**
+```markdown
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tableName` | `string` | Yes | The DynamoDB table name |
+
+### Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Namespace` | `string?` | `null` | Custom namespace for the generated table class. If null, uses the entity's namespace. |
+```
+
+**Reason:** New `Namespace` property added in v0.9.0 for controlling generated table class namespace.
+
+---
+
+### File: docs/core-features/Configuration.md - Default Request Options
+
+**Category:** Documentation Update - New Configuration Options
+
+**Summary:** Added documentation for new default request options in `FluentDynamoDbOptions`.
+
+**Added:**
+```markdown
+## Default Request Options
+
+Configure default settings that apply to all request builders.
+
+### Consistent Reads
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .UseConsistentRead(true);
+
+// All Get and Query operations now use consistent reads by default
+var user = await table.Users.Get(userId).GetItemAsync();
+```
+
+### Return Consumed Capacity
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
+
+// All operations return consumed capacity
+var response = await table.Users.Query()
+    .Where(x => x.Pk == tenantId)
+    .ToDynamoDbResponseAsync();
+// response.ConsumedCapacity is populated
+```
+
+### Return Values
+
+```csharp
+var options = new FluentDynamoDbOptions()
+    .ReturnValues(ReturnValue.ALL_NEW);
+
+// Update operations return the new values by default
+var response = await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Name = "Jane" })
+    .ToDynamoDbResponseAsync();
+// response.Attributes contains the updated item
+```
+
+### Overriding Defaults
+
+Explicit builder method calls override default options:
+
+```csharp
+// Default is consistent read
+var options = new FluentDynamoDbOptions().UseConsistentRead(true);
+
+// This specific query uses eventually consistent read
+var users = await table.Users.Query()
+    .Where(x => x.Pk == tenantId)
+    .UseConsistentRead(false)  // Overrides default
+    .ToListAsync();
+```
+```
+
+**Reason:** New default request options feature added in v0.9.0.
+## [2025-12-06]
+
+### File: Multiple documentation files - Batch and Transaction API Pattern Corrections
+
+**Category:** API Correction - Static Entry Point Patterns
+
+**Summary:** Corrected batch and transaction operation examples across documentation to use the correct static entry point patterns (`DynamoDbBatch.Write`, `DynamoDbBatch.Get`, `DynamoDbTransactions.Write`, `DynamoDbTransactions.Get`) instead of incorrect constructor-based patterns. Also corrected `CommitAsync()` to `ExecuteAsync()` for transaction execution.
+
+---
+
+#### Part 1: Batch Operation Pattern Corrections
+
+**Files corrected:**
+- `docs/core-features/BasicOperations.md`
+- `docs/advanced-topics/PerformanceOptimization.md`
+- `docs/advanced-topics/GlobalSecondaryIndexes.md`
+- `docs/QUICK_REFERENCE.md`
+
+**Before (Incorrect - constructor-based patterns):**
+```csharp
+// Batch Write - INCORRECT
+var batchWrite = new BatchWriteItemRequestBuilder(client);
+batchWrite.AddPutItem(table, user1);
+batchWrite.AddPutItem(table, user2);
+await batchWrite.ExecuteAsync();
+
+// Batch Get - INCORRECT
+var batchGet = new BatchGetItemRequestBuilder(client);
+batchGet.AddKey(table, pk1, sk1);
+batchGet.AddKey(table, pk2, sk2);
+var response = await batchGet.ExecuteAsync();
+```
+
+**After (Correct - static entry point patterns):**
+```csharp
+// Batch Write - CORRECT
+await DynamoDbBatch.Write
+    .Add(table.Users.Put(user1))
+    .Add(table.Users.Put(user2))
+    .ExecuteAsync(client);
+
+// Batch Get - CORRECT
+var response = await DynamoDbBatch.Get
+    .Add(table.Users.Get(pk1, sk1))
+    .Add(table.Users.Get(pk2, sk2))
+    .ExecuteAsync(client);
+```
+
+**Reason:** The `BatchWriteItemRequestBuilder` and `BatchGetItemRequestBuilder` constructors are internal implementation details. The correct public API uses `DynamoDbBatch.Write` and `DynamoDbBatch.Get` static entry points with the fluent `.Add()` pattern.
+
+---
+
+#### Part 2: Transaction Operation Pattern Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/CompositeEntities.md`
+- `docs/QUICK_REFERENCE.md`
+- `docs/DeveloperGuide.md`
+
+**Before (Incorrect - constructor-based patterns):**
+```csharp
+// Transaction Write - INCORRECT
+var transaction = new TransactWriteItemsRequestBuilder(client);
+transaction.AddPut(table, order);
+transaction.AddPut(table, orderLine);
+await transaction.CommitAsync();
+
+// Transaction Get - INCORRECT
+var transaction = new TransactGetItemsRequestBuilder(client);
+transaction.AddGet(table, pk1, sk1);
+var response = await transaction.ExecuteAsync();
+```
+
+**After (Correct - static entry point patterns):**
+```csharp
+// Transaction Write - CORRECT
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(orderLine))
+    .ExecuteAsync(client);
+
+// Transaction Get - CORRECT
+var response = await DynamoDbTransactions.Get
+    .Add(table.Orders.Get(pk1, sk1))
+    .Add(table.OrderLines.Get(pk2, sk2))
+    .ExecuteAsync(client);
+```
+
+**Reason:** The `TransactWriteItemsRequestBuilder` and `TransactGetItemsRequestBuilder` constructors are internal implementation details. The correct public API uses `DynamoDbTransactions.Write` and `DynamoDbTransactions.Get` static entry points with the fluent `.Add()` pattern.
+
+---
+
+#### Part 3: CommitAsync to ExecuteAsync Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/CompositeEntities.md`
+- `docs/advanced-topics/MultiEntityTables.md`
+- `docs/getting-started/SingleEntityTables.md`
+
+**Before (Incorrect method name):**
+```csharp
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(orderLine))
+    .CommitAsync(client);
+```
+
+**After (Correct method name):**
+```csharp
+await DynamoDbTransactions.Write
+    .Add(table.Orders.Put(order))
+    .Add(table.OrderLines.Put(orderLine))
+    .ExecuteAsync(client);
+```
+
+**Reason:** The `CommitAsync()` method does not exist on `TransactionWriteBuilder`. The correct method is `ExecuteAsync()`, which is consistent with other builder patterns in the library.
+
+---
+
+#### Part 4: STSIntegration.md Reorganization
+
+**Files affected:**
+- `docs/advanced-topics/STSIntegration.md` (deleted)
+- `docs/advanced-topics/ClientConfiguration.md` (created)
+- `docs/advanced-topics/ScopedSecurity.md` (created)
+- `docs/advanced-topics/README.md` (updated)
+
+**Before (Single conflated document):**
+```
+docs/advanced-topics/STSIntegration.md
+- Mixed client configuration topics (DynamoDB Local, LocalStack, multi-region)
+- Mixed STS-scoped credentials topics (WithClient, multi-tenancy)
+```
+
+**After (Focused documents):**
+```
+docs/advanced-topics/ClientConfiguration.md
+- Development environments (DynamoDB Local, LocalStack)
+- Custom client settings (timeouts, retries, connection pooling)
+- Multi-region deployments (static routing)
+- Proxy configuration
+
+docs/advanced-topics/ScopedSecurity.md
+- WithClient() method for per-request client customization
+- STS-scoped credentials for multi-tenancy
+- Complete multi-tenancy implementation example
+- Security best practices
+- Performance considerations (client reuse, credential caching)
+```
+
+**Reason:** The original `STSIntegration.md` conflated two distinct topics: client configuration (applied at table creation time) and scoped security (per-request client customization). Splitting into focused documents improves discoverability and allows developers to find relevant information more easily.
+
+---
+
+#### Part 5: Verification Pass - Additional Pattern Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/CompositeEntities.md`
+- `docs/advanced-topics/MultiEntityTables.md`
+
+**CompositeEntities.md - Batch Operations Section:**
+
+**Before (Incorrect - constructor-based pattern):**
+```csharp
+// Batch write for composite entity
+var batchBuilder = new BatchWriteItemRequestBuilder(client);
+
+// Add order header
+batchBuilder.Put(table, builder => builder
+    .WithItem(/* order header attributes */));
+
+// Add all line items in batch
+foreach (var item in order.Items)
+{
+    batchBuilder.Put(table, builder => builder
+        .WithItem(/* line item attributes */));
+}
+
+// Execute batch (up to 25 items per batch)
+await batchBuilder.ExecuteAsync();
+```
+
+**After (Correct - static entry point pattern):**
+```csharp
+// Batch write for composite entity using static entry point
+var batchBuilder = DynamoDbBatch.Write
+    .WithClient(client);
+
+// Add order header
+batchBuilder.Add(table.Orders.Put(orderHeader));
+
+// Add all line items in batch
+foreach (var item in order.Items)
+{
+    batchBuilder.Add(table.OrderLines.Put(item));
+}
+
+// Execute batch (up to 25 items per batch)
+await batchBuilder.ExecuteAsync();
+```
+
+**MultiEntityTables.md - Generated Table Class Example:**
+
+**Before (Incorrect - showing transaction/batch methods as generated):**
+```csharp
+// Transaction and batch operations (table level only)
+public TransactWriteItemsRequestBuilder TransactWrite()
+{
+    return new TransactWriteItemsRequestBuilder(Client);
+}
+
+public BatchWriteItemBuilder BatchWrite()
+{
+    return new BatchWriteItemBuilder(Client);
+}
+```
+
+**After (Correct - removed from generated code example):**
+Transaction and batch methods removed from the generated code example because the source generator does not generate these methods. Transaction and batch operations are inherently cross-table and should use the static entry points `DynamoDbTransactions.Write` and `DynamoDbBatch.Write` directly.
+
+**Reason:** These patterns were missed in the initial documentation correction pass. The verification step identified remaining constructor-based patterns that needed to be updated to use the correct static entry point patterns.
+
+---
+
+#### Part 6: Documentation API Style Corrections
+
+**Files corrected:**
+- `docs/reference/AdvancedTypesMigration.md`
+- `docs/CodeExamples.md`
+- `docs/advanced-topics/PerformanceOptimization.md`
+- `docs/reference/AdoptionGuide.md`
+
+**Summary:** Corrected API patterns to use typed table classes, entity accessors, and lambda expressions following the documentation style priority (lambda expressions preferred over format strings over manual WithValue).
+
+---
+
+**AdvancedTypesMigration.md - Multiple Corrections:**
+
+**Before (Incorrect - non-existent generic type):**
+```csharp
+private readonly DynamoDbTableBase<Product> _table;
+
+var response = await _table.Get
+    .WithKey("pk", productId)
+    .ExecuteAsync<Product>();
+
+await _table.Put
+    .WithItem(product)
+    .ExecuteAsync();
+```
+
+**After (Correct - typed table class with entity accessors):**
+```csharp
+private readonly ProductTable _table;
+
+var product = await _table.Products.GetAsync(productId);
+
+await _table.Products.PutAsync(product);
+```
+
+**Reason:** `DynamoDbTableBase<T>` does not exist - `DynamoDbTableBase` is not generic. Use concrete typed table classes with entity accessors for type-safe operations.
+
+---
+
+**CodeExamples.md - Get Request Method Correction:**
+
+**Before (Incorrect method name):**
+```csharp
+var response = await _table.Get()
+    .WithClient(scopedClient)
+    .WithKey(TenantResourceFields.Pk, TenantResourceKeys.Pk(tenantId, resourceType))
+    .WithKey(TenantResourceFields.Sk, TenantResourceKeys.Sk(resourceId))
+    .ExecuteAsync<TenantResource>();
+```
+
+**After (Correct method name):**
+```csharp
+var response = await _table.Get()
+    .WithClient(scopedClient)
+    .WithKey(TenantResourceFields.Pk, TenantResourceKeys.Pk(tenantId, resourceType))
+    .WithKey(TenantResourceFields.Sk, TenantResourceKeys.Sk(resourceId))
+    .GetItemAsync<TenantResource>();
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()`.
+
+---
+
+**PerformanceOptimization.md - Get Request Method Correction:**
+
+**Before (Incorrect method name):**
+```csharp
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .ExecuteAsync<User>();
+
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .UsingConsistentRead()
+    .ExecuteAsync<User>();
+```
+
+**After (Correct method name):**
+```csharp
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .GetItemAsync<User>();
+
+await table.Get
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .UsingConsistentRead()
+    .GetItemAsync<User>();
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()`.
+
+---
+
+**AdoptionGuide.md - Get Request Method Correction:**
+
+**Before (Incorrect method name):**
+```csharp
+var order = await table.Get
+    .WithKey(OrderFields.Pk, OrderKeys.Pk("tenant123", "order456"))
+    .ExecuteAsync<Order>();
+```
+
+**After (Correct method name):**
+```csharp
+var order = await table.Get
+    .WithKey(OrderFields.Pk, OrderKeys.Pk("tenant123", "order456"))
+    .GetItemAsync<Order>();
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()`.
+
+---
+
+**AdvancedTypesMigration.md - Versioned Entities Section:**
+
+**Before (Incorrect method name):**
+```csharp
+public async Task<IProduct> GetProductAsync(string id, int version = 2)
+{
+    if (version == 1)
+    {
+        return await _tableV1.Get.WithKey("pk", id).ExecuteAsync<ProductV1>();
+    }
+    else
+    {
+        return await _tableV2.Get.WithKey("pk", id).ExecuteAsync<ProductV2>();
+    }
+}
+```
+
+**After (Correct method name and return pattern):**
+```csharp
+public async Task<IProduct?> GetProductAsync(string id, int version = 2)
+{
+    if (version == 1)
+    {
+        var response = await _tableV1.Get.WithKey("pk", id).GetItemAsync<ProductV1>();
+        return response.Item;
+    }
+    else
+    {
+        var response = await _tableV2.Get.WithKey("pk", id).GetItemAsync<ProductV2>();
+        return response.Item;
+    }
+}
+```
+
+**Reason:** `ExecuteAsync<T>()` does not exist on `GetItemRequestBuilder`. The correct method is `GetItemAsync<T>()` which returns a response object containing the `Item` property.
+
+---
+
+**AdoptionGuide.md - Removed Misleading "Dynamic Table Names" Example:**
+
+**Before (Removed - misleading pattern):**
+```csharp
+### Use Case 2: Dynamic Table Names with Generated Entities
+
+[DynamoDbTable("users")] // Default table name
+public partial class User
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; set; } = string.Empty;
+}
+
+// Use different table at runtime
+var table = new DynamoDbTableBase(client, GetTableNameForTenant(tenantId));
+
+var response = await table.Get()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .GetItemAsync<User>();
+```
+
+**After:** Section removed entirely. Use Case 3 renumbered to Use Case 2.
+
+**Reason:** This example was misleading because it showed creating a raw `DynamoDbTableBase` with a dynamic table name, then using generated field constants (`UserFields`, `UserKeys`) which are generated for typed table classes, not for raw `DynamoDbTableBase`. The generated entity accessors, indexes, and convenience methods are all part of the generated table class - using `DynamoDbTableBase` directly loses most of what the library provides. For multi-tenant scenarios with different table names, use the generated table class constructor which accepts a table name parameter.
+
+---
+
+#### Part 7: Batch Static Entry Point Client Parameter Correction
+
+**Files corrected:**
+- `docs/getting-started/SingleEntityTables.md`
+
+**Before (Incorrect - client as constructor parameter, generic methods):**
+```csharp
+// Batch write operations - INCORRECT
+await DynamoDbBatch.Write(client)
+    .Add(usersTable.Put<User>().WithItem(user1))
+    .Add(usersTable.Put<User>().WithItem(user2))
+    .Add(usersTable.Delete<User>().WithKey(User.Fields.UserId, "user3"))
+    .ExecuteAsync();
+
+// Batch get operations - INCORRECT
+var batchGetResponse = await DynamoDbBatch.Get(client)
+    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user1"))
+    .ExecuteAsync();
+```
+
+**After (Correct - static property, entity accessor pattern):**
+```csharp
+// Batch write operations - CORRECT
+await DynamoDbBatch.Write
+    .Add(usersTable.Users.Put(user1))
+    .Add(usersTable.Users.Put(user2))
+    .Add(usersTable.Users.Delete("user3"))
+    .ExecuteAsync();
+
+// Batch get operations - CORRECT
+var batchGetResponse = await DynamoDbBatch.Get
+    .Add(usersTable.Users.Get("user1"))
+    .ExecuteAsync();
+```
+
+**Reason:** 
+1. `DynamoDbBatch.Write` and `DynamoDbBatch.Get` are static properties that return new builder instances, not methods that accept a client parameter. The client is automatically inferred from the first request builder added, or can be explicitly specified using `.WithClient(client)` or by passing to `.ExecuteAsync(client: client)`.
+2. Use entity accessor pattern (`usersTable.Users.Put(user)`) instead of generic methods (`usersTable.Put<User>().WithItem(user)`) for cleaner, more readable code.
+
+---
+
+#### Part 8: Transaction and Batch Pattern Corrections (Multiple Files)
+
+**Files corrected:**
+- `docs/advanced-topics/MultiEntityTables.md`
+- `docs/DeveloperGuide.md`
+- `docs/reference/ErrorHandling.md`
+- `docs/QUICK_REFERENCE.md`
+- `docs/reference/LoggingTroubleshooting.md`
+- `docs/reference/Troubleshooting.md`
+- `docs/core-features/encryption-guide.md`
+
+**Before (Incorrect - table-level TransactWrite/BatchWrite methods):**
+```csharp
+// Transaction - INCORRECT (table method doesn't exist)
+await ecommerceTable.TransactWrite()
+    .AddPut(ecommerceTable.Orders, order)
+    .AddPut(ecommerceTable.OrderLines, line1)
+    .ExecuteAsync();
+
+// Batch write - INCORRECT
+await ecommerceTable.BatchWrite()
+    .AddPut(order1)
+    .AddPut(line1)
+    .ExecuteAsync();
+
+// Batch get - INCORRECT
+var batchResponse = await ecommerceTable.BatchGet()
+    .AddKey(OrderKeys.Pk("customer123"), OrderKeys.Sk("ORDER#order456"))
+    .ExecuteAsync();
+```
+
+**After (Correct - static entry points with entity accessors):**
+```csharp
+// Transaction - CORRECT (static entry point)
+await DynamoDbTransactions.Write
+    .Add(ecommerceTable.Orders.Put(order))
+    .Add(ecommerceTable.OrderLines.Put(line1))
+    .ExecuteAsync();
+
+// Batch write - CORRECT
+await DynamoDbBatch.Write
+    .Add(ecommerceTable.Orders.Put(order1))
+    .Add(ecommerceTable.OrderLines.Put(line1))
+    .ExecuteAsync();
+
+// Batch get - CORRECT
+var batchResponse = await DynamoDbBatch.Get
+    .Add(ecommerceTable.Orders.Get("customer123", "ORDER#order456"))
+    .ExecuteAsync();
+```
+
+**Reason:** The source generator does not generate `TransactWrite()`, `BatchWrite()`, or `BatchGet()` methods on table classes. Transaction and batch operations are inherently cross-table and use static entry points (`DynamoDbTransactions.Write`, `DynamoDbBatch.Write`, `DynamoDbBatch.Get`). Also updated to use entity accessor pattern for cleaner code.
+
+---
+
+#### Part 9: GlobalSecondaryIndexes.md API Pattern Corrections
+
+**Files corrected:**
+- `docs/advanced-topics/GlobalSecondaryIndexes.md`
+
+**Before (Incorrect - UsingIndex pattern, ExecuteAsync on queries):**
+```csharp
+// Query using UsingIndex - INCORRECT
+var response = await table.Query
+    .UsingIndex(OrderIndexes.StatusIndex)
+    .Where($"{OrderFields.StatusIndex.Status} = {{0}}", "pending")
+    .ExecuteAsync<Order>();
+
+foreach (var order in response.Items) { ... }
+```
+
+**After (Correct - index accessor, lambda expressions, ToListAsync):**
+```csharp
+// Query using index accessor - CORRECT
+var orders = await table.StatusIndex.Query<Order>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
+
+foreach (var order in orders) { ... }
+```
+
+**Reason:** 
+1. Use index accessor pattern (`table.StatusIndex.Query<Order>()`) instead of `table.Query.UsingIndex()` for cleaner, more discoverable API
+2. Use lambda expressions (`x => x.Status == "pending"`) instead of format strings for type-safe queries
+3. Use `ToListAsync()` instead of `ExecuteAsync<T>()` for queries - `ExecuteAsync<T>()` does not exist on QueryRequestBuilder
+4. When pagination is needed, use `ToResponseAsync()` to get the full response with `LastEvaluatedKey`
+
+---
+
 ## [2025-12-05]
 
 ### File: Multiple documentation files - Release 0.8.0 Documentation Corrections

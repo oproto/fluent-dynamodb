@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
+using Oproto.FluentDynamoDb.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
@@ -17,7 +18,7 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 /// </summary>
 public class BuilderExtensionMethodsIntegrationTests
 {
-    private class TestEntity { }
+    private class TestEntity : TestEntityBase { }
     private readonly IAmazonDynamoDB _mockClient = Substitute.For<IAmazonDynamoDB>();
 
     #region Test all request builders work correctly with extension methods

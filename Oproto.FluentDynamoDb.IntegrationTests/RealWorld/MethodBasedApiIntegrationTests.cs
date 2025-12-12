@@ -64,7 +64,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
                     },
                     Projection = new Projection 
                     { 
-                        ProjectionType = ProjectionType.INCLUDE,
+                        ProjectionType = Amazon.DynamoDBv2.ProjectionType.INCLUDE,
                         NonKeyAttributes = new List<string> { "pk", "sk" }
                     }
                 }
@@ -83,7 +83,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     {
         // Arrange
         var userId = "USER#123";
-        await _singleKeyTable.Put<object>()
+        await _singleKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = userId },
@@ -94,7 +94,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .PutAsync();
         
         // Act - Use Query with format string expression
-        var response = await _singleKeyTable.Query<object>("pk = {0}", userId).ToDynamoDbResponseAsync();
+        var response = await _singleKeyTable.Query<RawDictionaryEntity>("pk = {0}", userId).ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -108,7 +108,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         // Arrange
         var pk = "PRODUCT#456";
         var sk = "METADATA";
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -119,7 +119,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .PutAsync();
         
         // Act - Use Query with composite key condition
-        var response = await _compositeKeyTable.Query<object>("pk = {0} AND sk = {1}", pk, sk).ToDynamoDbResponseAsync();
+        var response = await _compositeKeyTable.Query<RawDictionaryEntity>("pk = {0} AND sk = {1}", pk, sk).ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(1);
@@ -133,7 +133,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     {
         // Arrange
         var pk = "USER#789";
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -142,7 +142,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             })
             .PutAsync();
         
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -151,7 +151,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             })
             .PutAsync();
         
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -161,7 +161,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .PutAsync();
         
         // Act - Use begins_with in format string with projection
-        var response = await _compositeKeyTable.Query<object>("pk = {0} AND begins_with(sk, {1})", pk, "ORDER#")
+        var response = await _compositeKeyTable.Query<RawDictionaryEntity>("pk = {0} AND begins_with(sk, {1})", pk, "ORDER#")
             .WithProjection("pk, sk, amount")
             .ToDynamoDbResponseAsync();
         
@@ -185,7 +185,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         foreach (var (sk, price) in items)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -196,7 +196,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         }
         
         // Act - Use >= operator
-        var response = await _compositeKeyTable.Query<object>("pk = {0} AND sk >= {1}", pk, "VERSION#2.0").ToDynamoDbResponseAsync();
+        var response = await _compositeKeyTable.Query<RawDictionaryEntity>("pk = {0} AND sk >= {1}", pk, "VERSION#2.0").ToDynamoDbResponseAsync();
         
         // Assert
         response.Items.Should().HaveCount(3);
@@ -214,7 +214,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         foreach (var date in dates)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -225,7 +225,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         }
         
         // Act - Use BETWEEN operator
-        var response = await _compositeKeyTable.Query<object>("pk = {0} AND sk BETWEEN {1} AND {2}", 
+        var response = await _compositeKeyTable.Query<RawDictionaryEntity>("pk = {0} AND sk BETWEEN {1} AND {2}", 
             pk, "2024-02-01", "2024-03-31").ToDynamoDbResponseAsync();
         
         // Assert
@@ -243,7 +243,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     {
         // Arrange
         var userId = "USER#GET#001";
-        await _singleKeyTable.Put<object>()
+        await _singleKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = userId },
@@ -269,7 +269,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         // Arrange
         var pk = "PRODUCT#GET#001";
         var sk = "DETAILS";
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -280,7 +280,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .PutAsync();
         
         // Act - Use Get with composite key parameters
-        var response = await _compositeKeyTable.Get<object>()
+        var response = await _compositeKeyTable.Get<RawDictionaryEntity>()
             .WithKey("pk", pk)
             .WithKey("sk", sk)
             .ToDynamoDbResponseAsync();
@@ -297,7 +297,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     {
         // Arrange
         var userId = "USER#UPDATE#001";
-        await _singleKeyTable.Put<object>()
+        await _singleKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = userId },
@@ -315,7 +315,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .UpdateAsync();
         
         // Assert
-        var response = await _singleKeyTable.Get<object>()
+        var response = await _singleKeyTable.Get<RawDictionaryEntity>()
             .WithKey("pk", userId)
             .WithKey("sk", "METADATA")
             .ToDynamoDbResponseAsync();
@@ -328,7 +328,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         // Arrange
         var pk = "PRODUCT#UPDATE#001";
         var sk = "DETAILS";
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -345,7 +345,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .UpdateAsync();
         
         // Assert
-        var response = await _compositeKeyTable.Get<object>()
+        var response = await _compositeKeyTable.Get<RawDictionaryEntity>()
             .WithKey("pk", pk)
             .WithKey("sk", sk)
             .ToDynamoDbResponseAsync();
@@ -357,7 +357,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     {
         // Arrange
         var userId = "USER#DELETE#001";
-        await _singleKeyTable.Put<object>()
+        await _singleKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = userId },
@@ -370,7 +370,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         await _singleKeyTable.Delete(userId).DeleteAsync();
         
         // Assert
-        var response = await _singleKeyTable.Get<object>()
+        var response = await _singleKeyTable.Get<RawDictionaryEntity>()
             .WithKey("pk", userId)
             .WithKey("sk", "METADATA")
             .ToDynamoDbResponseAsync();
@@ -383,7 +383,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         // Arrange
         var pk = "PRODUCT#DELETE#001";
         var sk = "DETAILS";
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -396,7 +396,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         await _compositeKeyTable.Delete(pk, sk).DeleteAsync();
         
         // Assert
-        var response = await _compositeKeyTable.Get<object>()
+        var response = await _compositeKeyTable.Get<RawDictionaryEntity>()
             .WithKey("pk", pk)
             .WithKey("sk", sk)
             .ToDynamoDbResponseAsync();
@@ -420,7 +420,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         foreach (var (pk, status, date, name) in items)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -434,7 +434,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         // Act - Query index with format string
         var response = await _compositeKeyTable.StatusIndex
-            .Query<object>("gsi1pk = {0}", "STATUS#ACTIVE")
+            .Query<RawDictionaryEntity>("gsi1pk = {0}", "STATUS#ACTIVE")
             .ToDynamoDbResponseAsync();
         
         // Assert
@@ -456,7 +456,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         foreach (var (pk, status, date) in items)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -469,7 +469,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         // Act - Query index with composite key condition and projection to avoid reserved keyword
         var response = await _compositeKeyTable.StatusIndex
-            .Query<object>("gsi1pk = {0} AND gsi1sk >= {1}", "STATUS#ACTIVE", "2024-02-01")
+            .Query<RawDictionaryEntity>("gsi1pk = {0} AND gsi1sk >= {1}", "STATUS#ACTIVE", "2024-02-01")
             .WithProjection("pk, sk, gsi1pk, gsi1sk")
             .ToDynamoDbResponseAsync();
         
@@ -492,7 +492,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         foreach (var (pk, gsi1pk, gsi1sk) in items)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -505,7 +505,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         // Act - Query index with begins_with and projection to avoid reserved keyword
         var response = await _compositeKeyTable.StatusIndex
-            .Query<object>("gsi1pk = {0} AND begins_with(gsi1sk, {1})", "CATEGORY#ELECTRONICS", "PRODUCT#")
+            .Query<RawDictionaryEntity>("gsi1pk = {0} AND begins_with(gsi1sk, {1})", "CATEGORY#ELECTRONICS", "PRODUCT#")
             .WithProjection("pk, sk, gsi1pk, gsi1sk")
             .ToDynamoDbResponseAsync();
         
@@ -524,7 +524,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     {
         // Arrange
         var pk = "USER#PROJ#001";
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -538,7 +538,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         // Act - Combine format string with projection
         var response = await _compositeKeyTable
-            .Query<object>("pk = {0}", pk)
+            .Query<RawDictionaryEntity>("pk = {0}", pk)
             .WithProjection("pk, sk, #name, email")
             .WithAttribute("#name", "name")
             .ToDynamoDbResponseAsync();
@@ -568,7 +568,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         foreach (var (sk, price, active) in items)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -581,7 +581,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         // Act - Combine format string with filter
         var response = await _compositeKeyTable
-            .Query<object>("pk = {0}", pk)
+            .Query<RawDictionaryEntity>("pk = {0}", pk)
             .WithFilter("active = :active")
             .WithValue(":active", true)
             .ToDynamoDbResponseAsync();
@@ -599,7 +599,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         var pk = "PRODUCT#LIMIT#001";
         for (int i = 1; i <= 10; i++)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -611,7 +611,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         // Act - Combine format string with limit
         var response = await _compositeKeyTable
-            .Query<object>("pk = {0}", pk)
+            .Query<RawDictionaryEntity>("pk = {0}", pk)
             .Take(5)
             .ToDynamoDbResponseAsync();
         
@@ -629,7 +629,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         foreach (var letter in items)
         {
-            await _compositeKeyTable.Put<object>()
+            await _compositeKeyTable.Put<RawDictionaryEntity>()
                 .WithItem(new Dictionary<string, AttributeValue>
                 {
                     ["pk"] = new AttributeValue { S = pk },
@@ -641,7 +641,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         
         // Act - Combine format string with descending order
         var response = await _compositeKeyTable
-            .Query<object>("pk = {0}", pk)
+            .Query<RawDictionaryEntity>("pk = {0}", pk)
             .OrderDescending()
             .ToDynamoDbResponseAsync();
         
@@ -657,7 +657,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         // Arrange
         var pk = "PRODUCT#COND#001";
         var sk = "DETAILS";
-        await _compositeKeyTable.Put<object>()
+        await _compositeKeyTable.Put<RawDictionaryEntity>()
             .WithItem(new Dictionary<string, AttributeValue>
             {
                 ["pk"] = new AttributeValue { S = pk },
@@ -676,7 +676,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
             .UpdateAsync();
         
         // Assert
-        var response = await _compositeKeyTable.Get<object>()
+        var response = await _compositeKeyTable.Get<RawDictionaryEntity>()
             .WithKey("pk", pk)
             .WithKey("sk", sk)
             .ToDynamoDbResponseAsync();
@@ -699,16 +699,16 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         }
         
         // Override Get to provide key-specific overload
-        public GetItemRequestBuilder<object> Get(string userId) => 
-            base.Get<object>().WithKey("pk", userId).WithKey("sk", "METADATA");
+        public GetItemRequestBuilder<RawDictionaryEntity> Get(string userId) => 
+            base.Get<RawDictionaryEntity>().WithKey("pk", userId).WithKey("sk", "METADATA");
         
         // Override Update to provide key-specific overload
-        public UpdateItemRequestBuilder<object> Update(string userId) => 
-            base.Update<object>().WithKey("pk", userId).WithKey("sk", "METADATA");
+        public UpdateItemRequestBuilder<RawDictionaryEntity> Update(string userId) => 
+            base.Update<RawDictionaryEntity>().WithKey("pk", userId).WithKey("sk", "METADATA");
         
         // Override Delete to provide key-specific overload
-        public DeleteItemRequestBuilder<object> Delete(string userId) => 
-            base.Delete<object>().WithKey("pk", userId).WithKey("sk", "METADATA");
+        public DeleteItemRequestBuilder<RawDictionaryEntity> Delete(string userId) => 
+            base.Delete<RawDictionaryEntity>().WithKey("pk", userId).WithKey("sk", "METADATA");
     }
     
     /// <summary>
@@ -723,16 +723,16 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
         }
         
         // Override Get to provide composite key overload
-        public GetItemRequestBuilder<object> Get(string pk, string sk) => 
-            base.Get<object>().WithKey("pk", pk).WithKey("sk", sk);
+        public GetItemRequestBuilder<RawDictionaryEntity> Get(string pk, string sk) => 
+            base.Get<RawDictionaryEntity>().WithKey("pk", pk).WithKey("sk", sk);
         
         // Override Update to provide composite key overload
-        public UpdateItemRequestBuilder<object> Update(string pk, string sk) => 
-            base.Update<object>().WithKey("pk", pk).WithKey("sk", sk);
+        public UpdateItemRequestBuilder<RawDictionaryEntity> Update(string pk, string sk) => 
+            base.Update<RawDictionaryEntity>().WithKey("pk", pk).WithKey("sk", sk);
         
         // Override Delete to provide composite key overload
-        public DeleteItemRequestBuilder<object> Delete(string pk, string sk) => 
-            base.Delete<object>().WithKey("pk", pk).WithKey("sk", sk);
+        public DeleteItemRequestBuilder<RawDictionaryEntity> Delete(string pk, string sk) => 
+            base.Delete<RawDictionaryEntity>().WithKey("pk", pk).WithKey("sk", sk);
         
         // Define index with projection (excluding 'name' which is a reserved keyword)
         public DynamoDbIndex StatusIndex => 

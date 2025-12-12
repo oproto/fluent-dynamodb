@@ -61,6 +61,9 @@ public class BatchGetBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     private class SecondTestEntity : IDynamoDbEntity
@@ -113,6 +116,9 @@ public class BatchGetBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
 

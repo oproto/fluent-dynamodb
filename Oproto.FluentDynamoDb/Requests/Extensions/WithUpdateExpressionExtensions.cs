@@ -343,7 +343,7 @@ public static class WithUpdateExpressionExtensions
         this UpdateItemRequestBuilder<TEntity> builder,
         Expression<Func<TUpdateExpressions, TUpdateModel>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class, IEntityMetadataProvider
+        where TEntity : class, IDynamoDbEntity, IEntityMetadataProvider
         where TUpdateExpressions : new()
         where TUpdateModel : new()
     {

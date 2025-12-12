@@ -24,6 +24,12 @@ internal class EntityModel
     public string TableName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the custom namespace for the generated table class.
+    /// If null, the entity's namespace is used.
+    /// </summary>
+    public string? TableNamespace { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional entity discriminator for multi-type tables.
     /// </summary>
     [Obsolete("Use Discriminator property instead")]
@@ -53,6 +59,13 @@ internal class EntityModel
     /// Gets or sets a value indicating whether this entity spans multiple DynamoDB items.
     /// </summary>
     public bool IsMultiItemEntity { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this entity requires write operations within a transaction.
+    /// When true, Put, Update, Delete, and BatchWrite operations will throw InvalidOperationException
+    /// unless performed within a TransactWrite operation.
+    /// </summary>
+    public bool RequiresWriteTransaction { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether this table supports scan operations.
@@ -107,6 +120,18 @@ internal class EntityModel
     /// When true, the source generator will generate GeoLocation serialization/deserialization code.
     /// </summary>
     public bool HasGeospatialPackage { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether dynamic fields support is enabled for this entity.
+    /// When true, the source generator will generate a DynamicFields property and capture unmapped attributes.
+    /// </summary>
+    public bool EnableDynamicFields { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether dynamic field values should be treated as sensitive in logs.
+    /// When true (default), dynamic field values are redacted in logs while field names are still logged.
+    /// </summary>
+    public bool DynamicFieldsSensitiveLogging { get; set; } = true;
 
     /// <summary>
     /// Gets the partition key property, if any.

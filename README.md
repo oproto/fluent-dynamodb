@@ -6,6 +6,8 @@
 
 [![Build](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/build.yml)
 [![Tests](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml/badge.svg)](https://github.com/oproto/fluent-dynamodb/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa)](https://github.com/sponsors/dguisinger)
 
 [![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.svg?label=FluentDynamoDb)](https://www.nuget.org/packages/Oproto.FluentDynamoDb/)
 [![NuGet](https://img.shields.io/nuget/v/Oproto.FluentDynamoDb.Streams.svg?label=Streams)](https://www.nuget.org/packages/Oproto.FluentDynamoDb.Streams/)
@@ -304,6 +306,40 @@ Fluent pattern matching for DynamoDB Streams in Lambda functions with support fo
 Protect sensitive data with logging redaction and optional KMS-based encryption. Mark fields with `[Sensitive]` to exclude from logs, or `[Encrypted]` for encryption at rest with AWS KMS. Supports multi-tenant encryption with per-context keys.
 - **Learn more:** [Field-Level Security Guide](docs/advanced-topics/FieldLevelSecurity.md)
 
+### 🔄 Dynamic Fields Support
+Capture and work with DynamoDB attributes that aren't explicitly defined in your entity class. Perfect for multi-tenant applications where different tenants need different custom fields.
+```csharp
+// Enable dynamic fields on your entity
+[DynamoDbTable("products")]
+[EnableDynamicFields]
+public partial class Product
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string ProductId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+    
+    // DynamicFields property is auto-generated
+}
+
+// Read dynamic fields with typed accessors
+var product = await table.Products.GetAsync(productId);
+var color = product.DynamicFields.GetString("color");
+var weight = product.DynamicFields.GetInt("weight_grams");
+
+// Write dynamic fields
+product.DynamicFields.SetString("material", "Cotton");
+await table.Products.PutAsync(product);
+
+// Filter by dynamic fields
+var blueProducts = await table.Products.Scan()
+    .WithFilter(x => x.DynamicFields["color"] == "Blue")
+    .ToListAsync();
+```
+- **Learn more:** [Dynamic Fields Guide](docs/core-features/DynamicFields.md)
+
 ### 📊 Logging and Diagnostics
 Comprehensive logging support for debugging and monitoring DynamoDB operations, especially useful in AOT environments where stack traces are limited.
 - **Learn more:** [Logging Configuration](docs/core-features/LoggingConfiguration.md)
@@ -395,28 +431,27 @@ var options = new FluentDynamoDbOptions()
 var table = new ProductsTable(client, "products", options);
 ```
 
-### Conditional Compilation (Zero Overhead in Production)
+### Disabling Logging (Zero Overhead)
 
-Disable logging completely in production builds:
+By default, the library uses `NoOpLogger.Instance` which provides near-zero overhead:
 
-```xml
-<!-- .csproj -->
-<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
-</PropertyGroup>
+```csharp
+// Default - no logging configured, uses NoOpLogger
+var table = new ProductsTable(client, "products");
+
+// Explicit NoOpLogger for clarity
+var options = new FluentDynamoDbOptions()
+    .WithLogger(NoOpLogger.Instance);
+var table = new ProductsTable(client, "products", options);
 ```
 
-When `DISABLE_DYNAMODB_LOGGING` is defined:
-- All logging code is removed at compile time
-- Zero runtime overhead
-- Zero allocations
-- Smaller binary size
+The `NoOpLogger.IsEnabled()` method always returns `false`, causing all logging calls to be skipped with minimal overhead.
 
 **Learn more:**
 - [Logging Configuration Guide](docs/core-features/LoggingConfiguration.md) - Setup and configuration
 - [Log Levels and Event IDs](docs/core-features/LogLevelsAndEventIds.md) - Filtering and analysis
 - [Structured Logging](docs/core-features/StructuredLogging.md) - Query logs by properties
-- [Conditional Compilation](docs/core-features/ConditionalCompilation.md) - Disable for production
+- [Runtime Logging Configuration](docs/advanced-topics/runtime-logging-configuration.md) - Environment-based control
 - [Logging Troubleshooting](docs/reference/LoggingTroubleshooting.md) - Common issues
 
 ## Documentation Guide
@@ -440,7 +475,6 @@ Master the essential operations and patterns.
 - [Logging Configuration](docs/core-features/LoggingConfiguration.md) - Logging and diagnostics
 - [Log Levels and Event IDs](docs/core-features/LogLevelsAndEventIds.md) - Event filtering
 - [Structured Logging](docs/core-features/StructuredLogging.md) - Query and analyze logs
-- [Conditional Compilation](docs/core-features/ConditionalCompilation.md) - Disable for production
 
 ### 🚀 [Advanced Topics](docs/advanced-topics/README.md)
 Explore advanced patterns and optimizations.
@@ -528,6 +562,11 @@ await table.Update()
 **Oproto.FluentDynamoDb** is developed and maintained by [Oproto Inc](https://oproto.com), 
 a company building modern SaaS solutions for small business finance and accounting.
 
+### Related Projects
+
+- [LambdaOpenApi](https://lambdaopenapi.dev)
+- [LambdaGraphQL](https://lambdagraphql.dev)
+
 ### Links
 - 🏢 **Company**: [oproto.com](https://oproto.com)
 - 👨‍💻 **Developer Portal**: [oproto.io](https://oproto.io)
@@ -535,6 +574,24 @@ a company building modern SaaS solutions for small business finance and accounti
 
 ### Maintainer
 - **Dan Guisinger** - [danguisinger.com](https://danguisinger.com)
+
+## ❤️ Support the Project
+
+Oproto maintains this library as part of a broader open-source ecosystem for building high-quality AWS-native .NET applications. If FluentDynamoDB (or any Oproto library) saves you time or helps your team ship features faster, please consider supporting ongoing development.
+
+Your support helps:
+- Fund continued maintenance of the Oproto open source ecosystem
+- Keep libraries AOT-compatible and aligned with new AWS features
+- Improve documentation, samples, and test coverage
+- Sustain long-term open-source availability
+
+You can support the project in one of two ways:
+
+**👉 [GitHub Sponsors](https://github.com/sponsors/dguisinger)** — Recurring support for those who want to help sustain long-term development.
+
+**👉 [Buy Me a Coffee](https://buymeacoffee.com/danguisinger)** — A simple, one-time "thanks" for helping you ship faster.
+
+Every bit of support helps keep the project healthy, actively maintained, and open for the community. Thank you!
 
 ## Built Using Kiro (for Kiroween 2025)
 

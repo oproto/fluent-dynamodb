@@ -40,6 +40,7 @@ This attribute is required on every entity class. It tells the source generator 
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
+| `Namespace` | `string?` | `null` | Custom namespace for the generated table class. If null, uses the entity's namespace. |
 | `EntityDiscriminator` | `string?` | `null` | **[Obsolete]** Legacy discriminator (use DiscriminatorProperty/Value instead) |
 | `DiscriminatorProperty` | `string?` | `null` | DynamoDB attribute name containing the discriminator (e.g., "entity_type", "SK", "PK") |
 | `DiscriminatorValue` | `string?` | `null` | Exact value to match for this entity type |
@@ -139,6 +140,14 @@ public partial class User
 public partial class User
 {
     // Properties...
+}
+
+// Custom namespace for generated table class
+[DynamoDbTable("users", Namespace = "MyApp.Data.Tables")]
+public partial class User
+{
+    // Entity stays in its declared namespace
+    // Generated UsersTable class is in MyApp.Data.Tables namespace
 }
 
 // Attribute-based discriminator
@@ -593,6 +602,103 @@ public static class UserIndexes
 - [Querying Data](../core-features/QueryingData.md)
 
 
+## [LocalSecondaryIndex]
+
+Marks a property as the sort key for a Local Secondary Index (LSI).
+
+### Purpose
+
+Identifies the property that serves as the sort key for a Local Secondary Index. LSIs share the same partition key as the base table but have a different sort key, enabling alternative query patterns without the cost of a GSI.
+
+### Key Differences from GSI
+
+| Feature | Local Secondary Index | Global Secondary Index |
+|---------|----------------------|------------------------|
+| Partition Key | Same as base table | Can be different |
+| Sort Key | Different from base table | Can be different |
+| Created | At table creation only | Anytime |
+| Consistency | Strong or eventual | Eventual only |
+| Throughput | Shares with base table | Independent |
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `indexName` | `string` | Yes | The name of the Local Secondary Index |
+
+### Example
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    // LSI for querying orders by date within a customer
+    [LocalSecondaryIndex("orders-by-date")]
+    [DynamoDbAttribute("order_date")]
+    public string OrderDate { get; set; } = string.Empty;
+    
+    // Another LSI for querying by status
+    [LocalSecondaryIndex("orders-by-status")]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("total")]
+    public decimal Total { get; set; }
+}
+```
+
+### Generated Metadata
+
+The source generator creates `IndexMetadata` with `IndexType = LocalSecondaryIndex`:
+
+```csharp
+// Generated index metadata
+new IndexMetadata
+{
+    IndexName = "orders-by-date",
+    IndexType = IndexType.LocalSecondaryIndex,
+    PartitionKeyAttributeName = "pk",  // Same as base table
+    SortKeyAttributeName = "order_date",
+    SortKeyAttributeType = "S"
+}
+```
+
+### Schema Validation
+
+LSIs are validated during schema validation:
+
+```csharp
+var result = await OrdersTable.ValidateSchemaAsync(client);
+
+// Validation checks:
+// - LSI exists on the table
+// - Sort key attribute name matches
+// - Sort key attribute type matches
+```
+
+### Important Notes
+
+- LSIs can only be created when the table is created (cannot be added later)
+- LSIs share read/write capacity with the base table
+- Maximum of 5 LSIs per table
+- LSIs support both strong and eventual consistency
+- The partition key is always the same as the base table (not specified in the attribute)
+
+### See Also
+
+- [Schema Validation Guide](../advanced-topics/SchemaValidation.md)
+- [Global Secondary Indexes](../advanced-topics/GlobalSecondaryIndexes.md)
+- [Querying Data](../core-features/QueryingData.md)
+
+
 ## [Computed]
 
 Specifies that a property value should be computed from other properties before mapping to DynamoDB.
@@ -979,7 +1085,105 @@ The `[Sensitive]` attribute affects:
 
 ---
 
-## [Queryable]
+## [RequireWriteTransaction]
+
+Marks an entity class as requiring write operations within a transaction.
+
+### Purpose
+
+Enforces transactional consistency for entities where atomic operations are required. When applied, Put, Update, Delete, and BatchWrite operations throw `InvalidOperationException` unless performed within a TransactWrite operation.
+
+This is useful for:
+- Financial transactions requiring atomic updates
+- Inventory management with consistency requirements
+- Multi-entity operations that must succeed or fail together
+- Audit-critical data that requires transactional guarantees
+
+### Parameters
+
+None (marker attribute)
+
+### Example
+
+```csharp
+[DynamoDbTable("FinancialTransactions")]
+[RequireWriteTransaction]
+public partial class Transaction
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string AccountId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string TransactionId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("amount")]
+    public decimal Amount { get; set; }
+}
+
+// ❌ This throws InvalidOperationException:
+await table.Transactions.Put(transaction).PutAsync();
+// Error: "Entity 'Transaction' is marked with [RequireWriteTransaction] and cannot be 
+// modified outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation."
+
+// ❌ This also throws:
+await table.Transactions.Update(accountId, transactionId)
+    .Set(x => new TransactionUpdateModel { Amount = 100m })
+    .UpdateAsync();
+
+// ❌ BatchWrite throws:
+await DynamoDbBatch.Write()
+    .Put(table.Transactions, transaction)
+    .ExecuteAsync();
+
+// ✅ TransactWrite is allowed:
+await DynamoDbTransactions.Write()
+    .Put(table.Transactions, transaction)
+    .ExecuteAsync();
+
+// ✅ Multiple operations in a transaction:
+await DynamoDbTransactions.Write()
+    .Put(table.Transactions, debitTransaction)
+    .Put(table.Transactions, creditTransaction)
+    .Update(table.Accounts, accountId)
+        .Set(x => new AccountUpdateModel { Balance = newBalance })
+    .ExecuteAsync();
+```
+
+### Behavior
+
+- Validation occurs at execution time (`PutAsync()`, `UpdateAsync()`, `DeleteAsync()`, `ExecuteAsync()`)
+- The `RequiresWriteTransaction` property is generated on the entity class
+- `EntityMetadata.RequiresWriteTransaction` is set for tooling support
+- No runtime reflection - uses static interface members for AOT compatibility
+
+### Affected Operations
+
+| Operation | Behavior |
+|-----------|----------|
+| `Put().PutAsync()` | Throws `InvalidOperationException` |
+| `Update().UpdateAsync()` | Throws `InvalidOperationException` |
+| `Delete().DeleteAsync()` | Throws `InvalidOperationException` |
+| `BatchWrite().ExecuteAsync()` | Throws `InvalidOperationException` |
+| `TransactWrite().ExecuteAsync()` | ✅ Allowed |
+
+### See Also
+
+- [Transactions Guide](../core-features/Transactions.md)
+- [Batch Operations](../core-features/BatchOperations.md)
+
+---
+
+## [Queryable] ⚠️ DEPRECATED
+
+> **⚠️ Deprecation Notice (v0.9.0):** The `[Queryable]` attribute is deprecated. Query capabilities are now automatically derived from `[PartitionKey]` and `[SortKey]` attributes. This attribute will be removed in v1.0.
+>
+> **Migration:** Remove `[Queryable]` attributes from your entities. The source generator automatically determines supported operations:
+> - **Partition Key**: Supports `Equals` operation
+> - **Sort Key**: Supports `Equals`, `BeginsWith`, `Between`, `GreaterThan`, `LessThan` operations
+>
+> Using this attribute will emit compiler warning `DYNDB103`.
 
 Marks a property as queryable and specifies the supported operations and indexes.
 
@@ -1361,10 +1565,11 @@ Must reference a blob provider package:
 These attributes work together to define your DynamoDB entity schema:
 
 ### Core Attributes
-1. **[DynamoDbTable]**: Required on every entity class
+1. **[DynamoDbTable]**: Required on every entity class (supports custom `Namespace` for generated table class)
 2. **[DynamoDbAttribute]**: Required on every persisted property
 3. **[PartitionKey]** and **[SortKey]**: Define table keys
-4. **[GlobalSecondaryIndex]**: Enable alternative query patterns
+4. **[GlobalSecondaryIndex]**: Enable alternative query patterns with GSIs
+5. **[LocalSecondaryIndex]**: Enable alternative query patterns with LSIs (same partition key)
 
 ### Composite Key Attributes
 5. **[Computed]** and **[Extracted]**: Handle composite keys
@@ -1376,8 +1581,12 @@ These attributes work together to define your DynamoDB entity schema:
 9. **[JsonBlob]**: JSON serialization (configured via `FluentDynamoDbOptions`)
 10. **[BlobReference]**: External blob storage
 
+### Behavior Attributes
+11. **[Sensitive]**: Mark properties for log redaction
+12. **[RequireWriteTransaction]**: Enforce transactional writes for entity types
+
 ### Metadata Attributes
-11. **[Queryable]**: Document query capabilities
+13. **[Queryable]**: Document query capabilities ⚠️ *Deprecated in v0.9.0 - query capabilities now derived from key attributes*
 
 The source generator reads these attributes at compile time and generates type-safe code for working with DynamoDB.
 
@@ -1387,5 +1596,6 @@ The source generator reads these attributes at compile time and generates type-s
 - [Entity Definition](../core-features/EntityDefinition.md) - See attributes used in context
 - [First Entity Guide](../getting-started/FirstEntity.md) - Step-by-step entity creation
 - [Global Secondary Indexes](../advanced-topics/GlobalSecondaryIndexes.md) - GSI attribute usage
+- [Schema Validation](../advanced-topics/SchemaValidation.md) - Validate table schema at startup
 - [Composite Entities](../advanced-topics/CompositeEntities.md) - RelatedEntity attribute usage
 - [Troubleshooting](Troubleshooting.md) - Common attribute-related issues

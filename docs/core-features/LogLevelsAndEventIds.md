@@ -493,12 +493,11 @@ fields @timestamp, TableName, OperationType
 5. **Use structured logging** - Query logs by properties (see [Structured Logging](StructuredLogging.md))
 6. **Monitor capacity consumption** - Track event ID 3110
 7. **Alert on critical errors** - Event IDs >= 9000
-8. **Use conditional compilation for production** - See [Conditional Compilation](ConditionalCompilation.md)
+8. **Use NoOpLogger for production** - See [Logging Configuration](LoggingConfiguration.md)
 
 ## Next Steps
 
 - **[Structured Logging](StructuredLogging.md)** - Query logs by properties
-- **[Conditional Compilation](ConditionalCompilation.md)** - Disable logging in production
 - **[Logging Configuration](LoggingConfiguration.md)** - Configure loggers
 - **[Troubleshooting Guide](../reference/LoggingTroubleshooting.md)** - Common issues
 

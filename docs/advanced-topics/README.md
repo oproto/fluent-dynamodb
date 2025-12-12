@@ -2,8 +2,8 @@
 title: "Advanced Topics"
 category: "advanced-topics"
 order: 0
-keywords: ["advanced", "composite entities", "GSI", "STS", "performance", "manual patterns"]
-related: ["CompositeEntities.md", "GlobalSecondaryIndexes.md", "PerformanceOptimization.md"]
+keywords: ["advanced", "composite entities", "GSI", "client configuration", "scoped security", "performance", "manual patterns"]
+related: ["CompositeEntities.md", "GlobalSecondaryIndexes.md", "ClientConfiguration.md", "ScopedSecurity.md", "PerformanceOptimization.md"]
 ---
 
 [Documentation](../README.md) > Advanced Topics
@@ -80,13 +80,21 @@ Master GSI configuration and querying for alternative access patterns. Covers:
 - Querying GSIs with expression formatting
 - Projection considerations and design patterns
 
-### [STS Integration](STSIntegration.md)
-Use custom DynamoDB clients for multi-tenancy and advanced scenarios. Covers:
-- `.WithClient()` method overview
+### [Client Configuration](ClientConfiguration.md)
+Configure DynamoDB clients for different environments and scenarios. Covers:
+- Development environments (DynamoDB Local, LocalStack)
+- Custom client settings (timeouts, retries, connection pooling)
+- Multi-region deployments (static routing)
+- Proxy configuration
+- Environment-based configuration patterns
+
+### [Scoped Security](ScopedSecurity.md)
+Use the `.WithClient()` method for per-request client customization and multi-tenancy. Covers:
 - STS-scoped credentials for tenant isolation
-- Custom client configurations
-- Multi-region deployments
-- Performance considerations
+- Complete multi-tenancy implementation example
+- Using WithClient() in all operation types
+- Performance considerations (client reuse, credential caching)
+- Security best practices
 
 ### [Performance Optimization](PerformanceOptimization.md)
 Optimize your DynamoDB operations for better performance and lower costs. Covers:
@@ -97,6 +105,16 @@ Optimize your DynamoDB operations for better performance and lower costs. Covers
 - Pagination strategies
 - Consistent reads vs eventual consistency
 - Hot partition avoidance
+
+### [Schema Validation](SchemaValidation.md)
+Validate DynamoDB table schemas against entity metadata at application startup. Covers:
+- Runtime schema validation with `ValidateSchemaAsync()`
+- Primary key, GSI, LSI, and TTL validation
+- Configurable strictness levels (Relaxed/Strict)
+- Error codes and warning codes for programmatic handling
+- Local Secondary Index support with `[LocalSecondaryIndex]` attribute
+- Fail-fast validation for Lambda cold starts
+- Logging integration for validation results
 
 ### [Manual Patterns](ManualPatterns.md)
 Lower-level manual approaches for dynamic scenarios. Covers:
@@ -128,7 +146,8 @@ If you're new to advanced topics, we recommend starting with:
 6. **[Field-Level Security](FieldLevelSecurity.md)** - Protect sensitive data with encryption and redaction
 7. **[Geospatial Support](Geospatial.md)** - Enable location-based queries with spatial indexing
 8. **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - Enable alternative query patterns
-9. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
+9. **[Schema Validation](SchemaValidation.md)** - Validate table schema at startup for fail-fast behavior
+10. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
 
 ## Prerequisites
 

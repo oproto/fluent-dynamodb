@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq.Expressions;
 using System.Text;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Providers.Encryption;
@@ -313,6 +314,25 @@ public class UpdateExpressionTranslator
             var propertyName = assignment.Member.Name;
             var valueExpression = assignment.Expression;
 
+            // Special handling for DynamicFields property
+            if (propertyName == "DynamicFields")
+            {
+                var dynamicFieldOperations = TranslateDynamicFieldsAssignment(valueExpression, context);
+                foreach (var op in dynamicFieldOperations)
+                {
+                    switch (op.Type)
+                    {
+                        case OperationType.Set:
+                            setOperations.Add(op.Expression);
+                            break;
+                        case OperationType.Remove:
+                            removeOperations.Add(op.Expression);
+                            break;
+                    }
+                }
+                continue;
+            }
+
             // Determine operation type and translate
             var operation = ClassifyOperation(valueExpression, parameter, propertyName, context);
             
@@ -512,9 +532,11 @@ public class UpdateExpressionTranslator
             "IfNotExists" => TranslateIfNotExistsFunction(methodCall, parameter, propertyName, context),
             "ListAppend" => TranslateListAppendFunction(methodCall, parameter, propertyName, context),
             "ListPrepend" => TranslateListPrependFunction(methodCall, parameter, propertyName, context),
+            "SetDynamicField" => TranslateSetDynamicFieldOperation(methodCall, parameter, context),
+            "RemoveDynamicField" => TranslateRemoveDynamicFieldOperation(methodCall, parameter, context),
             _ => throw new UnsupportedExpressionException(
                 $"Method '{methodName}' is not supported in update expressions. " +
-                $"Supported methods: Add, Remove, Delete, IfNotExists, ListAppend, ListPrepend.",
+                $"Supported methods: Add, Remove, Delete, IfNotExists, ListAppend, ListPrepend, SetDynamicField, RemoveDynamicField.",
                 methodName,
                 methodCall)
         };
@@ -893,6 +915,233 @@ public class UpdateExpressionTranslator
             Type = OperationType.Set,
             Expression = expression
         };
+    }
+
+    private Operation TranslateSetDynamicFieldOperation(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context)
+    {
+        // SetDynamicField can be called as:
+        // - Instance method: x.DynamicFields.SetDynamicField(fieldName, value) - Arguments has 2 elements
+        // - Extension method: SetDynamicField(accessor, fieldName, value) - Arguments has 3 elements
+        
+        Expression fieldNameArg;
+        Expression valueArg;
+        
+        if (methodCall.Object != null)
+        {
+            // Instance method call: x.DynamicFields.SetDynamicField(fieldName, value)
+            if (methodCall.Arguments.Count < 2)
+            {
+                throw new UnsupportedExpressionException(
+                    $"SetDynamicField() method requires a field name and value. " +
+                    $"Example: x.DynamicFields.SetDynamicField(\"customField\", value).",
+                    "SetDynamicField",
+                    methodCall);
+            }
+            fieldNameArg = methodCall.Arguments[0];
+            valueArg = methodCall.Arguments[1];
+        }
+        else
+        {
+            // Extension method call: SetDynamicField(accessor, fieldName, value)
+            if (methodCall.Arguments.Count < 3)
+            {
+                throw new UnsupportedExpressionException(
+                    $"SetDynamicField() method requires a field name and value. " +
+                    $"Example: x.DynamicFields.SetDynamicField(\"customField\", value).",
+                    "SetDynamicField",
+                    methodCall);
+            }
+            fieldNameArg = methodCall.Arguments[1];
+            valueArg = methodCall.Arguments[2];
+        }
+        
+        var fieldName = EvaluateExpression(fieldNameArg) as string;
+        
+        if (string.IsNullOrEmpty(fieldName))
+        {
+            throw new UnsupportedExpressionException(
+                $"SetDynamicField() requires a non-empty field name. " +
+                $"Example: x.DynamicFields.SetDynamicField(\"customField\", value).",
+                "SetDynamicField",
+                methodCall);
+        }
+        
+        var value = EvaluateExpression(valueArg);
+        
+        // Generate attribute name placeholder for the dynamic field
+        var attributeNamePlaceholder = GetDynamicFieldAttributeName(fieldName, context);
+        
+        // Capture the value
+        var valuePlaceholder = CaptureValue(value, context, null);
+        
+        // Build SET expression
+        var expression = $"{attributeNamePlaceholder} = {valuePlaceholder}";
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    private Operation TranslateRemoveDynamicFieldOperation(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context)
+    {
+        // RemoveDynamicField can be called as:
+        // - Instance method: x.DynamicFields.RemoveDynamicField(fieldName) - Arguments has 1 element
+        // - Extension method: RemoveDynamicField(accessor, fieldName) - Arguments has 2 elements
+        
+        Expression fieldNameArg;
+        
+        if (methodCall.Object != null)
+        {
+            // Instance method call: x.DynamicFields.RemoveDynamicField(fieldName)
+            if (methodCall.Arguments.Count < 1)
+            {
+                throw new UnsupportedExpressionException(
+                    $"RemoveDynamicField() method requires a field name. " +
+                    $"Example: x.DynamicFields.RemoveDynamicField(\"customField\").",
+                    "RemoveDynamicField",
+                    methodCall);
+            }
+            fieldNameArg = methodCall.Arguments[0];
+        }
+        else
+        {
+            // Extension method call: RemoveDynamicField(accessor, fieldName)
+            if (methodCall.Arguments.Count < 2)
+            {
+                throw new UnsupportedExpressionException(
+                    $"RemoveDynamicField() method requires a field name. " +
+                    $"Example: x.DynamicFields.RemoveDynamicField(\"customField\").",
+                    "RemoveDynamicField",
+                    methodCall);
+            }
+            fieldNameArg = methodCall.Arguments[1];
+        }
+        
+        var fieldName = EvaluateExpression(fieldNameArg) as string;
+        
+        if (string.IsNullOrEmpty(fieldName))
+        {
+            throw new UnsupportedExpressionException(
+                $"RemoveDynamicField() requires a non-empty field name. " +
+                $"Example: x.DynamicFields.RemoveDynamicField(\"customField\").",
+                "RemoveDynamicField",
+                methodCall);
+        }
+        
+        // Generate attribute name placeholder for the dynamic field
+        var attributeNamePlaceholder = GetDynamicFieldAttributeName(fieldName, context);
+        
+        // Build REMOVE expression (no value needed)
+        return new Operation
+        {
+            Type = OperationType.Remove,
+            Expression = attributeNamePlaceholder
+        };
+    }
+
+    /// <summary>
+    /// Gets or creates an attribute name placeholder for a dynamic field.
+    /// Dynamic fields use the #dynField prefix to distinguish them from mapped properties.
+    /// </summary>
+    private string GetDynamicFieldAttributeName(string fieldName, ExpressionContext context)
+    {
+        // Generate attribute name placeholder for dynamic field
+        var count = context.AttributeNames.AttributeNames.Count;
+        var attributeNamePlaceholder = count < 10 
+            ? string.Concat("#dynField", count.ToString()) 
+            : $"#dynField{count}";
+        
+        context.AttributeNames.WithAttribute(attributeNamePlaceholder, fieldName);
+        return attributeNamePlaceholder;
+    }
+
+    /// <summary>
+    /// Translates a DynamicFields property assignment to SET and REMOVE operations.
+    /// </summary>
+    /// <param name="valueExpression">The expression representing the DynamicFieldCollection value.</param>
+    /// <param name="context">The expression context for parameter and attribute name tracking.</param>
+    /// <returns>A list of operations (SET for each field, REMOVE for each removed field).</returns>
+    /// <remarks>
+    /// <para>
+    /// When a DynamicFields property is assigned a DynamicFieldCollection in an update model expression,
+    /// this method generates:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>SET clauses for each field in the collection</description></item>
+    /// <item><description>REMOVE clauses for each field in the RemovedFields set</description></item>
+    /// </list>
+    /// <para>
+    /// If the DynamicFieldCollection is null, no operations are generated.
+    /// </para>
+    /// </remarks>
+    private List<Operation> TranslateDynamicFieldsAssignment(
+        Expression valueExpression,
+        ExpressionContext context)
+    {
+        var operations = new List<Operation>();
+        
+        // Evaluate the expression to get the DynamicFieldCollection
+        var value = EvaluateExpression(valueExpression);
+        
+        // If null, skip processing (no dynamic field changes)
+        if (value == null)
+        {
+            return operations;
+        }
+        
+        // Verify the value is a DynamicFieldCollection
+        if (value is not DynamicFieldCollection collection)
+        {
+            throw new UnsupportedExpressionException(
+                $"DynamicFields property must be assigned a DynamicFieldCollection or null. " +
+                $"Found type: {value.GetType().Name}.",
+                valueExpression);
+        }
+        
+        // Generate SET clauses for each field in the collection
+        foreach (var kvp in collection)
+        {
+            var fieldName = kvp.Key;
+            var attributeValue = kvp.Value;
+            
+            // Generate attribute name placeholder for the dynamic field
+            var attributeNamePlaceholder = GetDynamicFieldAttributeName(fieldName, context);
+            
+            // Generate value placeholder and add to context
+            var valuePlaceholder = context.ParameterGenerator.GenerateParameterName();
+            context.AttributeValues.AttributeValues.Add(valuePlaceholder, attributeValue);
+            
+            // Build SET expression
+            operations.Add(new Operation
+            {
+                Type = OperationType.Set,
+                Expression = $"{attributeNamePlaceholder} = {valuePlaceholder}"
+            });
+        }
+        
+        // Generate REMOVE clauses for each field in RemovedFields
+        foreach (var removedFieldName in collection.RemovedFields)
+        {
+            // Generate attribute name placeholder for the removed field
+            var attributeNamePlaceholder = GetDynamicFieldAttributeName(removedFieldName, context);
+            
+            // Build REMOVE expression
+            operations.Add(new Operation
+            {
+                Type = OperationType.Remove,
+                Expression = attributeNamePlaceholder
+            });
+        }
+        
+        return operations;
     }
 
     // Helper methods

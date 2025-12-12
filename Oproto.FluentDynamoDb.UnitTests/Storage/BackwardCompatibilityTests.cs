@@ -859,6 +859,9 @@ public class BackwardCompatibilityTests
         {
             return new EntityMetadata { TableName = "test-table" };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
     
     #endregion

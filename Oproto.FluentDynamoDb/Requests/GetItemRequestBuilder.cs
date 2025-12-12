@@ -41,6 +41,16 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultConsistentRead.HasValue)
+        {
+            _req.ConsistentRead = _options.DefaultConsistentRead.Value;
+        }
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
     }
 
     private GetItemRequest _req = new GetItemRequest();
@@ -204,10 +214,12 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     {
         var request = ToGetItemRequest();
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingGetItem,
-            "Executing GetItem on table {TableName}",
-            request.TableName ?? "Unknown");
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingGetItem,
+                "Executing GetItem on table {TableName}",
+                request.TableName ?? "Unknown");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && request.Key != null)
         {
@@ -215,28 +227,26 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
                 "GetItem key attributes: {KeyCount}",
                 request.Key.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.GetItemAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "GetItem completed. ItemFound: {ItemFound}, ConsumedCapacity: {ConsumedCapacity}",
-                response.Item != null && response.Item.Count > 0, 
-                response.ConsumedCapacity?.CapacityUnits ?? 0);
-            #endif
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "GetItem completed. ItemFound: {ItemFound}, ConsumedCapacity: {ConsumedCapacity}",
+                    response.Item != null && response.Item.Count > 0, 
+                    response.ConsumedCapacity?.CapacityUnits ?? 0);
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "GetItem failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

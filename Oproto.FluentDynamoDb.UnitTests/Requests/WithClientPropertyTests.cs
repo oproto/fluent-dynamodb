@@ -70,6 +70,9 @@ public class WithClientPropertyTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     #region QueryRequestBuilder WithClient Tests

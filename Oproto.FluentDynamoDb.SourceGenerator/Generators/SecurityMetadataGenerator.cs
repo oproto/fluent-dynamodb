@@ -19,8 +19,11 @@ internal static class SecurityMetadataGenerator
             .Where(p => p.Security?.IsSensitive == true)
             .ToArray();
 
-        // Only generate if there are sensitive fields
-        if (sensitiveProperties.Length == 0)
+        // Check if dynamic fields are enabled with sensitive logging
+        var hasDynamicFieldsSensitive = entity.EnableDynamicFields && entity.DynamicFieldsSensitiveLogging;
+
+        // Only generate if there are sensitive fields or dynamic fields with sensitive logging
+        if (sensitiveProperties.Length == 0 && !hasDynamicFieldsSensitive)
         {
             return string.Empty;
         }
@@ -61,6 +64,17 @@ internal static class SecurityMetadataGenerator
         sb.AppendLine("        };");
         sb.AppendLine();
 
+        // Generate dynamic fields sensitivity flag
+        if (entity.EnableDynamicFields)
+        {
+            sb.AppendLine("        /// <summary>");
+            sb.AppendLine("        /// Indicates whether dynamic field values should be treated as sensitive.");
+            sb.AppendLine("        /// When true, dynamic field values are redacted in logs (only field names are shown).");
+            sb.AppendLine("        /// </summary>");
+            sb.AppendLine($"        public static bool DynamicFieldsAreSensitive => {entity.DynamicFieldsSensitiveLogging.ToString().ToLowerInvariant()};");
+            sb.AppendLine();
+        }
+
         // Generate IsSensitiveField helper method
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// Checks if a DynamoDB attribute name is marked as sensitive.");
@@ -71,6 +85,22 @@ internal static class SecurityMetadataGenerator
         sb.AppendLine("        {");
         sb.AppendLine("            return SensitiveFields.Contains(attributeName);");
         sb.AppendLine("        }");
+
+        // Generate IsDynamicFieldSensitive helper method if dynamic fields are enabled
+        if (entity.EnableDynamicFields)
+        {
+            sb.AppendLine();
+            sb.AppendLine("        /// <summary>");
+            sb.AppendLine("        /// Checks if a dynamic field value should be treated as sensitive.");
+            sb.AppendLine("        /// Dynamic fields are fields not explicitly mapped to entity properties.");
+            sb.AppendLine("        /// </summary>");
+            sb.AppendLine("        /// <param name=\"fieldName\">The dynamic field name to check.</param>");
+            sb.AppendLine("        /// <returns>True if the dynamic field value should be redacted in logs, false otherwise.</returns>");
+            sb.AppendLine("        public static bool IsDynamicFieldSensitive(string fieldName)");
+            sb.AppendLine("        {");
+            sb.AppendLine($"            return DynamicFieldsAreSensitive;");
+            sb.AppendLine("        }");
+        }
 
         // Close class and namespace
         sb.AppendLine("    }");

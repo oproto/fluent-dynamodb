@@ -466,16 +466,16 @@ internal static class DiagnosticDescriptors
         description: "JSON blob serialization requires a JSON serializer package reference.");
 
     /// <summary>
-    /// Error when [BlobReference] is used without referencing a blob provider package.
+    /// Error when [BlobStorage] is used without referencing a blob provider package.
     /// </summary>
-    public static readonly DiagnosticDescriptor MissingBlobProvider = new(
+    public static readonly DiagnosticDescriptor MissingBlobStorageProvider = new(
         "DYNDB103",
         "Missing blob provider package",
-        "[BlobReference] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3",
+        "[BlobStorage] on property '{0}' requires referencing a blob provider package like Oproto.FluentDynamoDb.BlobStorage.S3",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Blob reference storage requires a blob provider package reference.");
+        description: "Blob storage requires a blob provider package reference.");
 
     /// <summary>
     /// Error when incompatible attributes are combined on a property.
@@ -749,6 +749,18 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "When multiple entities in the same table have stream conversion enabled, they should all use the same discriminator property to ensure consistent stream processing behavior. The OnStream method will use the discriminator property from the first entity.");
 
+    /// <summary>
+    /// Error when multiple entities in the same table specify different custom namespaces.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingTableNamespaces = new(
+        "FDDB006",
+        "Conflicting table namespaces",
+        "Table '{0}' has entities with different custom namespaces specified ({1}); all entities sharing a table must use the same namespace or leave it unspecified",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities share the same table, they must all specify the same custom namespace or leave the Namespace property unspecified. The generated table class can only be in one namespace.");
+
     // Extension Method Wrapper Generation Diagnostics (DYNDB1001-DYNDB1004)
 
     /// <summary>
@@ -860,4 +872,58 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Spatial index configuration requires the Oproto.FluentDynamoDb.Geospatial package to provide GeoLocation type and spatial encoding functionality.");
+
+    // Deprecation Diagnostics (DYNDB113+)
+
+    /// <summary>
+    /// Warning when the deprecated [Queryable] attribute is used.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DeprecatedQueryableAttribute = new(
+        "DYNDB113",
+        "Deprecated [Queryable] attribute",
+        "Property '{0}' uses the deprecated [Queryable] attribute. Query capabilities are now derived from [PartitionKey] and [SortKey] attributes. This attribute will be removed in v1.0.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The [Queryable] attribute is deprecated. Partition keys automatically support equality operations, and sort keys automatically support range operations (equals, begins_with, between, greater_than, less_than). Remove the [Queryable] attribute from your properties.");
+
+    // Blob Storage Redesign Diagnostics (DYNDB114+)
+
+    /// <summary>
+    /// Error when [BlobStorage] is used on a property that is not of type BlobData&lt;T&gt;.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BlobStorageRequiresBlobDataType = new(
+        "DYNDB115",
+        "BlobStorage requires BlobData<T> type",
+        "Property '{0}' is marked with [BlobStorage] but is not of type BlobData<T>. Change the property type to BlobData<{1}> to use blob storage.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Properties marked with [BlobStorage] must be of type BlobData<T> where T is the data type to be stored. The BlobData<T> wrapper provides lazy/eager loading control and reference key access.");
+
+    // Dynamic Fields Diagnostics (FDDB0020-FDDB0021)
+
+    /// <summary>
+    /// Error when [EnableDynamicFields] is used on a non-partial class.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EnableDynamicFieldsRequiresPartial = new(
+        "FDDB0020",
+        "EnableDynamicFields requires partial class",
+        "Class '{0}' is marked with [EnableDynamicFields] but is not declared as 'partial'. The source generator needs to add a DynamicFields property to the class.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Classes marked with [EnableDynamicFields] must be declared as partial to allow the source generator to add the DynamicFields property.");
+
+    /// <summary>
+    /// Warning when [EnableDynamicFields] is used on a class that already has a DynamicFields property.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DynamicFieldsPropertyAlreadyExists = new(
+        "FDDB0021",
+        "DynamicFields property already exists",
+        "Class '{0}' is marked with [EnableDynamicFields] but already has a DynamicFields property. The generated property will conflict with the existing one.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When using [EnableDynamicFields], the source generator adds a DynamicFields property. If the class already has this property, there will be a conflict.");
 }

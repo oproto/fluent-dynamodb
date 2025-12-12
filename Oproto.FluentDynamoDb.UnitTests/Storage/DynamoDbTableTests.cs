@@ -2,8 +2,10 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using AwesomeAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Storage;
+using Oproto.FluentDynamoDb.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 
@@ -13,16 +15,14 @@ public class DynamoDbTableTests
     {
         public DynamoDbIndex Gsi1 => new DynamoDbIndex(this, "gsi1");
         
-        // Override to test virtual method behavior
-        public override GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class => base.Get<TEntity>();
-        public override UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class => base.Update<TEntity>();
-        public override DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class => base.Delete<TEntity>();
+        // Override to test virtual method behavior - constraints are inherited from base
+        public override GetItemRequestBuilder<TEntity> Get<TEntity>() => base.Get<TEntity>();
+        public override UpdateItemRequestBuilder<TEntity> Update<TEntity>() => base.Update<TEntity>();
+        public override DeleteItemRequestBuilder<TEntity> Delete<TEntity>() => base.Delete<TEntity>();
     }
     
-    public class TestEntity
+    public class TestEntity : TestEntityBase
     {
-        public string? Id { get; set; }
-        public string? Name { get; set; }
     }
 
     [Fact]

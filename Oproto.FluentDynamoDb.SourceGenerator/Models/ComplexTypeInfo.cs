@@ -36,9 +36,21 @@ internal class ComplexTypeInfo
     public bool IsJsonBlob { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether this property is marked with [BlobReference].
+    /// Gets or sets a value indicating whether this property is marked with [BlobStorage].
     /// </summary>
-    public bool IsBlobReference { get; set; }
+    public bool IsBlobStorage { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether lazy loading is enabled for blob storage.
+    /// When true, blob data is not loaded until LoadAsync() is explicitly called.
+    /// When false (default), blob data is automatically loaded during entity deserialization.
+    /// </summary>
+    public bool BlobStorageLazyLoad { get; set; }
+
+    /// <summary>
+    /// Gets or sets the inner type of BlobData&lt;T&gt; for blob storage properties.
+    /// </summary>
+    public string? BlobDataInnerType { get; set; }
 
     /// <summary>
     /// Gets or sets the element type for collection types (Set or List).
@@ -58,5 +70,5 @@ internal class ComplexTypeInfo
     /// <summary>
     /// Gets a value indicating whether this property uses any complex type features.
     /// </summary>
-    public bool HasComplexType => IsMap || IsSet || IsList || IsTtl || IsJsonBlob || IsBlobReference;
+    public bool HasComplexType => IsMap || IsSet || IsList || IsTtl || IsJsonBlob || IsBlobStorage;
 }

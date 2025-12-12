@@ -75,30 +75,34 @@ var options = new FluentDynamoDbOptions()
 var table = new ProductsTable(client, "products", options);
 ```
 
-#### Issue: Conditional compilation disabled logging
+#### Issue: Logger not configured in FluentDynamoDbOptions
 
 **Symptoms:**
-- Logs worked in Debug build
-- No logs in Release build
+- Logs worked in one environment but not another
+- No logs in production
 - No errors or warnings
 
 **Diagnosis:**
 
-```bash
-# Check if DISABLE_DYNAMODB_LOGGING is defined
-dotnet build -c Release -v detailed | grep DISABLE_DYNAMODB_LOGGING
+```csharp
+// Check if logger is configured
+var options = new FluentDynamoDbOptions();
+Console.WriteLine($"Logger type: {options.Logger?.GetType().Name ?? "NoOpLogger"}");
 ```
 
 **Solution:**
 
-```xml
-<!-- Remove or comment out in .csproj -->
-<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-  <!-- <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants> -->
-</PropertyGroup>
+Ensure the logger is configured in `FluentDynamoDbOptions`:
+
+```csharp
+// Configure logger explicitly
+var options = new FluentDynamoDbOptions()
+    .WithLogger(loggerFactory.ToDynamoDbLogger<ProductsTable>());
+
+var table = new ProductsTable(client, "products", options);
 ```
 
-See [Conditional Compilation](../core-features/ConditionalCompilation.md) for details.
+See [Runtime Logging Configuration](../advanced-topics/runtime-logging-configuration.md) for environment-based configuration.
 
 ### Too Many Logs
 
@@ -160,13 +164,13 @@ builder.Services.AddLogging(logging =>
 });
 ```
 
-5. **Use conditional compilation:**
+5. **Use NoOpLogger for specific tables:**
 
-```xml
-<!-- Disable logging in production -->
-<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-  <DefineConstants>$(DefineConstants);DISABLE_DYNAMODB_LOGGING</DefineConstants>
-</PropertyGroup>
+```csharp
+// Disable logging for high-volume tables
+var options = new FluentDynamoDbOptions()
+    .WithLogger(NoOpLogger.Instance);
+var highVolumeTable = new HighVolumeTable(client, "high-volume", options);
 ```
 
 ### Logger Not Working with Custom Implementation
@@ -581,10 +585,13 @@ logging.AddFilter((category, level, eventId) =>
 3. **Use batch operations:**
 
 ```csharp
-// More efficient than individual operations
-await table.BatchGet
-    .WithKeys(keys)
-    .ExecuteAsync();
+// More efficient than individual operations using static entry point
+var batch = DynamoDbBatch.Get;
+foreach (var key in keys)
+{
+    batch.Add(table.Entities.Get(key));
+}
+await batch.ExecuteAsync();
 ```
 
 ## Log Analysis Examples

@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
+using Oproto.FluentDynamoDb.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
@@ -14,7 +15,7 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 /// </summary>
 public class UpdateItemRequestBuilderBackwardCompatibilityTests
 {
-    private class TestEntity { }
+    private class TestEntity : TestEntityBase { }
 
     [Fact]
     public void BaseBuilder_PublicAPISignature_RemainsUnchanged()

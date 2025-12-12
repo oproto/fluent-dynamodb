@@ -239,7 +239,7 @@ public static class FluentResultsExtensions
     public static async Task<Result> PutAsyncResult<T>(
         this PutItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         try
         {
@@ -272,7 +272,7 @@ public static class FluentResultsExtensions
         this PutItemRequestBuilder<T> builder,
         IBlobStorageProvider blobProvider,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         try
         {
@@ -303,7 +303,7 @@ public static class FluentResultsExtensions
     public static async Task<Result> UpdateAsyncResult<T>(
         this UpdateItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         try
         {
@@ -333,7 +333,7 @@ public static class FluentResultsExtensions
     public static async Task<Result> DeleteAsyncResult<T>(
         this DeleteItemRequestBuilder<T> builder,
         CancellationToken cancellationToken = default)
-        where T : class
+        where T : class, IDynamoDbEntity
     {
         try
         {

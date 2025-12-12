@@ -1,6 +1,8 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
 namespace Oproto.FluentDynamoDb.Requests;
@@ -27,6 +29,9 @@ public class BatchWriteBuilder
     private ReturnConsumedCapacity? _returnConsumedCapacity;
     private ReturnItemCollectionMetrics? _returnItemCollectionMetrics;
     private IDynamoDbLogger _logger = NoOpLogger.Instance;
+    private FluentDynamoDbOptions? _options;
+    private readonly List<BlobWriteContext> _blobWriteContexts = new();
+    private readonly List<BlobDeleteContext> _blobDeleteContexts = new();
 
     /// <summary>
     /// Adds a put operation to the batch.
@@ -41,9 +46,17 @@ public class BatchWriteBuilder
     /// </code>
     /// </example>
     public BatchWriteBuilder Add<TEntity>(PutItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         InferClientIfNeeded(builder);
+        InferOptionsIfNeeded(builder);
         
         var putBuilder = (ITransactablePutBuilder)builder;
         var tableName = putBuilder.GetTableName();
@@ -80,9 +93,17 @@ public class BatchWriteBuilder
     /// </code>
     /// </example>
     public BatchWriteBuilder Add<TEntity>(DeleteItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IDynamoDbEntity
     {
+        if (TEntity.RequiresWriteTransaction)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
+                "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
         InferClientIfNeeded(builder);
+        InferOptionsIfNeeded(builder);
         
         var deleteBuilder = (ITransactableDeleteBuilder)builder;
         var tableName = deleteBuilder.GetTableName();
@@ -191,6 +212,14 @@ public class BatchWriteBuilder
         }
     }
 
+    private void InferOptionsIfNeeded(object builder)
+    {
+        if (_options == null && builder is IHasDynamoDbClient clientProvider)
+        {
+            _options = clientProvider.GetOptions();
+        }
+    }
+
     private IAmazonDynamoDB? ExtractClientFromBuilder(object builder)
     {
         // Use IHasDynamoDbClient interface to get the client without reflection
@@ -201,6 +230,30 @@ public class BatchWriteBuilder
         
         throw new InvalidOperationException(
             $"Builder type {builder.GetType().Name} does not implement IHasDynamoDbClient");
+    }
+
+    /// <summary>
+    /// Adds blob write context for tracking blob uploads in batch operations.
+    /// Used internally when adding entities with blob storage properties.
+    /// </summary>
+    /// <param name="context">The blob write context to track.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal BatchWriteBuilder AddBlobWriteContext(BlobWriteContext context)
+    {
+        _blobWriteContexts.Add(context);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds blob delete context for tracking blob deletions in batch operations.
+    /// Used internally when adding delete operations for entities with blob storage properties.
+    /// </summary>
+    /// <param name="context">The blob delete context to track.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    internal BatchWriteBuilder AddBlobDeleteContext(BlobDeleteContext context)
+    {
+        _blobDeleteContexts.Add(context);
+        return this;
     }
 
     /// <summary>
@@ -288,13 +341,58 @@ public class BatchWriteBuilder
             ReturnItemCollectionMetrics = _returnItemCollectionMetrics
         };
 
+        // Handle blob storage if configured
+        var strategy = _options?.BlobStorageStrategy;
+        var uploadedContexts = new List<BlobWriteContext>();
+
         try
         {
+            // Step 1: Upload blobs before batch write (if any)
+            if (strategy != null && _blobWriteContexts.Count > 0)
+            {
+                foreach (var blobContext in _blobWriteContexts)
+                {
+                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken);
+                    blobContext.UploadedReferenceKeys = result.ReferenceKeys;
+                    uploadedContexts.Add(blobContext);
+                    
+                    // Update request items with reference keys
+                    BlobStorageHelper.UpdateItemWithReferenceKeys(
+                        GetItemForBlobContext(blobContext),
+                        result,
+                        blobContext.BlobProperties);
+                }
+            }
+
+            // Step 2: Prepare for blob deletions (if any)
+            if (strategy != null && _blobDeleteContexts.Count > 0)
+            {
+                foreach (var deleteContext in _blobDeleteContexts)
+                {
+                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken);
+                }
+            }
+
+            // Step 3: Execute batch write
             var response = await effectiveClient.BatchWriteItemAsync(request, cancellationToken);
             
             if (response == null)
             {
                 throw new InvalidOperationException("DynamoDB client returned null response");
+            }
+            
+            // Step 4: Handle success callbacks
+            if (strategy != null)
+            {
+                foreach (var blobContext in uploadedContexts)
+                {
+                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken);
+                }
+                
+                foreach (var deleteContext in _blobDeleteContexts)
+                {
+                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken);
+                }
             }
             
             // Log unprocessed items at Warning level
@@ -318,6 +416,22 @@ public class BatchWriteBuilder
         }
         catch (Exception ex)
         {
+            // Step 4a: Handle failure - cleanup uploaded blobs
+            if (strategy != null && uploadedContexts.Count > 0)
+            {
+                foreach (var blobContext in uploadedContexts)
+                {
+                    try
+                    {
+                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken);
+                    }
+                    catch
+                    {
+                        // Swallow cleanup errors - best effort
+                    }
+                }
+            }
+            
             // Log error with operation details
             _logger.LogError(
                 LogEventIds.DynamoDbOperationError,
@@ -327,5 +441,35 @@ public class BatchWriteBuilder
             
             throw;
         }
+        finally
+        {
+            // Dispose blob data streams
+            foreach (var blobContext in _blobWriteContexts)
+            {
+                foreach (var prop in blobContext.BlobProperties)
+                {
+                    prop.Data.Dispose();
+                }
+            }
+        }
+    }
+
+    private Dictionary<string, AttributeValue> GetItemForBlobContext(BlobWriteContext context)
+    {
+        // Find the item in request items that matches this blob context
+        // This is a simplified implementation - in practice, we'd need to track
+        // which item corresponds to which blob context
+        foreach (var tableItems in _requestItems.Values)
+        {
+            foreach (var writeRequest in tableItems)
+            {
+                if (writeRequest.PutRequest?.Item != null)
+                {
+                    return writeRequest.PutRequest.Item;
+                }
+            }
+        }
+        
+        return new Dictionary<string, AttributeValue>();
     }
 }

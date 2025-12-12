@@ -67,6 +67,9 @@ public class QueryRequestBuilderTests
                 Relationships = Array.Empty<RelationshipMetadata>()
             };
         }
+    
+
+        public static bool RequiresWriteTransaction => false;
     }
 
     [Fact]

@@ -9,13 +9,426 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Schema Validation** - Runtime validation of DynamoDB table schemas against entity metadata
+  - New `ValidateSchemaAsync(IAmazonDynamoDB, SchemaValidationOptions?)` method generated on table classes
+  - Validates primary key configuration (partition key name/type, sort key name/type/presence)
+  - Validates Global Secondary Index configuration (existence, key names, key types)
+  - Validates Local Secondary Index configuration (existence, sort key name/type)
+  - Validates TTL configuration (enabled status, attribute name)
+  - Validates index projection compatibility with projection models
+  - `SchemaValidationResult` with `IsValid`, `Errors`, and `Warnings` properties
+  - `ThrowOnError()` method to throw `SchemaValidationException` when validation fails
+  - `LogResults(IDynamoDbLogger)` method for logging validation results
+  - `SchemaValidationOptions` with `Strictness` setting (Relaxed/Strict)
+  - Comprehensive error codes (`SchemaValidationErrorCode`) for programmatic handling
+  - Warning codes (`SchemaValidationWarningCode`) for non-critical differences
+  - Designed for startup-time validation (e.g., Lambda cold start) for fail-fast behavior
+  - _Requirements: 1.1-1.5, 2.1-2.6, 3.1-3.6, 4.2-4.6, 5.1-5.3, 6.1-6.4, 8.1-8.5, 9.1-9.4_
+  
+  **Usage:**
+  ```csharp
+  // Basic validation
+  var result = await UsersTable.ValidateSchemaAsync(dynamoDbClient);
+  if (!result.IsValid)
+  {
+      foreach (var error in result.Errors)
+          Console.WriteLine($"Error: {error.Message}");
+  }
+  
+  // Fail-fast validation
+  var result = await UsersTable.ValidateSchemaAsync(dynamoDbClient);
+  result.ThrowOnError(); // Throws SchemaValidationException if errors exist
+  
+  // Strict validation (missing projection models are errors)
+  var options = new SchemaValidationOptions { Strictness = ValidationStrictness.Strict };
+  var result = await UsersTable.ValidateSchemaAsync(dynamoDbClient, options);
+  
+  // Log validation results
+  result.LogResults(logger);
+  ```
+
+- **Dynamic Fields Support** - Capture and work with DynamoDB attributes not explicitly defined in entity classes
+  - New `[EnableDynamicFields]` attribute to opt-in to dynamic field capture on entities
+  - New `DynamicFieldCollection` class with typed accessors for common types (string, int, long, double, decimal, bool, DateTime, DateTimeOffset, byte[])
+  - New `DynamicFieldType` enum for runtime type detection of dynamic fields
+  - New `DynamicFieldTypeException` for type mismatch errors with descriptive messages
+  - Source generator automatically adds `DynamicFields` property to entities with `[EnableDynamicFields]`
+  - `FromDynamoDb` captures unmapped attributes into `DynamicFields` collection
+  - `ToDynamoDb` includes dynamic fields in serialized output (mapped properties take precedence)
+  - Expression translator support for dynamic field filtering: `x.DynamicFields["fieldName"] == value`
+  - Support for typed comparisons in expressions: `x.DynamicFields["score"] > 100`
+  - `Exists()` and `NotExists()` methods for attribute existence checks in expressions
+  - Update expression support via `DynamicFields` property on update models with `DynamicFieldCollection`
+  - Dynamic field values redacted in logs by default (configurable via `SensitiveLogging` property)
+  - Full AOT compatibility with no reflection at runtime
+  - **Change Tracking** - Automatic tracking of dynamic field modifications for efficient updates
+    - `DynamicFieldCollection` automatically tracks changes after entity deserialization
+    - `ChangesOnly()` method returns a new collection with only added/modified fields and tracked removals
+    - `ChangesOnly(resetTracking: false)` preserves tracking for retry scenarios
+    - `ResetChangeTracking()` method to manually clear all tracked changes
+    - `HasChanges` property to check if any modifications have been made
+    - `RemovedFields` property provides access to fields marked for removal
+    - Generated update models include nullable `DynamicFields` property for lambda expression updates
+    - Null `DynamicFields` in update model leaves existing dynamic fields unchanged
+    - _Requirements: 11.1-11.7, 12.1-12.4_
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.4, 5.1-5.4, 6.1-6.4, 7.1-7.3, 8.1-8.4, 9.1-9.3, 10.1-10.3_
+  
+  **Usage:**
+  ```csharp
+  // Enable dynamic fields on entity
+  [DynamoDbTable("products")]
+  [EnableDynamicFields]
+  public partial class Product
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string ProductId { get; set; } = string.Empty;
+  }
+  
+  // Read dynamic fields with typed accessors
+  var product = await table.Products.GetAsync(productId);
+  var color = product.DynamicFields.GetString("color");
+  var weight = product.DynamicFields.GetInt("weight_grams");
+  
+  // Write dynamic fields
+  product.DynamicFields.SetString("material", "Cotton");
+  product.DynamicFields.SetInt("size_us", 10);
+  await table.Products.PutAsync(product);
+  
+  // Update dynamic fields using change tracking
+  product.DynamicFields.SetDecimal("sale_price", 24.99m);
+  product.DynamicFields.Remove("temporary_note");
+  await table.Products.Update(productId)
+      .Set(x => new ProductUpdateModel { DynamicFields = product.DynamicFields.ChangesOnly() })
+      .UpdateAsync();
+  
+  // Filter by dynamic fields
+  var blueProducts = await table.Products.Scan()
+      .WithFilter(x => x.DynamicFields["color"] == "Blue")
+      .ToListAsync();
+  
+  // Check field existence
+  var productsWithWarranty = await table.Products.Scan()
+      .WithFilter(x => x.DynamicFields.Exists("warranty_months"))
+      .ToListAsync();
+  ```
+
+- **`[LocalSecondaryIndex]` Attribute** - Support for Local Secondary Index definitions in entity metadata
+  - New `[LocalSecondaryIndex(indexName)]` attribute for marking LSI sort key properties
+  - LSIs share the same partition key as the base table
+  - `IndexType` enum to distinguish between GSI and LSI in `IndexMetadata`
+  - Source generator emits correct `IndexType` for both GSI and LSI attributes
+  - Schema validation validates LSI configuration against actual table
+  - _Requirements: 4.1, 7.1, 7.2_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("orders")]
+  public partial class Order
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string CustomerId { get; set; } = string.Empty;
+      
+      [SortKey]
+      [DynamoDbAttribute("sk")]
+      public string OrderId { get; set; } = string.Empty;
+      
+      // Local Secondary Index - shares partition key with base table
+      [LocalSecondaryIndex("orders-by-date")]
+      [DynamoDbAttribute("order_date")]
+      public string OrderDate { get; set; } = string.Empty;
+  }
+  ```
+
+- **Enhanced `IndexMetadata`** - Additional metadata for schema validation and tooling
+  - `IndexType` property to distinguish GSI from LSI
+  - `PartitionKeyAttributeName` and `PartitionKeyAttributeType` properties
+  - `SortKeyAttributeName` and `SortKeyAttributeType` properties
+  - `ProjectionType` property (All, KeysOnly, Include)
+  - `HasProjectionModel` property indicating if a projection model is defined
+  - _Requirements: 7.1, 7.2, 10.1, 10.2, 10.3_
+
+- **Enhanced `EntityMetadata`** - Additional metadata for schema validation
+  - `PartitionKeyAttributeName` and `PartitionKeyAttributeType` properties
+  - `SortKeyAttributeName` and `SortKeyAttributeType` properties
+  - `TtlAttributeName` property for TTL configuration
+  - _Requirements: 2.1, 2.2, 5.1, 5.2_
+
+- **`[RequireWriteTransaction]` Attribute** - New attribute to enforce transactional writes for specific entity types
+  - Marks entity classes as requiring write operations within a transaction
+  - Put, Update, Delete, and BatchWrite operations throw `InvalidOperationException` when attempted outside a transaction
+  - TransactWrite operations are allowed and proceed normally
+  - `RequiresWriteTransaction` static property added to `IDynamoDbEntity` interface
+  - `RequiresWriteTransaction` property added to `EntityMetadata` for tooling support
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("FinancialTransactions")]
+  [RequireWriteTransaction]
+  public partial class Transaction
+  {
+      // Properties...
+  }
+  
+  // This throws InvalidOperationException:
+  await table.Transactions.Put(transaction).PutAsync();
+  
+  // This is allowed:
+  await DynamoDbTransactions.Write()
+      .Put(table.Transactions, transaction)
+      .ExecuteAsync();
+  ```
+
+- **Default Request Options in FluentDynamoDbOptions** - Configure common request settings once and apply to all operations
+  - `UseConsistentRead(bool)` - Default consistent read setting for Get and Query operations
+  - `ReturnConsumedCapacity(ReturnConsumedCapacity)` - Default consumed capacity reporting for all operations
+  - `ReturnItemCollectionMetrics(ReturnItemCollectionMetrics)` - Default item collection metrics for write operations
+  - `ReturnValues(ReturnValue)` - Default return values for Put, Update, and Delete operations
+  - Explicit builder method calls override default options
+  - Method names match existing request builder methods for consistency
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
+  
+  **Usage:**
+  ```csharp
+  var options = new FluentDynamoDbOptions()
+      .UseConsistentRead(true)
+      .ReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+      .ReturnValues(ReturnValue.ALL_NEW);
+  
+  var table = new UsersTable(client, "users", options);
+  
+  // All operations now use these defaults
+  var user = await table.Users.Get(userId).GetItemAsync();  // Uses consistent read
+  ```
+
+- **Custom Namespace Support for Generated Table Classes** - Control the namespace of generated table classes
+  - New `Namespace` property on `[DynamoDbTable]` attribute
+  - When specified, generated table class is placed in the custom namespace
+  - When not specified, uses the entity's namespace (existing behavior)
+  - Appropriate using directives generated for referenced types
+  - _Requirements: 2.1, 2.2, 2.3_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("users", Namespace = "MyApp.Data.Tables")]
+  public partial class User
+  {
+      // Entity stays in its declared namespace
+  }
+  // Generated UsersTable class is in MyApp.Data.Tables namespace
+  ```
+
+- **New Example Applications** - Three new example applications demonstrating advanced features
+  - **JsonBlobDemo** - Demonstrates JSON blob serialization with System.Text.Json (AOT and reflection modes) and Newtonsoft.Json
+  - **S3BlobDemo** - Demonstrates S3 blob storage integration with `[BlobReference]` attribute for storing large data externally
+  - **EncryptionDemo** - Demonstrates field encryption with `[Encrypted]` attribute and sensitive data logging with `[Sensitive]` attribute
+  - All examples follow the established pattern with interactive console menus and comprehensive README documentation
+  - _Requirements: 2.1-2.8, 3.1-3.8, 4.1-4.11_
+
+- **TransactionDemo RequireWriteTransaction Demonstration** - Updated TransactionDemo example to showcase the `[RequireWriteTransaction]` attribute
+  - New `FinancialTransaction` entity demonstrating transactional write enforcement
+  - Interactive demonstration showing direct write failure and transactional write success
+  - _Requirements: 5.1-5.6_
+
+- **Blob Storage Redesign** - Complete redesign of the blob storage feature with improved semantics, lazy loading, and failure handling strategies
+  - New `[BlobStorage]` attribute replaces `[BlobReference]` with clearer semantics
+  - New `BlobData<T>` wrapper type for lazy/eager loading control
+  - New `IBlobStorageStrategy` interface for coordinating failure handling between blob storage and DynamoDB operations
+  - Built-in `BestEffortCleanupStrategy` (default) - attempts to clean up orphaned blobs on DynamoDB write failure
+  - Built-in `NoCleanupStrategy` - simple implementation for non-critical data where orphaned blobs are acceptable
+  - `LazyLoad` property on `[BlobStorage]` attribute to defer blob loading until explicitly requested
+  - `BlobData<T>.LoadAsync()` method for explicit lazy loading
+  - `BlobData<T>.Value`, `ReferenceKey`, `IsLoaded`, `HasPendingData` properties for state inspection
+  - `BlobData<T>.Create(T value)` factory method for creating instances with data to be stored
+  - `BlobStoreOptions` class for optional metadata (ContentType, Metadata, Tags)
+  - `BlobStorageException` for blob storage operation failures
+  - Integration with `[JsonBlob]` attribute for JSON serialization before blob upload
+  - Integration with `[Encrypted]` attribute for encryption before blob upload
+  - Integration with `[Sensitive]` attribute for log redaction
+  - Automatic strategy lifecycle invocation in Put, Update, Delete, Batch, and Transaction operations
+  - `FluentDynamoDbOptions.WithBlobStorageStrategy(IBlobStorageStrategy)` for custom strategy configuration
+  - _Requirements: 1.1-1.3, 2.1-2.7, 3.1-3.4, 4.1-4.6, 5.1-5.4, 6.1-6.3, 7.1-7.4, 8.1-8.4, 9.1-9.3, 10.1-10.3, 11.1-11.5, 12.1-12.6, 13.1-13.4_
+  
+  **Usage:**
+  ```csharp
+  // Entity definition with BlobStorage
+  [DynamoDbTable("documents")]
+  public partial class Document
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string Id { get; set; } = string.Empty;
+      
+      // Eager loading (default) - data loaded during deserialization
+      [BlobStorage]
+      [DynamoDbAttribute("content")]
+      public BlobData<byte[]> Content { get; set; } = default!;
+      
+      // Lazy loading - data loaded on explicit LoadAsync() call
+      [BlobStorage(LazyLoad = true)]
+      [DynamoDbAttribute("thumbnail")]
+      public BlobData<byte[]> Thumbnail { get; set; } = default!;
+  }
+  
+  // Configuration
+  var options = new FluentDynamoDbOptions()
+      .WithBlobStorage(new S3BlobProvider(s3Client, "my-bucket"))
+      .WithBlobStorageStrategy(new BestEffortCleanupStrategy(provider)); // Optional, this is the default
+  
+  var table = new DocumentTable(dynamoDbClient, "documents", options);
+  
+  // Creating and storing blob data
+  var document = new Document
+  {
+      Id = "doc-123",
+      Content = BlobData<byte[]>.Create(fileBytes),
+      Thumbnail = BlobData<byte[]>.Create(thumbnailBytes)
+  };
+  await table.Documents.PutAsync(document);
+  
+  // Retrieving with eager loading
+  var loaded = await table.Documents.GetAsync("doc-123");
+  var content = loaded.Content.Value; // Already loaded
+  
+  // Retrieving with lazy loading
+  var lazyLoaded = await table.Documents.GetAsync("doc-123");
+  await lazyLoaded.Thumbnail.LoadAsync(); // Explicit load
+  var thumbnail = lazyLoaded.Thumbnail.Value;
+  ```
+
 ### Changed
+- **Logging Runtime Configuration** - Removed `DISABLE_DYNAMODB_LOGGING` conditional compilation in favor of runtime configuration
+  - All `#if !DISABLE_DYNAMODB_LOGGING` preprocessor directives removed from source code
+  - Logging is now controlled entirely via `FluentDynamoDbOptions.WithLogger()` at runtime
+  - `NoOpLogger.Instance` provides zero-overhead logging when disabled (via `IsEnabled()` check pattern)
+  - Users no longer need to recompile to enable/disable logging
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
+  
+  **Migration:**
+  ```csharp
+  // Before: Compile-time conditional (no longer supported)
+  // <DefineConstants>DISABLE_DYNAMODB_LOGGING</DefineConstants>
+  
+  // After: Runtime configuration
+  // Logging disabled (default - zero overhead)
+  var table = new UsersTable(client, "users");
+  
+  // Logging enabled
+  var options = new FluentDynamoDbOptions()
+      .WithLogger(loggerFactory.ToDynamoDbLogger<UsersTable>());
+  var table = new UsersTable(client, "users", options);
+  ```
+
+- **Documentation Reorganization** - Split `STSIntegration.md` into two focused documents for better discoverability
+  - New `docs/advanced-topics/ClientConfiguration.md` covering development environments (DynamoDB Local, LocalStack), custom client settings, multi-region deployments, and proxy configuration
+  - New `docs/advanced-topics/ScopedSecurity.md` covering `WithClient()` method for per-request client customization, STS-scoped credentials, and multi-tenancy patterns
+  - Deleted `docs/advanced-topics/STSIntegration.md` after content migration
+  - Updated `docs/advanced-topics/README.md` to reflect new document structure
+- **Example Projects Configuration Pattern** - Refactored all example projects (TodoList, TransactionDemo, InvoiceManager, StoreLocator) to follow the recommended configuration pattern
+  - Configuration now built once at application level in Program.cs
+  - Table names passed explicitly to constructors for runtime configurability
+  - Removed redundant custom table classes that only contained constructors
+  - StoreLocator retains utility methods (`SelectS2Level`, `SelectH3Resolution`) while removing constructor boilerplate
+  - Updated README files to reflect new project structure and patterns
+
+- **Encrypted Properties Automatically Marked as Sensitive** - Properties with `[Encrypted]` attribute now automatically have `IsSensitive = true`
+  - No need to apply both `[Encrypted]` and `[Sensitive]` attributes
+  - Encrypted property values are automatically redacted in logs
+  - Existing entities with both attributes continue to work without changes
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- **Query Capabilities Derived from Key Attributes** - `SupportedOperations` now automatically derived from key metadata
+  - Partition key properties: Support `Equals` operation
+  - Sort key properties: Support `Equals`, `BeginsWith`, `Between`, `GreaterThan`, `LessThan` operations
+  - No longer need to manually specify operations via `[Queryable]` attribute
+  - _Requirements: 3.2, 3.3, 3.4_
+
+- **Write Request Builder Type Constraints** - `PutItemRequestBuilder<TEntity>`, `UpdateItemRequestBuilder<TEntity>`, and `DeleteItemRequestBuilder<TEntity>` now require `TEntity : class, IDynamoDbEntity`
+  - Enables AOT-safe transaction validation via static interface members
+  - Existing code using entities that implement `IDynamoDbEntity` (all source-generated entities) is unaffected
+  - _Requirements: 4.2, 4.3, 4.4_
 
 ### Deprecated
+
+- **`[Queryable]` Attribute** - Deprecated in favor of automatic derivation from key attributes
+  - Compiler warning `DYNDB103` emitted when `[Queryable]` is used
+  - Query capabilities are now derived from `[PartitionKey]` and `[SortKey]` attributes
+  - Will be removed in v1.0
+  - _Requirements: 3.1_
+  
+  **Migration:**
+  ```csharp
+  // Before (deprecated):
+  [Queryable(SupportedOperations = new[] { DynamoDbOperation.Equals })]
+  [PartitionKey]
+  [DynamoDbAttribute("pk")]
+  public string UserId { get; set; }
+  
+  // After (automatic):
+  [PartitionKey]  // Automatically supports Equals
+  [DynamoDbAttribute("pk")]
+  public string UserId { get; set; }
+  ```
+
+- **`[BlobReference]` Attribute** - Deprecated in favor of `[BlobStorage]` with `BlobData<T>` wrapper type
+  - Compiler warning `DYNDB104` emitted when `[BlobReference]` is used
+  - New `[BlobStorage]` attribute provides clearer semantics and lazy/eager loading control
+  - New `BlobData<T>` wrapper type encapsulates blob storage behavior
+  - Will be removed in v1.0
+  - _Requirements: 1.2_
+  
+  **Migration:**
+  ```csharp
+  // Before (deprecated):
+  [BlobReference(BlobProvider.S3)]
+  [DynamoDbAttribute("data")]
+  public byte[] Data { get; set; }
+  
+  // After (new pattern):
+  [BlobStorage]
+  [DynamoDbAttribute("data")]
+  public BlobData<byte[]> Data { get; set; } = default!;
+  
+  // Creating data:
+  // Before: entity.Data = bytes;
+  // After:  entity.Data = BlobData<byte[]>.Create(bytes);
+  
+  // Accessing data:
+  // Before: var bytes = entity.Data;
+  // After:  var bytes = entity.Data.Value;
+  ```
 
 ### Removed
 
 ### Fixed
+- **Documentation API Pattern Corrections** - Fixed incorrect batch and transaction operation examples across documentation
+  - Corrected batch operation examples to use `DynamoDbBatch.Write` and `DynamoDbBatch.Get` static entry points instead of constructor-based patterns
+  - Corrected transaction operation examples to use `DynamoDbTransactions.Write` and `DynamoDbTransactions.Get` static entry points instead of constructor-based patterns
+  - Corrected `CommitAsync()` to `ExecuteAsync()` for transaction execution
+  - Files corrected: `BasicOperations.md`, `PerformanceOptimization.md`, `GlobalSecondaryIndexes.md`, `CompositeEntities.md`, `MultiEntityTables.md`, `QUICK_REFERENCE.md`, `DeveloperGuide.md`
+  - See `docs/DOCUMENTATION_CHANGELOG.md` for detailed before/after patterns
+- **Documentation API Style Corrections** - Fixed incorrect API method names and patterns
+  - Corrected `ExecuteAsync<T>()` to `GetItemAsync<T>()` on GetItemRequestBuilder in multiple files
+  - Corrected non-existent `DynamoDbTableBase<T>` generic type to use concrete typed table classes with entity accessors
+  - Updated migration examples to use lambda expressions and entity accessor patterns
+  - Files corrected: `AdvancedTypesMigration.md`, `CodeExamples.md`, `PerformanceOptimization.md`, `AdoptionGuide.md`
+  - See `docs/DOCUMENTATION_CHANGELOG.md` Part 6 for detailed before/after patterns
+
+- **NuGet Package Contents** - Fixed packaging to exclude test and example projects
+  - Added `<IsPackable>false</IsPackable>` to all unit test projects
+  - Added `<IsPackable>false</IsPackable>` to integration test project
+  - Added `<IsPackable>false</IsPackable>` to example projects
+  - Added `<IsPackable>false</IsPackable>` to AOT and API consistency test projects
+  - Removed duplicate icon files from test/example project directories
+  - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
+- **HydratorGenerator Parameter Mismatch** - Fixed source generator bug causing compilation errors for entities with `[BlobReference]` attributes
+  - `HydratorGenerator` was generating calls to `FromDynamoDbAsync` and `ToDynamoDbAsync` with incorrect parameter order
+  - Named parameters were incorrectly used, causing type mismatch errors (e.g., `FluentDynamoDbOptions` passed where `IFieldEncryptor?` expected)
+  - Fixed by using positional parameters matching the generated method signatures
+  - Affected file: `Oproto.FluentDynamoDb.SourceGenerator/Generators/HydratorGenerator.cs`
 
 ### Security
 

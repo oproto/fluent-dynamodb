@@ -371,30 +371,19 @@ var recentProducts = await table.Query()
 > **Detailed Guide**: See [Batch Operations](core-features/BatchOperations.md) for comprehensive batch examples.
 
 ```csharp
-// Batch get
-var batchResponse = await table.BatchGet
-    .WithKeys(new[]
-    {
-        new Dictionary<string, AttributeValue>
-        {
-            [UserFields.UserId] = new AttributeValue { S = UserKeys.Pk("user1") }
-        },
-        new Dictionary<string, AttributeValue>
-        {
-            [UserFields.UserId] = new AttributeValue { S = UserKeys.Pk("user2") }
-        }
-    })
-    .ExecuteAsync<User>();
+// Batch get using static entry point
+var batchResponse = await DynamoDbBatch.Get
+    .Add(table.Users.Get("user1"))
+    .Add(table.Users.Get("user2"))
+    .ExecuteAsync();
 
-// Batch write
-var users = new[]
-{
-    new User { UserId = "user1", Name = "User 1", Email = "user1@example.com" },
-    new User { UserId = "user2", Name = "User 2", Email = "user2@example.com" }
-};
+// Batch write using static entry point
+var user1 = new User { UserId = "user1", Name = "User 1", Email = "user1@example.com" };
+var user2 = new User { UserId = "user2", Name = "User 2", Email = "user2@example.com" };
 
-await table.BatchWrite
-    .WithPutItems(users.Select(u => User.ToDynamoDb(u)))
+await DynamoDbBatch.Write
+    .Add(table.Users.Put(user1))
+    .Add(table.Users.Put(user2))
     .ExecuteAsync();
 ```
 
@@ -535,14 +524,13 @@ See [Basic Operations](core-features/BasicOperations.md) for more conditional ex
 > **Detailed Guide**: See [Transactions](core-features/Transactions.md) for comprehensive transaction examples.
 
 ```csharp
-await new TransactWriteItemsRequestBuilder(dynamoDbClient)
-    .Put(table, put => put
-        .WithItem(newUser)
+await DynamoDbTransactions.Write
+    .Add(table.Put(newUser)
         .Where($"attribute_not_exists({{0}})", UserFields.UserId))
-    .Update(table, update => update
+    .Add(table.Update()
         .WithKey(UserFields.UserId, UserKeys.Pk("existing-user"))
         .Set($"SET {UserFields.Name} = {{0}}", "Updated Name"))
-    .Delete(table, delete => delete
+    .Add(table.Delete()
         .WithKey(UserFields.UserId, UserKeys.Pk("user-to-delete")))
     .ExecuteAsync();
 ```
@@ -604,9 +592,13 @@ await new TransactWriteItemsRequestBuilder(dynamoDbClient)
 
 3. **Batch Operations When Possible**
    ```csharp
-   // Process multiple items in single request
-   var items = users.Select(u => User.ToDynamoDb(u)).ToList();
-   await table.BatchWrite.WithPutItems(items).ExecuteAsync();
+   // Process multiple items in single request using static entry point
+   var batch = DynamoDbBatch.Write;
+   foreach (var user in users)
+   {
+       batch.Add(table.Users.Put(user));
+   }
+   await batch.ExecuteAsync();
    ```
 
 ### Error Handling

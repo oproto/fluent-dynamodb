@@ -46,6 +46,16 @@ public class QueryRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        
+        // Apply default options
+        if (_options.DefaultConsistentRead.HasValue)
+        {
+            _req.ConsistentRead = _options.DefaultConsistentRead.Value;
+        }
+        if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
+        {
+            _req.ReturnConsumedCapacity = defaultConsumedCapacity;
+        }
     }
 
     private QueryRequest _req = new QueryRequest() { ExclusiveStartKey = new Dictionary<string, AttributeValue>() };
@@ -366,13 +376,15 @@ public class QueryRequestBuilder<TEntity> :
     {
         var request = ToQueryRequest();
         
-        #if !DISABLE_DYNAMODB_LOGGING
-        _logger?.LogInformation(LogEventIds.ExecutingQuery,
-            "Executing Query on table {TableName}. Index: {IndexName}, KeyCondition: {KeyCondition}, Filter: {FilterExpression}",
-            request.TableName ?? "Unknown", 
-            request.IndexName ?? "None", 
-            request.KeyConditionExpression ?? "None", 
-            request.FilterExpression ?? "None");
+        if (_logger?.IsEnabled(LogLevel.Information) == true)
+        {
+            _logger.LogInformation(LogEventIds.ExecutingQuery,
+                "Executing Query on table {TableName}. Index: {IndexName}, KeyCondition: {KeyCondition}, Filter: {FilterExpression}",
+                request.TableName ?? "Unknown", 
+                request.IndexName ?? "None", 
+                request.KeyConditionExpression ?? "None", 
+                request.FilterExpression ?? "None");
+        }
         
         if (_logger?.IsEnabled(LogLevel.Trace) == true && _attrV.AttributeValues.Count > 0)
         {
@@ -380,29 +392,27 @@ public class QueryRequestBuilder<TEntity> :
                 "Query parameters: {ParameterCount} values",
                 _attrV.AttributeValues.Count);
         }
-        #endif
         
         try
         {
             var response = await _dynamoDbClient.QueryAsync(request, cancellationToken);
             
-            #if !DISABLE_DYNAMODB_LOGGING
+            if (_logger?.IsEnabled(LogLevel.Information) == true)
+            {
 #pragma warning disable CS8601 // Possible null reference assignment - boxing value types to object[]
-            _logger?.LogInformation(LogEventIds.OperationComplete,
-                "Query completed. ItemCount: {ItemCount}, ConsumedCapacity: {ConsumedCapacity}",
-                new object[] { response.Count, response.ConsumedCapacity?.CapacityUnits ?? 0 });
+                _logger.LogInformation(LogEventIds.OperationComplete,
+                    "Query completed. ItemCount: {ItemCount}, ConsumedCapacity: {ConsumedCapacity}",
+                    new object[] { response.Count, response.ConsumedCapacity?.CapacityUnits ?? 0 });
 #pragma warning restore CS8601
-            #endif
+            }
             
             return response;
         }
         catch (Exception ex)
         {
-            #if !DISABLE_DYNAMODB_LOGGING
             _logger?.LogError(LogEventIds.DynamoDbOperationError, ex,
                 "Query failed on table {TableName}",
                 request.TableName ?? "Unknown");
-            #endif
             throw;
         }
     }

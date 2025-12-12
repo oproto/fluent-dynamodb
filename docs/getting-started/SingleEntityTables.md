@@ -365,23 +365,23 @@ var usersTable = new UsersTable(client, "users");
 var ordersTable = new OrdersTable(client, "orders");
 
 // Transaction across multiple tables using DynamoDbTransactions
-await DynamoDbTransactions.Write(client)
-    .Add(usersTable.Put<User>().WithItem(user))
-    .Add(ordersTable.Put<Order>().WithItem(order))
-    .CommitAsync();
+await DynamoDbTransactions.Write
+    .Add(usersTable.Users.Put(user))
+    .Add(ordersTable.Orders.Put(order))
+    .ExecuteAsync();
 
 // Batch write operations
-await DynamoDbBatch.Write(client)
-    .Add(usersTable.Put<User>().WithItem(user1))
-    .Add(usersTable.Put<User>().WithItem(user2))
-    .Add(usersTable.Delete<User>().WithKey(User.Fields.UserId, "user3"))
+await DynamoDbBatch.Write
+    .Add(usersTable.Users.Put(user1))
+    .Add(usersTable.Users.Put(user2))
+    .Add(usersTable.Users.Delete("user3"))
     .ExecuteAsync();
 
 // Batch get operations
-var batchGetResponse = await DynamoDbBatch.Get(client)
-    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user1"))
-    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user2"))
-    .Add(usersTable.Get<User>().WithKey(User.Fields.UserId, "user3"))
+var batchGetResponse = await DynamoDbBatch.Get
+    .Add(usersTable.Users.Get("user1"))
+    .Add(usersTable.Users.Get("user2"))
+    .Add(usersTable.Users.Get("user3"))
     .ExecuteAsync();
 ```
 
