@@ -1,0 +1,353 @@
+# Implementation Plan
+
+- [x] 1. Create core runtime types
+  - [x] 1.1 Create `EnableDynamicFieldsAttribute` in `Oproto.FluentDynamoDb/Attributes/`
+    - Add `SensitiveLogging` property (default: true)
+    - Add XML documentation
+    - _Requirements: 1.1, 9.1, 9.2_
+  - [x] 1.2 Create `DynamicFieldType` enum in `Oproto.FluentDynamoDb/Entities/`
+    - Define enum values: NotFound, String, DateTime, Number, Binary, Boolean, Null, List, Map, StringSet, NumberSet, BinarySet
+    - DateTime enum value indicates string is parseable as DateTime/DateTimeOffset
+    - Add XML documentation explaining when to use each type
+    - _Requirements: 2.1_
+  - [x] 1.3 Create `DynamicFieldCollection` class in `Oproto.FluentDynamoDb/Entities/`
+    - Implement GetFieldType(string fieldName) for type detection
+    - GetFieldType must attempt to parse string values as DateTimeOffset before returning String type
+    - Implement typed getters for string, int, long, double, decimal, bool, DateTime, DateTimeOffset, byte[]
+    - Implement typed getters for List<string>, List<int>, HashSet<string>, HashSet<int>
+    - Implement TryGet variants for all typed getters (returns false on missing/type mismatch)
+    - Implement generic Get<T> and TryGet<T> methods
+    - Implement typed setters (null removes field)
+    - Implement GetRaw/SetRaw for AttributeValue access
+    - Implement ContainsKey, Remove, Clear, Count, FieldNames
+    - Implement IEnumerable<KeyValuePair<string, AttributeValue>>
+    - Implement internal ToDictionary() method
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 4.1, 4.4_
+  - [x] 1.4 Create `DynamicFieldTypeException` in `Oproto.FluentDynamoDb/Entities/`
+    - Include FieldName, RequestedType, ActualDynamoDbType properties
+    - _Requirements: 2.3_
+  - [x] 1.5 Write unit tests for `DynamicFieldCollection`
+    - Test GetFieldType returns correct DynamicFieldType for each AttributeValue type
+    - Test GetFieldType returns DateTime for ISO 8601 date strings
+    - Test GetFieldType returns String for non-date strings
+    - Test GetFieldType returns NotFound for missing fields
+    - Test all typed getters with valid values
+    - Test GetDateTime and GetDateTimeOffset parse ISO 8601 strings correctly
+    - Test all TryGet variants return true with correct value on success
+    - Test all TryGet variants return false on missing key or type mismatch
+    - Test missing key returns null/default for Get methods
+    - Test type mismatch throws DynamicFieldTypeException for Get methods
+    - Test enumeration returns all fields
+    - Test ContainsKey behavior
+    - Test setters create correct AttributeValue
+    - Test SetDateTime and SetDateTimeOffset store ISO 8601 format strings
+    - Test null setter removes field
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 4.1, 4.4_
+  - [x] 1.6 Write property test for DynamicFieldCollection round-trip
+    - **Property 15: Serialization Round-Trip**
+    - **Validates: Requirements 10.1, 10.2, 10.3**
+
+- [x] 2. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 3. Extend source generator for dynamic fields
+  - [x] 3.1 Add `EnableDynamicFieldsAttribute` detection in `EntityAnalyzer`
+    - Detect attribute presence on entity classes
+    - Extract SensitiveLogging property value
+    - Add EnableDynamicFields flag to EntityModel
+    - _Requirements: 1.1, 1.2_
+  - [x] 3.2 Add diagnostic for non-partial class with `[EnableDynamicFields]`
+    - Create FDDB0020 diagnostic
+    - Emit error when attribute is on non-partial class
+    - _Requirements: 1.4_
+  - [x] 3.3 Extend `MapperGenerator` to generate `DynamicFields` property
+    - Generate `public DynamicFieldCollection DynamicFields { get; set; } = new();`
+    - Generate static `_mappedAttributeNames` HashSet with all mapped attribute names
+    - _Requirements: 1.3_
+  - [x] 3.4 Extend `MapperGenerator.FromDynamoDb` to capture dynamic fields
+    - After mapping known properties, iterate remaining attributes
+    - Add unmapped attributes to DynamicFields collection
+    - _Requirements: 3.1, 3.2, 3.3, 10.2_
+  - [x] 3.5 Extend `MapperGenerator.ToDynamoDb` to include dynamic fields
+    - After mapping known properties, add all DynamicFields entries
+    - Skip dynamic fields that conflict with mapped property names
+    - _Requirements: 4.2, 4.3, 10.1_
+  - [x] 3.6 Extend `SecurityMetadataGenerator` for dynamic field logging
+    - Mark dynamic fields as sensitive by default
+    - Respect SensitiveLogging attribute property
+    - _Requirements: 9.1, 9.2, 9.3_
+  - [x] 3.7 Write unit tests for source generator dynamic fields support
+    - Test attribute detection generates DynamicFields property
+    - Test no attribute does not generate DynamicFields property
+    - Test diagnostic emitted for non-partial class
+    - Test generated _mappedAttributeNames contains all mapped attributes
+    - _Requirements: 1.1, 1.2, 1.3, 1.4_
+  - [x] 3.8 Write property test for source generator attribute detection
+    - **Property 1: Source Generator Attribute Detection**
+    - **Validates: Requirements 1.1, 1.2, 1.3**
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Add expression translator support for dynamic fields
+  - [x] 5.1 Create `DynamicFieldAccessor` class in `Oproto.FluentDynamoDb/Expressions/`
+    - Add indexer `this[string fieldName]`
+    - Add `Exists(string fieldName)` method
+    - Add `NotExists(string fieldName)` method
+    - Mark with `[ExpressionOnly]` attribute
+    - _Requirements: 6.1, 7.2_
+  - [x] 5.2 Extend `ExpressionTranslator` to handle `DynamicFields` indexer access
+    - Detect `DynamicFields[fieldName]` pattern in expressions
+    - Generate attribute name placeholder with proper escaping
+    - Support equality, comparison, begins_with, contains operations
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+  - [x] 5.3 Extend `ExpressionTranslator` to handle `Exists`/`NotExists` methods
+    - Translate to `attribute_exists()` and `attribute_not_exists()` functions
+    - _Requirements: 7.2_
+  - [x] 5.4 Extend `ExpressionTranslator` for condition expression support
+    - Ensure dynamic field patterns work in condition expressions
+    - _Requirements: 7.1, 7.3_
+  - [x] 5.5 Write unit tests for expression translator dynamic field support
+    - Test indexer access generates correct expression
+    - Test reserved word escaping
+    - Test Exists/NotExists translation
+    - Test comparison operators
+    - Test string functions (begins_with, contains)
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 7.1, 7.2, 7.3_
+  - [x] 5.6 Write property test for expression translator escaping
+    - **Property 11: Expression Translator Dynamic Field Support**
+    - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 7.1, 7.3**
+
+- [x] 6. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 7. Add update expression support for dynamic fields
+  - [x] 7.1 Add `SetDynamicField` extension method to `UpdateExpressionPropertyExtensions`
+    - Support setting dynamic field by name and value
+    - _Requirements: 5.1, 8.1_
+  - [x] 7.2 Add `RemoveDynamicField` extension method to `UpdateExpressionPropertyExtensions`
+    - Support removing dynamic field by name
+    - _Requirements: 5.2, 8.2_
+  - [x] 7.3 Extend `UpdateExpressionTranslator` to handle dynamic field methods
+    - Detect SetDynamicField/RemoveDynamicField method calls
+    - Generate SET/REMOVE clauses with proper escaping
+    - _Requirements: 5.1, 5.2, 5.3, 8.3_
+  - [x] 7.4 Extend `UpdateItemRequestBuilder` for dynamic field support
+    - Add `SetDynamicField(string fieldName, object value)` method
+    - Add `RemoveDynamicField(string fieldName)` method
+    - _Requirements: 5.1, 5.2_
+  - [x] 7.5 Write unit tests for update expression dynamic field support
+    - Test SetDynamicField generates correct SET clause
+    - Test RemoveDynamicField generates correct REMOVE clause
+    - Test reserved word escaping in update expressions
+    - _Requirements: 5.1, 5.2, 5.3, 8.1, 8.2, 8.3_
+  - [x] 7.6 Write property test for update expression escaping
+    - **Property 9: Update Expression Dynamic Field Support**
+    - **Validates: Requirements 5.1, 5.2, 5.3**
+
+- [x] 8. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. Create integration tests
+  - [x] 9.1 Create test entity with `[EnableDynamicFields]` in integration test project
+    - Define entity with mapped properties and dynamic fields enabled
+    - _Requirements: 1.1_
+  - [x] 9.2 Write integration test for GetItem with dynamic fields
+    - Store item with extra attributes via raw SDK
+    - Retrieve via GetItem and verify DynamicFields populated
+    - _Requirements: 3.1_
+  - [x] 9.3 Write integration test for Query with dynamic fields
+    - Store items with extra attributes
+    - Query and verify all returned entities have DynamicFields populated
+    - _Requirements: 3.2_
+  - [x] 9.4 Write integration test for Scan with dynamic fields
+    - Store items with extra attributes
+    - Scan and verify all returned entities have DynamicFields populated
+    - _Requirements: 3.3_
+  - [x] 9.5 Write integration test for PutItem with dynamic fields
+    - Create entity with dynamic fields set
+    - PutItem and verify dynamic fields stored in DynamoDB
+    - _Requirements: 4.2_
+  - [x] 9.6 Write integration test for UpdateItem SET dynamic field
+    - Update entity to set a dynamic field
+    - Verify field is stored correctly
+    - _Requirements: 5.1_
+  - [x] 9.7 Write integration test for UpdateItem REMOVE dynamic field
+    - Update entity to remove a dynamic field
+    - Verify field is removed
+    - _Requirements: 5.2_
+  - [x] 9.8 Write integration test for filter expression with dynamic fields
+    - Query/Scan with filter on dynamic field
+    - Verify correct items returned
+    - _Requirements: 6.1, 6.3_
+  - [x] 9.9 Write integration test for condition expression with dynamic fields
+    - PutItem with condition on dynamic field
+    - Verify condition is evaluated correctly
+    - _Requirements: 7.1_
+  - [x] 9.10 Write integration test for projection with dynamic fields
+    - Query with projection that excludes some dynamic fields
+    - Verify only projected dynamic fields are returned
+    - _Requirements: 3.4_
+  - [x] 9.11 Write property test for read operations populate dynamic fields
+    - **Property 5: Read Operations Populate Dynamic Fields**
+    - **Validates: Requirements 3.1, 3.2, 3.3**
+
+- [x] 10. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 11. Create example project
+  - [x] 11.1 Create `examples/DynamicFieldsDemo` project
+    - Add project file with references to main library
+    - _Requirements: All_
+  - [x] 11.2 Create example entity with dynamic fields
+    - Define Product entity with [EnableDynamicFields]
+    - Include common mapped properties (pk, sk, name, price)
+    - _Requirements: 1.1_
+  - [x] 11.3 Implement demo for reading entities with dynamic fields
+    - Show GetItem, Query, Scan with dynamic field access
+    - Demonstrate typed accessors
+    - _Requirements: 3.1, 3.2, 3.3, 2.1_
+  - [x] 11.4 Implement demo for writing entities with dynamic fields
+    - Show PutItem with dynamic fields
+    - Demonstrate typed setters
+    - _Requirements: 4.1, 4.2_
+  - [x] 11.5 Implement demo for updating dynamic fields
+    - Show UpdateItem SET and REMOVE for dynamic fields
+    - _Requirements: 5.1, 5.2_
+  - [x] 11.6 Implement demo for filtering by dynamic fields
+    - Show Query/Scan with filter expressions on dynamic fields
+    - _Requirements: 6.1, 6.3_
+  - [x] 11.7 Add README.md for example project
+    - Document usage patterns
+    - Include code examples
+    - _Requirements: All_
+
+- [x] 12. Update documentation
+  - [x] 12.1 Update main README.md with dynamic fields feature
+    - Add section describing dynamic fields capability
+    - Include basic usage example
+    - _Requirements: All_
+  - [x] 12.2 Update CHANGELOG.md
+    - Add entry for dynamic fields feature
+    - List new types and capabilities
+    - _Requirements: All_
+  - [x] 12.3 Update docs/DOCUMENTATION_CHANGELOG.md
+    - Document new documentation additions
+    - _Requirements: All_
+  - [x] 12.4 Create docs/core-features/DynamicFields.md
+    - Comprehensive documentation for dynamic fields
+    - Include all usage patterns and examples
+    - Document limitations and performance considerations
+    - _Requirements: All_
+
+- [x] 13. Add change tracking to DynamicFieldCollection
+  - [x] 13.1 Add change tracking fields to `DynamicFieldCollection`
+    - Add `_addedOrModified` HashSet<string> field
+    - Add `_removed` HashSet<string> field
+    - Add `_trackChanges` bool field
+    - _Requirements: 11.1, 11.2, 11.3_
+  - [x] 13.2 Update setters to track changes
+    - Modify all typed setters to add field name to `_addedOrModified` when tracking is enabled
+    - Modify `Remove()` to add field name to `_removed` when tracking is enabled
+    - Ensure setting null calls Remove() for consistent tracking
+    - _Requirements: 11.2, 11.3_
+  - [x] 13.3 Implement `ChangesOnly()` method
+    - Return new collection with only added/modified fields
+    - Copy `_removed` set to new collection for REMOVE clause generation
+    - Default to resetting change tracking on source collection
+    - Support `resetTracking` parameter for retry scenarios
+    - _Requirements: 11.4, 11.5, 11.6_
+  - [x] 13.4 Implement `ResetChangeTracking()` method
+    - Clear `_addedOrModified` and `_removed` sets
+    - _Requirements: 11.7_
+  - [x] 13.5 Add `RemovedFields` and `HasChanges` properties
+    - `RemovedFields` returns IReadOnlySet<string> of removed field names
+    - `HasChanges` returns true if any additions, modifications, or removals tracked
+    - _Requirements: 11.4_
+  - [x] 13.6 Add internal `StartTrackingChanges()` method
+    - Called by FromDynamoDb after populating the collection
+    - Sets `_trackChanges = true` and clears tracking sets
+    - _Requirements: 11.1_
+  - [x] 13.7 Write unit tests for change tracking
+    - Test changes are tracked after StartTrackingChanges()
+    - Test changes are not tracked before StartTrackingChanges()
+    - Test Set operations add to _addedOrModified
+    - Test Remove operations add to _removed
+    - Test ChangesOnly() returns correct fields
+    - Test ChangesOnly() resets tracking by default
+    - Test ChangesOnly(resetTracking: false) preserves tracking
+    - Test ResetChangeTracking() clears all tracking
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 13.8 Write property test for change tracking accuracy
+    - **Property 16: Change Tracking Accuracy**
+    - **Validates: Requirements 11.2, 11.3, 11.4**
+
+- [x] 14. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 15. Add DynamicFields to generated update models
+  - [x] 15.1 Extend `UpdateModelGenerator` to include DynamicFields property
+    - Only generate when entity has `[EnableDynamicFields]`
+    - Generate nullable `DynamicFieldCollection?` property
+    - Add XML documentation explaining usage
+    - _Requirements: 12.1_
+  - [x] 15.2 Update `FromDynamoDb` to call `StartTrackingChanges()`
+    - Call after populating DynamicFields collection
+    - _Requirements: 11.1_
+  - [x] 15.3 Write unit tests for update model generation
+    - Test DynamicFields property generated when entity has attribute
+    - Test DynamicFields property not generated when entity lacks attribute
+    - _Requirements: 12.1_
+
+- [x] 16. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 17. Update expression translator for DynamicFieldCollection in update models
+  - [x] 17.1 Extend `UpdateExpressionTranslator` to handle DynamicFieldCollection
+    - Detect DynamicFields property in update model expressions
+    - Generate SET clauses for each field in the collection
+    - Generate REMOVE clauses for each field in RemovedFields
+    - Skip processing when DynamicFields is null
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 12.2, 12.3, 12.4_
+  - [x] 17.2 Write unit tests for expression translator DynamicFieldCollection support
+    - Test SET clauses generated for collection fields
+    - Test REMOVE clauses generated for RemovedFields
+    - Test null DynamicFields generates no clauses
+    - Test reserved word escaping in field names
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 12.2, 12.3, 12.4_
+  - [x] 17.3 Write property test for update model DynamicFields handling
+    - **Property 18: Update Model DynamicFields Null Handling**
+    - **Validates: Requirements 8.3, 12.4**
+
+- [x] 18. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 19. Create integration tests for change tracking
+  - [x] 19.1 Write integration test for ChangesOnly() update flow
+    - Load entity, modify dynamic fields, update with ChangesOnly()
+    - Verify only changed fields are updated in DynamoDB
+    - _Requirements: 11.4, 8.1, 8.2_
+  - [x] 19.2 Write integration test for update model with DynamicFields
+    - Update using lambda expression with DynamicFields property
+    - Verify SET and REMOVE clauses work correctly
+    - _Requirements: 12.2, 12.3_
+  - [x] 19.3 Write integration test for null DynamicFields in update model
+    - Update with DynamicFields = null
+    - Verify existing dynamic fields are not modified
+    - _Requirements: 12.4_
+
+- [x] 20. Update documentation for change tracking
+  - [x] 20.1 Update docs/core-features/DynamicFields.md
+    - Add section on change tracking
+    - Document ChangesOnly() usage patterns
+    - Document retry scenario handling
+    - _Requirements: 11.1-11.7_
+  - [x] 20.2 Update CHANGELOG.md
+    - Add entry for change tracking feature
+    - _Requirements: 11.1-11.7, 12.1-12.4_
+  - [x] 20.3 Update example project
+    - Add demo for ChangesOnly() update pattern
+    - _Requirements: 11.4_
+
+- [x] 21. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

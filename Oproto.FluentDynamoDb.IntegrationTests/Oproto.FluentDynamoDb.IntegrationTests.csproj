@@ -39,6 +39,10 @@
         <!-- Assertions - Using AwesomeAssertions (fork of FluentAssertions) -->
         <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
         
+        <!-- Property-based testing -->
+        <PackageReference Include="FsCheck" Version="2.16.6" />
+        <PackageReference Include="FsCheck.Xunit" Version="2.16.6" />
+        
         <!-- AWS SDK for DynamoDB -->
         <PackageReference Include="AWSSDK.DynamoDBv2" Version="[4.0.0,5.0.0)" />
         

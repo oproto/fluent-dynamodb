@@ -47,6 +47,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   result.LogResults(logger);
   ```
 
+- **Dynamic Fields Support** - Capture and work with DynamoDB attributes not explicitly defined in entity classes
+  - New `[EnableDynamicFields]` attribute to opt-in to dynamic field capture on entities
+  - New `DynamicFieldCollection` class with typed accessors for common types (string, int, long, double, decimal, bool, DateTime, DateTimeOffset, byte[])
+  - New `DynamicFieldType` enum for runtime type detection of dynamic fields
+  - New `DynamicFieldTypeException` for type mismatch errors with descriptive messages
+  - Source generator automatically adds `DynamicFields` property to entities with `[EnableDynamicFields]`
+  - `FromDynamoDb` captures unmapped attributes into `DynamicFields` collection
+  - `ToDynamoDb` includes dynamic fields in serialized output (mapped properties take precedence)
+  - Expression translator support for dynamic field filtering: `x.DynamicFields["fieldName"] == value`
+  - Support for typed comparisons in expressions: `x.DynamicFields["score"] > 100`
+  - `Exists()` and `NotExists()` methods for attribute existence checks in expressions
+  - Update expression support via `DynamicFields` property on update models with `DynamicFieldCollection`
+  - Dynamic field values redacted in logs by default (configurable via `SensitiveLogging` property)
+  - Full AOT compatibility with no reflection at runtime
+  - **Change Tracking** - Automatic tracking of dynamic field modifications for efficient updates
+    - `DynamicFieldCollection` automatically tracks changes after entity deserialization
+    - `ChangesOnly()` method returns a new collection with only added/modified fields and tracked removals
+    - `ChangesOnly(resetTracking: false)` preserves tracking for retry scenarios
+    - `ResetChangeTracking()` method to manually clear all tracked changes
+    - `HasChanges` property to check if any modifications have been made
+    - `RemovedFields` property provides access to fields marked for removal
+    - Generated update models include nullable `DynamicFields` property for lambda expression updates
+    - Null `DynamicFields` in update model leaves existing dynamic fields unchanged
+    - _Requirements: 11.1-11.7, 12.1-12.4_
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.4, 5.1-5.4, 6.1-6.4, 7.1-7.3, 8.1-8.4, 9.1-9.3, 10.1-10.3_
+  
+  **Usage:**
+  ```csharp
+  // Enable dynamic fields on entity
+  [DynamoDbTable("products")]
+  [EnableDynamicFields]
+  public partial class Product
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string ProductId { get; set; } = string.Empty;
+  }
+  
+  // Read dynamic fields with typed accessors
+  var product = await table.Products.GetAsync(productId);
+  var color = product.DynamicFields.GetString("color");
+  var weight = product.DynamicFields.GetInt("weight_grams");
+  
+  // Write dynamic fields
+  product.DynamicFields.SetString("material", "Cotton");
+  product.DynamicFields.SetInt("size_us", 10);
+  await table.Products.PutAsync(product);
+  
+  // Update dynamic fields using change tracking
+  product.DynamicFields.SetDecimal("sale_price", 24.99m);
+  product.DynamicFields.Remove("temporary_note");
+  await table.Products.Update(productId)
+      .Set(x => new ProductUpdateModel { DynamicFields = product.DynamicFields.ChangesOnly() })
+      .UpdateAsync();
+  
+  // Filter by dynamic fields
+  var blueProducts = await table.Products.Scan()
+      .WithFilter(x => x.DynamicFields["color"] == "Blue")
+      .ToListAsync();
+  
+  // Check field existence
+  var productsWithWarranty = await table.Products.Scan()
+      .WithFilter(x => x.DynamicFields.Exists("warranty_months"))
+      .ToListAsync();
+  ```
+
 - **`[LocalSecondaryIndex]` Attribute** - Support for Local Secondary Index definitions in entity metadata
   - New `[LocalSecondaryIndex(indexName)]` attribute for marking LSI sort key properties
   - LSIs share the same partition key as the base table

@@ -1,4 +1,7 @@
 using System.Linq.Expressions;
+using FsCheck;
+using FsCheck.Xunit;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Providers.Encryption;
@@ -1662,4 +1665,458 @@ public class UpdateExpressionTranslatorTests
     }
 
     #endregion
+
+    #region DynamicFieldCollection Support
+
+    // Test update model with DynamicFields property
+    private class TestUpdateModelWithDynamicFields
+    {
+        public string? Name { get; set; }
+        public int? Count { get; set; }
+        public DynamicFieldCollection? DynamicFields { get; set; }
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_DynamicFieldsWithSingleField_ShouldGenerateSetClause()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        var dynamicFields = new DynamicFieldCollection();
+        dynamicFields.SetString("customField", "customValue");
+        
+        // Build expression manually
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(dynamicFields));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #dynField0 = :p0");
+        context.AttributeNames.AttributeNames["#dynField0"].Should().Be("customField");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("customValue");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_DynamicFieldsWithMultipleFields_ShouldGenerateMultipleSetClauses()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        var dynamicFields = new DynamicFieldCollection();
+        dynamicFields.SetString("field1", "value1");
+        dynamicFields.SetInt("field2", 42);
+        
+        // Build expression manually
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(dynamicFields));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Contain("SET");
+        result.Should().Contain("#dynField0 = :p0");
+        result.Should().Contain("#dynField1 = :p1");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_DynamicFieldsWithRemovedFields_ShouldGenerateRemoveClauses()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        // Create a collection with tracked removals
+        var dynamicFields = new DynamicFieldCollection();
+        dynamicFields.SetString("existingField", "value");
+        
+        // Start change tracking
+        dynamicFields.StartTrackingChanges();
+        
+        // Now remove a field (this will be tracked)
+        dynamicFields.Remove("existingField");
+        
+        // Get changes only (which will have the removed field tracked)
+        var changes = dynamicFields.ChangesOnly(resetTracking: false);
+        
+        // Build expression manually
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(changes));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Contain("REMOVE");
+        result.Should().Contain("#dynField0");
+        context.AttributeNames.AttributeNames["#dynField0"].Should().Be("existingField");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_NullDynamicFields_ShouldGenerateNoClauses()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        // Build expression with null DynamicFields
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(null, typeof(DynamicFieldCollection)));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().BeEmpty();
+        context.AttributeNames.AttributeNames.Should().BeEmpty();
+        context.AttributeValues.AttributeValues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_DynamicFieldsWithReservedWord_ShouldEscapeFieldName()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        var dynamicFields = new DynamicFieldCollection();
+        // "status" is a DynamoDB reserved word
+        dynamicFields.SetString("status", "active");
+        
+        // Build expression manually
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(dynamicFields));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #dynField0 = :p0");
+        // The attribute name placeholder should map to the reserved word
+        context.AttributeNames.AttributeNames["#dynField0"].Should().Be("status");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("active");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_DynamicFieldsWithSetAndRemove_ShouldGenerateBothClauses()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        // Create a collection with both fields and tracked removals
+        var dynamicFields = new DynamicFieldCollection();
+        dynamicFields.SetString("field1", "value1");
+        dynamicFields.SetString("field2", "value2");
+        
+        // Start tracking
+        dynamicFields.StartTrackingChanges();
+        
+        // Modify one field and remove another
+        dynamicFields.SetString("field1", "newValue1");
+        dynamicFields.Remove("field2");
+        
+        // Get changes
+        var changes = dynamicFields.ChangesOnly(resetTracking: false);
+        
+        // Build expression manually
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(changes));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Contain("SET");
+        result.Should().Contain("REMOVE");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_DynamicFieldsCombinedWithRegularProperties_ShouldGenerateAllClauses()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        var dynamicFields = new DynamicFieldCollection();
+        dynamicFields.SetString("customField", "customValue");
+        
+        // Build expression with both regular property and DynamicFields
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var nameBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.Name))!,
+            Expression.Constant("John"));
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(dynamicFields));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), nameBinding, dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Contain("SET");
+        result.Should().Contain("#attr0 = :p0"); // Regular property
+        result.Should().Contain("#dynField1 = :p1"); // Dynamic field
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_EmptyDynamicFieldCollection_ShouldGenerateNoClauses()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        var dynamicFields = new DynamicFieldCollection();
+        // Empty collection - no fields set
+        
+        // Build expression manually
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var dynamicFieldsBinding = Expression.Bind(
+            typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+            Expression.Constant(dynamicFields));
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().BeEmpty();
+    }
+
+    #endregion
+}
+
+
+/// <summary>
+/// Property-based tests for UpdateExpressionTranslator DynamicFieldCollection support.
+/// </summary>
+public class UpdateExpressionTranslatorDynamicFieldsPropertyTests
+{
+    // Test update model with DynamicFields property
+    private class TestUpdateModelWithDynamicFields
+    {
+        public string? Name { get; set; }
+        public int? Count { get; set; }
+        public DynamicFieldCollection? DynamicFields { get; set; }
+    }
+
+    private class TestUpdateExpressions
+    {
+        public UpdateExpressionProperty<string?> Name { get; } = new();
+        public UpdateExpressionProperty<int> Count { get; } = new();
+    }
+
+    private UpdateExpressionTranslator CreateTranslator()
+    {
+        return new UpdateExpressionTranslator(
+            logger: null,
+            isSensitiveField: null,
+            fieldEncryptor: null,
+            encryptionContextId: null);
+    }
+
+    private ExpressionContext CreateContext(EntityMetadata? metadata = null)
+    {
+        var attributeValues = new AttributeValueInternal();
+        var attributeNames = new AttributeNameInternal();
+        return new ExpressionContext(
+            attributeValues,
+            attributeNames,
+            metadata,
+            ExpressionValidationMode.None);
+    }
+
+    private EntityMetadata CreateTestMetadata()
+    {
+        return new EntityMetadata
+        {
+            TableName = "TestTable",
+            Properties = new[]
+            {
+                new PropertyMetadata
+                {
+                    PropertyName = "Name",
+                    AttributeName = "name",
+                    PropertyType = typeof(string)
+                },
+                new PropertyMetadata
+                {
+                    PropertyName = "Count",
+                    AttributeName = "count",
+                    PropertyType = typeof(int)
+                }
+            }
+        };
+    }
+
+    /// <summary>
+    /// **Feature: dynamic-fields-support, Property 18: Update Model DynamicFields Null Handling**
+    /// 
+    /// *For any* update operation where the update model's DynamicFields property is null,
+    /// the Expression Translator SHALL not generate any SET or REMOVE clauses for dynamic fields.
+    /// 
+    /// **Validates: Requirements 8.3, 12.4**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property NullDynamicFields_GeneratesNoClausesForDynamicFields()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            _ =>
+            {
+                // Arrange
+                var translator = CreateTranslator();
+                var context = CreateContext(CreateTestMetadata());
+                
+                // Build expression with null DynamicFields
+                var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+                var dynamicFieldsBinding = Expression.Bind(
+                    typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+                    Expression.Constant(null, typeof(DynamicFieldCollection)));
+                var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+                var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+                // Act
+                var result = translator.TranslateUpdateExpression(lambda, context);
+
+                // Assert
+                var resultIsEmpty = string.IsNullOrEmpty(result);
+                var noAttributeNames = context.AttributeNames.AttributeNames.Count == 0;
+                var noAttributeValues = context.AttributeValues.AttributeValues.Count == 0;
+                
+                return (resultIsEmpty && noAttributeNames && noAttributeValues).ToProperty()
+                    .Label($"Null DynamicFields should generate no clauses. " +
+                           $"ResultIsEmpty: {resultIsEmpty}, NoAttributeNames: {noAttributeNames}, NoAttributeValues: {noAttributeValues}");
+            });
+    }
+
+    /// <summary>
+    /// **Feature: dynamic-fields-support, Property 18: Update Model DynamicFields Null Handling**
+    /// 
+    /// *For any* update operation where the update model has both regular properties and null DynamicFields,
+    /// the Expression Translator SHALL generate clauses only for the regular properties.
+    /// 
+    /// **Validates: Requirements 8.3, 12.4**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property NullDynamicFields_WithRegularProperties_OnlyGeneratesRegularPropertyClauses()
+    {
+        return Prop.ForAll(
+            Arb.Default.String().Filter(s => !string.IsNullOrEmpty(s)),
+            name =>
+            {
+                // Arrange
+                var translator = CreateTranslator();
+                var context = CreateContext(CreateTestMetadata());
+                
+                // Build expression with regular property and null DynamicFields
+                var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+                var nameBinding = Expression.Bind(
+                    typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.Name))!,
+                    Expression.Constant(name));
+                var dynamicFieldsBinding = Expression.Bind(
+                    typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+                    Expression.Constant(null, typeof(DynamicFieldCollection)));
+                var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), nameBinding, dynamicFieldsBinding);
+                var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+                // Act
+                var result = translator.TranslateUpdateExpression(lambda, context);
+
+                // Assert
+                var hasSetClause = result.Contains("SET");
+                var hasOnlyOneAttributeName = context.AttributeNames.AttributeNames.Count == 1;
+                var hasOnlyOneAttributeValue = context.AttributeValues.AttributeValues.Count == 1;
+                var attributeNameIsForRegularProperty = context.AttributeNames.AttributeNames.Values.Contains("name");
+                var noDynamicFieldPlaceholders = !result.Contains("#dynField");
+                
+                return (hasSetClause && hasOnlyOneAttributeName && hasOnlyOneAttributeValue && 
+                        attributeNameIsForRegularProperty && noDynamicFieldPlaceholders).ToProperty()
+                    .Label($"Null DynamicFields with regular properties should only generate regular property clauses. " +
+                           $"HasSetClause: {hasSetClause}, HasOnlyOneAttributeName: {hasOnlyOneAttributeName}, " +
+                           $"HasOnlyOneAttributeValue: {hasOnlyOneAttributeValue}, AttributeNameIsForRegularProperty: {attributeNameIsForRegularProperty}, " +
+                           $"NoDynamicFieldPlaceholders: {noDynamicFieldPlaceholders}");
+            });
+    }
+
+    /// <summary>
+    /// **Feature: dynamic-fields-support, Property 18: Update Model DynamicFields Null Handling**
+    /// 
+    /// *For any* update operation where the update model has a non-null DynamicFieldCollection,
+    /// the Expression Translator SHALL generate SET clauses for each field in the collection.
+    /// 
+    /// **Validates: Requirements 8.1, 8.4, 12.2**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property NonNullDynamicFields_GeneratesSetClausesForEachField()
+    {
+        return Prop.ForAll(
+            Arb.Default.PositiveInt().Filter(n => n.Get >= 1 && n.Get <= 5),
+            fieldCount =>
+            {
+                // Arrange
+                var translator = CreateTranslator();
+                var context = CreateContext(CreateTestMetadata());
+                
+                var dynamicFields = new DynamicFieldCollection();
+                for (int i = 0; i < fieldCount.Get; i++)
+                {
+                    dynamicFields.SetString($"field{i}", $"value{i}");
+                }
+                
+                // Build expression with DynamicFields
+                var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+                var dynamicFieldsBinding = Expression.Bind(
+                    typeof(TestUpdateModelWithDynamicFields).GetProperty(nameof(TestUpdateModelWithDynamicFields.DynamicFields))!,
+                    Expression.Constant(dynamicFields));
+                var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModelWithDynamicFields)), dynamicFieldsBinding);
+                var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModelWithDynamicFields>>(memberInit, parameter);
+
+                // Act
+                var result = translator.TranslateUpdateExpression(lambda, context);
+
+                // Assert
+                var hasSetClause = result.Contains("SET");
+                var hasCorrectAttributeNameCount = context.AttributeNames.AttributeNames.Count == fieldCount.Get;
+                var hasCorrectAttributeValueCount = context.AttributeValues.AttributeValues.Count == fieldCount.Get;
+                var allFieldsHavePlaceholders = Enumerable.Range(0, fieldCount.Get)
+                    .All(i => context.AttributeNames.AttributeNames.Values.Contains($"field{i}"));
+                
+                return (hasSetClause && hasCorrectAttributeNameCount && hasCorrectAttributeValueCount && allFieldsHavePlaceholders).ToProperty()
+                    .Label($"Non-null DynamicFields should generate SET clauses for each field. " +
+                           $"HasSetClause: {hasSetClause}, HasCorrectAttributeNameCount: {hasCorrectAttributeNameCount} (expected {fieldCount.Get}), " +
+                           $"HasCorrectAttributeValueCount: {hasCorrectAttributeValueCount}, AllFieldsHavePlaceholders: {allFieldsHavePlaceholders}");
+            });
+    }
 }

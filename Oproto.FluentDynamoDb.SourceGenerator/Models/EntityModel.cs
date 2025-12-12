@@ -122,6 +122,18 @@ internal class EntityModel
     public bool HasGeospatialPackage { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether dynamic fields support is enabled for this entity.
+    /// When true, the source generator will generate a DynamicFields property and capture unmapped attributes.
+    /// </summary>
+    public bool EnableDynamicFields { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether dynamic field values should be treated as sensitive in logs.
+    /// When true (default), dynamic field values are redacted in logs while field names are still logged.
+    /// </summary>
+    public bool DynamicFieldsSensitiveLogging { get; set; } = true;
+
+    /// <summary>
     /// Gets the partition key property, if any.
     /// </summary>
     public PropertyModel? PartitionKeyProperty => Properties.FirstOrDefault(p => p.IsPartitionKey);

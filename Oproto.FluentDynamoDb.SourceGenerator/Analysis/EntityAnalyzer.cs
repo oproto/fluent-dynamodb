@@ -166,7 +166,60 @@ internal class EntityAnalyzer
         // Extract stream conversion attribute
         ExtractStreamConversionAttribute(classDecl, semanticModel, entityModel);
 
+        // Extract dynamic fields attribute
+        ExtractEnableDynamicFieldsAttribute(classDecl, semanticModel, entityModel);
+
         return !string.IsNullOrEmpty(entityModel.TableName);
+    }
+
+    private void ExtractEnableDynamicFieldsAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var enableDynamicFieldsAttribute = GetAttribute(classDecl, semanticModel, "EnableDynamicFieldsAttribute");
+        if (enableDynamicFieldsAttribute == null)
+        {
+            entityModel.EnableDynamicFields = false;
+            return;
+        }
+
+        // Check if class is partial - emit diagnostic if not
+        if (!IsPartialClass(classDecl))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.EnableDynamicFieldsRequiresPartial, 
+                enableDynamicFieldsAttribute.GetLocation(), 
+                entityModel.ClassName);
+            entityModel.EnableDynamicFields = false;
+            return;
+        }
+
+        // Check if class already has a DynamicFields property
+        var existingDynamicFieldsProperty = classDecl.Members
+            .OfType<PropertyDeclarationSyntax>()
+            .FirstOrDefault(p => p.Identifier.ValueText == "DynamicFields");
+        
+        if (existingDynamicFieldsProperty != null)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.DynamicFieldsPropertyAlreadyExists,
+                enableDynamicFieldsAttribute.GetLocation(),
+                entityModel.ClassName);
+        }
+
+        entityModel.EnableDynamicFields = true;
+        
+        // Default to sensitive logging (values redacted)
+        entityModel.DynamicFieldsSensitiveLogging = true;
+
+        // Extract SensitiveLogging property if specified
+        if (enableDynamicFieldsAttribute.ArgumentList != null)
+        {
+            foreach (var arg in enableDynamicFieldsAttribute.ArgumentList.Arguments)
+            {
+                if (arg.NameEquals?.Name.Identifier.ValueText == "SensitiveLogging" &&
+                    arg.Expression is LiteralExpressionSyntax sensitiveLoggingLiteral)
+                {
+                    entityModel.DynamicFieldsSensitiveLogging = bool.Parse(sensitiveLoggingLiteral.Token.ValueText);
+                }
+            }
+        }
     }
 
     private void ExtractScannableAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)

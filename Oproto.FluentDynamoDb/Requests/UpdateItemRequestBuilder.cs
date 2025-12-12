@@ -198,9 +198,6 @@ public class UpdateItemRequestBuilder<TEntity> :
     }
 
 
-
-
-
     /// <summary>
     /// Sets the update expression on the builder.
     /// </summary>

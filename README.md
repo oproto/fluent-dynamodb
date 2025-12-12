@@ -306,6 +306,40 @@ Fluent pattern matching for DynamoDB Streams in Lambda functions with support fo
 Protect sensitive data with logging redaction and optional KMS-based encryption. Mark fields with `[Sensitive]` to exclude from logs, or `[Encrypted]` for encryption at rest with AWS KMS. Supports multi-tenant encryption with per-context keys.
 - **Learn more:** [Field-Level Security Guide](docs/advanced-topics/FieldLevelSecurity.md)
 
+### 🔄 Dynamic Fields Support
+Capture and work with DynamoDB attributes that aren't explicitly defined in your entity class. Perfect for multi-tenant applications where different tenants need different custom fields.
+```csharp
+// Enable dynamic fields on your entity
+[DynamoDbTable("products")]
+[EnableDynamicFields]
+public partial class Product
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string ProductId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+    
+    // DynamicFields property is auto-generated
+}
+
+// Read dynamic fields with typed accessors
+var product = await table.Products.GetAsync(productId);
+var color = product.DynamicFields.GetString("color");
+var weight = product.DynamicFields.GetInt("weight_grams");
+
+// Write dynamic fields
+product.DynamicFields.SetString("material", "Cotton");
+await table.Products.PutAsync(product);
+
+// Filter by dynamic fields
+var blueProducts = await table.Products.Scan()
+    .WithFilter(x => x.DynamicFields["color"] == "Blue")
+    .ToListAsync();
+```
+- **Learn more:** [Dynamic Fields Guide](docs/core-features/DynamicFields.md)
+
 ### 📊 Logging and Diagnostics
 Comprehensive logging support for debugging and monitoring DynamoDB operations, especially useful in AOT environments where stack traces are limited.
 - **Learn more:** [Logging Configuration](docs/core-features/LoggingConfiguration.md)

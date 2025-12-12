@@ -97,6 +97,13 @@ internal static class UpdateExpressionsGenerator
         // Using statements (add System for nullable types)
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Collections.Generic;");
+        
+        // Add Entities namespace for DynamicFieldCollection if dynamic fields are enabled
+        if (entity.EnableDynamicFields)
+        {
+            sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        }
+        
         sb.AppendLine();
 
         // Namespace
@@ -135,6 +142,12 @@ internal static class UpdateExpressionsGenerator
             GenerateUpdateModelProperty(sb, property, entity);
         }
 
+        // Generate DynamicFields property if enabled
+        if (entity.EnableDynamicFields)
+        {
+            GenerateDynamicFieldsUpdateModelProperty(sb);
+        }
+
         // Close class
         sb.AppendLine("    }");
 
@@ -142,6 +155,39 @@ internal static class UpdateExpressionsGenerator
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Generates the DynamicFields property for the UpdateModel class.
+    /// </summary>
+    private static void GenerateDynamicFieldsUpdateModelProperty(StringBuilder sb)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Gets or sets the dynamic fields to update.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <remarks>");
+        sb.AppendLine("        /// <para>");
+        sb.AppendLine("        /// Set to a <see cref=\"DynamicFieldCollection\"/> to update specific dynamic fields.");
+        sb.AppendLine("        /// Leave null to not modify any dynamic fields.");
+        sb.AppendLine("        /// </para>");
+        sb.AppendLine("        /// <para><strong>Usage patterns:</strong></para>");
+        sb.AppendLine("        /// <list type=\"bullet\">");
+        sb.AppendLine("        /// <item><description>Use <c>entity.DynamicFields.ChangesOnly()</c> to update only changed fields after loading an entity</description></item>");
+        sb.AppendLine("        /// <item><description>Create a new <see cref=\"DynamicFieldCollection\"/> and set fields directly for targeted updates</description></item>");
+        sb.AppendLine("        /// <item><description>Use <c>collection.Remove(fieldName)</c> to mark fields for removal</description></item>");
+        sb.AppendLine("        /// </list>");
+        sb.AppendLine("        /// <para><strong>Example:</strong></para>");
+        sb.AppendLine("        /// <code>");
+        sb.AppendLine("        /// // Update only changed dynamic fields");
+        sb.AppendLine("        /// var entity = await table.GetAsync(pk, sk);");
+        sb.AppendLine("        /// entity.DynamicFields.SetString(\"color\", \"Red\");");
+        sb.AppendLine("        /// await table.Update(pk, sk)");
+        sb.AppendLine("        ///     .Set(x => new EntityUpdateModel { DynamicFields = entity.DynamicFields.ChangesOnly() })");
+        sb.AppendLine("        ///     .UpdateAsync();");
+        sb.AppendLine("        /// </code>");
+        sb.AppendLine("        /// </remarks>");
+        sb.AppendLine("        public DynamicFieldCollection? DynamicFields { get; set; }");
     }
 
     /// <summary>

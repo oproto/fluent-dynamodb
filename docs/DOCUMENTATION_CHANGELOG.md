@@ -57,6 +57,109 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-12]
+
+### File: docs/core-features/DynamicFields.md - Update Pattern Correction
+
+**Category:** API Correction - Removed Redundant Methods
+
+**Before:**
+```csharp
+// Updating dynamic fields section showed builder methods
+await table.Products.Update(pk, sk)
+    .SetDynamicField("sale_price", 24.99m)
+    .RemoveDynamicField("temporary_note")
+    .UpdateAsync();
+```
+
+**After:**
+```csharp
+// PREFERRED: Lambda expression with DynamicFieldCollection
+var changes = new DynamicFieldCollection();
+changes.SetDecimal("sale_price", 24.99m);
+changes.Remove("temporary_note");
+
+await table.Products.Update(pk, sk)
+    .Set(x => new ProductUpdateModel { DynamicFields = changes })
+    .UpdateAsync();
+
+// EXPLICIT CONTROL: Manual expression strings
+await table.Products.Update(pk, sk)
+    .Set("#salePrice = :salePrice")
+    .Remove("#tempNote")
+    .WithAttribute("#salePrice", "sale_price")
+    .WithAttribute("#tempNote", "temporary_note")
+    .WithValue(":salePrice", new AttributeValue { N = "24.99" })
+    .UpdateAsync();
+```
+
+**Reason:** The `SetDynamicField()` and `RemoveDynamicField()` methods were removed from `UpdateItemRequestBuilder` as they were redundant. The same functionality is available via:
+1. Lambda expressions with `DynamicFieldCollection` on update models (preferred)
+2. Manual expression strings with `Set()`, `Remove()`, `WithAttribute()`, `WithValue()`
+
+---
+
+### File: docs/core-features/DynamicFields.md (NEW)
+
+**Category:** New Documentation - Dynamic Fields Feature
+
+**Summary:** Added comprehensive documentation for the new dynamic fields feature, including:
+- Overview and use cases (multi-tenant custom attributes)
+- Enabling dynamic fields with `[EnableDynamicFields]` attribute
+- Reading dynamic fields with typed accessors (`GetString`, `GetInt`, `GetBool`, etc.)
+- Type detection with `GetFieldType()` and `DynamicFieldType` enum
+- Writing dynamic fields with typed setters
+- Updating dynamic fields via lambda expressions with `DynamicFieldCollection` (preferred) or manual expression strings
+- Change tracking with `ChangesOnly()`, `HasChanges`, `RemovedFields`, and `ResetChangeTracking()`
+- Filtering by dynamic fields in expressions
+- Existence checks with `Exists()` and `NotExists()`
+- Security considerations (logging redaction)
+- Performance considerations
+- Limitations and best practices
+
+**Files added:**
+- `docs/core-features/DynamicFields.md`
+
+**Reason:** New feature documentation for dynamic fields support enabling entities to capture unmapped DynamoDB attributes.
+
+---
+
+### File: README.md - Dynamic Fields Feature Section
+
+**Category:** New Documentation - Feature Overview
+
+**Summary:** Added dynamic fields feature to the Key Features section of the main README with a code example demonstrating:
+- Entity definition with `[EnableDynamicFields]`
+- Reading dynamic fields with typed accessors
+- Writing dynamic fields
+- Filtering by dynamic fields
+
+**Files updated:**
+- `README.md`
+
+**Reason:** Feature visibility in main project documentation.
+
+---
+
+### File: examples/DynamicFieldsDemo/README.md (NEW)
+
+**Category:** New Documentation - Example Application
+
+**Summary:** Added README documentation for the DynamicFieldsDemo example application demonstrating:
+- Multi-tenant custom attributes use case
+- Enabling dynamic fields
+- Reading, writing, and updating dynamic fields
+- Filtering by dynamic fields
+- Supported dynamic field types
+- Security considerations
+
+**Files added:**
+- `examples/DynamicFieldsDemo/README.md`
+
+**Reason:** Example application documentation for dynamic fields feature.
+
+---
+
 ## [2025-12-11]
 
 ### File: docs/advanced-topics/SchemaValidation.md (NEW)

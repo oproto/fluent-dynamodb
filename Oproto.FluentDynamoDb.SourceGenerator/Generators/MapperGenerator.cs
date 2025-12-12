@@ -101,6 +101,12 @@ internal static class MapperGenerator
         sb.AppendLine($"    public partial class {entity.ClassName} : IDynamoDbEntity");
         sb.AppendLine("    {");
 
+        // Generate dynamic fields support if enabled
+        if (entity.EnableDynamicFields)
+        {
+            GenerateDynamicFieldsSupport(sb, entity);
+        }
+
         // Check if entity has blob storage properties or encrypted properties
         var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
         var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
@@ -146,6 +152,33 @@ internal static class MapperGenerator
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    private static void GenerateDynamicFieldsSupport(StringBuilder sb, EntityModel entity)
+    {
+        // Generate the DynamicFields property
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Dynamic fields captured from DynamoDB that are not mapped to entity properties.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        public DynamicFieldCollection DynamicFields { get; set; } = new();");
+        sb.AppendLine();
+
+        // Generate the static HashSet of mapped attribute names
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Set of DynamoDB attribute names that are mapped to entity properties.");
+        sb.AppendLine("        /// Used to identify dynamic fields during deserialization.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        private static readonly HashSet<string> _mappedAttributeNames = new(StringComparer.Ordinal)");
+        sb.AppendLine("        {");
+
+        // Add all mapped attribute names
+        foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping && !string.IsNullOrEmpty(p.AttributeName)))
+        {
+            sb.AppendLine($"            \"{property.AttributeName}\",");
+        }
+
+        sb.AppendLine("        };");
     }
 
     private static void GenerateToDynamoDbMethod(StringBuilder sb, EntityModel entity)
@@ -199,6 +232,12 @@ internal static class MapperGenerator
             GeneratePropertyToAttributeValue(sb, property, entity);
         }
 
+        // Generate dynamic fields inclusion if enabled
+        if (entity.EnableDynamicFields)
+        {
+            GenerateDynamicFieldsInclusion(sb);
+        }
+
         sb.AppendLine();
         
         // Generate exit logging
@@ -216,6 +255,19 @@ internal static class MapperGenerator
         sb.AppendLine("                throw;");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
+    }
+
+    private static void GenerateDynamicFieldsInclusion(StringBuilder sb)
+    {
+        sb.AppendLine();
+        sb.AppendLine("                // Include dynamic fields (skip any that conflict with mapped property names)");
+        sb.AppendLine("                foreach (var kvp in typedEntity.DynamicFields.ToDictionary())");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    if (!_mappedAttributeNames.Contains(kvp.Key))");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        item[kvp.Key] = kvp.Value;");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
     }
 
     private static void GenerateToDynamoDbStubMethod(StringBuilder sb, EntityModel entity)
@@ -359,6 +411,12 @@ internal static class MapperGenerator
         foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
         {
             GeneratePropertyToAttributeValueAsync(sb, property, entity);
+        }
+
+        // Generate dynamic fields inclusion if enabled
+        if (entity.EnableDynamicFields)
+        {
+            GenerateDynamicFieldsInclusion(sb);
         }
 
         sb.AppendLine();
@@ -1671,6 +1729,12 @@ internal static class MapperGenerator
             }
         }
 
+        // Generate dynamic fields capture if enabled
+        if (entity.EnableDynamicFields)
+        {
+            GenerateDynamicFieldsCapture(sb);
+        }
+
         sb.AppendLine();
         
         // Generate exit logging
@@ -1688,6 +1752,22 @@ internal static class MapperGenerator
         sb.AppendLine("                throw;");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
+    }
+
+    private static void GenerateDynamicFieldsCapture(StringBuilder sb)
+    {
+        sb.AppendLine();
+        sb.AppendLine("                // Capture dynamic fields (unmapped attributes)");
+        sb.AppendLine("                foreach (var kvp in item)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    if (!_mappedAttributeNames.Contains(kvp.Key))");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        entity.DynamicFields.SetRaw(kvp.Key, kvp.Value);");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine();
+        sb.AppendLine("                // Start tracking changes for efficient updates");
+        sb.AppendLine("                entity.DynamicFields.StartTrackingChanges();");
     }
 
     private static void GenerateFromDynamoDbSingleAsyncMethod(StringBuilder sb, EntityModel entity)
@@ -1740,15 +1820,21 @@ internal static class MapperGenerator
         }
 
         // Generate extracted key logic
-        var extractedProperties = entity.Properties.Where(p => p.IsExtracted).ToArray();
-        if (extractedProperties.Length > 0)
+        var extractedPropertiesAsync = entity.Properties.Where(p => p.IsExtracted).ToArray();
+        if (extractedPropertiesAsync.Length > 0)
         {
             sb.AppendLine();
             sb.AppendLine("                // Extract component properties from composite keys");
-            foreach (var extractedProperty in extractedProperties)
+            foreach (var extractedProperty in extractedPropertiesAsync)
             {
                 GenerateExtractedKeyLogic(sb, extractedProperty);
             }
+        }
+
+        // Generate dynamic fields capture if enabled
+        if (entity.EnableDynamicFields)
+        {
+            GenerateDynamicFieldsCapture(sb);
         }
 
         sb.AppendLine();

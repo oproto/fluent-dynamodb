@@ -645,3 +645,173 @@ namespace TestNamespace
         };
     }
 }
+
+
+/// <summary>
+/// Tests for DynamicFields property generation in UpdateModel class.
+/// </summary>
+public class UpdateModelDynamicFieldsTests
+{
+    [Fact]
+    public void Generator_WithEnableDynamicFields_GeneratesDynamicFieldsPropertyInUpdateModel()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [EnableDynamicFields]
+    public partial class DynamicEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""name"")]
+        public string Name { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+        
+        var updateModelFile = result.GeneratedSources
+            .FirstOrDefault(s => s.FileName.Contains("DynamicEntityUpdateModel.g.cs"));
+        
+        updateModelFile.Should().NotBeNull("should generate UpdateModel class");
+        
+        var code = updateModelFile!.SourceText.ToString();
+        
+        // Verify DynamicFields property is generated
+        code.Should().Contain("public DynamicFieldCollection? DynamicFields { get; set; }",
+            "should generate nullable DynamicFieldCollection property");
+        
+        // Verify using statement for DynamicFieldCollection
+        code.Should().Contain("using Oproto.FluentDynamoDb.Entities;",
+            "should include Entities namespace for DynamicFieldCollection");
+        
+        // Verify XML documentation
+        code.Should().Contain("Gets or sets the dynamic fields to update",
+            "should include XML documentation for DynamicFields property");
+        code.Should().Contain("ChangesOnly()",
+            "should document ChangesOnly() usage pattern");
+    }
+
+    [Fact]
+    public void Generator_WithoutEnableDynamicFields_DoesNotGenerateDynamicFieldsPropertyInUpdateModel()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class RegularEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""name"")]
+        public string Name { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+        
+        var updateModelFile = result.GeneratedSources
+            .FirstOrDefault(s => s.FileName.Contains("RegularEntityUpdateModel.g.cs"));
+        
+        updateModelFile.Should().NotBeNull("should generate UpdateModel class");
+        
+        var code = updateModelFile!.SourceText.ToString();
+        
+        // Verify DynamicFields property is NOT generated
+        code.Should().NotContain("DynamicFieldCollection",
+            "should not generate DynamicFieldCollection property when EnableDynamicFields is not present");
+        code.Should().NotContain("DynamicFields",
+            "should not have any DynamicFields reference");
+        
+        // Verify Entities namespace is NOT included
+        code.Should().NotContain("using Oproto.FluentDynamoDb.Entities;",
+            "should not include Entities namespace when not needed");
+    }
+
+    [Fact]
+    public void Generator_WithEnableDynamicFields_DynamicFieldsPropertyHasCorrectDocumentation()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    [EnableDynamicFields]
+    public partial class DocumentedEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        var updateModelFile = result.GeneratedSources
+            .FirstOrDefault(s => s.FileName.Contains("DocumentedEntityUpdateModel.g.cs"));
+        
+        updateModelFile.Should().NotBeNull();
+        var code = updateModelFile!.SourceText.ToString();
+        
+        // Verify comprehensive documentation
+        code.Should().Contain("Leave null to not modify any dynamic fields",
+            "should document null behavior");
+        code.Should().Contain("entity.DynamicFields.ChangesOnly()",
+            "should show ChangesOnly() usage example");
+        code.Should().Contain("collection.Remove(fieldName)",
+            "should document removal pattern");
+    }
+
+    private static GeneratorTestResult GenerateCode(string source)
+    {
+        var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+            "TestAssembly",
+            new[] {
+                Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source)
+            },
+            TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
+            new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary));
+
+        var generator = new DynamoDbSourceGenerator();
+        var driver = Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create(generator);
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        var generatedSources = outputCompilation.SyntaxTrees
+            .Skip(compilation.SyntaxTrees.Count())
+            .Select(tree => new GeneratedSource(tree.FilePath, tree.GetText()))
+            .ToArray();
+
+        return new GeneratorTestResult
+        {
+            Diagnostics = diagnostics,
+            GeneratedSources = generatedSources
+        };
+    }
+}

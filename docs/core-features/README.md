@@ -22,6 +22,7 @@ This section covers the essential features of Oproto.FluentDynamoDb.
 7. [Batch Operations](BatchOperations.md) - Batch get and write operations
 8. [Transactions](Transactions.md) - DynamoDB transactions
 9. [Projection Models](ProjectionModels.md) - Optimize queries with automatic projections
-9. [Logging Configuration](LoggingConfiguration.md) - Configure logging and diagnostics
-10. [Log Levels and Event IDs](LogLevelsAndEventIds.md) - Understand and filter logs
-11. [Structured Logging](StructuredLogging.md) - Query and analyze structured logs
+10. [Dynamic Fields](DynamicFields.md) - Capture unmapped DynamoDB attributes for multi-tenant scenarios
+11. [Logging Configuration](LoggingConfiguration.md) - Configure logging and diagnostics
+12. [Log Levels and Event IDs](LogLevelsAndEventIds.md) - Understand and filter logs
+13. [Structured Logging](StructuredLogging.md) - Query and analyze structured logs

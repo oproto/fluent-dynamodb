@@ -900,4 +900,30 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Properties marked with [BlobStorage] must be of type BlobData<T> where T is the data type to be stored. The BlobData<T> wrapper provides lazy/eager loading control and reference key access.");
+
+    // Dynamic Fields Diagnostics (FDDB0020-FDDB0021)
+
+    /// <summary>
+    /// Error when [EnableDynamicFields] is used on a non-partial class.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EnableDynamicFieldsRequiresPartial = new(
+        "FDDB0020",
+        "EnableDynamicFields requires partial class",
+        "Class '{0}' is marked with [EnableDynamicFields] but is not declared as 'partial'. The source generator needs to add a DynamicFields property to the class.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Classes marked with [EnableDynamicFields] must be declared as partial to allow the source generator to add the DynamicFields property.");
+
+    /// <summary>
+    /// Warning when [EnableDynamicFields] is used on a class that already has a DynamicFields property.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DynamicFieldsPropertyAlreadyExists = new(
+        "FDDB0021",
+        "DynamicFields property already exists",
+        "Class '{0}' is marked with [EnableDynamicFields] but already has a DynamicFields property. The generated property will conflict with the existing one.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When using [EnableDynamicFields], the source generator adds a DynamicFields property. If the class already has this property, there will be a conflict.");
 }
