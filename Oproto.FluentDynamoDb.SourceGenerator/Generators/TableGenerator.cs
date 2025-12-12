@@ -49,6 +49,7 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Validation;");
         
         // Determine the table namespace:
         // 1. If any entity specifies a custom namespace, use that (validation ensures they're all the same)
@@ -116,6 +117,16 @@ internal static class TableGenerator
             }
         }
         
+        // Generate ValidateSchemaAsync method for schema validation
+        if (defaultEntity != null)
+        {
+            SchemaValidationGenerator.GenerateValidateSchemaAsyncMethodForMultiEntity(sb, tableName, defaultEntity);
+        }
+        else
+        {
+            SchemaValidationGenerator.GenerateValidateSchemaAsyncMethod(sb, tableName, primaryEntity);
+        }
+        
         sb.AppendLine("}");
         
         return sb.ToString();
@@ -158,6 +169,7 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Validation;");
         
         // Determine the table namespace (use custom namespace if specified, otherwise use entity's namespace)
         var tableNamespace = entity.TableNamespace ?? entity.Namespace;
@@ -210,6 +222,9 @@ internal static class TableGenerator
                 GenerateTypedIndexClass(sb, entity, index, className);
             }
         }
+        
+        // Generate ValidateSchemaAsync method for schema validation
+        SchemaValidationGenerator.GenerateValidateSchemaAsyncMethod(sb, entity.TableName ?? entity.ClassName, entity);
         
         sb.AppendLine("}");
         

@@ -57,6 +57,72 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-11]
+
+### File: docs/advanced-topics/SchemaValidation.md (NEW)
+
+**Category:** New Documentation - Schema Validation Feature
+
+**Summary:** Added comprehensive documentation for the new schema validation feature, including usage examples, error codes, validation options, and best practices.
+
+**Files added:**
+- `docs/advanced-topics/SchemaValidation.md`
+
+**Reason:** New feature documentation for runtime schema validation of DynamoDB tables against entity metadata.
+
+---
+
+### File: docs/reference/AttributeReference.md - LocalSecondaryIndex Attribute
+
+**Category:** New Documentation - LSI Attribute
+
+**Summary:** Added documentation for the new `[LocalSecondaryIndex]` attribute that enables Local Secondary Index definitions in entity metadata.
+
+**Files updated:**
+- `docs/reference/AttributeReference.md`
+
+**Added:**
+```markdown
+## [LocalSecondaryIndex]
+
+Marks a property as the sort key for a Local Secondary Index (LSI).
+
+### Purpose
+
+Identifies the property that serves as the sort key for a Local Secondary Index. LSIs share the same partition key as the base table but have a different sort key, enabling alternative query patterns without the cost of a GSI.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `indexName` | `string` | Yes | The name of the Local Secondary Index |
+
+### Example
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    // LSI for querying orders by date within a customer
+    [LocalSecondaryIndex("orders-by-date")]
+    [DynamoDbAttribute("order_date")]
+    public string OrderDate { get; set; } = string.Empty;
+}
+```
+```
+
+**Reason:** New attribute added for Local Secondary Index support, required for accurate schema validation.
+
+---
+
 ## [2025-12-09]
 
 ### File: docs/advanced-topics/AdvancedTypes.md - Blob Storage Redesign

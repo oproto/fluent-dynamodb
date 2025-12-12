@@ -9,6 +9,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Schema Validation** - Runtime validation of DynamoDB table schemas against entity metadata
+  - New `ValidateSchemaAsync(IAmazonDynamoDB, SchemaValidationOptions?)` method generated on table classes
+  - Validates primary key configuration (partition key name/type, sort key name/type/presence)
+  - Validates Global Secondary Index configuration (existence, key names, key types)
+  - Validates Local Secondary Index configuration (existence, sort key name/type)
+  - Validates TTL configuration (enabled status, attribute name)
+  - Validates index projection compatibility with projection models
+  - `SchemaValidationResult` with `IsValid`, `Errors`, and `Warnings` properties
+  - `ThrowOnError()` method to throw `SchemaValidationException` when validation fails
+  - `LogResults(IDynamoDbLogger)` method for logging validation results
+  - `SchemaValidationOptions` with `Strictness` setting (Relaxed/Strict)
+  - Comprehensive error codes (`SchemaValidationErrorCode`) for programmatic handling
+  - Warning codes (`SchemaValidationWarningCode`) for non-critical differences
+  - Designed for startup-time validation (e.g., Lambda cold start) for fail-fast behavior
+  - _Requirements: 1.1-1.5, 2.1-2.6, 3.1-3.6, 4.2-4.6, 5.1-5.3, 6.1-6.4, 8.1-8.5, 9.1-9.4_
+  
+  **Usage:**
+  ```csharp
+  // Basic validation
+  var result = await UsersTable.ValidateSchemaAsync(dynamoDbClient);
+  if (!result.IsValid)
+  {
+      foreach (var error in result.Errors)
+          Console.WriteLine($"Error: {error.Message}");
+  }
+  
+  // Fail-fast validation
+  var result = await UsersTable.ValidateSchemaAsync(dynamoDbClient);
+  result.ThrowOnError(); // Throws SchemaValidationException if errors exist
+  
+  // Strict validation (missing projection models are errors)
+  var options = new SchemaValidationOptions { Strictness = ValidationStrictness.Strict };
+  var result = await UsersTable.ValidateSchemaAsync(dynamoDbClient, options);
+  
+  // Log validation results
+  result.LogResults(logger);
+  ```
+
+- **`[LocalSecondaryIndex]` Attribute** - Support for Local Secondary Index definitions in entity metadata
+  - New `[LocalSecondaryIndex(indexName)]` attribute for marking LSI sort key properties
+  - LSIs share the same partition key as the base table
+  - `IndexType` enum to distinguish between GSI and LSI in `IndexMetadata`
+  - Source generator emits correct `IndexType` for both GSI and LSI attributes
+  - Schema validation validates LSI configuration against actual table
+  - _Requirements: 4.1, 7.1, 7.2_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("orders")]
+  public partial class Order
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string CustomerId { get; set; } = string.Empty;
+      
+      [SortKey]
+      [DynamoDbAttribute("sk")]
+      public string OrderId { get; set; } = string.Empty;
+      
+      // Local Secondary Index - shares partition key with base table
+      [LocalSecondaryIndex("orders-by-date")]
+      [DynamoDbAttribute("order_date")]
+      public string OrderDate { get; set; } = string.Empty;
+  }
+  ```
+
+- **Enhanced `IndexMetadata`** - Additional metadata for schema validation and tooling
+  - `IndexType` property to distinguish GSI from LSI
+  - `PartitionKeyAttributeName` and `PartitionKeyAttributeType` properties
+  - `SortKeyAttributeName` and `SortKeyAttributeType` properties
+  - `ProjectionType` property (All, KeysOnly, Include)
+  - `HasProjectionModel` property indicating if a projection model is defined
+  - _Requirements: 7.1, 7.2, 10.1, 10.2, 10.3_
+
+- **Enhanced `EntityMetadata`** - Additional metadata for schema validation
+  - `PartitionKeyAttributeName` and `PartitionKeyAttributeType` properties
+  - `SortKeyAttributeName` and `SortKeyAttributeType` properties
+  - `TtlAttributeName` property for TTL configuration
+  - _Requirements: 2.1, 2.2, 5.1, 5.2_
+
 - **`[RequireWriteTransaction]` Attribute** - New attribute to enforce transactional writes for specific entity types
   - Marks entity classes as requiring write operations within a transaction
   - Put, Update, Delete, and BatchWrite operations throw `InvalidOperationException` when attempted outside a transaction

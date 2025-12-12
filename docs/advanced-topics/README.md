@@ -106,6 +106,16 @@ Optimize your DynamoDB operations for better performance and lower costs. Covers
 - Consistent reads vs eventual consistency
 - Hot partition avoidance
 
+### [Schema Validation](SchemaValidation.md)
+Validate DynamoDB table schemas against entity metadata at application startup. Covers:
+- Runtime schema validation with `ValidateSchemaAsync()`
+- Primary key, GSI, LSI, and TTL validation
+- Configurable strictness levels (Relaxed/Strict)
+- Error codes and warning codes for programmatic handling
+- Local Secondary Index support with `[LocalSecondaryIndex]` attribute
+- Fail-fast validation for Lambda cold starts
+- Logging integration for validation results
+
 ### [Manual Patterns](ManualPatterns.md)
 Lower-level manual approaches for dynamic scenarios. Covers:
 - Manual table pattern without source generation
@@ -136,7 +146,8 @@ If you're new to advanced topics, we recommend starting with:
 6. **[Field-Level Security](FieldLevelSecurity.md)** - Protect sensitive data with encryption and redaction
 7. **[Geospatial Support](Geospatial.md)** - Enable location-based queries with spatial indexing
 8. **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - Enable alternative query patterns
-9. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
+9. **[Schema Validation](SchemaValidation.md)** - Validate table schema at startup for fail-fast behavior
+10. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
 
 ## Prerequisites
 

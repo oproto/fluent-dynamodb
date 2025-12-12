@@ -485,6 +485,9 @@ internal class EntityAnalyzer
         // Extract GSI attributes
         ExtractGsiAttributes(propertyDecl, semanticModel, propertyModel);
 
+        // Extract LSI attributes
+        ExtractLsiAttributes(propertyDecl, semanticModel, propertyModel);
+
         // Extract queryable attributes
         ExtractQueryableAttributes(propertyDecl, semanticModel, propertyModel);
 
@@ -597,6 +600,27 @@ internal class EntityAnalyzer
         }
 
         propertyModel.GlobalSecondaryIndexes = gsiModels.ToArray();
+    }
+
+    private void ExtractLsiAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    {
+        var lsiAttributes = GetAttributes(propertyDecl, semanticModel, "LocalSecondaryIndexAttribute");
+        var lsiModels = new List<LocalSecondaryIndexModel>();
+
+        foreach (var lsiAttr in lsiAttributes)
+        {
+            var lsiModel = new LocalSecondaryIndexModel();
+
+            // Extract index name from constructor argument
+            if (lsiAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
+            {
+                lsiModel.IndexName = indexNameLiteral.Token.ValueText;
+            }
+
+            lsiModels.Add(lsiModel);
+        }
+
+        propertyModel.LocalSecondaryIndexes = lsiModels.ToArray();
     }
 
     private void ExtractQueryableAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
@@ -841,13 +865,18 @@ internal class EntityAnalyzer
     {
         var indexes = new Dictionary<string, IndexModel>();
 
+        // Extract GSI indexes
         foreach (var property in entityModel.Properties)
         {
             foreach (var gsi in property.GlobalSecondaryIndexes)
             {
                 if (!indexes.TryGetValue(gsi.IndexName, out var indexModel))
                 {
-                    indexModel = new IndexModel { IndexName = gsi.IndexName };
+                    indexModel = new IndexModel 
+                    { 
+                        IndexName = gsi.IndexName,
+                        IndexType = IndexType.GlobalSecondaryIndex
+                    };
                     indexes[gsi.IndexName] = indexModel;
                 }
 
@@ -867,6 +896,31 @@ internal class EntityAnalyzer
                 {
                     indexModel.GsiDiscriminator = gsi.Discriminator;
                 }
+            }
+        }
+
+        // Extract LSI indexes - LSIs share the partition key with the base table
+        var partitionKeyProperty = entityModel.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        
+        foreach (var property in entityModel.Properties)
+        {
+            foreach (var lsi in property.LocalSecondaryIndexes)
+            {
+                if (!indexes.TryGetValue(lsi.IndexName, out var indexModel))
+                {
+                    indexModel = new IndexModel 
+                    { 
+                        IndexName = lsi.IndexName,
+                        IndexType = IndexType.LocalSecondaryIndex,
+                        // LSIs inherit the partition key from the base table
+                        PartitionKeyProperty = partitionKeyProperty?.PropertyName ?? string.Empty,
+                        PartitionKeyFormat = partitionKeyProperty?.KeyFormat?.Prefix
+                    };
+                    indexes[lsi.IndexName] = indexModel;
+                }
+
+                // The property with [LocalSecondaryIndex] is the sort key for that LSI
+                indexModel.SortKeyProperty = property.PropertyName;
             }
         }
 

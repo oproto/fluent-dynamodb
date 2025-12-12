@@ -405,7 +405,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
                     KeySchema = gsiKeySchema,
                     Projection = new Projection
                     {
-                        ProjectionType = ProjectionType.ALL
+                        ProjectionType = Amazon.DynamoDBv2.ProjectionType.ALL
                     }
                 }
             }
