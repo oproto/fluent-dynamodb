@@ -53,6 +53,7 @@ public class UpdateItemRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        _fieldEncryptor = _options.FieldEncryptor; // Automatically use encryptor from options
         
         // Apply default options
         if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
@@ -79,6 +80,13 @@ public class UpdateItemRequestBuilder<TEntity> :
     private Expressions.ExpressionContext? _expressionContext;
     private IFieldEncryptor? _fieldEncryptor;
     private List<BlobPropertyContext>? _blobPropertyContexts;
+
+    /// <summary>
+    /// Gets the response metadata from the most recent UpdateItem execution.
+    /// This is populated by Primary API methods (UpdateAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public UpdateItemOperationResponse? Response { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -194,6 +202,47 @@ public class UpdateItemRequestBuilder<TEntity> :
     public UpdateItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built UpdateItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's execution and context population capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built UpdateItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new UpdateItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Key = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" }
+    ///     },
+    ///     UpdateExpression = "SET #name = :name",
+    ///     ExpressionAttributeNames = new Dictionary&lt;string, string&gt; { ["#name"] = "name" },
+    ///     ExpressionAttributeValues = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         [":name"] = new AttributeValue { S = "Jane Doe" }
+    ///     },
+    ///     ReturnValues = ReturnValue.ALL_NEW
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Update&lt;User&gt;().WithRequest(sdkRequest);
+    /// var user = await builder.UpdateAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> WithRequest(UpdateItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 
@@ -348,9 +397,9 @@ public class UpdateItemRequestBuilder<TEntity> :
                 $"Field encryption is required for properties [{propertyNames}] (DynamoDB attributes: [{attributeNames}]) but no IFieldEncryptor is configured. " +
                 $"To fix this issue: " +
                 $"1. Implement the IFieldEncryptor interface (e.g., using AWS KMS or another encryption provider). " +
-                $"2. Pass the encryptor to the DynamoDbTableBase constructor, or " +
+                $"2. Pass the encryptor via FluentDynamoDbOptions when creating the table, or " +
                 $"3. Set it in the DynamoDbOperationContext before executing update operations. " +
-                $"Example: new MyTable(dynamoDbClient, logger, blobProvider, fieldEncryptor)");
+                $"Example: new FluentDynamoDbOptions().WithEncryption(fieldEncryptor)");
         }
 
         foreach (var param in parametersRequiringEncryption)

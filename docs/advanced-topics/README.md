@@ -116,6 +116,32 @@ Validate DynamoDB table schemas against entity metadata at application startup. 
 - Fail-fast validation for Lambda cold starts
 - Logging integration for validation results
 
+### [DynamicTable](DynamicTable.md)
+Access any DynamoDB table without defining entity classes. Covers:
+- Schema-less table access with `DynamicTable` and `DynamicEntity`
+- Key configuration with `DynamicTableKeyOptions`
+- Typed and raw key methods for CRUD operations
+- Query and Scan with `DynamicFields` indexer expressions
+- Use cases: schema exploration, migration tools, admin utilities
+- Comparison with typed entities
+
+### [PartiQL](PartiQL.md)
+Execute SQL-like queries against DynamoDB with entity hydration. Covers:
+- `PartiQLRequestBuilder<TEntity>` for SELECT, INSERT, UPDATE, DELETE
+- Format string placeholders with format specifiers
+- Batch PartiQL via `DynamoDbBatch.PartiQL`
+- Tuple convenience methods for typed results
+- Compound entity table support
+- DynamicTable PartiQL usage
+
+### [Direct SDK Request Passing](DirectSdkRequests.md)
+Use native AWS SDK request objects with FluentDynamoDb for migration and interoperability. Covers:
+- `WithRequest()` method for all operation types
+- Table-level convenience methods accepting SDK requests
+- Direct transaction and batch execution
+- Migration patterns from pure SDK to FluentDynamoDb
+- Best practices for gradual migration
+
 ### [Manual Patterns](ManualPatterns.md)
 Lower-level manual approaches for dynamic scenarios. Covers:
 - Manual table pattern without source generation

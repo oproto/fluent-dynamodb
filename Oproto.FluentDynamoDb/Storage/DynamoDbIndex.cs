@@ -29,7 +29,7 @@ namespace Oproto.FluentDynamoDb.Storage;
 /// </example>
 public class DynamoDbIndex
 {
-    private readonly DynamoDbTableBase _table;
+    private readonly IDynamoDbTable _table;
     private readonly string? _projectionExpression;
 
     /// <summary>
@@ -37,7 +37,7 @@ public class DynamoDbIndex
     /// </summary>
     /// <param name="table">The parent table that contains this index.</param>
     /// <param name="indexName">The name of the index as defined in DynamoDB.</param>
-    public DynamoDbIndex(DynamoDbTableBase table, string indexName)
+    public DynamoDbIndex(IDynamoDbTable table, string indexName)
     {
         _table = table;
         Name = indexName;
@@ -63,7 +63,7 @@ public class DynamoDbIndex
     ///     .ExecuteAsync();
     /// </code>
     /// </example>
-    public DynamoDbIndex(DynamoDbTableBase table, string indexName, string projectionExpression)
+    public DynamoDbIndex(IDynamoDbTable table, string indexName, string projectionExpression)
     {
         _table = table;
         Name = indexName;
@@ -92,7 +92,8 @@ public class DynamoDbIndex
     public QueryRequestBuilder<TEntity> Query<TEntity>() 
         where TEntity : class
     {
-        var builder = new QueryRequestBuilder<TEntity>(_table.DynamoDbClient)
+        var options = _table.GetOptions();
+        var builder = new QueryRequestBuilder<TEntity>(_table.DynamoDbClient, options)
             .ForTable(_table.Name)
             .UsingIndex(Name);
 
@@ -179,7 +180,7 @@ public class DynamoDbIndex<TDefault> where TDefault : class, new()
     /// </code>
     /// </example>
     public DynamoDbIndex(
-        DynamoDbTableBase table,
+        IDynamoDbTable table,
         string indexName,
         string? projectionExpression = null)
     {

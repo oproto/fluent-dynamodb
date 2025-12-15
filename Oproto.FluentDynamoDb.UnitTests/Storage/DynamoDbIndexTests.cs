@@ -9,9 +9,15 @@ namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 public class DynamoDbIndexTests
 {
     private class TestEntity { }
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : IDynamoDbTable
     {
-        public TestTable(IAmazonDynamoDB client) : base(client, "TestTable") { }
+        public TestTable(IAmazonDynamoDB client)
+        {
+            DynamoDbClient = client;
+            Name = "TestTable";
+        }
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
     }
 
     [Fact]

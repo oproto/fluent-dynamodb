@@ -320,17 +320,41 @@ public class FluentDynamoDbOptionsPropertyTests
 /// <summary>
 /// Test table class for verifying logger propagation.
 /// </summary>
-internal class TestTableForLoggerPropagation : DynamoDbTableBase
+internal class TestTableForLoggerPropagation : IDynamoDbTable
 {
     public TestTableForLoggerPropagation(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)
-        : base(client, tableName, options)
     {
+        DynamoDbClient = client;
+        Name = tableName;
+        Options = options ?? new FluentDynamoDbOptions();
+        Logger = Options.Logger;
     }
+
+    public IAmazonDynamoDB DynamoDbClient { get; }
+    public string Name { get; }
+    protected FluentDynamoDbOptions Options { get; }
+    protected IDynamoDbLogger Logger { get; }
     
     /// <summary>
     /// Exposes the logger for testing purposes.
     /// </summary>
     public IDynamoDbLogger GetLoggerForTest() => Logger;
+    
+    // Methods that mirror source-generated table classes
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
+        => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class
+        => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
+        => new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class, IDynamoDbEntity
+        => new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class, IDynamoDbEntity
+        => new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     
     /// <summary>
     /// Creates a new Scan operation builder for this table.
@@ -608,12 +632,22 @@ public class ConfigurationIsolationPropertyTests
 /// <summary>
 /// Test table class for verifying configuration isolation.
 /// </summary>
-internal class TestTableForIsolation : DynamoDbTableBase
+internal class TestTableForIsolation : IDynamoDbTable
 {
     public TestTableForIsolation(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)
-        : base(client, tableName, options)
     {
+        DynamoDbClient = client;
+        Name = tableName;
+        Options = options ?? new FluentDynamoDbOptions();
+        Logger = Options.Logger;
+        FieldEncryptor = Options.FieldEncryptor;
     }
+
+    public IAmazonDynamoDB DynamoDbClient { get; }
+    public string Name { get; }
+    protected FluentDynamoDbOptions Options { get; }
+    protected IDynamoDbLogger Logger { get; }
+    protected IFieldEncryptor? FieldEncryptor { get; }
     
     /// <summary>
     /// Exposes the logger for testing purposes.
@@ -926,12 +960,22 @@ public class DefaultOptionsPropertyTests
 /// <summary>
 /// Test table class for verifying default options behavior.
 /// </summary>
-internal class TestTableForDefaultOptions : DynamoDbTableBase
+internal class TestTableForDefaultOptions : IDynamoDbTable
 {
     public TestTableForDefaultOptions(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)
-        : base(client, tableName, options)
     {
+        DynamoDbClient = client;
+        Name = tableName;
+        Options = options ?? new FluentDynamoDbOptions();
+        Logger = Options.Logger;
+        FieldEncryptor = Options.FieldEncryptor;
     }
+
+    public IAmazonDynamoDB DynamoDbClient { get; }
+    public string Name { get; }
+    protected FluentDynamoDbOptions Options { get; }
+    protected IDynamoDbLogger Logger { get; }
+    protected IFieldEncryptor? FieldEncryptor { get; }
     
     /// <summary>
     /// Exposes the logger for testing purposes.
@@ -947,6 +991,25 @@ internal class TestTableForDefaultOptions : DynamoDbTableBase
     /// Exposes the field encryptor for testing purposes.
     /// </summary>
     public IFieldEncryptor? GetEncryptorForTest() => FieldEncryptor;
+
+    // Methods that mirror source-generated table classes
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
+        => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class
+        => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
+        => new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class, IDynamoDbEntity
+        => new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class, IDynamoDbEntity
+        => new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+    public ConditionCheckBuilder<TEntity> ConditionCheck<TEntity>() where TEntity : class
+        => new ConditionCheckBuilder<TEntity>(DynamoDbClient, Name);
     
     /// <summary>
     /// Creates a new Scan operation builder for this table.

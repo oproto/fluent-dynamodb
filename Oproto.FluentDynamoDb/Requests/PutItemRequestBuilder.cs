@@ -77,6 +77,13 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     private TEntity? _entity;
 
     /// <summary>
+    /// Gets the response metadata from the most recent PutItem execution.
+    /// This is populated by Primary API methods (PutAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public PutItemOperationResponse? Response { get; internal set; }
+
+    /// <summary>
     /// Gets the internal attribute value helper for extension method access.
     /// </summary>
     /// <returns>The AttributeValueInternal instance used by this builder.</returns>
@@ -142,6 +149,42 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     public PutItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built PutItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's execution and context population capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built PutItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new PutItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Item = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" },
+    ///         ["name"] = new AttributeValue { S = "John Doe" }
+    ///     },
+    ///     ConditionExpression = "attribute_not_exists(pk)"
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Put&lt;User&gt;().WithRequest(sdkRequest);
+    /// await builder.PutAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> WithRequest(PutItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 

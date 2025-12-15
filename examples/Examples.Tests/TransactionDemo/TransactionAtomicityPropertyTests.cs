@@ -178,7 +178,7 @@ public class TransactionAtomicityPropertyTests
     /// <summary>
     /// Test table that uses a separate table name to avoid conflicts with the main application.
     /// </summary>
-    private class TestTransactionTable : DynamoDbTableBase
+    private class TestTransactionTable : GenericTable
     {
         public TestTransactionTable(IAmazonDynamoDB client) : base(client, TestTableName)
         {

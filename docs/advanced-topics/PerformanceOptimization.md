@@ -361,18 +361,24 @@ var results = await Task.WhenAll(batches);
 **✅ Efficient: Use LastEvaluatedKey**
 ```csharp
 var allOrders = new List<Order>();
-string? lastEvaluatedKey = null;
+Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
 do
 {
-    var response = await table.Query
+    var query = table.Query
         .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-        .Take(100)  // Page size
-        .WithExclusiveStartKey(lastEvaluatedKey)
-        .ToListAsync();
+        .Take(100);  // Page size
     
-    allOrders.AddRange(response.Items);
-    lastEvaluatedKey = response.LastEvaluatedKey;
+    if (lastEvaluatedKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastEvaluatedKey);
+    }
+    
+    var orders = await query.ToListAsync();
+    allOrders.AddRange(orders);
+    
+    // Access pagination key via builder.Response
+    lastEvaluatedKey = query.Response?.LastEvaluatedKey;
     
 } while (lastEvaluatedKey != null);
 ```
@@ -420,17 +426,25 @@ public async Task<ActionResult<PagedResult<Order>>> GetOrders(
     string? cursor = null,
     int pageSize = 50)
 {
-    var response = await table.Query
+    var query = table.Query
         .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk(customerId))
-        .Take(pageSize)
-        .WithExclusiveStartKey(cursor)
-        .ToListAsync();
+        .Take(pageSize);
+    
+    if (!string.IsNullOrEmpty(cursor))
+    {
+        query = query.WithExclusiveStartKey(DecodePageToken(cursor));
+    }
+    
+    var orders = await query.ToListAsync();
+    
+    // Access pagination metadata via builder.Response
+    var lastKey = query.Response?.LastEvaluatedKey;
     
     return Ok(new PagedResult<Order>
     {
-        Items = response.Items,
-        NextCursor = response.LastEvaluatedKey,
-        HasMore = response.LastEvaluatedKey != null
+        Items = orders,
+        NextCursor = lastKey != null ? EncodePageToken(lastKey) : null,
+        HasMore = query.Response?.HasMorePages ?? false
     });
 }
 ```
@@ -499,19 +513,21 @@ var response = await table.Get
 
 ```csharp
 // Enable capacity tracking
-var response = await table.Query
+var query = table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-    .ToListAsync();
+    .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
 
-// Log consumed capacity
-Console.WriteLine($"Consumed capacity: {response.ConsumedCapacity?.CapacityUnits} RCUs");
-Console.WriteLine($"Table: {response.ConsumedCapacity?.TableName}");
+var orders = await query.ToListAsync();
+
+// Access consumed capacity via builder.Response
+var capacity = query.Response?.ConsumedCapacity;
+Console.WriteLine($"Consumed capacity: {capacity?.CapacityUnits} RCUs");
+Console.WriteLine($"Table: {capacity?.TableName}");
 
 // Track GSI capacity separately
-if (response.ConsumedCapacity?.GlobalSecondaryIndexes != null)
+if (capacity?.GlobalSecondaryIndexes != null)
 {
-    foreach (var gsi in response.ConsumedCapacity.GlobalSecondaryIndexes)
+    foreach (var gsi in capacity.GlobalSecondaryIndexes)
     {
         Console.WriteLine($"GSI {gsi.Key}: {gsi.Value.CapacityUnits} RCUs");
     }
@@ -522,13 +538,14 @@ if (response.ConsumedCapacity?.GlobalSecondaryIndexes != null)
 
 ```csharp
 // Track capacity per operation
-var response = await table.Query
+var query = table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .WithReturnConsumedCapacity(ReturnConsumedCapacity.INDEXES)
-    .ToListAsync();
+    .WithReturnConsumedCapacity(ReturnConsumedCapacity.INDEXES);
 
-// Detailed breakdown
-var capacity = response.ConsumedCapacity;
+var orders = await query.ToListAsync();
+
+// Access detailed breakdown via builder.Response
+var capacity = query.Response?.ConsumedCapacity;
 Console.WriteLine($"Total: {capacity?.CapacityUnits} RCUs");
 Console.WriteLine($"Table: {capacity?.Table?.CapacityUnits} RCUs");
 Console.WriteLine($"Local Secondary Indexes: {capacity?.LocalSecondaryIndexes?.Sum(x => x.Value.CapacityUnits)} RCUs");
@@ -543,20 +560,19 @@ public class CapacityMonitoringService
     private readonly ILogger<CapacityMonitoringService> _logger;
     private readonly IMetrics _metrics;
     
-    public async Task<QueryResponse> QueryWithMonitoringAsync<T>(
-        QueryRequestBuilder query,
-        string operationName)
+    public async Task<List<T>> QueryWithMonitoringAsync<T>(
+        QueryRequestBuilder<T> query,
+        string operationName) where T : class, IDynamoDbEntity
     {
         var stopwatch = Stopwatch.StartNew();
         
-        var response = await query
-            .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-            .ToListAsync();
+        query = query.WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
+        var items = await query.ToListAsync();
         
         stopwatch.Stop();
         
-        // Log metrics
-        var consumedRCUs = response.ConsumedCapacity?.CapacityUnits ?? 0;
+        // Access metrics via builder.Response
+        var consumedRCUs = query.Response?.ConsumedCapacity?.CapacityUnits ?? 0;
         _metrics.Gauge("dynamodb.consumed_capacity", consumedRCUs, 
             tags: new[] { $"operation:{operationName}" });
         _metrics.Timer("dynamodb.latency", stopwatch.ElapsedMilliseconds,
@@ -570,7 +586,7 @@ public class CapacityMonitoringService
                 operationName, consumedRCUs, stopwatch.ElapsedMilliseconds);
         }
         
-        return response;
+        return items;
     }
 }
 ```

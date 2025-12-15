@@ -396,8 +396,8 @@ namespace TestNamespace
         // "my-app-table_v2" should become something like "MyAppTableV2Table"
         tableCode.Should().Contain("class ", 
             "should generate a valid class");
-        tableCode.Should().Contain("Table : DynamoDbTableBase", 
-            "should inherit from DynamoDbTableBase");
+        tableCode.Should().Contain("Table : IDynamoDbTable", 
+            "should implement IDynamoDbTable");
     }
 
     /// <summary>

@@ -468,24 +468,30 @@ For entities with many related items, use pagination:
 
 ```csharp
 var allItems = new List<OrderItem>();
-string? lastEvaluatedKey = null;
+Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
 do
 {
-    var response = await table.Query
+    var query = table.Query
         .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
-        .Take(100)  // Limit items per page
-        .WithExclusiveStartKey(lastEvaluatedKey)
-        .ToListAsync();
+        .Take(100);  // Limit items per page
+    
+    if (lastEvaluatedKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastEvaluatedKey);
+    }
+    
+    var items = await query.ToListAsync();
     
     // Process items
-    var pageItems = response.Items
-        .Where(item => item[OrderFields.SortKey].S.StartsWith("ITEM#"))
-        .Select(item => /* map to OrderItem */)
+    var pageItems = items
+        .Where(item => item.SortKey.StartsWith("ITEM#"))
         .ToList();
     
     allItems.AddRange(pageItems);
-    lastEvaluatedKey = response.LastEvaluatedKey;
+    
+    // Access pagination key via builder.Response
+    lastEvaluatedKey = query.Response?.LastEvaluatedKey;
     
 } while (lastEvaluatedKey != null);
 ```
@@ -880,19 +886,26 @@ DynamoDB queries return up to 1MB of data. For large composite entities:
 ```csharp
 // ✅ Good - paginate large collections
 var allItems = new List<OrderItem>();
-string? lastKey = null;
+Dictionary<string, AttributeValue>? lastKey = null;
 
 do
 {
-    var response = await table.Query
+    var query = table.Query
         .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
-        .Take(100)
-        .WithExclusiveStartKey(lastKey)
-        .ToListAsync();
+        .Take(100);
+    
+    if (lastKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastKey);
+    }
+    
+    var items = await query.ToListAsync();
     
     // Process page
-    allItems.AddRange(/* extract items */);
-    lastKey = response.LastEvaluatedKey;
+    allItems.AddRange(items);
+    
+    // Access pagination key via builder.Response
+    lastKey = query.Response?.LastEvaluatedKey;
     
 } while (lastKey != null);
 ```

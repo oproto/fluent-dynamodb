@@ -71,4 +71,15 @@ public class EntityMetadata
     /// Null if TTL is not configured for this entity.
     /// </summary>
     public string? TtlAttributeName { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this is a DynamicEntity that should skip key validation
+    /// in expression translation. When true, the expression translator allows
+    /// DynamicFields indexer access in key conditions without validation errors.
+    /// </summary>
+    /// <remarks>
+    /// This flag is used by DynamicEntity to enable schema-less table access.
+    /// Regular entities should always have this set to false (the default).
+    /// </remarks>
+    public bool IsDynamicEntity { get; init; }
 }

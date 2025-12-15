@@ -588,7 +588,10 @@ public class ExpressionTranslator
                 }
 
                 // Validate key-only mode for Query().Where()
-                if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
+                // Skip key validation for DynamicEntity - it uses DynamicFields indexer for key access
+                // and doesn't have typed key properties to validate against
+                if (context.ValidationMode == ExpressionValidationMode.KeysOnly && 
+                    context.EntityMetadata?.IsDynamicEntity != true)
                 {
                     var isKey = IsKeyProperty(propertyName, propertyMetadata, context);
                     if (!isKey)

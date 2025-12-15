@@ -190,12 +190,17 @@ public class ProductMigrationService
         
         while (hasMore)
         {
-            var response = await _table.Products.Scan()
-                .WithExclusiveStartKey(lastKey)
-                .Take(100)
-                .ToListAsync();
+            var scan = _table.Products.Scan()
+                .Take(100);
             
-            foreach (var product in response.Items)
+            if (lastKey != null)
+            {
+                scan = scan.WithExclusiveStartKey(lastKey);
+            }
+            
+            var products = await scan.ToListAsync();
+            
+            foreach (var product in products)
             {
                 if (await MigrateProductAsync(product))
                 {
@@ -203,7 +208,8 @@ public class ProductMigrationService
                 }
             }
             
-            lastKey = response.LastEvaluatedKey;
+            // Access pagination key via builder.Response
+            lastKey = scan.Response?.LastEvaluatedKey;
             hasMore = lastKey != null && lastKey.Count > 0;
             
             Console.WriteLine($"Migrated {migratedCount} products...");

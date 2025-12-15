@@ -335,18 +335,24 @@ Paginate through large result sets:
 
 ```csharp
 var allOrders = new List<Order>();
-string? lastEvaluatedKey = null;
+Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
 do
 {
-    var response = await table.StatusIndex.Query<Order>()
+    var query = table.StatusIndex.Query<Order>()
         .Where(x => x.Status == "pending")
-        .Take(100)
-        .WithExclusiveStartKey(lastEvaluatedKey)
-        .ToResponseAsync();
+        .Take(100);
     
-    allOrders.AddRange(response.Items);
-    lastEvaluatedKey = response.LastEvaluatedKey;
+    if (lastEvaluatedKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastEvaluatedKey);
+    }
+    
+    var orders = await query.ToListAsync();
+    allOrders.AddRange(orders);
+    
+    // Access pagination key via builder.Response
+    lastEvaluatedKey = query.Response?.LastEvaluatedKey;
     
 } while (lastEvaluatedKey != null);
 

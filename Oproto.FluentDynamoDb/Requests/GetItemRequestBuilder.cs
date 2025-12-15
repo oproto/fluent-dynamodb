@@ -60,6 +60,13 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
     /// <summary>
+    /// Gets the response metadata from the most recent GetItem execution.
+    /// This is populated by Primary API methods (GetItemAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public GetItemOperationResponse? Response { get; internal set; }
+
+    /// <summary>
     /// Gets the internal attribute name helper for extension method access.
     /// </summary>
     /// <returns>The AttributeNameInternal instance used by this builder.</returns>
@@ -117,6 +124,41 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     public GetItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built GetItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's entity hydration capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built GetItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new GetItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Key = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" }
+    ///     },
+    ///     ConsistentRead = true
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Get&lt;User&gt;().WithRequest(sdkRequest);
+    /// var user = await builder.GetItemAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public GetItemRequestBuilder<TEntity> WithRequest(GetItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 

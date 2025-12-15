@@ -411,6 +411,156 @@ Base class methods available on all table implementations.
 
 ---
 
+## Response Metadata
+
+After executing an operation, response metadata is available via the `.Response` property on the builder. This design keeps IntelliSense clean during request building while providing access to response details after execution.
+
+### Accessing Response Metadata
+
+```csharp
+// Execute the query
+var query = table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .ReturnTotalConsumedCapacity();
+
+var users = await query.ToListAsync();
+
+// Access response metadata via builder.Response
+var lastKey = query.Response?.LastEvaluatedKey;
+var scannedCount = query.Response?.ScannedCount;
+var hasMore = query.Response?.HasMorePages ?? false;
+var capacity = query.Response?.ConsumedCapacity;
+```
+
+### QueryOperationResponse
+
+Available on `QueryRequestBuilder<TEntity>` after `ToListAsync()` or `ToDynamoDbResponseAsync()`.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `LastEvaluatedKey` | `Dictionary<string, AttributeValue>?` | Key to continue pagination, null if no more pages |
+| `ScannedCount` | `int` | Number of items evaluated before filtering |
+| `ResultCount` | `int` | Number of items returned after filtering |
+| `ConsumedCapacity` | `ConsumedCapacity?` | Capacity units consumed (if requested) |
+| `HasMorePages` | `bool` | Convenience property: `LastEvaluatedKey != null` |
+
+### ScanOperationResponse
+
+Available on `ScanRequestBuilder<TEntity>` after `ToListAsync()` or `ToDynamoDbResponseAsync()`.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `LastEvaluatedKey` | `Dictionary<string, AttributeValue>?` | Key to continue pagination, null if no more pages |
+| `ScannedCount` | `int` | Number of items evaluated before filtering |
+| `ResultCount` | `int` | Number of items returned after filtering |
+| `ConsumedCapacity` | `ConsumedCapacity?` | Capacity units consumed (if requested) |
+| `HasMorePages` | `bool` | Convenience property: `LastEvaluatedKey != null` |
+
+### GetItemOperationResponse
+
+Available on `GetItemRequestBuilder<TEntity>` after `GetItemAsync()` or `ToDynamoDbResponseAsync()`.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ConsumedCapacity` | `ConsumedCapacity?` | Capacity units consumed (if requested) |
+| `ResponseMetadata` | `ResponseMetadata?` | AWS SDK response metadata |
+
+### PutItemOperationResponse
+
+Available on `PutItemRequestBuilder<TEntity>` after `PutAsync()` or `ToDynamoDbResponseAsync()`.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ConsumedCapacity` | `ConsumedCapacity?` | Capacity units consumed (if requested) |
+| `ResponseMetadata` | `ResponseMetadata?` | AWS SDK response metadata |
+| `ItemCollectionMetrics` | `ItemCollectionMetrics?` | Collection metrics (if requested) |
+
+### UpdateItemOperationResponse
+
+Available on `UpdateItemRequestBuilder<TEntity>` after `UpdateAsync()` or `ToDynamoDbResponseAsync()`.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ConsumedCapacity` | `ConsumedCapacity?` | Capacity units consumed (if requested) |
+| `ResponseMetadata` | `ResponseMetadata?` | AWS SDK response metadata |
+| `ItemCollectionMetrics` | `ItemCollectionMetrics?` | Collection metrics (if requested) |
+
+### DeleteItemOperationResponse
+
+Available on `DeleteItemRequestBuilder<TEntity>` after `DeleteAsync()` or `ToDynamoDbResponseAsync()`.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ConsumedCapacity` | `ConsumedCapacity?` | Capacity units consumed (if requested) |
+| `ResponseMetadata` | `ResponseMetadata?` | AWS SDK response metadata |
+| `ItemCollectionMetrics` | `ItemCollectionMetrics?` | Collection metrics (if requested) |
+
+### Usage Examples
+
+**Pagination with Response Metadata:**
+```csharp
+var allUsers = new List<User>();
+Dictionary<string, AttributeValue>? lastKey = null;
+
+do
+{
+    var query = table.Users.Query()
+        .Where(x => x.TenantId == tenantId)
+        .Take(100);
+    
+    if (lastKey != null)
+    {
+        query = query.StartAt(lastKey);
+    }
+    
+    var users = await query.ToListAsync();
+    allUsers.AddRange(users);
+    
+    // Access pagination key via builder.Response
+    lastKey = query.Response?.LastEvaluatedKey;
+    
+} while (lastKey != null);
+```
+
+**Monitoring Consumed Capacity:**
+```csharp
+var query = table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .ReturnTotalConsumedCapacity();
+
+var users = await query.ToListAsync();
+
+// Access capacity metrics via builder.Response
+var capacity = query.Response?.ConsumedCapacity;
+Console.WriteLine($"Consumed: {capacity?.CapacityUnits} RCUs");
+Console.WriteLine($"Table: {capacity?.TableName}");
+
+// GSI capacity breakdown
+if (capacity?.GlobalSecondaryIndexes != null)
+{
+    foreach (var gsi in capacity.GlobalSecondaryIndexes)
+    {
+        Console.WriteLine($"GSI {gsi.Key}: {gsi.Value.CapacityUnits} RCUs");
+    }
+}
+```
+
+**Checking Scan Statistics:**
+```csharp
+var scan = table.Users.Scan()
+    .WithFilter(x => x.Status == "active")
+    .ReturnTotalConsumedCapacity();
+
+var users = await scan.ToListAsync();
+
+// Access scan statistics via builder.Response
+Console.WriteLine($"Items returned: {users.Count}");
+Console.WriteLine($"Items scanned: {scan.Response?.ScannedCount}");
+Console.WriteLine($"Capacity consumed: {scan.Response?.ConsumedCapacity?.CapacityUnits} RCUs");
+```
+
+---
+
 ## Related Documentation
 
 - [Basic Operations](../core-features/BasicOperations.md) - Get, Put, Update, Delete operations

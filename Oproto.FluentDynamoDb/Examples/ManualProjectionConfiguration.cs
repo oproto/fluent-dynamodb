@@ -15,11 +15,16 @@ public class ManualProjectionConfigurationExamples
     /// This approach is useful when not using source generation or when you need
     /// runtime control over projection expressions.
     /// </summary>
-    public class TransactionsTable : DynamoDbTableBase
+    public class TransactionsTable : IDynamoDbTable
     {
-        public TransactionsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+        public TransactionsTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Example 1: Non-generic index with manual projection
         // The projection expression is automatically applied to all queries through this index
@@ -208,11 +213,16 @@ public class ManualProjectionConfigurationExamples
     /// Example: Multiple projections for the same index.
     /// Shows how to define different projection levels for different use cases.
     /// </summary>
-    public class FlexibleProjectionsTable : DynamoDbTableBase
+    public class FlexibleProjectionsTable : IDynamoDbTable
     {
-        public FlexibleProjectionsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+        public FlexibleProjectionsTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Minimal projection for list views
         public DynamoDbIndex StatusIndexMinimal => new DynamoDbIndex(

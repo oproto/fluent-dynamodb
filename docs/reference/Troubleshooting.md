@@ -740,24 +740,26 @@ public partial class User
 
 ```csharp
 // ❌ Loads all results at once
-var response = await table.Query
+var items = await table.Query
     .WithKey(UserFields.Status, "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // ✅ Paginate results
-var response = await table.Query
+var query = table.Query
     .WithKey(UserFields.Status, "active")
-    .Take(100) // Limit page size
-    .ExecuteAsync<User>();
+    .Take(100); // Limit page size
 
-// Process next page
-if (response.LastEvaluatedKey != null)
+var items = await query.ToListAsync();
+
+// Access pagination metadata via builder.Response
+if (query.Response?.HasMorePages == true)
 {
-    var nextPage = await table.Query
+    var nextQuery = table.Query
         .WithKey(UserFields.Status, "active")
         .Take(100)
-        .WithExclusiveStartKey(response.LastEvaluatedKey)
-        .ExecuteAsync<User>();
+        .WithExclusiveStartKey(query.Response.LastEvaluatedKey);
+    
+    var nextItems = await nextQuery.ToListAsync();
 }
 ```
 

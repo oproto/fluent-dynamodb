@@ -382,13 +382,15 @@ catch (ConditionalCheckFailedException)
 
 #### 1. Enable Capacity Monitoring
 ```csharp
-var response = await _table.Query
+var query = _table.Query
     .Where($"{UserFields.TenantId} = {{0}}", tenantId)
-    .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-    .ToListAsync<User>();
+    .WithReturnConsumedCapacity(ReturnConsumedCapacity.TOTAL);
 
-Console.WriteLine($"Consumed RCU: {response.ConsumedCapacity?.ReadCapacityUnits}");
-Console.WriteLine($"Items returned: {response.Count}");
+var users = await query.ToListAsync<User>();
+
+// Access capacity via builder.Response
+Console.WriteLine($"Consumed RCU: {query.Response?.ConsumedCapacity?.ReadCapacityUnits}");
+Console.WriteLine($"Items returned: {users.Count}");
 ```
 
 #### 2. Check Query Patterns
@@ -445,18 +447,11 @@ public async Task<List<User>> GetAllUsersPagedAsync(string tenantId)
             query = query.WithExclusiveStartKey(lastEvaluatedKey);
         }
 
-        var response = await query.ExecuteAsync();
-        
-        // Process batch
-        foreach (var item in response.Items)
-        {
-            if (User.MatchesEntity(item))
-            {
-                allUsers.Add(User.FromDynamoDb<User>(item));
-            }
-        }
+        var users = await query.ToListAsync();
+        allUsers.AddRange(users);
 
-        lastEvaluatedKey = response.LastEvaluatedKey;
+        // Access pagination key via builder.Response
+        lastEvaluatedKey = query.Response?.LastEvaluatedKey;
 
     } while (lastEvaluatedKey?.Count > 0);
 
@@ -481,17 +476,15 @@ public async IAsyncEnumerable<User> GetUsersStreamAsync(string tenantId)
             query = query.WithExclusiveStartKey(lastEvaluatedKey);
         }
 
-        var response = await query.ExecuteAsync();
+        var users = await query.ToListAsync();
         
-        foreach (var item in response.Items)
+        foreach (var user in users)
         {
-            if (User.MatchesEntity(item))
-            {
-                yield return User.FromDynamoDb<User>(item);
-            }
+            yield return user;
         }
 
-        lastEvaluatedKey = response.LastEvaluatedKey;
+        // Access pagination key via builder.Response
+        lastEvaluatedKey = query.Response?.LastEvaluatedKey;
 
     } while (lastEvaluatedKey?.Count > 0);
 }

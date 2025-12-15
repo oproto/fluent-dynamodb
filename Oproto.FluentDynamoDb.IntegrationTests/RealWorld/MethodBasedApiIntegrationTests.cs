@@ -691,7 +691,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     /// Test table with single partition key (no sort key).
     /// Demonstrates manual table implementation with key-specific overloads.
     /// </summary>
-    private class TestTableWithSingleKey : DynamoDbTableBase
+    private class TestTableWithSingleKey : GenericTable
     {
         public TestTableWithSingleKey(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)
@@ -715,7 +715,7 @@ public class MethodBasedApiIntegrationTests : IntegrationTestBase
     /// Test table with composite key (partition key + sort key).
     /// Demonstrates manual table implementation with composite key overloads.
     /// </summary>
-    private class TestTableWithCompositeKey : DynamoDbTableBase
+    private class TestTableWithCompositeKey : GenericTable
     {
         public TestTableWithCompositeKey(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)
