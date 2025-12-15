@@ -484,16 +484,13 @@ do
         query = query.StartAt(lastKey);
     }
     
-    var response = await query.ToListAsync();
+    var orders = await query.ToListAsync();
     
     // Process this page of results
-    foreach (var item in response.Items)
-    {
-        allOrders.Add(OrderMapper.FromAttributeMap(item));
-    }
+    allOrders.AddRange(orders);
     
-    // Get the key for the next page
-    lastKey = response.LastEvaluatedKey;
+    // Get the key for the next page via builder.Response
+    lastKey = query.Response?.LastEvaluatedKey;
     
 } while (lastKey != null && lastKey.Count > 0);
 
@@ -505,13 +502,14 @@ Console.WriteLine($"Retrieved {allOrders.Count} total orders");
 Control how many items are evaluated per request:
 
 ```csharp
-var response = await table.Query
+var query = table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .Take(25)  // Evaluate up to 25 items per request
-    .ToListAsync();
+    .Take(25);  // Evaluate up to 25 items per request
 
-// Check if there are more results
-if (response.LastEvaluatedKey != null && response.LastEvaluatedKey.Count > 0)
+var orders = await query.ToListAsync();
+
+// Check if there are more results via builder.Response
+if (query.Response?.HasMorePages == true)
 {
     Console.WriteLine("More results available");
 }
@@ -538,17 +536,14 @@ public async Task<(List<Order> Orders, string? NextPageToken)> GetOrdersPage(
         query = query.StartAt(lastKey);
     }
     
-    var response = await query.ToListAsync();
+    var orders = await query.ToListAsync();
     
-    var orders = response.Items
-        .Select(OrderMapper.FromAttributeMap)
-        .ToList();
-    
-    // Encode next page token
+    // Encode next page token via builder.Response
     string? nextToken = null;
-    if (response.LastEvaluatedKey != null && response.LastEvaluatedKey.Count > 0)
+    var lastEvaluatedKey = query.Response?.LastEvaluatedKey;
+    if (lastEvaluatedKey != null && lastEvaluatedKey.Count > 0)
     {
-        nextToken = EncodePageToken(response.LastEvaluatedKey);
+        nextToken = EncodePageToken(lastEvaluatedKey);
     }
     
     return (orders, nextToken);
@@ -780,14 +775,11 @@ do
         scan = scan.StartAt(lastKey);
     }
     
-    var response = await scan.ToListAsync();
+    var users = await scan.ToListAsync();
+    allUsers.AddRange(users);
     
-    foreach (var item in response.Items)
-    {
-        allUsers.Add(UserMapper.FromAttributeMap(item));
-    }
-    
-    lastKey = response.LastEvaluatedKey;
+    // Access pagination key via builder.Response
+    lastKey = scan.Response?.LastEvaluatedKey;
     
 } while (lastKey != null && lastKey.Count > 0);
 ```
@@ -831,14 +823,11 @@ private async Task<List<User>> ScanSegmentAsync(int segment, int totalSegments)
             scan = scan.StartAt(lastKey);
         }
         
-        var response = await scan.ToListAsync();
+        var pageUsers = await scan.ToListAsync();
+        users.AddRange(pageUsers);
         
-        foreach (var item in response.Items)
-        {
-            users.Add(UserMapper.FromAttributeMap(item));
-        }
-        
-        lastKey = response.LastEvaluatedKey;
+        // Access pagination key via builder.Response
+        lastKey = scan.Response?.LastEvaluatedKey;
         
     } while (lastKey != null && lastKey.Count > 0);
     
@@ -860,13 +849,15 @@ private async Task<List<User>> ScanSegmentAsync(int segment, int totalSegments)
 
 ```csharp
 // Monitor consumed capacity
-var response = await scannableTable.Scan
-    .ReturnTotalConsumedCapacity()
-    .ToListAsync();
+var scan = scannableTable.Scan
+    .ReturnTotalConsumedCapacity();
 
-Console.WriteLine($"Items returned: {response.Items.Count}");
-Console.WriteLine($"Items scanned: {response.ScannedCount}");
-Console.WriteLine($"Capacity consumed: {response.ConsumedCapacity?.CapacityUnits} RCUs");
+var items = await scan.ToListAsync();
+
+// Access response metadata via builder.Response
+Console.WriteLine($"Items returned: {items.Count}");
+Console.WriteLine($"Items scanned: {scan.Response?.ScannedCount}");
+Console.WriteLine($"Capacity consumed: {scan.Response?.ConsumedCapacity?.CapacityUnits} RCUs");
 ```
 
 **Example Output:**
@@ -936,13 +927,13 @@ scannableTable.Scan.WithFilter($"{OrderFields.Status} = {{0}}", "pending")
 ```csharp
 // ✅ Good - handles large result sets
 do {
-    var response = await query.StartAt(lastKey).ToListAsync();
+    var items = await query.StartAt(lastKey).ToListAsync();
     // Process page
-    lastKey = response.LastEvaluatedKey;
+    lastKey = query.Response?.LastEvaluatedKey;
 } while (lastKey != null);
 
-// ❌ Avoid - may hit 1MB limit
-var response = await query.ToListAsync();
+// ❌ Avoid - may hit 1MB limit without pagination
+var items = await query.ToListAsync();
 ```
 
 ### 6. Use Consistent Reads Sparingly
@@ -958,12 +949,14 @@ var response = await query.ToListAsync();
 ### 7. Monitor Consumed Capacity
 
 ```csharp
-var response = await table.Query
+var query = table.Query
     .Where($"{OrderFields.CustomerId} = {{0}}", OrderKeys.Pk("customer123"))
-    .ReturnTotalConsumedCapacity()
-    .ToListAsync();
+    .ReturnTotalConsumedCapacity();
 
-Console.WriteLine($"Consumed: {response.ConsumedCapacity?.CapacityUnits} RCUs");
+var orders = await query.ToListAsync();
+
+// Access consumed capacity via builder.Response
+Console.WriteLine($"Consumed: {query.Response?.ConsumedCapacity?.CapacityUnits} RCUs");
 ```
 
 ## Complete Query Example

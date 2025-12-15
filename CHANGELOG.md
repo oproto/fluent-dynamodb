@@ -9,6 +9,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Response metadata via `.Response` property** - Request builders now expose a `.Response` property after execution containing operation metadata. This keeps IntelliSense clean during request building while providing access to response details.
+  - `QueryOperationResponse` - LastEvaluatedKey, ScannedCount, ResultCount, ConsumedCapacity, HasMorePages
+  - `ScanOperationResponse` - LastEvaluatedKey, ScannedCount, ResultCount, ConsumedCapacity, HasMorePages
+  - `GetItemOperationResponse` - ConsumedCapacity, ResponseMetadata
+  - `PutItemOperationResponse` - ConsumedCapacity, ResponseMetadata, ItemCollectionMetrics
+  - `UpdateItemOperationResponse` - ConsumedCapacity, ResponseMetadata, ItemCollectionMetrics
+  - `DeleteItemOperationResponse` - ConsumedCapacity, ResponseMetadata, ItemCollectionMetrics
+  
+  **Usage:**
+  ```csharp
+  var builder = table.Query<User>().Where(x => x.Pk == tenantId);
+  var users = await builder.ToListAsync();
+  
+  // Access response metadata
+  var lastKey = builder.Response?.LastEvaluatedKey;
+  var scannedCount = builder.Response?.ScannedCount;
+  var hasMore = builder.Response?.HasMorePages ?? false;
+  ```
+
+- **DynamicEntity and DynamicTable** - Schema-less access to any DynamoDB table without defining entity classes
+  - New `DynamicEntity` class where all attributes are stored in `DynamicFields` collection
+  - New `DynamicTable` class for working with `DynamicEntity` instances
+  - `DynamicTableKeyOptions` for configuring partition key and sort key names/types
+  - Typed key methods (`GetAsync(string pk)`, `GetAsync(string pk, string sk)`, etc.) when key options configured
+  - Raw `AttributeValue` key methods always available for maximum flexibility
+  - Full Query and Scan support with lambda expressions using `DynamicFields` indexer
+  - Expression translator skips key validation for `DynamicEntity` to allow flexible key conditions
+  - Ideal for schema exploration, migration tools, and truly schema-less scenarios
+  - _Requirements: 5.1-5.8, 7.1-7.6, 8.1-8.6_
+  
+  **Usage:**
+  ```csharp
+  // Create DynamicTable with key configuration
+  var keyOptions = new DynamicTableKeyOptions
+  {
+      PartitionKeyName = "pk",
+      PartitionKeyType = ScalarAttributeType.S,
+      SortKeyName = "sk",
+      SortKeyType = ScalarAttributeType.S
+  };
+  var table = new DynamicTable(client, "my-table", keyOptions);
+  
+  // Get item with typed keys
+  var item = await table.GetAsync("USER#123", "PROFILE");
+  var name = item?.DynamicFields.GetString("name");
+  
+  // Query with lambda expressions
+  var items = await table.Query()
+      .Where(x => x.DynamicFields["pk"] == "USER#123")
+      .ToListAsync();
+  
+  // Put item
+  var entity = new DynamicEntity();
+  entity.DynamicFields.SetString("pk", "USER#456");
+  entity.DynamicFields.SetString("sk", "PROFILE");
+  entity.DynamicFields.SetString("name", "Jane Doe");
+  await table.PutAsync(entity);
+  ```
+
+- **PartiQL Support** - SQL-like query capability with entity hydration
+  - New `PartiQLRequestBuilder<TEntity>` following the same pattern as other request builders
+  - `ExecutePartiQL<TEntity>(statement, params)` method on table classes
+  - Format string placeholders with format specifiers (`{0}`, `{0:o}` for ISO 8601 dates)
+  - `ToListAsync()` for SELECT queries with entity hydration
+  - `ToCompoundEntityAsync()` for compound entity table results
+  - `ExecuteAsync()` for INSERT/UPDATE/DELETE statements
+  - `ToRequest()` to access underlying `ExecuteStatementRequest`
+  - Response metadata (`ResponseMetadata`, `ConsumedCapacity`) accessible after execution
+  - Batch PartiQL via `DynamoDbBatch.PartiQL` with `BatchPartiQLBuilder` and `BatchPartiQLResponse`
+  - `ExecuteAndMapAsync<T1>()` through `ExecuteAndMapAsync<T1...T8>()` tuple convenience methods
+  - _Requirements: 3.1-3.6_
+  
+  **Usage:**
+  ```csharp
+  // SELECT query with hydration
+  var users = await table.ExecutePartiQL<User>(
+      "SELECT * FROM Users WHERE pk = {0}",
+      "USER#123")
+      .ToListAsync();
+  
+  // SELECT with DateTime formatting
+  var recentOrders = await table.ExecutePartiQL<Order>(
+      "SELECT * FROM Orders WHERE pk = {0} AND created > {1:o}",
+      "ORDER#456", DateTime.UtcNow.AddDays(-7))
+      .ToListAsync();
+  
+  // INSERT/UPDATE/DELETE
+  await table.ExecutePartiQL<User>(
+      "UPDATE Users SET name = {0} WHERE pk = {1}",
+      "Jane Doe", "USER#123")
+      .ExecuteAsync();
+  
+  // Batch PartiQL
+  var (user, order) = await DynamoDbBatch.PartiQL
+      .Add(table.ExecutePartiQL<User>("SELECT * FROM Users WHERE pk = {0}", "USER#123"))
+      .Add(table.ExecutePartiQL<Order>("SELECT * FROM Orders WHERE pk = {0}", "ORDER#456"))
+      .ExecuteAndMapAsync<User, Order>();
+  ```
+
+- **Direct SDK Request Passing** - Accept native AWS SDK request objects with response hydration
+  - `WithRequest()` method on all request builders to inject pre-built SDK requests
+  - Table-level convenience methods: `Get(GetItemRequest)`, `Query(QueryRequest)`, `Scan(ScanRequest)`, etc.
+  - Async convenience methods: `GetAsync(GetItemRequest)`, `QueryAsync(QueryRequest)`, etc.
+  - Response metadata accessible on builder after execution
+  - `DynamoDbTransactions.WriteAsync(client, TransactWriteItemsRequest)` for direct transaction execution
+  - `DynamoDbTransactions.GetAsync(client, TransactGetItemsRequest)` for direct transaction gets
+  - `DynamoDbBatch.WriteAsync(client, BatchWriteItemRequest)` for direct batch writes
+  - `DynamoDbBatch.GetAsync(client, BatchGetItemRequest)` for direct batch gets
+  - _Requirements: 4.1-4.9_
+  
+  **Usage:**
+  ```csharp
+  // Inject pre-built SDK request
+  var sdkRequest = new GetItemRequest
+  {
+      TableName = "users",
+      Key = new Dictionary<string, AttributeValue>
+      {
+          ["pk"] = new AttributeValue { S = "USER#123" }
+      }
+  };
+  var user = await table.Users.GetAsync(sdkRequest);
+  
+  // Builder pattern for response metadata access
+  var builder = table.Users.Get(sdkRequest);
+  var user = await builder.GetItemAsync();
+  var capacity = builder.Response?.ConsumedCapacity;
+  
+  // Direct transaction execution
+  await DynamoDbTransactions.WriteAsync(client, existingTransactWriteRequest);
+  ```
+
 - **Schema Validation** - Runtime validation of DynamoDB table schemas against entity metadata
   - New `ValidateSchemaAsync(IAmazonDynamoDB, SchemaValidationOptions?)` method generated on table classes
   - Validates primary key configuration (partition key name/type, sort key name/type/presence)
@@ -299,6 +431,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 ### Changed
+- **DynamoDbTableBase Removed** - Table classes are now fully source-generated without inheritance
+  - Generated table classes no longer inherit from `DynamoDbTableBase`
+  - All functionality (Client, Name, Options, Query<T>, Get<T>, Put<T>, Update<T>, Delete<T>) is now generated directly
+  - Entity accessor visibility controlled by `[GenerateAccessors]` attribute
+  - Index accessors generated for all defined GSIs and LSIs
+  - **Breaking Change**: Code that directly references `DynamoDbTableBase` will no longer compile
+  - **No Migration Required**: Code using generated table classes continues to work unchanged
+  - _Requirements: 1.1-1.6_
+  
+  **Migration (only if directly referencing DynamoDbTableBase):**
+  ```csharp
+  // Before: Direct reference to base class (rare)
+  public void ProcessTable(DynamoDbTableBase table) { ... }
+  
+  // After: Use the generated table class directly
+  public void ProcessTable(UsersTable table) { ... }
+  // Or use duck typing / interfaces if needed
+  ```
+
 - **Logging Runtime Configuration** - Removed `DISABLE_DYNAMODB_LOGGING` conditional compilation in favor of runtime configuration
   - All `#if !DISABLE_DYNAMODB_LOGGING` preprocessor directives removed from source code
   - Logging is now controlled entirely via `FluentDynamoDbOptions.WithLogger()` at runtime
@@ -403,6 +554,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- **GeoHash Query Bug** - Fixed interpolated string bug in GeoHash BETWEEN queries
+  - Changed `$"geohash_cell BETWEEN {0} AND {1}"` to `"geohash_cell BETWEEN {0} AND {1}"` in StoreLocator example
+  - The `$` prefix caused `{0}` and `{1}` to be treated as literal text instead of format placeholders
+  - This resulted in "Invalid KeyConditionExpression" errors when executing GeoHash spatial queries
+  - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
 - **Documentation API Pattern Corrections** - Fixed incorrect batch and transaction operation examples across documentation
   - Corrected batch operation examples to use `DynamoDbBatch.Write` and `DynamoDbBatch.Get` static entry points instead of constructor-based patterns
   - Corrected transaction operation examples to use `DynamoDbTransactions.Write` and `DynamoDbTransactions.Get` static entry points instead of constructor-based patterns

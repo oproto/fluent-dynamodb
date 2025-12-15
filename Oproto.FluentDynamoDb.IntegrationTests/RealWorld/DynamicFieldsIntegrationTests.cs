@@ -12,7 +12,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Trait("Category", "Integration")]
 public class DynamicFieldsIntegrationTests : IntegrationTestBase
 {
-    private DynamoDbTableBase _table = null!;
+    private GenericTable _table = null!;
 
     public DynamicFieldsIntegrationTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
@@ -1170,7 +1170,7 @@ public class DynamicFieldsIntegrationTests : IntegrationTestBase
     #endregion
 
     // Helper class to create a table instance
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName)
             : base(client, tableName)

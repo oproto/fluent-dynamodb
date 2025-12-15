@@ -61,15 +61,17 @@ namespace Oproto.FluentDynamoDb.Examples;
 /// var entity = rawResponse.ToEntity&lt;User&gt;();
 /// </code>
 /// </example>
-public class UsersTable : DynamoDbTableBase
+public class UsersTable : IDynamoDbTable
 {
     /// <summary>
     /// Initializes a new instance of the UsersTable.
     /// </summary>
     /// <param name="client">The DynamoDB client.</param>
     public UsersTable(IAmazonDynamoDB client) 
-        : base(client, "Users")
     {
+        DynamoDbClient = client;
+        Name = "Users";
+        Options = new FluentDynamoDbOptions();
     }
 
     /// <summary>
@@ -78,9 +80,15 @@ public class UsersTable : DynamoDbTableBase
     /// <param name="client">The DynamoDB client.</param>
     /// <param name="logger">Logger for DynamoDB operations.</param>
     public UsersTable(IAmazonDynamoDB client, IDynamoDbLogger logger) 
-        : base(client, "Users", logger)
     {
+        DynamoDbClient = client;
+        Name = "Users";
+        Options = new FluentDynamoDbOptions().WithLogger(logger);
     }
+
+    public IAmazonDynamoDB DynamoDbClient { get; }
+    public string Name { get; }
+    protected FluentDynamoDbOptions Options { get; }
 
     /// <summary>
     /// Gets a user by their ID (partition key).
@@ -110,7 +118,7 @@ public class UsersTable : DynamoDbTableBase
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
     public GetItemRequestBuilder<PlaceholderEntity> Get(string userId) => 
-        base.Get<PlaceholderEntity>().WithKey("id", userId);
+        new GetItemRequestBuilder<PlaceholderEntity>(DynamoDbClient, Options).ForTable(Name).WithKey("id", userId);
 
     /// <summary>
     /// Updates a user by their ID (partition key).
@@ -151,7 +159,7 @@ public class UsersTable : DynamoDbTableBase
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
     public UpdateItemRequestBuilder<PlaceholderEntity> Update(string userId) => 
-        base.Update<PlaceholderEntity>().WithKey("id", userId);
+        new UpdateItemRequestBuilder<PlaceholderEntity>(DynamoDbClient, Options).ForTable(Name).WithKey("id", userId);
 
     /// <summary>
     /// Deletes a user by their ID (partition key).
@@ -185,7 +193,7 @@ public class UsersTable : DynamoDbTableBase
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
     public DeleteItemRequestBuilder<PlaceholderEntity> Delete(string userId) => 
-        base.Delete<PlaceholderEntity>().WithKey("id", userId);
+        new DeleteItemRequestBuilder<PlaceholderEntity>(DynamoDbClient, Options).ForTable(Name).WithKey("id", userId);
 
     /// <summary>
     /// Global Secondary Index for querying users by email.

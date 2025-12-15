@@ -77,6 +77,13 @@ public class DeleteItemRequestBuilder<TEntity> :
     private List<string>? _blobReferenceKeys;
 
     /// <summary>
+    /// Gets the response metadata from the most recent DeleteItem execution.
+    /// This is populated by Primary API methods (DeleteAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public DeleteItemOperationResponse? Response { get; internal set; }
+
+    /// <summary>
     /// Gets the internal attribute value helper for extension method access.
     /// </summary>
     /// <returns>The AttributeValueInternal instance used by this builder.</returns>
@@ -171,6 +178,42 @@ public class DeleteItemRequestBuilder<TEntity> :
     public DeleteItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built DeleteItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's execution and context population capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built DeleteItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new DeleteItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Key = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" }
+    ///     },
+    ///     ConditionExpression = "attribute_exists(pk)",
+    ///     ReturnValues = ReturnValue.ALL_OLD
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Delete&lt;User&gt;().WithRequest(sdkRequest);
+    /// var deletedUser = await builder.DeleteAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public DeleteItemRequestBuilder<TEntity> WithRequest(DeleteItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 

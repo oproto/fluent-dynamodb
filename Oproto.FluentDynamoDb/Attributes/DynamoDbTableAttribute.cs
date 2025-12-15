@@ -141,7 +141,7 @@ public class DynamoDbTableAttribute : Attribute
     /// 
     /// // Generated table class will be in MyApp.Infrastructure.DynamoDb namespace:
     /// // namespace MyApp.Infrastructure.DynamoDb;
-    /// // public partial class OrdersTable : DynamoDbTableBase { ... }
+    /// // public partial class OrdersTable : IDynamoDbTable { ... }
     /// </code>
     /// </example>
     public string? Namespace { get; set; }

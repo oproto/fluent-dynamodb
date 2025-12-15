@@ -353,17 +353,25 @@ public class ScannableTableTests
     /// Test table that simulates a generated scannable table.
     /// This mimics what the source generator would produce for a table marked with [Scannable].
     /// </summary>
-    private class TestScannableTable : DynamoDbTableBase
+    private class TestScannableTable : IDynamoDbTable
     {
-        public TestScannableTable(IAmazonDynamoDB client) 
-            : base(client, "TestScannableTable")
+        public TestScannableTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "TestScannableTable";
+            Options = new FluentDynamoDbOptions();
         }
         
-        public TestScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options) 
-            : base(client, "TestScannableTable", options)
+        public TestScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options)
         {
+            DynamoDbClient = client;
+            Name = "TestScannableTable";
+            Options = options ?? new FluentDynamoDbOptions();
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
+        protected FluentDynamoDbOptions Options { get; }
         
         /// <summary>
         /// Simulates the generated parameterless Scan() method.
@@ -386,17 +394,25 @@ public class ScannableTableTests
     /// This demonstrates how developers can manually implement scan operations
     /// without using source generation or the [Scannable] attribute.
     /// </summary>
-    private class ManualScannableTable : DynamoDbTableBase
+    private class ManualScannableTable : IDynamoDbTable
     {
-        public ManualScannableTable(IAmazonDynamoDB client) 
-            : base(client, "ManualScannableTable")
+        public ManualScannableTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "ManualScannableTable";
+            Options = new FluentDynamoDbOptions();
         }
         
-        public ManualScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options) 
-            : base(client, "ManualScannableTable", options)
+        public ManualScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options)
         {
+            DynamoDbClient = client;
+            Name = "ManualScannableTable";
+            Options = options ?? new FluentDynamoDbOptions();
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
+        protected FluentDynamoDbOptions Options { get; }
         
         /// <summary>
         /// Manually implemented parameterless Scan() method.

@@ -515,19 +515,21 @@ var response = await table.Query()
 ### Query with Pagination
 
 ```csharp
-var response = await table.Query()
+var query = table.Query()
     .Where($"{EntityFields.PartitionKey} = {{0}}", EntityKeys.Pk("pk123"))
-    .Take(20)
-    .ExecuteAsync<Entity>();
+    .Take(20);
 
-// Next page
-if (response.LastEvaluatedKey != null)
+var items = await query.ToListAsync();
+
+// Access pagination metadata via builder.Response
+if (query.Response?.HasMorePages == true)
 {
-    var nextPage = await table.Query()
+    var nextQuery = table.Query()
         .Where($"{EntityFields.PartitionKey} = {{0}}", EntityKeys.Pk("pk123"))
         .Take(20)
-        .WithExclusiveStartKey(response.LastEvaluatedKey)
-        .ExecuteAsync<Entity>();
+        .WithExclusiveStartKey(query.Response.LastEvaluatedKey);
+    
+    var nextItems = await nextQuery.ToListAsync();
 }
 ```
 

@@ -134,7 +134,7 @@ using Oproto.FluentDynamoDb.Metadata;    // EntityMetadata, PropertyMetadata
 using Oproto.FluentDynamoDb.Hydration;   // IAsyncEntityHydrator
 using Oproto.FluentDynamoDb.Mapping;     // MappingErrorHandler, exceptions
 using Oproto.FluentDynamoDb.Context;     // DynamoDbOperationContext
-using Oproto.FluentDynamoDb.Storage;     // DynamoDbTableBase, DynamoDbIndex
+using Oproto.FluentDynamoDb.Storage;     // IDynamoDbTable, DynamoDbIndex, DynamicTable
 ```
 
 #### JSON Serializer Configuration

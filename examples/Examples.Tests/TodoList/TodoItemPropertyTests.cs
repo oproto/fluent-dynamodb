@@ -418,7 +418,7 @@ public class TodoItemPropertyTests
     /// Test table that uses a separate table name to avoid conflicts with the main application.
     /// We use the actual TodoTable class but with the test table name.
     /// </summary>
-    private class TestTodoTable : DynamoDbTableBase
+    private class TestTodoTable : GenericTable
     {
         public TestTodoTable(IAmazonDynamoDB client) : base(client, TestTableName)
         {

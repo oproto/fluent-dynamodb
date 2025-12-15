@@ -422,7 +422,7 @@ public class ExpressionMixedTests : IntegrationTestBase
     #endregion
     
     // Helper class to create a table instance for query operations
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)

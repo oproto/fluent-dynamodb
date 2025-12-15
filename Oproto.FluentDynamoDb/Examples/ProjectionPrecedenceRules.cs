@@ -63,11 +63,16 @@ public class ProjectionPrecedenceRulesExamples
         public static string ProjectionExpression => "id, amount, status";
     }
 
-    public class TransactionsTable : DynamoDbTableBase
+    public class TransactionsTable : IDynamoDbTable
     {
-        public TransactionsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+        public TransactionsTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Index with manual projection configured
         public DynamoDbIndex StatusIndexWithProjection => new DynamoDbIndex(
@@ -228,11 +233,16 @@ public class ProjectionPrecedenceRulesExamples
     /// - Have fine-grained control over specific indexes
     /// </para>
     /// </remarks>
-    public class TableWithManualOverride : DynamoDbTableBase
+    public class TableWithManualOverride : IDynamoDbTable
     {
-        public TableWithManualOverride(IAmazonDynamoDB client) : base(client, "Transactions")
+        public TableWithManualOverride(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Manual index definition overrides any generated one
         // If the source generator would create a StatusIndex property,
@@ -315,11 +325,16 @@ public class ProjectionPrecedenceRulesExamples
         /// This ensures all queries through an index use the same projection
         /// unless explicitly overridden.
         /// </summary>
-        public class ConsistentDefaultsTable : DynamoDbTableBase
+        public class ConsistentDefaultsTable : IDynamoDbTable
         {
-            public ConsistentDefaultsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+            public ConsistentDefaultsTable(IAmazonDynamoDB client)
             {
+                DynamoDbClient = client;
+                Name = "Transactions";
             }
+
+            public IAmazonDynamoDB DynamoDbClient { get; }
+            public string Name { get; }
 
             // Set a sensible default projection at the index level
             public DynamoDbIndex StatusIndex => new DynamoDbIndex(
@@ -390,11 +405,16 @@ public class ProjectionPrecedenceRulesExamples
         /// Practice 4: Document precedence in your table class.
         /// Make it clear which projections are defaults and which can be overridden.
         /// </summary>
-        public class WellDocumentedTable : DynamoDbTableBase
+        public class WellDocumentedTable : IDynamoDbTable
         {
-            public WellDocumentedTable(IAmazonDynamoDB client) : base(client, "Transactions")
+            public WellDocumentedTable(IAmazonDynamoDB client)
             {
+                DynamoDbClient = client;
+                Name = "Transactions";
             }
+
+            public IAmazonDynamoDB DynamoDbClient { get; }
+            public string Name { get; }
 
             /// <summary>
             /// StatusIndex with standard projection for most queries.

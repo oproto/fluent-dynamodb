@@ -7,6 +7,7 @@ using Examples.Shared;
 using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Geospatial;
+using Oproto.FluentDynamoDb.Geospatial.GeoHash;
 using Oproto.FluentDynamoDb.Pagination;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using StoreLocator.Data;
@@ -428,7 +429,8 @@ async Task DeleteAllH3StoresAsync()
 }
 
 /// <summary>
-/// Searches for stores using GeoHash indexing with generated spatial query extensions.
+/// Searches for stores using GeoHash indexing with lambda expression.
+/// GeoHash uses a single BETWEEN query on the geohash-index GSI.
 /// </summary>
 async Task SearchGeoHashAsync()
 {
@@ -440,23 +442,19 @@ async Task SearchGeoHashAsync()
     
     var startTime = DateTime.UtcNow;
     
-    // PREFERRED: Using SpatialQueryAsync extension method on the table
-    var result = await geoHashTable.SpatialQueryAsync<StoreGeoHash>(
-        locationSelector: store => store.Location,
-        spatialIndexType: SpatialIndexType.GeoHash,
-        precision: 7,
-        center: center,
-        radiusKilometers: radius,
-        queryBuilder: (query, cell, pagination) => query
-            .Where($"geohash_cell BETWEEN {0} AND {1}", cell.Split(':')[0], cell.Split(':')[1])
-    );
+    // PREFERRED: Using lambda expression with WithinDistanceKilometers on the GSI
+    // The expression translator converts this to a BETWEEN query on the geohash_cell attribute
+    var results = await geoHashTable.geohashindex.Query<StoreGeoHash>()
+        .Where<StoreGeoHash>(x => x.Location.WithinDistanceKilometers(center, radius))
+        .ToListAsync();
     
     var elapsed = DateTime.UtcNow - startTime;
-    lastGeoHashQueryCount = result.TotalCellsQueried;
+    lastGeoHashQueryCount = 1; // GeoHash always uses a single BETWEEN query
     
-    // Transform results to include distance
-    var resultsWithDistance = result.Items
+    // Post-filter for exact circular distance (GeoHash BETWEEN returns a rectangular bounding box)
+    var resultsWithDistance = results
         .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center)))
+        .Where(r => r.DistanceKm <= radius) // Post-filter for exact radius
         .OrderBy(r => r.DistanceKm)
         .ToList();
     
@@ -596,21 +594,16 @@ async Task CompareAllAsync()
     ConsoleHelpers.ShowInfo($"Comparing searches within {radius}km of ({center.Latitude:F4}, {center.Longitude:F4})...");
     Console.WriteLine();
     
-    // GeoHash search
+    // GeoHash search - uses lambda expression with WithinDistanceKilometers
     var startGeoHash = DateTime.UtcNow;
-    var geoHashResult = await geoHashTable.SpatialQueryAsync<StoreGeoHash>(
-        locationSelector: store => store.Location,
-        spatialIndexType: SpatialIndexType.GeoHash,
-        precision: 7,
-        center: center,
-        radiusKilometers: radius,
-        queryBuilder: (query, cell, pagination) => query
-            .Where($"geohash_cell BETWEEN {0} AND {1}", cell.Split(':')[0], cell.Split(':')[1])
-    );
+    var geoHashRawResults = await geoHashTable.geohashindex.Query<StoreGeoHash>()
+        .Where<StoreGeoHash>(x => x.Location.WithinDistanceKilometers(center, radius))
+        .ToListAsync();
     var elapsedGeoHash = DateTime.UtcNow - startGeoHash;
-    lastGeoHashQueryCount = geoHashResult.TotalCellsQueried;
-    var geoHashResults = geoHashResult.Items
+    lastGeoHashQueryCount = 1; // GeoHash always uses a single BETWEEN query
+    var geoHashResults = geoHashRawResults
         .Select(store => (Store: store, DistanceKm: store.Location.DistanceToKilometers(center)))
+        .Where(r => r.DistanceKm <= radius) // Post-filter for exact radius
         .OrderBy(r => r.DistanceKm)
         .ToList();
     

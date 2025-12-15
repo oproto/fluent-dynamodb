@@ -1284,9 +1284,9 @@ public class UpdateExpressionTranslator
                 $"Property '{propertyName}' (DynamoDB attribute: '{attributeName}') is marked as encrypted but no IFieldEncryptor is configured. " +
                 $"To fix this issue: " +
                 $"1. Implement the IFieldEncryptor interface (e.g., using AWS KMS or another encryption provider). " +
-                $"2. Pass the encryptor to the DynamoDbTableBase constructor, or " +
+                $"2. Pass the encryptor via FluentDynamoDbOptions when creating the table, or " +
                 $"3. Set it in the DynamoDbOperationContext before executing update operations. " +
-                $"Example: new MyTable(dynamoDbClient, logger, blobProvider, fieldEncryptor). " +
+                $"Example: new FluentDynamoDbOptions().WithEncryption(fieldEncryptor). " +
                 $"Alternatively, use string-based update expressions with pre-encrypted values.",
                 propertyName,
                 attributeName,

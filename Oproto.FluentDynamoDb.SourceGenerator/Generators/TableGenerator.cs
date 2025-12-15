@@ -42,7 +42,9 @@ internal static class TableGenerator
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
         sb.AppendLine("using Oproto.FluentDynamoDb;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Context;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.Encryption;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
@@ -76,19 +78,25 @@ internal static class TableGenerator
         sb.AppendLine($"namespace {tableNamespace};");
         sb.AppendLine();
         
-        // Class declaration
+        // Class declaration - no longer inherits from DynamoDbTableBase
         sb.AppendLine($"/// <summary>");
         sb.AppendLine($"/// Generated table class for {tableName} table.");
         sb.AppendLine($"/// Provides method-based access to DynamoDB operations.");
         sb.AppendLine($"/// </summary>");
-        sb.AppendLine($"public partial class {tableClassName} : DynamoDbTableBase");
+        sb.AppendLine($"public partial class {tableClassName} : IDynamoDbTable");
         sb.AppendLine("{");
+        
+        // Generate core properties (previously from DynamoDbTableBase)
+        GenerateCoreProperties(sb);
         
         // Generate entity accessor properties
         GenerateEntityAccessorProperties(sb, entities);
         
         // Constructors
         GenerateMultiEntityConstructors(sb, tableName, tableClassName, entities);
+        
+        // Generate base operation methods (previously from DynamoDbTableBase)
+        GenerateBaseOperationMethods(sb);
         
         // Table-level operations (if default entity exists)
         if (defaultEntity != null)
@@ -162,7 +170,9 @@ internal static class TableGenerator
         sb.AppendLine("using Amazon.DynamoDBv2;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
         sb.AppendLine("using Oproto.FluentDynamoDb;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Context;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Logging;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Providers.Encryption;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
@@ -186,16 +196,22 @@ internal static class TableGenerator
         sb.AppendLine($"namespace {tableNamespace};");
         sb.AppendLine();
         
-        // Class declaration
+        // Class declaration - no longer inherits from DynamoDbTableBase
         sb.AppendLine($"/// <summary>");
         sb.AppendLine($"/// Generated table class for {entity.ClassName} entity.");
         sb.AppendLine($"/// Provides method-based access to DynamoDB operations.");
         sb.AppendLine($"/// </summary>");
-        sb.AppendLine($"public partial class {className} : DynamoDbTableBase");
+        sb.AppendLine($"public partial class {className} : IDynamoDbTable");
         sb.AppendLine("{");
+        
+        // Generate core properties (previously from DynamoDbTableBase)
+        GenerateCoreProperties(sb);
         
         // Constructors
         GenerateConstructors(sb, entity, className);
+        
+        // Generate base operation methods (previously from DynamoDbTableBase)
+        GenerateBaseOperationMethods(sb);
         
         // Query methods
         GenerateQueryMethods(sb, entity);
@@ -288,6 +304,7 @@ internal static class TableGenerator
     
     /// <summary>
     /// Generates constructors for multi-entity tables.
+    /// No longer calls base constructor - initializes properties directly.
     /// </summary>
     private static void GenerateMultiEntityConstructors(StringBuilder sb, string tableName, string className, List<EntityModel> entities)
     {
@@ -297,22 +314,8 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
         sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
         sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName)");
-        sb.AppendLine($"        : base(client, tableName)");
+        sb.AppendLine($"        : this(client, tableName, null)");
         sb.AppendLine($"    {{");
-        
-        // Initialize entity accessor properties
-        foreach (var entity in entities)
-        {
-            if (!entity.EntityPropertyConfig.Generate)
-            {
-                continue;
-            }
-            
-            var propertyName = GetEntityPropertyName(entity);
-            var accessorClassName = $"{entity.ClassName}Accessor";
-            sb.AppendLine($"        {propertyName} = new {accessorClassName}(this);");
-        }
-        
         sb.AppendLine($"    }}");
         sb.AppendLine();
         
@@ -323,8 +326,12 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
         sb.AppendLine($"    /// <param name=\"options\">Configuration options including logger, hydrator registry, etc.</param>");
         sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)");
-        sb.AppendLine($"        : base(client, tableName, options)");
         sb.AppendLine($"    {{");
+        sb.AppendLine($"        DynamoDbClient = client;");
+        sb.AppendLine($"        Name = tableName;");
+        sb.AppendLine($"        Options = options ?? new FluentDynamoDbOptions();");
+        sb.AppendLine($"        Logger = Options.Logger;");
+        sb.AppendLine($"        FieldEncryptor = Options.FieldEncryptor;");
         
         // Initialize entity accessor properties
         foreach (var entity in entities)
@@ -1436,7 +1443,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"client\">The DynamoDB client.</param>");
         sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
         sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName)");
-        sb.AppendLine($"        : base(client, tableName)");
+        sb.AppendLine($"        : this(client, tableName, null)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"    }}");
         sb.AppendLine();
@@ -1448,8 +1455,12 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"tableName\">The DynamoDB table name.</param>");
         sb.AppendLine($"    /// <param name=\"options\">Configuration options including logger, hydrator registry, etc.</param>");
         sb.AppendLine($"    public {className}(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions? options)");
-        sb.AppendLine($"        : base(client, tableName, options)");
         sb.AppendLine($"    {{");
+        sb.AppendLine($"        DynamoDbClient = client;");
+        sb.AppendLine($"        Name = tableName;");
+        sb.AppendLine($"        Options = options ?? new FluentDynamoDbOptions();");
+        sb.AppendLine($"        Logger = Options.Logger;");
+        sb.AppendLine($"        FieldEncryptor = Options.FieldEncryptor;");
         sb.AppendLine($"    }}");
         sb.AppendLine();
     }
@@ -1463,7 +1474,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
         sb.AppendLine($"    public QueryRequestBuilder<{entity.ClassName}> Query() =>");
-        sb.AppendLine($"        base.Query<{entity.ClassName}>();");
+        sb.AppendLine($"        Query<{entity.ClassName}>();");
         sb.AppendLine();
 
         // Expression-based Query(string, params object[]) method
@@ -1475,7 +1486,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"values\">The values to substitute into the expression.</param>");
         sb.AppendLine($"    /// <returns>A QueryRequestBuilder&lt;{entity.ClassName}&gt; configured with the key condition.</returns>");
         sb.AppendLine($"    public QueryRequestBuilder<{entity.ClassName}> Query(string keyConditionExpression, params object[] values) =>");
-        sb.AppendLine($"        base.Query<{entity.ClassName}>(keyConditionExpression, values);");
+        sb.AppendLine($"        Query<{entity.ClassName}>(keyConditionExpression, values);");
         sb.AppendLine();
 
         // LINQ expression Query(Expression<Func<TEntity, bool>>) method
@@ -1549,7 +1560,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </code>");
         sb.AppendLine($"    /// </example>");
         sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put() =>");
-        sb.AppendLine($"        base.Put<{entity.ClassName}>();");
+        sb.AppendLine($"        Put<{entity.ClassName}>();");
         sb.AppendLine();
         
         // Put(TEntity entity) overload
@@ -1573,7 +1584,7 @@ internal static class TableGenerator
         sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put({entity.ClassName} entity)");
         sb.AppendLine($"    {{");
         sb.AppendLine($"        var item = {entity.ClassName}.ToDynamoDb(entity);");
-        sb.AppendLine($"        return base.Put<{entity.ClassName}>().WithItem(item);");
+        sb.AppendLine($"        return Put<{entity.ClassName}>().WithItem(item);");
         sb.AppendLine($"    }}");
         sb.AppendLine();
         
@@ -1596,7 +1607,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </example>");
         sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put(Dictionary<string, AttributeValue> item)");
         sb.AppendLine($"    {{");
-        sb.AppendLine($"        return base.Put<{entity.ClassName}>().WithItem(item);");
+        sb.AppendLine($"        return Put<{entity.ClassName}>().WithItem(item);");
         sb.AppendLine($"    }}");
         sb.AppendLine();
     }
@@ -1640,7 +1651,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
         sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        base.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine($"        Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
         
         // Update overload
@@ -1650,7 +1661,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
         sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        base.Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine($"        Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
         
         // Delete overload
@@ -1660,7 +1671,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
         sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        base.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine($"        Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
         
         // ConditionCheck overload
@@ -1682,7 +1693,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </code>");
         sb.AppendLine($"    /// </example>");
         sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        base.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        sb.AppendLine($"        ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
         sb.AppendLine();
     }
 
@@ -1700,7 +1711,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
         sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        base.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine($"        Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
         
         // Update overload
@@ -1711,7 +1722,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
         sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        base.Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine($"        Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
         
         // Delete overload
@@ -1722,7 +1733,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
         sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        base.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine($"        Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
         
         // ConditionCheck overload
@@ -1745,7 +1756,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </code>");
         sb.AppendLine($"    /// </example>");
         sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        base.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        sb.AppendLine($"        ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
         sb.AppendLine();
     }
 
@@ -2239,6 +2250,289 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;TEntity&gt; configured for this table.</returns>");
         sb.AppendLine($"    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>");
         sb.AppendLine($"        new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Generates core properties that were previously inherited from DynamoDbTableBase.
+    /// These include DynamoDbClient, Name, Options, Logger, and FieldEncryptor.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append to.</param>
+    private static void GenerateCoreProperties(StringBuilder sb)
+    {
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets the DynamoDB client instance used for executing operations.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public IAmazonDynamoDB DynamoDbClient { get; private init; }");
+        sb.AppendLine();
+        
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets the name of the DynamoDB table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public string Name { get; private init; }");
+        sb.AppendLine();
+        
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets the configuration options for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    protected FluentDynamoDbOptions Options { get; private init; }");
+        sb.AppendLine();
+        
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets the logger for DynamoDB operations.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    protected IDynamoDbLogger Logger { get; private init; }");
+        sb.AppendLine();
+        
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets the field encryptor for encrypting and decrypting sensitive properties.");
+        sb.AppendLine("    /// Returns null if encryption is not configured for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    protected IFieldEncryptor? FieldEncryptor { get; private init; }");
+        sb.AppendLine();
+        
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets the field encryptor for this table.");
+        sb.AppendLine("    /// This method is used internally by transaction builders to access the encryptor.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    /// <returns>The field encryptor, or null if encryption is not configured.</returns>");
+        sb.AppendLine("    internal IFieldEncryptor? GetFieldEncryptor() => FieldEncryptor;");
+        sb.AppendLine();
+        
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets the configuration options for this table.");
+        sb.AppendLine("    /// Used by DynamoDbIndex to pass options to query builders.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    /// <returns>The FluentDynamoDbOptions instance used by this table.</returns>");
+        sb.AppendLine("    public FluentDynamoDbOptions? GetOptions() => Options;");
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Generates base operation methods that were previously inherited from DynamoDbTableBase.
+    /// These include Query&lt;T&gt;(), Get&lt;T&gt;(), Put&lt;T&gt;(), Update&lt;T&gt;(), Delete&lt;T&gt;(), ConditionCheck&lt;T&gt;(),
+    /// PutAsync&lt;T&gt;(), ExecutePartiQL&lt;T&gt;(), and direct SDK request methods.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append to.</param>
+    private static void GenerateBaseOperationMethods(StringBuilder sb)
+    {
+        // Query<TEntity>() method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a new Query operation builder for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    /// <typeparam name=\"TEntity\">The entity type to query.</typeparam>");
+        sb.AppendLine("    /// <returns>A QueryRequestBuilder configured for this table.</returns>");
+        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class =>");
+        sb.AppendLine("        new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
+        sb.AppendLine();
+        
+        // Query<TEntity>(string, params object[]) method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a new Query operation builder with a key condition expression.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var builder = Query<TEntity>();");
+        sb.AppendLine("        return WithConditionExpressionExtensions.Where(builder, keyConditionExpression, values);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        
+        // Get<TEntity>() method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a new GetItem operation builder for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public virtual GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class =>");
+        sb.AppendLine("        new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
+        sb.AppendLine();
+        
+        // Update<TEntity>() method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a new UpdateItem operation builder for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public virtual UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity =>");
+        sb.AppendLine("        new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
+        sb.AppendLine();
+        
+        // Delete<TEntity>() method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a new DeleteItem operation builder for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public virtual DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class, IDynamoDbEntity =>");
+        sb.AppendLine("        new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
+        sb.AppendLine();
+        
+        // Put<TEntity>() method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a new PutItem operation builder for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class, IDynamoDbEntity =>");
+        sb.AppendLine("        new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
+        sb.AppendLine();
+        
+        // ConditionCheck<TEntity>() method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a new ConditionCheck operation builder for this table.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public ConditionCheckBuilder<TEntity> ConditionCheck<TEntity>() where TEntity : class =>");
+        sb.AppendLine("        new ConditionCheckBuilder<TEntity>(DynamoDbClient, Name);");
+        sb.AppendLine();
+        
+        // PutAsync<TEntity>(entity) method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Express-route method that executes a PutItem operation.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task PutAsync<TEntity>(TEntity entity, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var builder = Put<TEntity>();");
+        sb.AppendLine("        builder = EntityExecuteAsyncExtensions.WithItem(builder, entity);");
+        sb.AppendLine("        await EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        
+        // PutAsync<TEntity>(Dictionary) method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Express-route method that executes a PutItem operation with a raw attribute dictionary.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task PutAsync<TEntity>(Dictionary<string, AttributeValue> item, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var builder = Put<TEntity>().WithItem(item);");
+        sb.AppendLine("        await EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        
+        // ExecutePartiQL<TEntity>() method
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a PartiQL request builder for executing SQL-like queries.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public PartiQLRequestBuilder<TEntity> ExecutePartiQL<TEntity>(string statement, params object[] parameters)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("    {");
+        sb.AppendLine("        return new PartiQLRequestBuilder<TEntity>(DynamoDbClient, Options).WithStatement(statement, parameters);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        
+        // ExecutePartiQL() method (DynamicEntity)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a PartiQL request builder for executing SQL-like queries with DynamicEntity.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public PartiQLRequestBuilder<DynamicEntity> ExecutePartiQL(string statement, params object[] parameters)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        return ExecutePartiQL<DynamicEntity>(statement, parameters);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        
+        // Direct SDK request methods
+        GenerateDirectSdkRequestMethods(sb);
+    }
+
+    /// <summary>
+    /// Generates direct SDK request methods that were previously in DynamoDbTableBase.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append to.</param>
+    private static void GenerateDirectSdkRequestMethods(StringBuilder sb)
+    {
+        // Get<TEntity>(GetItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a GetItem operation builder configured with a pre-built SDK request.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public GetItemRequestBuilder<TEntity> Get<TEntity>(GetItemRequest request) where TEntity : class");
+        sb.AppendLine("        => Get<TEntity>().WithRequest(request);");
+        sb.AppendLine();
+        
+        // GetAsync<TEntity>(GetItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Executes a pre-built GetItemRequest and hydrates the result to an entity.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task<TEntity?> GetAsync<TEntity>(GetItemRequest request, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => await EntityExecuteAsyncExtensions.GetItemAsync(Get<TEntity>(request), cancellationToken);");
+        sb.AppendLine();
+        
+        // Query<TEntity>(QueryRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a Query operation builder configured with a pre-built SDK request.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>(QueryRequest request) where TEntity : class");
+        sb.AppendLine("        => Query<TEntity>().WithRequest(request);");
+        sb.AppendLine();
+        
+        // QueryAsync<TEntity>(QueryRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Executes a pre-built QueryRequest and hydrates the results to entities.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task<List<TEntity>> QueryAsync<TEntity>(QueryRequest request, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => await EntityExecuteAsyncExtensions.ToListAsync(Query<TEntity>(request), cancellationToken);");
+        sb.AppendLine();
+        
+        // Scan<TEntity>(ScanRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a Scan operation builder configured with a pre-built SDK request.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public ScanRequestBuilder<TEntity> Scan<TEntity>(ScanRequest request) where TEntity : class");
+        sb.AppendLine("        => new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name).WithRequest(request);");
+        sb.AppendLine();
+        
+        // ScanAsync<TEntity>(ScanRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Executes a pre-built ScanRequest and hydrates the results to entities.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task<List<TEntity>> ScanAsync<TEntity>(ScanRequest request, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => await EntityExecuteAsyncExtensions.ToListAsync(Scan<TEntity>(request), cancellationToken);");
+        sb.AppendLine();
+        
+        // Put<TEntity>(PutItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a PutItem operation builder configured with a pre-built SDK request.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public PutItemRequestBuilder<TEntity> Put<TEntity>(PutItemRequest request) where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => Put<TEntity>().WithRequest(request);");
+        sb.AppendLine();
+        
+        // PutAsync<TEntity>(PutItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Executes a pre-built PutItemRequest.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task PutAsync<TEntity>(PutItemRequest request, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => await EntityExecuteAsyncExtensions.PutAsync(Put<TEntity>(request), cancellationToken);");
+        sb.AppendLine();
+        
+        // Update<TEntity>(UpdateItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates an UpdateItem operation builder configured with a pre-built SDK request.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public UpdateItemRequestBuilder<TEntity> Update<TEntity>(UpdateItemRequest request) where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => Update<TEntity>().WithRequest(request);");
+        sb.AppendLine();
+        
+        // UpdateAsync<TEntity>(UpdateItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Executes a pre-built UpdateItemRequest.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task UpdateAsync<TEntity>(UpdateItemRequest request, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => await EntityExecuteAsyncExtensions.UpdateAsync(Update<TEntity>(request), cancellationToken);");
+        sb.AppendLine();
+        
+        // Delete<TEntity>(DeleteItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a DeleteItem operation builder configured with a pre-built SDK request.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public DeleteItemRequestBuilder<TEntity> Delete<TEntity>(DeleteItemRequest request) where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => Delete<TEntity>().WithRequest(request);");
+        sb.AppendLine();
+        
+        // DeleteAsync<TEntity>(DeleteItemRequest)
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Executes a pre-built DeleteItemRequest.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public async System.Threading.Tasks.Task DeleteAsync<TEntity>(DeleteItemRequest request, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine("        where TEntity : class, IDynamoDbEntity");
+        sb.AppendLine("        => await EntityExecuteAsyncExtensions.DeleteAsync(Delete<TEntity>(request), cancellationToken);");
         sb.AppendLine();
     }
 }

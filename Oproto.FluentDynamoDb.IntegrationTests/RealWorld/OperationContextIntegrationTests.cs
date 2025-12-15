@@ -887,7 +887,7 @@ public class OperationContextIntegrationTests : IntegrationTestBase
     }
     
     // Helper class to create a table instance
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)

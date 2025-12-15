@@ -19,7 +19,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Trait("Feature", "ExpressionUpdates")]
 public class ExpressionUpdateComprehensiveTests : IntegrationTestBase
 {
-    private DynamoDbTableBase _table = null!;
+    private GenericTable _table = null!;
     
     public ExpressionUpdateComprehensiveTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
@@ -437,7 +437,7 @@ public class ExpressionUpdateComprehensiveTests : IntegrationTestBase
         return getResponse.Item;
     }
     
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)

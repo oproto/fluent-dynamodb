@@ -71,6 +71,13 @@ public class ScanRequestBuilder<TEntity> :
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
     /// <summary>
+    /// Gets the response metadata from the most recent scan execution.
+    /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
+    /// Null if the scan hasn't been executed yet.
+    /// </summary>
+    public ScanOperationResponse? Response { get; internal set; }
+
+    /// <summary>
     /// Gets the internal attribute value helper for extension method access.
     /// </summary>
     /// <returns>The AttributeValueInternal instance used by this builder.</returns>
@@ -141,6 +148,40 @@ public class ScanRequestBuilder<TEntity> :
     public ScanRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built ScanRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's entity hydration capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built ScanRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new ScanRequest
+    /// {
+    ///     TableName = "Products",
+    ///     FilterExpression = "category = :cat",
+    ///     ExpressionAttributeValues = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         [":cat"] = new AttributeValue { S = "Electronics" }
+    ///     }
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Scan&lt;Product&gt;().WithRequest(sdkRequest);
+    /// var products = await builder.ToListAsync();
+    /// var scannedCount = builder.ScannedCount;
+    /// </code>
+    /// </example>
+    public ScanRequestBuilder<TEntity> WithRequest(ScanRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 
