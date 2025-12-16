@@ -936,8 +936,8 @@ await DynamoDbTransactions.Write
     .ExecuteAsync();
 
 // ❌ Avoid - separate operations can leave inconsistent state
-await accountTable.Update(fromAccount).Set(x => new { Balance = x.Balance - amount }).ExecuteAsync();
-await accountTable.Update(toAccount).Set(x => new { Balance = x.Balance + amount }).ExecuteAsync();
+await accountTable.Update(fromAccount).Set(x => new { Balance = x.Balance - amount }).UpdateAsync();
+await accountTable.Update(toAccount).Set(x => new { Balance = x.Balance + amount }).UpdateAsync();
 ```
 
 ### 2. Use Condition Checks for Validation

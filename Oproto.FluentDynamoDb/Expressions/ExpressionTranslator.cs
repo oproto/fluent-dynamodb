@@ -239,9 +239,10 @@ public class ExpressionTranslator
             UnaryExpression unary => VisitUnary(unary, entityParameter, context),
             MethodCallExpression methodCall => VisitMethodCall(methodCall, entityParameter, context),
             IndexExpression index => VisitIndex(index, entityParameter, context),
+            ConditionalExpression conditional => VisitConditional(conditional, entityParameter, context),
             _ => throw new UnsupportedExpressionException(
                 $"Expression type '{node.NodeType}' is not supported in DynamoDB expressions. " +
-                $"Supported types: Binary, Member, Constant, Unary, MethodCall, Index.",
+                $"Supported types: Binary, Member, Constant, Unary, MethodCall, Index, Conditional.",
                 node)
         };
     }
@@ -257,6 +258,18 @@ public class ExpressionTranslator
             var left = Visit(node.Left, entityParameter, context);
             var right = Visit(node.Right, entityParameter, context);
             var op = node.NodeType == ExpressionType.AndAlso ? "AND" : "OR";
+            
+            // Handle empty strings from conditional expressions that should be omitted
+            // For AND: if either side is empty, return the other side
+            // For OR: if either side is empty, return the other side (empty means "true" which is identity for OR)
+            if (string.IsNullOrEmpty(left))
+            {
+                return right;
+            }
+            if (string.IsNullOrEmpty(right))
+            {
+                return left;
+            }
             
             // Use StringBuilder to minimize allocations
             var sb = new StringBuilder(left.Length + right.Length + op.Length + 6);
@@ -683,6 +696,113 @@ public class ExpressionTranslator
             $"Unary operator '{node.NodeType}' is not supported in DynamoDB expressions. " +
             $"Supported operators: ! (NOT).",
             node);
+    }
+
+    /// <summary>
+    /// Visits a conditional expression node (ternary operator: condition ? trueValue : falseValue).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Conditional expressions allow dynamic filter inclusion based on runtime flags.
+    /// The condition is evaluated at translation time (not in DynamoDB), so it must not
+    /// reference the entity parameter.
+    /// </para>
+    /// <para><strong>Supported Patterns:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>x => flag ? x.Field == value : true - omits filter when flag is false</description></item>
+    /// <item><description>x => flag ? x.FieldA == valueA : x.FieldB == valueB - selects branch based on flag</description></item>
+    /// </list>
+    /// <para><strong>Unsupported Patterns:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>x => x.SomeProperty ? trueExpr : falseExpr - condition references entity</description></item>
+    /// </list>
+    /// </remarks>
+    /// <param name="node">The conditional expression node.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The translated DynamoDB expression string, or empty string if the filter should be omitted.</returns>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the condition references the entity parameter or evaluates to constant false.</exception>
+    private string VisitConditional(ConditionalExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // The condition must not reference the entity parameter - it must be evaluable at translation time
+        if (ReferencesEntityParameter(node.Test, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "Conditional test cannot reference entity properties. " +
+                "Use captured variables or constants for the condition. " +
+                "Example: 'x => someFlag ? x.Field == value : true' is valid, " +
+                "but 'x => x.SomeProperty ? trueExpr : falseExpr' is not.",
+                node);
+        }
+
+        // Evaluate the test condition at translation time
+        bool testResult;
+        try
+        {
+            var testValue = EvaluateExpression(node.Test);
+            testResult = testValue is bool b ? b : Convert.ToBoolean(testValue);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate conditional test expression: {ex.Message}",
+                node);
+        }
+
+        if (testResult)
+        {
+            // Condition is true - process the true branch
+            return Visit(node.IfTrue, entityParameter, context);
+        }
+        else
+        {
+            // Condition is false - check if false branch is constant true (skip filter)
+            if (IsConstantTrue(node.IfFalse))
+            {
+                // Return empty string to signal that this part of the filter should be omitted
+                return string.Empty;
+            }
+            
+            // Check if false branch is constant false (would return no results)
+            if (IsConstantFalse(node.IfFalse))
+            {
+                throw new UnsupportedExpressionException(
+                    "Filter expression evaluates to constant false, which would return no results. " +
+                    "Remove the filter or fix the condition.",
+                    node);
+            }
+
+            // Process the false branch
+            return Visit(node.IfFalse, entityParameter, context);
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression is a constant true value.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if the expression is constant true, false otherwise.</returns>
+    private bool IsConstantTrue(Expression expression)
+    {
+        if (expression is ConstantExpression constant && constant.Value is bool b)
+        {
+            return b;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if an expression is a constant false value.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if the expression is constant false, false otherwise.</returns>
+    private bool IsConstantFalse(Expression expression)
+    {
+        if (expression is ConstantExpression constant && constant.Value is bool b)
+        {
+            return !b;
+        }
+        return false;
     }
 
     /// <summary>

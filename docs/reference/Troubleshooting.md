@@ -388,13 +388,13 @@ Move non-key properties to WithFilter():
 // ❌ Wrong - Status is not a key attribute
 await table.Query
     .Where<User>(x => x.PartitionKey == userId && x.Status == "active")
-    .ExecuteAsync();
+    .ToListAsync<User>();
 
 // ✅ Correct - Move Status to filter
 await table.Query
     .Where<User>(x => x.PartitionKey == userId)
     .WithFilter<User>(x => x.Status == "active")
-    .ExecuteAsync();
+    .ToListAsync<User>();
 ```
 
 **Understanding the Difference:**
@@ -436,7 +436,7 @@ public partial class User
 await table.Query
     .Where<User>(x => x.UserId == userId)
     .WithFilter<User>(x => x.Email.StartsWith("admin@"))
-    .ExecuteAsync();
+    .ToListAsync<User>();
 ```
 
 **See Also:**
@@ -462,13 +462,13 @@ Transform values before the query:
 // ❌ Wrong - Can't call ToUpper() on entity property
 await table.Query
     .WithFilter<User>(x => x.Name.ToUpper() == "JOHN")
-    .ExecuteAsync();
+    .ToListAsync<User>();
 
 // ✅ Correct - Transform the comparison value
 var upperName = "JOHN";
 await table.Query
     .WithFilter<User>(x => x.Name == upperName)
-    .ExecuteAsync();
+    .ToListAsync<User>();
 
 // ✅ Alternative - Store normalized data
 // Add a computed property for case-insensitive queries
@@ -479,7 +479,7 @@ public string NameUpper => Name.ToUpper();
 // Then query the normalized field
 await table.Query
     .WithFilter<User>(x => x.NameUpper == "JOHN")
-    .ExecuteAsync();
+    .ToListAsync<User>();
 ```
 
 **See Also:**
@@ -666,17 +666,17 @@ Use `WithAttributeName` for reserved words:
 
 ```csharp
 // ❌ Wrong - 'status' is a reserved word
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // ✅ Correct - use attribute name placeholder
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithAttributeName("#status", UserFields.Status)
     .Where($"#status = {{0}}", "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 **Common Reserved Words:**
@@ -709,14 +709,14 @@ await table.Query
 
 ```csharp
 // ❌ Slow - scans entire table
-await table.Scan
+var users = await table.Scan
     .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // ✅ Fast - queries with partition key
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.Status, "active") // Requires GSI
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 2. **Add appropriate indexes:**
@@ -767,15 +767,15 @@ if (query.Response?.HasMorePages == true)
 
 ```csharp
 // ❌ Retrieves all attributes
-var response = await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // ✅ Only retrieves needed attributes
-var response = await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithProjection($"{UserFields.UserId}, {UserFields.Email}, {UserFields.Name}")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 **See Also:**
@@ -806,7 +806,7 @@ foreach (var userId in userIds)
 {
     await table.Get
         .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-        .ExecuteAsync<User>();
+        .GetItemAsync();
 }
 
 // ✅ Single batch request using static entry point
@@ -822,15 +822,15 @@ var response = await batch.ExecuteAsync();
 
 ```csharp
 // ❌ Consistent read (2x capacity)
-var response = await table.Get
+var user = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithConsistentRead(true)
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
 // ✅ Eventually consistent read (1x capacity)
-var response = await table.Get
+var user = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>(); // Consistent read is false by default
+    .GetItemAsync(); // Consistent read is false by default
 ```
 
 3. **Monitor item sizes:**
@@ -901,7 +901,7 @@ The library is AOT-compatible when using source generation. Ensure you're:
 // ✅ AOT-compatible - uses generated code
 var user = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 ```
 
 2. **Avoiding reflection-based patterns:**

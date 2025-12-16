@@ -57,6 +57,198 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-16]
+
+### Files: Multiple documentation files
+
+**Category:** API Correction - ExecuteAsync method names
+
+**Summary:** Corrected incorrect `ExecuteAsync()` method references to use the correct operation-specific method names.
+
+**Files Updated:**
+- `docs/QUICK_REFERENCE.md`
+- `docs/DeveloperGuide.md`
+- `docs/core-features/ExpressionBasedUpdates.md`
+- `docs/reference/AdoptionGuide.md`
+- `docs/reference/LoggingTroubleshooting.md`
+- `docs/core-features/LoggingConfiguration.md`
+- `docs/templates/code-example-template.md`
+
+**Before:**
+```csharp
+await table.Get().WithKey(...).ExecuteAsync();
+await table.Put().WithItem(...).ExecuteAsync();
+await table.Update().WithKey(...).Set(...).ExecuteAsync();
+await table.Delete().WithKey(...).ExecuteAsync();
+await table.Query().Where(...).ExecuteAsync();
+```
+
+**After:**
+```csharp
+await table.Get().WithKey(...).GetItemAsync();
+await table.Put().WithItem(...).PutAsync();
+await table.Update().WithKey(...).Set(...).UpdateAsync();
+await table.Delete().WithKey(...).DeleteAsync();
+await table.Query().Where(...).ToListAsync();
+```
+
+**Note:** `ExecuteAsync()` remains correct for batch operations (`DynamoDbBatch.Get`, `DynamoDbBatch.Write`) and transaction operations (`DynamoDbTransactions.Write`, `DynamoDbTransactions.Get`).
+
+**Reason:** The entity-specific extension methods use operation-specific names (`GetItemAsync`, `PutAsync`, `UpdateAsync`, `DeleteAsync`, `ToListAsync`) rather than a generic `ExecuteAsync()`. This correction ensures documentation matches the actual API.
+
+**Additional Files Updated (same date):**
+- `docs/core-features/Transactions.md` - Fixed individual Update operations in anti-pattern examples
+- `docs/core-features/BatchOperations.md` - Fixed individual Get operation in anti-pattern example
+- `docs/reference/FormatSpecifiers.md` - Fixed all Update and Put operations (11 instances)
+- `docs/reference/Troubleshooting.md` - Fixed Query operations (4 instances)
+- `docs/reference/AdvancedTypesMigration.md` - Fixed Update operations (3 instances)
+- `docs/core-features/datetime-kind-guide.md` - Fixed PutItem to Put().PutAsync()
+- `docs/core-features/LinqExpressions.md` - Fixed PutItem to Put().PutAsync() (2 instances)
+- `docs/advanced-topics/FieldLevelSecurity.md` - Fixed PutItem/GetItem to Put/Get with correct methods (4 instances)
+- `docs/core-features/encryption-guide.md` - Fixed Scan().ExecuteAsync() to Scan().ToListAsync() and Update().ExecuteAsync() to UpdateAsync()
+- `docs/core-features/format-strings-guide.md` - Fixed Scan().ExecuteAsync() to Scan().ToListAsync() and Update().ExecuteAsync() to UpdateAsync()
+- `docs/reference/ApiImprovementsMigration.md` - Fixed PutItem to Put
+
+**Additional Pattern Corrections:**
+- `PutItem(entity)` → `Put(entity)` (PutItem method doesn't exist on fluent API)
+- `GetItem(key)` → `Get(key)` (GetItem method doesn't exist on fluent API)
+- `await foreach (var x in table.Scan().ExecuteAsync())` → `var items = await table.Scan().ToListAsync(); foreach (var x in items)` (ExecuteAsync doesn't return IAsyncEnumerable)
+- `ExecuteAsync<T>()` → `ToListAsync()` for Query/Scan operations (ExecuteAsync<T> doesn't exist)
+
+**Additional Files Updated (continued):**
+- `docs/core-features/EntityDefinition.md` - Fixed Get and Query operations (3 instances)
+- `docs/reference/FormatSpecifiers.md` - Fixed all Query operations (9 instances)
+- `docs/reference/Troubleshooting.md` - Fixed Get, Query, and Scan operations (8 instances)
+- `docs/reference/AttributeReference.md` - Fixed Query to ToCompositeEntityAsync (1 instance)
+- `docs/templates/README.md` - Fixed Get operation (1 instance)
+- `docs/advanced-topics/ManualPatterns.md` - Fixed Query and Get operations (9 instances)
+- `docs/advanced-topics/InternalArchitecture.md` - Fixed Query operations (2 instances)
+
+---
+
+## [2025-12-15]
+
+### File: docs/core-features/LinqExpressions.md
+
+**Category:** New Documentation - Conditional Expressions and Local Function Evaluation
+
+**Summary:** Added comprehensive documentation for conditional expressions (ternary operators) in filter expressions and local function evaluation behavior.
+
+**Content Added:**
+- New "Conditional Expressions" section with:
+  - Basic conditional filter examples (`flag ? x.Field == value : true`)
+  - Partial filter inclusion patterns
+  - Multiple conditional filters
+  - Important rules (condition must not reference entity, use `true` for omission, constant `false` throws)
+- New "Local Function Evaluation" section with:
+  - Explanation that local functions are evaluated at translation time
+  - Valid patterns (functions not referencing entity)
+  - Invalid patterns (functions referencing entity parameter)
+  - AOT safety notes
+
+**Reason:** Documents new conditional expression support in filter expressions per Requirements 7.3 from v1-rough-edges spec. Users need to understand how to dynamically include/exclude filter conditions based on runtime flags.
+
+---
+
+### File: docs/core-features/ExpressionBasedUpdates.md
+
+**Category:** New Documentation - Conditional Update Expressions
+
+**Summary:** Added comprehensive documentation for conditional expressions in update operations.
+
+**Content Added:**
+- New "Conditional Updates" section with:
+  - Skip update with null false branch (`flag ? value : null` skips property)
+  - Conditional value selection (both branches non-null)
+  - Practical use cases (optional field updates, feature flag updates)
+  - Important rules (condition must not reference entity, null means skip not remove)
+
+**Reason:** Documents new conditional update expression support per Requirements 7.3 from v1-rough-edges spec. Users need to understand how to selectively update properties based on runtime conditions.
+
+---
+
+### File: docs/advanced-topics/AdvancedTypes.md
+
+**Category:** New Documentation - DateTime and DateTimeOffset Support
+
+**Summary:** Added comprehensive documentation for DateTime and DateTimeOffset type support, including TTL usage.
+
+**Content Added:**
+- New "DateTime and DateTimeOffset Support" section with:
+  - DateTime properties (ISO 8601 serialization)
+  - DateTimeOffset properties (preserves timezone offset)
+  - When to use DateTimeOffset (timezone preservation, user-facing times, audit trails)
+  - Round-trip consistency examples
+- Enhanced "Time-To-Live (TTL) Fields" section with:
+  - DateTime TTL example
+  - DateTimeOffset TTL example with conversion details
+  - TTL conversion explanation (Unix epoch seconds)
+
+**Reason:** Documents DateTimeOffset support per Requirements 7.1 from v1-rough-edges spec. Users need examples of DateTimeOffset entity properties and TTL usage.
+
+---
+
+### File: docs/core-features/EntityDefinition.md
+
+**Category:** New Documentation - Record Type Entities
+
+**Summary:** Added comprehensive documentation for using C# record types as DynamoDB entities.
+
+**Content Added:**
+- New "Record Type Entities" section with:
+  - Basic record entity example
+  - Record with positional parameters (primary constructor)
+  - Record with init-only properties
+  - Record class vs record struct
+  - Record with computed keys
+  - Considerations (benefits, limitations, best practices)
+
+**Reason:** Documents record type support per Requirements 7.2 from v1-rough-edges spec. Users need examples of record type entities and understanding of any limitations.
+
+---
+
+## [2025-12-15]
+
+### File: docs/advanced-topics/CompositeEntities.md
+
+**Category:** New Documentation - Pagination Limitations
+
+**Summary:** Added comprehensive "Limitations" section documenting the pagination limitations of `ToCompositeEntityAsync()` and `ToCompositeEntityListAsync()` methods.
+
+**Content Added:**
+- Explanation that these methods execute a single DynamoDB Query and do not handle pagination
+- Warning that composite entities must fit in a single response (up to 1MB)
+- Three recommended alternatives:
+  1. Manual pagination with assembly
+  2. Designing smaller composite entities
+  3. Using `ToListAsync()` for individual items
+- Guidance on when `ToCompositeEntityAsync()` works well
+- Code example for monitoring pagination issues via `builder.Response?.LastEvaluatedKey`
+
+**Reason:** Users need to understand that `ToCompositeEntityAsync()` does not automatically paginate, and large composite entities may be incomplete if they exceed the 1MB response limit. This addresses Requirements 3.1, 3.2, 3.3 from the v1-rough-edges spec.
+
+---
+
+### File: Oproto.FluentDynamoDb/Requests/Extensions/EntityExecuteAsyncExtensions.cs
+
+**Category:** API Documentation - XML Documentation Update
+
+**Summary:** Added XML documentation `<remarks>` sections to all four composite entity methods documenting pagination limitations:
+- `ToCompositeEntityAsync<T>(QueryRequestBuilder<T>, CancellationToken)`
+- `ToCompositeEntityAsync<T>(QueryRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+- `ToCompositeEntityListAsync<T>(QueryRequestBuilder<T>, CancellationToken)`
+- `ToCompositeEntityListAsync<T>(QueryRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+
+**Content Added:**
+- Warning that methods execute a single Query operation without pagination
+- Note that all items must fit in a single response (up to 1MB)
+- List of alternatives: manual pagination, smaller entities, `ToListAsync()`
+- Note that each page is processed independently for `ToCompositeEntityListAsync`
+
+**Reason:** XML documentation provides IntelliSense warnings to developers using these methods, helping them understand the pagination limitation before encountering issues at runtime.
+
+---
+
 ## [2025-12-15]
 
 ### File: docs/advanced-topics/PartiQL.md

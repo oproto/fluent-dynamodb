@@ -40,10 +40,19 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static bool IsDynamoDbEntity(SyntaxNode node)
     {
-        if (node is not ClassDeclarationSyntax classDecl)
+        // Support both class and record declarations
+        // Records are reference types in C# and can be used as DynamoDB entities
+        TypeDeclarationSyntax? typeDecl = node switch
+        {
+            ClassDeclarationSyntax classDecl => classDecl,
+            RecordDeclarationSyntax recordDecl => recordDecl,
+            _ => null
+        };
+
+        if (typeDecl == null)
             return false;
 
-        return classDecl.AttributeLists.Any(al =>
+        return typeDecl.AttributeLists.Any(al =>
             al.Attributes.Any(a =>
             {
                 var attributeName = a.Name.ToString();
@@ -56,10 +65,18 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static bool IsDynamoDbProjection(SyntaxNode node)
     {
-        if (node is not ClassDeclarationSyntax classDecl)
+        // Support both class and record declarations for projections
+        TypeDeclarationSyntax? typeDecl = node switch
+        {
+            ClassDeclarationSyntax classDecl => classDecl,
+            RecordDeclarationSyntax recordDecl => recordDecl,
+            _ => null
+        };
+
+        if (typeDecl == null)
             return false;
 
-        return classDecl.AttributeLists.Any(al =>
+        return typeDecl.AttributeLists.Any(al =>
             al.Attributes.Any(a =>
             {
                 var attributeName = a.Name.ToString();
@@ -70,13 +87,21 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static (EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics) GetEntityModel(GeneratorSyntaxContext context)
     {
-        if (context.Node is not ClassDeclarationSyntax classDecl)
+        // Support both class and record declarations
+        TypeDeclarationSyntax? typeDecl = context.Node switch
+        {
+            ClassDeclarationSyntax classDecl => classDecl,
+            RecordDeclarationSyntax recordDecl => recordDecl,
+            _ => null
+        };
+
+        if (typeDecl == null)
             return (null, Array.Empty<Diagnostic>());
 
         try
         {
             var analyzer = new EntityAnalyzer();
-            var entityModel = analyzer.AnalyzeEntity(classDecl, context.SemanticModel);
+            var entityModel = analyzer.AnalyzeEntity(typeDecl, context.SemanticModel);
 
             return (entityModel, analyzer.Diagnostics);
         }
@@ -91,8 +116,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                     "DynamoDb",
                     DiagnosticSeverity.Error,
                     isEnabledByDefault: true),
-                classDecl.Identifier.GetLocation(),
-                classDecl.Identifier.ValueText,
+                typeDecl.Identifier.GetLocation(),
+                typeDecl.Identifier.ValueText,
                 ex.Message);
 
             return (null, new[] { diagnostic });

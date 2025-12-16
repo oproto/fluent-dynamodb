@@ -37,4 +37,11 @@
       <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
     </ItemGroup>
 
+    <!-- Include source generator as analyzer for compile-time generation -->
+    <ItemGroup>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
 </Project>

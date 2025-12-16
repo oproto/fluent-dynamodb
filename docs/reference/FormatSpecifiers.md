@@ -57,23 +57,23 @@ Format specifiers follow standard .NET formatting conventions. The library suppo
 
 ```csharp
 // ISO 8601 round-trip format (recommended for DynamoDB)
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.CreatedAt} > {{0:o}}", DateTime.UtcNow.AddDays(-30))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // Custom date format
 await table.Update
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.LastLogin} = {{0:yyyy-MM-dd}}", DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Sortable format for range queries
-await table.Query
+var events = await table.Query
     .WithKey(EventFields.UserId, EventKeys.Pk("user123"))
     .Where($"{EventFields.Timestamp} BETWEEN {{0:s}} AND {{1:s}}", 
            startDate, endDate)
-    .ExecuteAsync<Event>();
+    .ToListAsync();
 ```
 
 
@@ -100,7 +100,7 @@ await table.Query
 await table.Update
     .WithKey(ProductFields.ProductId, ProductKeys.Pk("prod123"))
     .Set($"SET {ProductFields.Price} = {{0:F2}}", 19.99m)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Padded integers for sorting
 await table.Put
@@ -110,19 +110,19 @@ await table.Put
         SequenceNumber = 42 
     })
     .Set($"SET {OrderFields.SequenceKey} = {{0:D10}}", 42) // "0000000042"
-    .ExecuteAsync();
+    .PutAsync();
 
 // Percentage values
-await table.Query
+var metrics = await table.Query
     .WithKey(MetricFields.MetricId, MetricKeys.Pk("metric123"))
     .Where($"{MetricFields.SuccessRate} > {{0:P}}", 0.95) // "95.00%"
-    .ExecuteAsync<Metric>();
+    .ToListAsync();
 
 // Currency formatting
 await table.Update
     .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
     .Set($"SET {OrderFields.TotalFormatted} = {{0:C}}", 1234.56m) // "$1,234.56"
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### String Format Specifiers
@@ -131,17 +131,17 @@ Strings don't typically use format specifiers, but you can use standard string f
 
 ```csharp
 // Strings are used as-is (no format specifier needed)
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // Case conversion (not a format specifier, but useful)
 var status = "ACTIVE";
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.Status} = {{0}}", status.ToLower())
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 
@@ -151,10 +151,10 @@ Boolean values are converted to strings without format specifiers:
 
 ```csharp
 // Booleans don't support format specifiers
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.IsActive} = {{0}}", true) // Stored as "true"
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // Note: Attempting to use a format specifier with boolean throws an error
 // .Where($"{UserFields.IsActive} = {{0:X}}", true) // ❌ FormatException
@@ -174,19 +174,19 @@ public enum OrderStatus
 }
 
 // Enums are converted to string names
-await table.Query
+var orders = await table.Query
     .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
     .Where($"{OrderFields.Status} = {{0}}", OrderStatus.Shipped) // "Shipped"
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Enums don't support format specifiers
 // .Where($"{OrderFields.Status} = {{0:D}}", OrderStatus.Shipped) // ❌ FormatException
 
 // To use numeric values, cast to int first
-await table.Query
+var orders = await table.Query
     .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
     .Where($"{OrderFields.StatusCode} = {{0}}", (int)OrderStatus.Shipped) // "2"
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 ```
 
 ## Custom Format Strings
@@ -200,21 +200,21 @@ You can use any valid .NET custom format string for DateTime and numeric types.
 await table.Put
     .WithItem(new Event { Timestamp = DateTime.UtcNow })
     .Set($"SET {EventFields.YearMonth} = {{0:yyyy-MM}}", DateTime.UtcNow) // "2024-01"
-    .ExecuteAsync();
+    .PutAsync();
 
 // Full custom format
 await table.Update
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.LastSeen} = {{0:MMM dd, yyyy HH:mm:ss}}", DateTime.UtcNow)
     // "Jan 15, 2024 10:30:00"
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Unix timestamp (seconds since epoch)
 var unixTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 await table.Update
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Timestamp} = {{0}}", unixTime)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Custom Numeric Formats
@@ -224,20 +224,20 @@ await table.Update
 await table.Update
     .WithKey(ProductFields.ProductId, ProductKeys.Pk("prod123"))
     .Set($"SET {ProductFields.Weight} = {{0:0.000}}", 1.2345) // "1.235"
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Leading zeros
 await table.Put
     .WithItem(new Invoice { InvoiceNumber = 42 })
     .Set($"SET {InvoiceFields.FormattedNumber} = {{0:INV-000000}}", 42) // "INV-000042"
-    .ExecuteAsync();
+    .PutAsync();
 
 // Conditional formatting
 await table.Update
     .WithKey(AccountFields.AccountId, AccountKeys.Pk("acct123"))
     .Set($"SET {AccountFields.Balance} = {{0:#,##0.00;(#,##0.00);Zero}}", -1234.56)
     // Positive: "1,234.56", Negative: "(1,234.56)", Zero: "Zero"
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 
@@ -247,11 +247,11 @@ You can use multiple parameters with different format specifiers in a single exp
 
 ```csharp
 // Multiple parameters with different formats
-await table.Query
+var orders = await table.Query
     .WithKey(OrderFields.CustomerId, OrderKeys.Pk("cust123"))
     .Where($"{OrderFields.CreatedAt} BETWEEN {{0:o}} AND {{1:o}} AND {OrderFields.Total} > {{2:F2}}",
            startDate, endDate, 100.00m)
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 
 // Complex update with multiple formats
 await table.Update
@@ -260,7 +260,7 @@ await table.Update
          $"{UserFields.LoginCount} = {UserFields.LoginCount} + {{1}}, " +
          $"{UserFields.LastIp} = {{2}}", 
          DateTime.UtcNow, 1, "192.168.1.1")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## Reserved Words and Attribute Names
@@ -269,12 +269,12 @@ When using reserved DynamoDB words, combine format specifiers with attribute nam
 
 ```csharp
 // Using WithAttributeName for reserved words
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithAttributeName("#status", UserFields.Status)
     .Where($"#status = {{0}} AND {UserFields.CreatedAt} > {{1:o}}", 
            "active", DateTime.UtcNow.AddDays(-30))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ## Error Messages and Troubleshooting
@@ -451,12 +451,12 @@ You can mix expression formatting with manual parameter binding:
 
 ```csharp
 // Combine both approaches
-await table.Query
+var users = await table.Query
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Where($"{UserFields.CreatedAt} > {{0:o}} AND {UserFields.Status} = :status",
            DateTime.UtcNow.AddDays(-30))
     .WithValue(":status", "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ## Format Property on DynamoDbAttribute

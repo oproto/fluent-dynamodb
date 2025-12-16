@@ -357,7 +357,7 @@ Only update if the new attribute doesn't exist:
 await _table.Products.Update(productId)
     .Set(x => new { Tags = newTags })
     .Where(x => x.Tags.AttributeNotExists())
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## Common Migration Scenarios
@@ -444,7 +444,7 @@ public async Task AddTtlToExistingSessions(SessionTable table, TimeSpan sessionD
         {
             await table.Sessions.Update(session.SessionId)
                 .Set(x => new { ExpiresAt = DateTime.UtcNow.Add(sessionDuration) })
-                .ExecuteAsync();
+                .UpdateAsync();
         }
     }
 }
@@ -487,7 +487,7 @@ public async Task MigrateToS3(DocumentTable table, Document document, IBlobStora
         // Optionally remove old attribute
         await table.Documents.Update(document.DocumentId)
             .Remove(x => x.ContentOld)
-            .ExecuteAsync();
+            .UpdateAsync();
     }
 }
 ```

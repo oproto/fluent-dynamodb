@@ -97,8 +97,9 @@ internal static class MapperGenerator
         }
         sb.AppendLine($"    /// </summary>");
 
-        // Class declaration - partial class with IDynamoDbEntity interface
-        sb.AppendLine($"    public partial class {entity.ClassName} : IDynamoDbEntity");
+        // Type declaration - partial class or record with IDynamoDbEntity interface
+        var typeKeyword = entity.IsRecord ? "record" : "class";
+        sb.AppendLine($"    public partial {typeKeyword} {entity.ClassName} : IDynamoDbEntity");
         sb.AppendLine("    {");
 
         // Generate dynamic fields support if enabled

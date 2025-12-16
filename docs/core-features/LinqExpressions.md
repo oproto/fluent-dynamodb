@@ -448,6 +448,156 @@ table.Query()
 - No need to migrate if string-based code is working
 - Focus migration efforts on new code
 
+## Conditional Expressions
+
+Conditional expressions (ternary operators) allow you to dynamically include or exclude filter conditions based on runtime flags. This is useful when building queries with optional filters.
+
+### Basic Conditional Filter
+
+Use a ternary expression to conditionally apply a filter:
+
+```csharp
+var includeStatusFilter = true;
+var status = "ACTIVE";
+
+// When includeStatusFilter is true, applies the status filter
+// When false, the filter is omitted entirely
+await table.Query()
+    .Where<User>(x => x.PartitionKey == userId)
+    .WithFilter<User>(x => includeStatusFilter ? x.Status == status : true)
+    .ExecuteAsync();
+```
+
+**How It Works:**
+- The condition (`includeStatusFilter`) is evaluated at translation time
+- When `true`: The true branch (`x.Status == status`) is included in the filter
+- When `false` with `true` as the false branch: The filter is omitted entirely
+
+### Partial Filter Inclusion
+
+Combine conditional expressions with other conditions:
+
+```csharp
+var filterByAge = false;
+var minAge = 18;
+
+await table.Query()
+    .Where<User>(x => x.PartitionKey == tenantId)
+    .WithFilter<User>(x => 
+        x.Active && 
+        (filterByAge ? x.Age >= minAge : true))
+    .ExecuteAsync();
+
+// When filterByAge is false:
+// Filter: #active
+// (The age condition is omitted)
+
+// When filterByAge is true:
+// Filter: #active AND #age >= :p0
+```
+
+### Multiple Conditional Filters
+
+Chain multiple conditional filters:
+
+```csharp
+var filterByStatus = true;
+var filterByRegion = false;
+var status = "ACTIVE";
+var region = "US-WEST";
+
+await table.Query()
+    .Where<User>(x => x.PartitionKey == tenantId)
+    .WithFilter<User>(x => 
+        (filterByStatus ? x.Status == status : true) &&
+        (filterByRegion ? x.Region == region : true))
+    .ExecuteAsync();
+
+// Only the status filter is applied (filterByRegion is false)
+// Filter: #status = :p0
+```
+
+### Important Rules for Conditional Expressions
+
+1. **Condition must not reference entity properties**
+   ```csharp
+   // ✗ Invalid: Condition references entity property
+   x => x.IsAdmin ? x.Status == "ACTIVE" : true
+   
+   // ✓ Valid: Condition uses captured variable
+   var isAdmin = GetCurrentUserIsAdmin();
+   x => isAdmin ? x.Status == "ACTIVE" : true
+   ```
+
+2. **Use `true` as the false branch to omit the filter**
+   ```csharp
+   // ✓ Correct: Filter omitted when flag is false
+   x => flag ? x.Field == value : true
+   ```
+
+3. **Constant `false` throws an exception**
+   ```csharp
+   // ✗ Throws UnsupportedExpressionException
+   x => false ? x.Field == value : false
+   // Error: "Filter expression evaluates to constant false, 
+   //         which would return no results."
+   ```
+
+## Local Function Evaluation
+
+Local functions that don't reference the entity parameter are evaluated at translation time:
+
+```csharp
+// Local function that computes a value
+int GetMinScore() => DateTime.Now.Hour > 12 ? 100 : 50;
+
+await table.Query()
+    .Where<User>(x => x.PartitionKey == tenantId)
+    .WithFilter<User>(x => x.Score > GetMinScore())
+    .ExecuteAsync();
+
+// GetMinScore() is called once at translation time
+// The result is captured as a constant value
+```
+
+### Valid Local Function Patterns
+
+```csharp
+// ✓ Valid: Function doesn't reference entity
+string GetPrefix() => "USER#";
+x => x.SortKey.StartsWith(GetPrefix())
+
+// ✓ Valid: Function with parameters from captured scope
+int ComputeThreshold(int base) => base * 2;
+var baseValue = 50;
+x => x.Score > ComputeThreshold(baseValue)
+
+// ✓ Valid: Method on captured object
+var config = GetConfiguration();
+x => x.Total > config.GetMinimumOrder()
+```
+
+### Invalid Local Function Patterns
+
+```csharp
+// ✗ Invalid: Function references entity parameter
+bool IsHighValue(User u) => u.Total > 1000;
+x => IsHighValue(x)
+// Error: "Method 'IsHighValue' cannot reference the entity parameter"
+
+// ✗ Invalid: Lambda referencing entity
+Func<User, bool> filter = u => u.Active;
+x => filter(x)
+// Error: Cannot invoke delegates with entity parameter
+```
+
+### AOT Safety Note
+
+Local function evaluation is AOT-safe because:
+- Functions are evaluated at translation time, not at runtime
+- Results are captured as constant values in the expression
+- No dynamic code generation or reflection is used
+
 ## Valid vs Invalid Patterns
 
 ### ✓ Valid Patterns
@@ -670,9 +820,9 @@ var newUser = new User
     Name = "John Doe" 
 };
 
-await table.PutItem(newUser)
+await table.Put(newUser)
     .WithCondition<User>(x => x.Id.AttributeNotExists())
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ### Scan with Complex Filter
@@ -842,7 +992,7 @@ EncryptionContext.Current = "tenant-123";
 
 // All encryption operations in this async flow use the context
 var encryptedValue = table.Encrypt(value, fieldName);
-await table.PutItem(entity).ExecuteAsync();
+await table.Put(entity).PutAsync();
 await table.Query<User>()
     .WithFilter<User>(x => x.EncryptedField == table.Encrypt(value, "EncryptedField"))
     .ToListAsync();

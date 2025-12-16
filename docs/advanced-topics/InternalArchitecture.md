@@ -306,13 +306,13 @@ public static class UserQueryExtensions
 var users = await table.Query<User>()
     .Where<User>(x => x.TenantId == tenantId)
     .WithFilter<User>(x => x.Status == "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // With generated type-specific extensions (clean)
 var users = await table.Users.Query()
     .Where(x => x.TenantId == tenantId)
     .WithFilter(x => x.Status == "active")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Extension Methods Generated

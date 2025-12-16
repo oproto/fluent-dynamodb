@@ -253,7 +253,7 @@ var user = new User
     LastLogin = null
 };
 
-await table.PutItem(user).ExecuteAsync();
+await table.Put(user).PutAsync();
 ```
 
 ### Scenario 2: Scheduled Event with Timezone

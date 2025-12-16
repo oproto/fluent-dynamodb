@@ -350,6 +350,9 @@ public class UpdateExpressionTranslator
                 case OperationType.Delete:
                     deleteOperations.Add(operation.Expression);
                     break;
+                case OperationType.Skip:
+                    // Property should be skipped - do not add any operation
+                    break;
             }
         }
 
@@ -385,6 +388,12 @@ public class UpdateExpressionTranslator
             unwrapped = unary.Operand;
         }
 
+        // Handle conditional expressions (ternary operator)
+        if (unwrapped is ConditionalExpression conditional)
+        {
+            return HandleConditionalUpdate(conditional, parameter, propertyName, context);
+        }
+
         // Check for method calls (Add, Remove, Delete, IfNotExists, etc.)
         if (unwrapped is MethodCallExpression methodCall)
         {
@@ -399,6 +408,144 @@ public class UpdateExpressionTranslator
 
         // Simple value assignment - SET operation
         return TranslateSimpleSet(valueExpression, parameter, propertyName, context);
+    }
+
+    /// <summary>
+    /// Handles conditional expressions (ternary operator) in update expressions.
+    /// </summary>
+    /// <param name="conditional">The conditional expression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="propertyName">The property being updated.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>An operation representing the update, or Skip if the property should be skipped.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method handles patterns like:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description><c>Property = flag ? value : null</c> - Skip property when flag is false</description></item>
+    /// <item><description><c>Property = flag ? valueA : valueB</c> - Use appropriate value based on flag</description></item>
+    /// </list>
+    /// <para>
+    /// The condition must not reference the entity parameter - it must be evaluable at translation time.
+    /// When the condition is false and the false branch is null, the property update is skipped entirely
+    /// (no SET or REMOVE operation is generated).
+    /// </para>
+    /// </remarks>
+    private Operation HandleConditionalUpdate(
+        ConditionalExpression conditional,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        // The condition must not reference the entity parameter - it must be evaluable at translation time
+        if (ReferencesEntityParameter(conditional.Test, parameter))
+        {
+            throw new UnsupportedExpressionException(
+                "Conditional test cannot reference entity properties. " +
+                "Use captured variables or constants for the condition. " +
+                "Example: 'Property = flag ? value : null' is valid, " +
+                "but 'Property = x.SomeProperty ? valueA : valueB' is not.",
+                conditional);
+        }
+
+        // Evaluate the test condition at translation time
+        bool testResult;
+        try
+        {
+            var testValue = EvaluateExpression(conditional.Test);
+            testResult = testValue is bool b ? b : Convert.ToBoolean(testValue);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate conditional test expression for property '{propertyName}': {ex.Message}",
+                conditional);
+        }
+
+        if (testResult)
+        {
+            // Condition is true - process the true branch
+            return ClassifyOperation(conditional.IfTrue, parameter, propertyName, context);
+        }
+        else
+        {
+            // Condition is false - check if false branch is null (skip property)
+            if (IsNullExpression(conditional.IfFalse))
+            {
+                // Return Skip operation - property should not be updated
+                return new Operation
+                {
+                    Type = OperationType.Skip,
+                    Expression = string.Empty
+                };
+            }
+
+            // Process the false branch
+            return ClassifyOperation(conditional.IfFalse, parameter, propertyName, context);
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression represents a null value.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if the expression is null, false otherwise.</returns>
+    private bool IsNullExpression(Expression expression)
+    {
+        // Handle direct null constant
+        if (expression is ConstantExpression constant && constant.Value == null)
+        {
+            return true;
+        }
+
+        // Handle default(T) expressions
+        if (expression is DefaultExpression)
+        {
+            return true;
+        }
+
+        // Handle Convert(null) expressions
+        if (expression is UnaryExpression unary && 
+            (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            return IsNullExpression(unary.Operand);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if an expression references the entity parameter.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter to look for.</param>
+    /// <returns>True if the expression references the entity parameter, false otherwise.</returns>
+    private bool ReferencesEntityParameter(Expression expression, ParameterExpression entityParameter)
+    {
+        var visitor = new EntityParameterReferenceVisitor(entityParameter);
+        visitor.Visit(expression);
+        return visitor.ContainsReference;
+    }
+
+    private class EntityParameterReferenceVisitor : ExpressionVisitor
+    {
+        private readonly ParameterExpression _entityParameter;
+        public bool ContainsReference { get; private set; }
+
+        public EntityParameterReferenceVisitor(ParameterExpression entityParameter)
+        {
+            _entityParameter = entityParameter;
+        }
+
+        protected override Expression VisitParameter(ParameterExpression node)
+        {
+            if (node == _entityParameter)
+            {
+                ContainsReference = true;
+            }
+            return base.VisitParameter(node);
+        }
     }
 
     private Operation TranslateSimpleSet(
@@ -1917,7 +2064,8 @@ enum OperationType
     Set,
     Add,
     Remove,
-    Delete
+    Delete,
+    Skip
 }
 
 class Operation

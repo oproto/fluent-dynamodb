@@ -287,6 +287,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this method when you want to work with composite entities that span multiple DynamoDB items.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for each composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entities span more items than can fit in a single response, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// <para>
+    /// Each page of results is processed independently - composite entities are assembled only from items
+    /// within the same response page.
+    /// </para>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
@@ -346,6 +362,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for each composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entities span more items than can fit in a single response, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, IBlobStorageProvider, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// <para>
+    /// Each page of results is processed independently - composite entities are assembled only from items
+    /// within the same response page.
+    /// </para>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
@@ -433,6 +465,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this method when you expect to get a single composite entity from the query.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for the composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entity spans more items than can fit in a single response, the related entity collections
+    /// will be incomplete.
+    /// </para>
+    /// <para>
+    /// For composite entities that may exceed the 1MB response limit, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
@@ -488,6 +536,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for the composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entity spans more items than can fit in a single response, the related entity collections
+    /// will be incomplete.
+    /// </para>
+    /// <para>
+    /// For composite entities that may exceed the 1MB response limit, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, IBlobStorageProvider, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>

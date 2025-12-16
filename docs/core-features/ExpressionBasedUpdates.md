@@ -56,7 +56,7 @@ await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}, {UserFields.LoginCount} = {UserFields.LoginCount} + {{1}}", 
          "John Doe", 1)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Expression-Based (New)**
@@ -68,7 +68,7 @@ await table.Update()
         Name = "John Doe",
         LoginCount = x.LoginCount.Add(1)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ---
@@ -113,7 +113,7 @@ await usersTable.Update()
         Name = "John Doe",
         LoginCount = x.LoginCount.Add(1)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ---
@@ -183,7 +183,7 @@ await table.Update()
         Email = "john@example.com",
         Status = "active"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -204,7 +204,7 @@ await table.Update()
         Name = newName,
         UpdatedAt = timestamp
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Conditional Assignment with if_not_exists
@@ -216,7 +216,7 @@ await table.Update()
     {
         ViewCount = x.ViewCount.IfNotExists(0)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -240,7 +240,7 @@ await table.Update()
         LoginCount = x.LoginCount.Add(1),
         ViewCount = x.ViewCount.Add(5)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -257,7 +257,7 @@ await table.Update()
     {
         Credits = x.Credits.Add(-10)  // Subtract 10
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Add to Set
@@ -269,7 +269,7 @@ await table.Update()
     {
         Tags = x.Tags.Add("premium", "verified")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -302,7 +302,7 @@ await table.Update()
         LoginCount = x.LoginCount.Add(1),  // Works with int?
         Tags = x.Tags.Add("new-tag")  // Works with HashSet<string>?
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **How It Works:**
@@ -326,7 +326,7 @@ await table.Update()
     {
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -344,7 +344,7 @@ await table.Update()
         TempData = x.TempData.Remove(),
         CachedValue = x.CachedValue.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -373,7 +373,7 @@ await table.Update()
     {
         Tags = x.Tags.Delete("old-tag", "deprecated")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -392,7 +392,7 @@ await table.Update()
     {
         CategoryIds = x.CategoryIds.Delete(5, 10)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Nullable Property Support
@@ -414,7 +414,7 @@ await table.Update()
     {
         CategoryIds = x.CategoryIds.Delete(5, 10)  // Works with HashSet<int>?
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Important Notes
@@ -442,7 +442,7 @@ await table.Update()
         ViewCount = x.ViewCount.IfNotExists(0),
         CreatedAt = x.CreatedAt.IfNotExists(DateTime.UtcNow)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Use Cases:**
@@ -470,7 +470,7 @@ await table.Update()
     {
         History = x.History.ListAppend("login", "profile-view")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -498,7 +498,7 @@ await table.Update()
     {
         RecentActivity = x.RecentActivity.ListPrepend("new-event")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -531,7 +531,7 @@ await table.Update()
         Score = x.Score + 10,
         Balance = x.Balance + 50.00m
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -548,7 +548,7 @@ await table.Update()
     {
         Credits = x.Credits - 5
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Property-to-Property Arithmetic
@@ -562,7 +562,7 @@ await table.Update()
     {
         TotalScore = x.BaseScore + x.BonusScore
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -617,7 +617,7 @@ await table.Update()
         // REMOVE operations
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -640,7 +640,7 @@ await table.Update()
         // DELETE operations
         Tags = x.Tags.Delete("old-tag")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Complex Example
@@ -674,8 +674,138 @@ await table.Update()
         // REMOVE
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
+
+---
+
+## Conditional Updates
+
+Conditional expressions (ternary operators) allow you to selectively update properties based on runtime conditions. This is useful when you want to skip certain updates based on flags or input validation.
+
+### Skip Update with Null False Branch
+
+When the false branch is `null`, the property update is skipped entirely (no SET or REMOVE operation):
+
+```csharp
+var updateName = true;
+var updateEmail = false;
+var newName = "John Doe";
+var newEmail = "john@example.com";
+
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        // Updated because updateName is true
+        Name = updateName ? newName : null,
+        
+        // Skipped because updateEmail is false (null branch)
+        Email = updateEmail ? newEmail : null
+    })
+    .UpdateAsync();
+
+// Generated Expression (Email is completely omitted):
+// SET #name = :p0
+```
+
+**Key Behavior:**
+- When condition is `true`: The value is set normally
+- When condition is `false` with `null` as false branch: The property is **skipped entirely**
+- No REMOVE operation is generated for skipped properties
+
+### Conditional Value Selection
+
+When both branches have non-null values, the appropriate value is selected:
+
+```csharp
+var isPremium = true;
+var premiumDiscount = 0.20m;
+var standardDiscount = 0.10m;
+
+await table.Update()
+    .WithKey(ProductFields.ProductId, ProductKeys.Pk("prod123"))
+    .Set(x => new ProductUpdateModel 
+    {
+        // Selects premiumDiscount (0.20) because isPremium is true
+        Discount = isPremium ? premiumDiscount : standardDiscount
+    })
+    .UpdateAsync();
+
+// Generated Expression:
+// SET #discount = :p0
+// Where :p0 = 0.20
+```
+
+### Practical Use Cases
+
+#### Optional Field Updates
+
+```csharp
+public async Task UpdateUser(string userId, string? newName, string? newEmail)
+{
+    await table.Update()
+        .WithKey(UserFields.UserId, UserKeys.Pk(userId))
+        .Set(x => new UserUpdateModel 
+        {
+            // Only update if new value provided
+            Name = newName != null ? newName : null,
+            Email = newEmail != null ? newEmail : null,
+            UpdatedAt = DateTime.UtcNow  // Always update timestamp
+        })
+        .UpdateAsync();
+}
+
+// Call with only name update:
+await UpdateUser("user123", "New Name", null);
+// Generated: SET #name = :p0, #updated_at = :p1
+// (Email is skipped)
+```
+
+#### Feature Flag Updates
+
+```csharp
+var enableNewFeature = GetFeatureFlag("new-scoring");
+
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        // Only update score if feature is enabled
+        Score = enableNewFeature ? x.Score.Add(10) : null,
+        
+        // Always update login count
+        LoginCount = x.LoginCount.Add(1)
+    })
+    .UpdateAsync();
+```
+
+### Important Rules for Conditional Updates
+
+1. **Condition must not reference entity properties**
+   ```csharp
+   // ✗ Invalid: Condition references entity property
+   Name = x.IsAdmin ? "Admin" : "User"
+   
+   // ✓ Valid: Condition uses captured variable
+   var isAdmin = GetCurrentUserIsAdmin();
+   Name = isAdmin ? "Admin" : "User"
+   ```
+
+2. **Null false branch means skip (not remove)**
+   ```csharp
+   // Property is SKIPPED (not removed from DynamoDB)
+   Name = flag ? newName : null
+   
+   // To REMOVE a property, use Remove() explicitly
+   Name = x.Name.Remove()
+   ```
+
+3. **Both branches can use update operations**
+   ```csharp
+   // Valid: Different operations based on condition
+   Score = isPremium ? x.Score.Add(100) : x.Score.Add(10)
+   ```
 
 ---
 
@@ -708,7 +838,7 @@ await table.Update()
         BirthDate = new DateTime(1990, 5, 15),  // Formatted as "1990-05-15"
         LastLogin = DateTime.Now  // Formatted as "2024-03-15 14:30:00"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Numeric Formatting
@@ -736,7 +866,7 @@ await table.Update()
         Quantity = 42,  // Stored as "00042"
         Discount = 0.15m  // Stored as "15.0%"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Common Format Specifiers
@@ -767,13 +897,13 @@ Format strings are applied automatically during translation:
 Format strings work consistently across all operations:
 
 ```csharp
-// PutItem - formats on write
-await table.PutItem(new User 
+// Put - formats on write
+await table.Put(new User 
 { 
     UserId = "user123",
     CreatedAt = DateTime.UtcNow  // Formatted with "o"
 })
-.ExecuteAsync();
+.PutAsync();
 
 // UpdateItem - formats on write
 await table.Update()
@@ -782,13 +912,13 @@ await table.Update()
     {
         CreatedAt = DateTime.UtcNow  // Formatted with "o"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // GetItem - parses on read
-var response = await table.Get()
+var user = await table.Get()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync();
-// response.Item.CreatedAt is parsed back to DateTime
+    .GetItemAsync();
+// user.CreatedAt is parsed back to DateTime
 ```
 
 ### Nullable Property Support
@@ -806,7 +936,7 @@ await table.Update()
     {
         OptionalDate = DateTime.Now  // Formatted even though property is nullable
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ---
@@ -841,7 +971,7 @@ public partial class User
 await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.SocialSecurityNumber} = {{0}}", "123-45-6789")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Planned Implementation
@@ -876,7 +1006,7 @@ await table.Update()
          "John Doe", "active")
     .Set($"ADD {UserFields.LoginCount} {{0}}", 1)
     .Set($"REMOVE {UserFields.TempData}")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### After: Expression-Based
@@ -891,7 +1021,7 @@ await table.Update()
         LoginCount = x.LoginCount.Add(1),
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Migration Steps
@@ -920,7 +1050,7 @@ await table.Update()
     })
     // String-based (still works)
     .Set($"SET {UserFields.LegacyField} = {{0}}", "value")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ⚠️ **Note:** Mixing approaches in the same `.Set()` call is not supported. Use separate calls.
@@ -1040,7 +1170,7 @@ try
         {
             Name = x.Name.ToUpper()  // ❌ Method calls not supported
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (UnsupportedExpressionException ex)
 {
@@ -1061,7 +1191,7 @@ try
         {
             UserId = "new-id"  // ❌ Cannot update partition key
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (InvalidUpdateOperationException ex)
 {
@@ -1082,7 +1212,7 @@ try
         {
             NonExistentProperty = "value"  // ❌ Property not in entity
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (UnmappedPropertyException ex)
 {
@@ -1103,7 +1233,7 @@ try
         {
             SocialSecurityNumber = "123-45-6789"  // ❌ Encrypted property without encryptor
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (EncryptionRequiredException ex)
 {
@@ -1199,12 +1329,12 @@ builder.Set("SET #name = :name, #desc = :desc")
 
 ```csharp
 // ✅ Correct: Create new item with new key
-await table.PutItem(new User 
+await table.Put(new User 
 {
     UserId = "new-id",
     // ... other properties
 })
-.ExecuteAsync();
+.PutAsync();
 ```
 
 #### Issue: Format String Not Applied
@@ -1402,7 +1532,7 @@ try
     await table.Update()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
         .Set(x => new UserUpdateModel { Name = "John" })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (InvalidUpdateOperationException ex)
 {
@@ -1447,12 +1577,12 @@ public async Task Update_GeneratesCorrectExpression()
             Name = "John",
             LoginCount = x.LoginCount.Add(1)
         })
-        .ExecuteAsync();
+        .UpdateAsync();
     
     // Assert - verify the update was applied correctly
     var response = await table.Get()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-        .ExecuteAsync();
+        .UpdateAsync();
     
     Assert.Equal("John", response.Item.Name);
 }

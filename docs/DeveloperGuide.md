@@ -284,7 +284,7 @@ await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
          "New Name", DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 See [Expression Formatting](core-features/ExpressionFormatting.md) for supported format specifiers and advanced usage.
@@ -315,28 +315,28 @@ var user = new User
 
 await table.Put()
     .WithItem(user)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Read
-var response = await table.Get()
+var user = await table.Get()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
-if (response.Item != null)
+if (user != null)
 {
-    Console.WriteLine($"Found user: {response.Item.Name}");
+    Console.WriteLine($"Found user: {user.Name}");
 }
 
 // Update with format strings
 await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Delete
 await table.Delete()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync();
+    .DeleteAsync();
 ```
 
 ### Query Operations
@@ -507,14 +507,14 @@ See [Composite Entities](advanced-topics/CompositeEntities.md) for detailed docu
 await table.Put()
     .WithItem(user)
     .Where($"attribute_not_exists({{0}})", UserFields.UserId)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Conditional update with version check
 await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}", "New Name")
     .Where($"{UserFields.Version} = {{0}}", currentVersion)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 See [Basic Operations](core-features/BasicOperations.md) for more conditional examples.
@@ -610,7 +610,7 @@ await DynamoDbTransactions.Write
        await table.Put()
            .WithItem(user)
            .WithConditionExpression($"attribute_not_exists({UserFields.UserId})")
-           .ExecuteAsync();
+           .PutAsync();
    }
    catch (ConditionalCheckFailedException)
    {
