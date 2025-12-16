@@ -49,16 +49,16 @@ await table.Query
     .ExecuteAsync();
 
 // ✅ ALTERNATIVE: Format strings - concise with placeholders
-await table.Query
+var users = await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // ⚠️ EXPLICIT CONTROL: Manual patterns - for specific scenarios (this guide)
-await table.Query
+var users = await table.Query
     .Where("#pk = :pk")
     .WithAttribute("#pk", "pk")
     .WithValue(":pk", UserKeys.Pk("user123"))
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 **Benefits of Lambda Expressions (Preferred):**
@@ -407,11 +407,11 @@ var response = await table.Query
     .ExecuteAsync();
 
 // Compare with expression formatting (recommended)
-var response = await table.Query
+var users = await table.Query
     .Where($"{UserFields.PartitionKey} = {{0}} AND {UserFields.SortKey} > {{1:o}}", 
            UserKeys.Pk("user123"), 
            DateTime.UtcNow.AddDays(-7))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ### Reserved Word Handling
@@ -425,9 +425,9 @@ var response = await table.Query
     .ExecuteAsync();
 
 // Compare with expression formatting (recommended)
-var response = await table.Query
+var users = await table.Query
     .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 // Expression formatting handles reserved words automatically
 ```
 
@@ -448,11 +448,11 @@ var response = await table.Query
     .ExecuteAsync();
 
 // Compare with expression formatting (recommended)
-var response = await table.Query
+var users = await table.Query
     .Where($"{UserFields.PartitionKey} = {{0}}", UserKeys.Pk("user123"))
     .WithFilter($"{UserFields.Status} = {{0}} AND {UserFields.Age} > {{1}} AND contains({UserFields.Email}, {{2}})", 
                 "active", 18, "@example.com")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ### Update Expressions
@@ -599,11 +599,9 @@ public class MigrationService
     // New approach (source generation)
     public async Task<User?> GetUserNewWayAsync(string userId)
     {
-        var response = await table.Get
+        return await table.Get
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-            .ExecuteAsync<User>();
-        
-        return response.Item;
+            .GetItemAsync();
     }
     
     // Gradual migration: Support both
@@ -849,16 +847,16 @@ var response = await table.Query
     .ExecuteAsync();
 
 // 2. ALTERNATIVE: Format string - concise with placeholders
-var response = await table.Query
+var users = await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // 3. EXPLICIT CONTROL: Manual - for complex scenarios
-var response = await table.Query
+var users = await table.Query
     .Where("#pk = :pk")
     .WithAttribute("#pk", "pk")
     .WithValue(":pk", UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ### Scenario 2: Manual Table with Format Strings
@@ -900,11 +898,9 @@ public class HybridUserService
     // New method (source generation)
     public async Task<User?> GetUserAsync(string userId)
     {
-        var response = await table.Get
+        return await table.Get
             .WithKey(UserFields.UserId, UserKeys.Pk(userId))
-            .ExecuteAsync<User>();
-        
-        return response.Item;
+            .GetItemAsync();
     }
     
     // Wrapper for gradual migration
@@ -984,17 +980,17 @@ await table.Query
     .ExecuteAsync();
 
 // ✅ ALTERNATIVE: Format strings - concise with placeholders
-await table.Query
+var users = await table.Query
     .Where($"{UserFields.UserId} = {{0}}", UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .ToListAsync();
 
 // ⚠️ EXPLICIT CONTROL: Manual patterns - use only when necessary
 var table = new DynamoDbTableBase(client, "dynamic-table");
-await table.Query
+var users = await table.Query
     .Where("#pk = :pk")
     .WithAttribute("#pk", "pk")
     .WithValue(":pk", "USER#user123")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### 2. Use Constants for Field Names

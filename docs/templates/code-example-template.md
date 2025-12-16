@@ -35,10 +35,10 @@ public partial class EntityName
 var client = new AmazonDynamoDBClient();
 var table = new DynamoDbTable<EntityName>(client);
 
-var result = await table.Operation
+var result = await table.Operation()
     .WithKey(EntityNameFields.Id, EntityNameKeys.Pk("value"))
     .Where($"{EntityNameFields.Status} = {{0}}", "active")
-    .ExecuteAsync();
+    .ToListAsync();  // or GetItemAsync(), PutAsync(), UpdateAsync(), DeleteAsync()
 ```
 
 **Note**: You can also use manual parameter binding for dynamic scenarios. See [Manual Patterns](../advanced-topics/ManualPatterns.md) for details.
@@ -109,9 +109,9 @@ var user = new User
     CreatedAt = DateTime.UtcNow
 };
 
-await table.Put
+await table.Put()
     .WithItem(user)
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 **Note**: You can also use manual parameter binding. See [Manual Patterns](../advanced-topics/ManualPatterns.md) for details.
@@ -151,13 +151,13 @@ public partial class User
 var client = new AmazonDynamoDBClient();
 var table = new DynamoDbTable<User>(client);
 
-await table.Update
+await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Email} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
          "newemail@example.com", 
          DateTime.UtcNow)
     .Where($"{UserFields.Status} = {{0}}", "active")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Note**: The `{1:o}` format specifier formats the DateTime in ISO 8601 format. See [Format Specifiers](../reference/FormatSpecifiers.md) for more options.
@@ -200,14 +200,14 @@ public partial class User
 var client = new AmazonDynamoDBClient();
 var table = new DynamoDbTable<User>(client);
 
-var response = await table.Query
+var users = await table.Query()
     .WithKeyCondition($"{UserFields.TenantId} = {{0}}", "tenant123")
     .WithFilterExpression($"{UserFields.Status} = {{0}} AND {UserFields.CreatedAt} > {{1:o}}", 
                           "active", 
                           DateTime.UtcNow.AddDays(-30))
-    .ExecuteAsync();
+    .ToListAsync();
 
-foreach (var user in response.Items)
+foreach (var user in users)
 {
     Console.WriteLine($"User: {user.UserId}, Status: {user.Status}");
 }
@@ -223,29 +223,29 @@ foreach (var user in response.Items)
 ### ❌ Don't Show Manual Patterns First
 ```csharp
 // Don't do this - manual pattern shown first
-await table.Update
+await table.Update()
     .WithKey("pk", new AttributeValue { S = "user123" })
     .Set("SET email = :email")
     .WithValue(":email", "newemail@example.com")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### ❌ Don't Use Incomplete Examples
 ```csharp
 // Don't do this - missing entity definition and using statements
-var result = await table.Query
+var result = await table.Query()
     .WithKeyCondition(...)
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### ❌ Don't Mix Patterns Without Explanation
 ```csharp
 // Don't do this - mixing patterns without context
-await table.Update
+await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))  // Generated
     .Set("SET email = :email")                            // Manual
     .WithValue(":email", "newemail@example.com")         // Manual
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## Format Specifier Quick Reference

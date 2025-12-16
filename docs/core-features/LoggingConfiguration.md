@@ -61,7 +61,7 @@ var options = new FluentDynamoDbOptions()
 var table = new ProductsTable(client, "products", options);
 
 // All operations are now logged
-await table.Get<Product>().WithKey("pk", "product-123").ExecuteAsync();
+await table.Get<Product>().WithKey("pk", "product-123").GetItemAsync();
 ```
 
 Or use the factory extension directly:
@@ -198,7 +198,7 @@ public async Task<APIGatewayProxyResponse> FunctionHandler(
     var table = new ProductsTable(_dynamoDbClient, "products", options);
     
     // Operations are logged to CloudWatch
-    await table.Get<Product>().WithKey("pk", productId).ExecuteAsync();
+    await table.Get<Product>().WithKey("pk", productId).GetItemAsync();
 }
 ```
 
@@ -223,7 +223,7 @@ var options = new FluentDynamoDbOptions()
 var table = new ProductsTable(client, "products", options);
 
 // Operations are logged to console
-await table.Get<Product>().WithKey("pk", "product-123").ExecuteAsync();
+await table.Get<Product>().WithKey("pk", "product-123").GetItemAsync();
 ```
 
 ## FluentDynamoDbOptions Configuration
@@ -308,7 +308,7 @@ public class ProductsTable : DynamoDbTableBase
 ### Operation-Level Logging
 
 ```csharp
-await table.Query<Product>("pk = {0}", "product-123").ExecuteAsync();
+await table.Query<Product>("pk = {0}", "product-123").ToListAsync();
 
 // Logs:
 // [Information] Executing Query on table products. KeyCondition: pk = :p0

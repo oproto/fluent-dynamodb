@@ -974,11 +974,9 @@ public partial class OrderItem
 }
 
 // Usage
-var response = await table.Query
+var order = await table.Query
     .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
-    .ExecuteAsync<Order>();
-
-var order = await response.ToCompositeEntityAsync<Order>();
+    .ToCompositeEntityAsync();
 // order.Items is automatically populated with all items matching "ITEM#*"
 // order.Summary is populated if an item with sk="SUMMARY" exists
 ```

@@ -154,13 +154,13 @@ Retrieve a single item by its primary key.
 
 ```csharp
 // Retrieve a user by ID
-var response = await table.Get
+var user = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
-if (response.Item != null)
+if (user != null)
 {
-    Console.WriteLine($"Email: {response.Item.Email}");
+    Console.WriteLine($"Email: {user.Email}");
 }
 ```
 

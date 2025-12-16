@@ -257,9 +257,9 @@ public static string BuildPartitionKey(string tenantId, string orderId)
 }
 
 // Usage
-var response = await table.Get
+var item = await table.Get()
     .WithKey("pk", BuildPartitionKey("tenant123", "order456"))
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 ### Global Secondary Indexes
@@ -299,11 +299,11 @@ public static class ProductFields
 }
 
 // Query GSI with manual constants
-var response = await table.Query<Product>()
+var products = await table.Query<Product>()
     .UsingIndex("StatusIndex")
     .Where($"{Product.Fields.Status} = :status")
     .WithValue(":status", "active")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Migration Strategies

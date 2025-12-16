@@ -13,15 +13,25 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Performance;
 internal static class IncrementalSourceGenerator
 {
     /// <summary>
-    /// Transforms entity class with caching for improved performance.
+    /// Transforms entity type (class or record) with caching for improved performance.
     /// </summary>
     public static (EntityModel? EntityModel, string CacheKey) TransformEntityClass(GeneratorSyntaxContext context)
     {
-        var classDecl = (ClassDeclarationSyntax)context.Node;
+        // Support both class and record declarations
+        TypeDeclarationSyntax? typeDecl = context.Node switch
+        {
+            ClassDeclarationSyntax classDecl => classDecl,
+            RecordDeclarationSyntax recordDecl => recordDecl,
+            _ => null
+        };
+
+        if (typeDecl == null)
+            return (null, string.Empty);
+
         var semanticModel = context.SemanticModel;
 
-        // Generate cache key based on class content
-        var cacheKey = GenerateCacheKey(classDecl, semanticModel);
+        // Generate cache key based on type content
+        var cacheKey = GenerateCacheKey(typeDecl, semanticModel);
 
         // Try to get from cache first
         if (EntityTransformCache.TryGetCached(cacheKey, out var cachedResult))
@@ -33,7 +43,7 @@ internal static class IncrementalSourceGenerator
         try
         {
             var analyzer = new EntityAnalyzer();
-            var entityModel = analyzer.AnalyzeEntity(classDecl, semanticModel);
+            var entityModel = analyzer.AnalyzeEntity(typeDecl, semanticModel);
 
             // Cache the result
             if (entityModel != null)
@@ -51,40 +61,43 @@ internal static class IncrementalSourceGenerator
     }
 
     /// <summary>
-    /// Generates a cache key based on class declaration and semantic information.
+    /// Generates a cache key based on type declaration and semantic information.
     /// </summary>
-    private static string GenerateCacheKey(ClassDeclarationSyntax classDecl, SemanticModel semanticModel)
+    private static string GenerateCacheKey(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel)
     {
-        var className = classDecl.Identifier.ValueText;
-        var namespaceName = GetNamespace(classDecl);
+        var typeName = typeDecl.Identifier.ValueText;
+        var namespaceName = GetNamespace(typeDecl);
 
         // Include attribute information in cache key
         var attributeInfo = string.Join("|",
-            classDecl.AttributeLists
+            typeDecl.AttributeLists
                 .SelectMany(al => al.Attributes)
                 .Select(a => a.Name.ToString()));
 
         // Include property information in cache key
         var propertyInfo = string.Join("|",
-            classDecl.Members
+            typeDecl.Members
                 .OfType<PropertyDeclarationSyntax>()
                 .Select(p => $"{p.Identifier.ValueText}:{p.Type}"));
 
-        return $"{namespaceName}.{className}#{attributeInfo}#{propertyInfo}".GetHashCode().ToString();
+        // Include type kind (class vs record) in cache key
+        var typeKind = typeDecl is RecordDeclarationSyntax ? "record" : "class";
+
+        return $"{namespaceName}.{typeName}#{typeKind}#{attributeInfo}#{propertyInfo}".GetHashCode().ToString();
     }
 
     /// <summary>
-    /// Gets the namespace for a class declaration.
+    /// Gets the namespace for a type declaration.
     /// </summary>
-    private static string GetNamespace(ClassDeclarationSyntax classDecl)
+    private static string GetNamespace(TypeDeclarationSyntax typeDecl)
     {
-        var namespaceDecl = classDecl.Ancestors().OfType<NamespaceDeclarationSyntax>().FirstOrDefault();
+        var namespaceDecl = typeDecl.Ancestors().OfType<NamespaceDeclarationSyntax>().FirstOrDefault();
         if (namespaceDecl != null)
         {
             return namespaceDecl.Name.ToString();
         }
 
-        var fileScopedNamespace = classDecl.Ancestors().OfType<FileScopedNamespaceDeclarationSyntax>().FirstOrDefault();
+        var fileScopedNamespace = typeDecl.Ancestors().OfType<FileScopedNamespaceDeclarationSyntax>().FirstOrDefault();
         if (fileScopedNamespace != null)
         {
             return fileScopedNamespace.Name.ToString();

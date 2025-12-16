@@ -40,6 +40,191 @@ public partial class User
 }
 ```
 
+## Record Type Entities
+
+C# record types are fully supported as DynamoDB entities. Records provide immutable data patterns with built-in value equality.
+
+### Basic Record Entity
+
+```csharp
+using Oproto.FluentDynamoDb.Attributes;
+
+[DynamoDbTable("products")]
+public partial record Product
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string ProductId { get; init; } = string.Empty;
+    
+    [DynamoDbAttribute("name")]
+    public string Name { get; init; } = string.Empty;
+    
+    [DynamoDbAttribute("price")]
+    public decimal Price { get; init; }
+}
+
+// Usage
+var product = new Product
+{
+    ProductId = "prod-123",
+    Name = "Widget",
+    Price = 29.99m
+};
+
+await table.Products.PutAsync(product);
+```
+
+### Record with Positional Parameters
+
+Records with positional (primary constructor) parameters are supported:
+
+```csharp
+[DynamoDbTable("events")]
+public partial record Event(
+    [property: PartitionKey]
+    [property: DynamoDbAttribute("pk")]
+    string EventId,
+    
+    [property: DynamoDbAttribute("name")]
+    string Name,
+    
+    [property: DynamoDbAttribute("timestamp")]
+    DateTime Timestamp
+);
+
+// Usage
+var evt = new Event("evt-123", "UserLogin", DateTime.UtcNow);
+await table.Events.PutAsync(evt);
+```
+
+**Note:** Use `[property: AttributeName]` syntax to apply attributes to the generated properties.
+
+### Record with Init-Only Properties
+
+Init-only properties work seamlessly:
+
+```csharp
+[DynamoDbTable("orders")]
+public partial record Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public required string OrderId { get; init; }
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public required string CustomerId { get; init; }
+    
+    [DynamoDbAttribute("total")]
+    public decimal Total { get; init; }
+    
+    [DynamoDbAttribute("status")]
+    public string Status { get; init; } = "pending";
+    
+    [DynamoDbAttribute("items")]
+    public IReadOnlyList<string> Items { get; init; } = Array.Empty<string>();
+}
+
+// Usage with object initializer
+var order = new Order
+{
+    OrderId = "order-123",
+    CustomerId = "cust-456",
+    Total = 99.99m,
+    Items = new[] { "item-1", "item-2" }
+};
+
+// Usage with 'with' expression for updates
+var updatedOrder = order with { Status = "shipped" };
+```
+
+### Record Class vs Record Struct
+
+Both `record class` (reference type) and `record struct` (value type) are supported:
+
+```csharp
+// Record class (reference type, default)
+[DynamoDbTable("users")]
+public partial record class User
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string UserId { get; init; } = string.Empty;
+}
+
+// Record struct (value type)
+[DynamoDbTable("coordinates")]
+public partial record struct Coordinate
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Id { get; init; }
+    
+    [DynamoDbAttribute("lat")]
+    public double Latitude { get; init; }
+    
+    [DynamoDbAttribute("lon")]
+    public double Longitude { get; init; }
+}
+```
+
+### Record with Computed Keys
+
+Records work with all key patterns including computed keys:
+
+```csharp
+[DynamoDbTable("transactions")]
+public partial record Transaction
+{
+    public string TransactionId { get; init; } = string.Empty;
+    public string AccountId { get; init; } = string.Empty;
+    
+    [PartitionKey]
+    [Computed(nameof(AccountId), Format = "ACCOUNT#{0}")]
+    [DynamoDbAttribute("pk")]
+    public string PartitionKey { get; init; } = string.Empty;
+    
+    [SortKey]
+    [Computed(nameof(TransactionId), Format = "TXN#{0}")]
+    [DynamoDbAttribute("sk")]
+    public string SortKey { get; init; } = string.Empty;
+    
+    [DynamoDbAttribute("amount")]
+    public decimal Amount { get; init; }
+    
+    [DynamoDbAttribute("timestamp")]
+    public DateTimeOffset Timestamp { get; init; }
+}
+```
+
+### Considerations for Record Types
+
+**Benefits:**
+- Immutable by default (safer concurrent access)
+- Built-in value equality (useful for comparisons)
+- Concise syntax with positional parameters
+- `with` expressions for creating modified copies
+
+**Limitations:**
+- Init-only properties require object initializer or constructor
+- Cannot modify properties after creation (use `with` to create new instance)
+- Positional parameters require `[property:]` attribute syntax
+
+**Best Practices:**
+```csharp
+// ✅ Good: Use init for immutability
+public string Name { get; init; }
+
+// ✅ Good: Provide defaults for optional properties
+public string Status { get; init; } = "active";
+
+// ✅ Good: Use required for mandatory properties
+public required string Id { get; init; }
+
+// ✅ Good: Use IReadOnlyList for immutable collections
+public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+```
+
 ## Attribute Mapping
 
 ### DynamoDbTable Attribute
@@ -272,10 +457,10 @@ public static class UserKeys
 // UserKeys.Pk("user123") returns "USER#user123"
 // UserKeys.Sk("MAIN") returns "PROFILE#MAIN"
 
-await table.Get
+var user = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .WithKey(UserFields.ProfileType, UserKeys.Sk("MAIN"))
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 ```
 
 ### Custom Separators
@@ -358,9 +543,9 @@ public static class EventKeys
 
 **Usage:**
 ```csharp
-await table.Get
+var event = await table.Get
     .WithKey(EventFields.PartitionKey, EventKeys.Pk("tenant123", "LOGIN"))
-    .ExecuteAsync<Event>();
+    .GetItemAsync();
 ```
 
 ### DateTime Format Strings
@@ -569,10 +754,10 @@ public static class UserFields
 **Usage:**
 ```csharp
 // Query by email using GSI
-var response = await table.Query
+var users = await table.Query
     .UsingIndex(UserIndexes.EmailIndex)
     .Where($"{UserFields.Email} = {{0}}", "john@example.com")
-    .ExecuteAsync<User>();
+    .ToListAsync();
 ```
 
 ### GSI with Sort Key
@@ -600,10 +785,10 @@ public partial class Order
 **Usage:**
 ```csharp
 // Query orders by status, sorted by creation date
-var response = await table.Query
+var orders = await table.Query
     .UsingIndex(OrderIndexes.StatusIndex)
     .Where($"{OrderFields.Status} = {{0}}", "pending")
-    .ExecuteAsync<Order>();
+    .ToListAsync();
 ```
 
 ### Multiple GSIs

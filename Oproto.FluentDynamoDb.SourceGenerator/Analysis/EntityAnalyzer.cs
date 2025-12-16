@@ -7,7 +7,7 @@ using System.Collections.Immutable;
 namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 
 /// <summary>
-/// Analyzes class declarations to extract DynamoDB entity information.
+/// Analyzes class and record declarations to extract DynamoDB entity information.
 /// </summary>
 internal class EntityAnalyzer
 {
@@ -19,32 +19,38 @@ internal class EntityAnalyzer
     public IReadOnlyList<Diagnostic> Diagnostics => _diagnostics;
 
     /// <summary>
-    /// Analyzes a class declaration and extracts entity model information.
+    /// Analyzes a type declaration (class or record) and extracts entity model information.
     /// </summary>
-    /// <param name="classDecl">The class declaration to analyze.</param>
+    /// <param name="typeDecl">The type declaration to analyze (class or record).</param>
     /// <param name="semanticModel">The semantic model for symbol resolution.</param>
     /// <returns>The extracted entity model, or null if analysis failed.</returns>
-    public EntityModel? AnalyzeEntity(ClassDeclarationSyntax classDecl, SemanticModel semanticModel)
+    public EntityModel? AnalyzeEntity(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel)
     {
         _diagnostics.Clear();
 
-        var classSymbol = semanticModel.GetDeclaredSymbol(classDecl);
-        if (classSymbol == null)
+        var typeSymbol = semanticModel.GetDeclaredSymbol(typeDecl);
+        if (typeSymbol == null)
             return null;
 
-        // Check if class is partial
-        if (!IsPartialClass(classDecl))
+        // Check if type is partial
+        if (!IsPartialType(typeDecl))
         {
-            ReportDiagnostic(DiagnosticDescriptors.EntityMustBePartial, classDecl.Identifier.GetLocation(), classSymbol.Name);
+            ReportDiagnostic(DiagnosticDescriptors.EntityMustBePartial, typeDecl.Identifier.GetLocation(), typeSymbol.Name);
             return null;
         }
 
+        // For backward compatibility, store as ClassDeclaration if it's a class
+        // Records are also stored here since they're reference types
+        var classDecl = typeDecl as ClassDeclarationSyntax;
+
         var entityModel = new EntityModel
         {
-            ClassName = classSymbol.Name,
-            Namespace = classSymbol.ContainingNamespace.ToDisplayString(),
+            ClassName = typeSymbol.Name,
+            Namespace = typeSymbol.ContainingNamespace.ToDisplayString(),
             ClassDeclaration = classDecl,
-            SemanticModel = semanticModel
+            TypeDeclaration = typeDecl,
+            SemanticModel = semanticModel,
+            IsRecord = typeDecl is RecordDeclarationSyntax
         };
 
         // Detect JSON serializer configuration
@@ -55,11 +61,11 @@ internal class EntityAnalyzer
         entityModel.HasGeospatialPackage = DetectGeospatialPackage(semanticModel.Compilation);
 
         // Extract table information
-        if (!ExtractTableInfo(classDecl, semanticModel, entityModel))
+        if (!ExtractTableInfo(typeDecl, semanticModel, entityModel))
             return null;
 
         // Extract property information
-        ExtractProperties(classDecl, semanticModel, entityModel);
+        ExtractProperties(typeDecl, semanticModel, entityModel);
 
         // Validate individual properties
         foreach (var property in entityModel.Properties)
@@ -75,7 +81,7 @@ internal class EntityAnalyzer
         ExtractIndexes(entityModel);
 
         // Extract relationship information
-        ExtractRelationships(classDecl, semanticModel, entityModel);
+        ExtractRelationships(typeDecl, semanticModel, entityModel);
 
         // Set IsMultiItemEntity based on relationships (must be after ExtractRelationships)
         entityModel.IsMultiItemEntity = entityModel.Relationships.Length > 0;
@@ -91,19 +97,28 @@ internal class EntityAnalyzer
         return criticalErrors.Length > 0 ? null : entityModel;
     }
 
-    private bool IsPartialClass(ClassDeclarationSyntax classDecl)
+    /// <summary>
+    /// Analyzes a class declaration and extracts entity model information.
+    /// This overload is provided for backward compatibility.
+    /// </summary>
+    public EntityModel? AnalyzeEntity(ClassDeclarationSyntax classDecl, SemanticModel semanticModel)
     {
-        return classDecl.Modifiers.Any(m => m.ValueText == "partial");
+        return AnalyzeEntity((TypeDeclarationSyntax)classDecl, semanticModel);
     }
 
-    private bool ExtractTableInfo(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private bool IsPartialType(TypeDeclarationSyntax typeDecl)
     {
-        var tableAttribute = GetAttribute(classDecl, semanticModel, "DynamoDbTableAttribute");
+        return typeDecl.Modifiers.Any(m => m.ValueText == "partial");
+    }
+
+    private bool ExtractTableInfo(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var tableAttribute = GetAttribute(typeDecl, semanticModel, "DynamoDbTableAttribute");
         
         // Check if this is a DynamoDbEntity (nested type) instead of a DynamoDbTable
         if (tableAttribute == null)
         {
-            var entityAttribute = GetAttribute(classDecl, semanticModel, "DynamoDbEntityAttribute");
+            var entityAttribute = GetAttribute(typeDecl, semanticModel, "DynamoDbEntityAttribute");
             if (entityAttribute != null)
             {
                 // This is a nested entity type - no table name required
@@ -152,37 +167,37 @@ internal class EntityAnalyzer
         }
 
         // Extract scannable attribute
-        ExtractScannableAttribute(classDecl, semanticModel, entityModel);
+        ExtractScannableAttribute(typeDecl, semanticModel, entityModel);
 
         // Extract require write transaction attribute
-        ExtractRequireWriteTransactionAttribute(classDecl, semanticModel, entityModel);
+        ExtractRequireWriteTransactionAttribute(typeDecl, semanticModel, entityModel);
 
         // Extract entity property configuration
-        ExtractEntityPropertyConfiguration(classDecl, semanticModel, entityModel);
+        ExtractEntityPropertyConfiguration(typeDecl, semanticModel, entityModel);
 
         // Extract accessor configurations
-        ExtractAccessorConfigurations(classDecl, semanticModel, entityModel);
+        ExtractAccessorConfigurations(typeDecl, semanticModel, entityModel);
 
         // Extract stream conversion attribute
-        ExtractStreamConversionAttribute(classDecl, semanticModel, entityModel);
+        ExtractStreamConversionAttribute(typeDecl, semanticModel, entityModel);
 
         // Extract dynamic fields attribute
-        ExtractEnableDynamicFieldsAttribute(classDecl, semanticModel, entityModel);
+        ExtractEnableDynamicFieldsAttribute(typeDecl, semanticModel, entityModel);
 
         return !string.IsNullOrEmpty(entityModel.TableName);
     }
 
-    private void ExtractEnableDynamicFieldsAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractEnableDynamicFieldsAttribute(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
-        var enableDynamicFieldsAttribute = GetAttribute(classDecl, semanticModel, "EnableDynamicFieldsAttribute");
+        var enableDynamicFieldsAttribute = GetAttribute(typeDecl, semanticModel, "EnableDynamicFieldsAttribute");
         if (enableDynamicFieldsAttribute == null)
         {
             entityModel.EnableDynamicFields = false;
             return;
         }
 
-        // Check if class is partial - emit diagnostic if not
-        if (!IsPartialClass(classDecl))
+        // Check if type is partial - emit diagnostic if not
+        if (!IsPartialType(typeDecl))
         {
             ReportDiagnostic(DiagnosticDescriptors.EnableDynamicFieldsRequiresPartial, 
                 enableDynamicFieldsAttribute.GetLocation(), 
@@ -191,8 +206,8 @@ internal class EntityAnalyzer
             return;
         }
 
-        // Check if class already has a DynamicFields property
-        var existingDynamicFieldsProperty = classDecl.Members
+        // Check if type already has a DynamicFields property
+        var existingDynamicFieldsProperty = typeDecl.Members
             .OfType<PropertyDeclarationSyntax>()
             .FirstOrDefault(p => p.Identifier.ValueText == "DynamicFields");
         
@@ -222,21 +237,21 @@ internal class EntityAnalyzer
         }
     }
 
-    private void ExtractScannableAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractScannableAttribute(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
-        var scannableAttribute = GetAttribute(classDecl, semanticModel, "ScannableAttribute");
+        var scannableAttribute = GetAttribute(typeDecl, semanticModel, "ScannableAttribute");
         entityModel.IsScannable = scannableAttribute != null;
     }
 
-    private void ExtractRequireWriteTransactionAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractRequireWriteTransactionAttribute(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
-        var requireWriteTransactionAttribute = GetAttribute(classDecl, semanticModel, "RequireWriteTransactionAttribute");
+        var requireWriteTransactionAttribute = GetAttribute(typeDecl, semanticModel, "RequireWriteTransactionAttribute");
         entityModel.RequiresWriteTransaction = requireWriteTransactionAttribute != null;
     }
 
-    private void ExtractEntityPropertyConfiguration(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractEntityPropertyConfiguration(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
-        var entityPropertyAttribute = GetAttribute(classDecl, semanticModel, "GenerateEntityPropertyAttribute");
+        var entityPropertyAttribute = GetAttribute(typeDecl, semanticModel, "GenerateEntityPropertyAttribute");
         if (entityPropertyAttribute == null)
         {
             // Use default configuration
@@ -259,7 +274,7 @@ internal class EntityAnalyzer
                         {
                             // Emit FDDB004 diagnostic for empty entity property name
                             ReportDiagnostic(DiagnosticDescriptors.EmptyEntityPropertyName,
-                                classDecl.Identifier.GetLocation(),
+                                typeDecl.Identifier.GetLocation(),
                                 entityModel.ClassName);
                         }
                         else
@@ -287,9 +302,9 @@ internal class EntityAnalyzer
         entityModel.EntityPropertyConfig = config;
     }
 
-    private void ExtractAccessorConfigurations(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractAccessorConfigurations(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
-        var accessorAttributes = GetAttributes(classDecl, semanticModel, "GenerateAccessorsAttribute");
+        var accessorAttributes = GetAttributes(typeDecl, semanticModel, "GenerateAccessorsAttribute");
         var configs = new List<AccessorConfig>();
         var operationsSeen = new Dictionary<TableOperation, Location>();
 
@@ -347,9 +362,9 @@ internal class EntityAnalyzer
         entityModel.AccessorConfigs = configs;
     }
 
-    private void ExtractStreamConversionAttribute(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractStreamConversionAttribute(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
-        var streamConversionAttribute = GetAttribute(classDecl, semanticModel, "GenerateStreamConversionAttribute");
+        var streamConversionAttribute = GetAttribute(typeDecl, semanticModel, "GenerateStreamConversionAttribute");
         entityModel.GenerateStreamConversion = streamConversionAttribute != null;
 
         // Validate that Amazon.Lambda.DynamoDBEvents is referenced when attribute is present
@@ -431,11 +446,11 @@ internal class EntityAnalyzer
         return result;
     }
 
-    private void ExtractProperties(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractProperties(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
         var properties = new List<PropertyModel>();
 
-        foreach (var member in classDecl.Members.OfType<PropertyDeclarationSyntax>())
+        foreach (var member in typeDecl.Members.OfType<PropertyDeclarationSyntax>())
         {
             var propertyModel = AnalyzeProperty(member, semanticModel);
             if (propertyModel != null)
@@ -980,11 +995,11 @@ internal class EntityAnalyzer
         entityModel.Indexes = indexes.Values.ToArray();
     }
 
-    private void ExtractRelationships(ClassDeclarationSyntax classDecl, SemanticModel semanticModel, EntityModel entityModel)
+    private void ExtractRelationships(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
     {
         var relationships = new List<RelationshipModel>();
 
-        foreach (var member in classDecl.Members.OfType<PropertyDeclarationSyntax>())
+        foreach (var member in typeDecl.Members.OfType<PropertyDeclarationSyntax>())
         {
             var relatedEntityAttr = GetAttribute(member, semanticModel, "RelatedEntityAttribute");
             if (relatedEntityAttr == null)
@@ -1526,7 +1541,7 @@ internal class EntityAnalyzer
     {
         var attributeLists = node switch
         {
-            ClassDeclarationSyntax classDecl => classDecl.AttributeLists,
+            TypeDeclarationSyntax typeDecl => typeDecl.AttributeLists,
             PropertyDeclarationSyntax propDecl => propDecl.AttributeLists,
             _ => default
         };

@@ -737,7 +737,7 @@ await DynamoDbBatch.Get
 // ❌ Avoid - multiple individual requests
 foreach (var userId in userIds)
 {
-    await userTable.Get(userId).ExecuteAsync();
+    await userTable.Get(userId).GetItemAsync();
 }
 ```
 

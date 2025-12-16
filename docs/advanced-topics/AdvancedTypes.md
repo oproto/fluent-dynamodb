@@ -239,16 +239,105 @@ var loaded = await table.Get<Order>()
 // ItemIds[0] is guaranteed to be "item-1"
 ```
 
+## DateTime and DateTimeOffset Support
+
+The library supports both `DateTime` and `DateTimeOffset` types for timestamp properties.
+
+### DateTime Properties
+
+Standard DateTime properties are serialized to ISO 8601 format:
+
+```csharp
+[DynamoDbTable("events")]
+public partial class Event
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string EventId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("created_at")]
+    public DateTime CreatedAt { get; set; }
+    
+    [DynamoDbAttribute("scheduled_at")]
+    public DateTime? ScheduledAt { get; set; }
+}
+
+// Usage
+var event = new Event
+{
+    EventId = "evt-123",
+    CreatedAt = DateTime.UtcNow,
+    ScheduledAt = DateTime.UtcNow.AddDays(7)
+};
+
+await table.Events.PutAsync(event);
+// CreatedAt stored as: "2024-03-15T10:30:00.0000000Z"
+```
+
+### DateTimeOffset Properties
+
+DateTimeOffset preserves timezone offset information:
+
+```csharp
+[DynamoDbTable("appointments")]
+public partial class Appointment
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string AppointmentId { get; set; } = string.Empty;
+    
+    // DateTimeOffset preserves timezone offset
+    [DynamoDbAttribute("scheduled_time")]
+    public DateTimeOffset ScheduledTime { get; set; }
+    
+    [DynamoDbAttribute("reminder_time")]
+    public DateTimeOffset? ReminderTime { get; set; }
+}
+
+// Usage
+var appointment = new Appointment
+{
+    AppointmentId = "apt-123",
+    ScheduledTime = new DateTimeOffset(2024, 3, 15, 14, 30, 0, TimeSpan.FromHours(-5)),
+    ReminderTime = DateTimeOffset.Now.AddHours(-1)
+};
+
+await table.Appointments.PutAsync(appointment);
+// ScheduledTime stored as: "2024-03-15T14:30:00.0000000-05:00"
+```
+
+**When to Use DateTimeOffset:**
+- When timezone information must be preserved
+- For user-facing times that should display in the original timezone
+- When working with events across multiple timezones
+- For audit trails where the original timezone context matters
+
+**DateTimeOffset Round-Trip:**
+```csharp
+// Original value with specific offset
+var original = new DateTimeOffset(2024, 3, 15, 14, 30, 0, TimeSpan.FromHours(-5));
+appointment.ScheduledTime = original;
+
+await table.Appointments.PutAsync(appointment);
+var loaded = await table.Appointments.GetAsync("apt-123");
+
+// Round-trip preserves the value (within millisecond precision)
+Assert.Equal(original, loaded.ScheduledTime);
+```
+
 ## Time-To-Live (TTL) Fields
 
 TTL fields enable automatic item expiration in DynamoDB. Mark a DateTime or DateTimeOffset property with `[TimeToLive]`:
+
+### DateTime TTL
 
 ```csharp
 [DynamoDbTable("sessions")]
 public partial class Session
 {
+    [PartitionKey]
     [DynamoDbAttribute("session_id")]
-    public string SessionId { get; set; }
+    public string SessionId { get; set; } = string.Empty;
     
     [DynamoDbAttribute("ttl")]
     [TimeToLive]
@@ -265,12 +354,51 @@ var session = new Session
 await table.Sessions.PutAsync(session);
 ```
 
+### DateTimeOffset TTL
+
+DateTimeOffset is also supported for TTL fields:
+
+```csharp
+[DynamoDbTable("tokens")]
+public partial class AuthToken
+{
+    [PartitionKey]
+    [DynamoDbAttribute("token_id")]
+    public string TokenId { get; set; } = string.Empty;
+    
+    [DynamoDbAttribute("issued_at")]
+    public DateTimeOffset IssuedAt { get; set; }
+    
+    // DateTimeOffset TTL - converted to Unix epoch seconds
+    [DynamoDbAttribute("ttl")]
+    [TimeToLive]
+    public DateTimeOffset? ExpiresAt { get; set; }
+}
+
+// Usage
+var token = new AuthToken
+{
+    TokenId = "tok-123",
+    IssuedAt = DateTimeOffset.UtcNow,
+    ExpiresAt = DateTimeOffset.UtcNow.AddHours(24)
+};
+
+await table.Tokens.PutAsync(token);
+// ExpiresAt stored as Unix epoch seconds: 1710590400
+```
+
+**TTL Conversion:**
+- DateTimeOffset values are converted to Unix epoch seconds using `ToUnixTimeSeconds()`
+- When reading, the value is reconstructed using `DateTimeOffset.FromUnixTimeSeconds()`
+- Precision is limited to seconds (milliseconds are truncated)
+
 **Important Notes**:
 - Only ONE TTL field is allowed per entity
 - TTL values are stored as Unix epoch seconds (number of seconds since January 1, 1970 UTC)
 - DynamoDB typically deletes expired items within 48 hours
 - You must enable TTL on the table in AWS Console or via API
 - Use UTC times to avoid timezone issues
+- DateTimeOffset TTL values must be after Unix epoch (1970-01-01)
 
 ### Configuring TTL on Your Table
 

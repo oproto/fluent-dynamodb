@@ -435,22 +435,22 @@ public HashSet<string> Tags { get; set; } = new();
 
 ```csharp
 // Don't load entire collection at once
-await table.Query
+await table.Query()
     .Where("pk = :pk")
     .WithValue(":pk", "product-123")
     .Take(100) // Limit results
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 2. **Use projection:**
 
 ```csharp
 // Only load needed properties
-await table.Query
+await table.Query()
     .Where("pk = :pk")
     .WithValue(":pk", "product-123")
     .WithProjection("pk, sk, name") // Exclude large collections
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 3. **Store large data externally:**
@@ -521,11 +521,11 @@ aws dynamodb query --table-name products --key-condition-expression "pk = :pk" -
 1. **Use projection:**
 
 ```csharp
-await table.Query
+await table.Query()
     .Where("pk = :pk")
     .WithValue(":pk", "product-123")
     .WithProjection("pk, sk, name") // Only needed attributes
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 2. **Check item sizes:**
@@ -538,11 +538,11 @@ await table.Query
 3. **Use eventually consistent reads:**
 
 ```csharp
-await table.Query
+await table.Query()
     .Where("pk = :pk")
     .WithValue(":pk", "product-123")
     .WithConsistentRead(false) // Halves capacity cost
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ### Issue: Throttling Errors

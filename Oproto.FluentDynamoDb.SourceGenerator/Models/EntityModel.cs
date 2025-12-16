@@ -102,8 +102,19 @@ internal class EntityModel
 
     /// <summary>
     /// Gets or sets the original class declaration syntax node.
+    /// For backward compatibility - use TypeDeclaration for new code.
     /// </summary>
     public ClassDeclarationSyntax? ClassDeclaration { get; set; }
+
+    /// <summary>
+    /// Gets or sets the original type declaration syntax node (class or record).
+    /// </summary>
+    public TypeDeclarationSyntax? TypeDeclaration { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this entity is a record type.
+    /// </summary>
+    public bool IsRecord { get; set; }
 
     /// <summary>
     /// Gets or sets the semantic model for accessing compilation information.

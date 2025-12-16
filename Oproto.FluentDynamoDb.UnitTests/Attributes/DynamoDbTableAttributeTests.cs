@@ -127,13 +127,21 @@ public class DynamoDbTableAttributeTests
         attribute!.IsDefault.Should().BeFalse();
     }
 
-    [DynamoDbTable("TestTable", IsDefault = true)]
-    private class TestEntity
-    {
-    }
+}
 
-    [DynamoDbTable("AnotherTable")]
-    private class NonDefaultEntity
-    {
-    }
+// Test entities must be at namespace level for source generator to work correctly
+[DynamoDbTable("TestTable", IsDefault = true)]
+public partial class TestEntity
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("AnotherTable")]
+public partial class NonDefaultEntity
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
 }
