@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using NSubstitute;
 using Oproto.FluentDynamoDb.ApiConsistencyTests.Entities;
 using Oproto.FluentDynamoDb.Requests.Extensions;
@@ -13,60 +14,74 @@ public class UpdateApiSurface
         var client = Substitute.For<IAmazonDynamoDB>();
         BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
 
-        // String expression update 
+        // === Lambda Expression Style (Preferred) ===
+        // Lambda expression update
+        await table.Update("1234")
+            .Set(x => new BasicPkEntityUpdateModel { Age = 32 })
+            .UpdateAsync();
+        
+        // Lambda expression update with increment
+        await table.Update("1234")
+            .Set(x => new BasicPkEntityUpdateModel { Age = x.Age + 1 })
+            .UpdateAsync();
+        
+        // Lambda expression update with condition
+        await table.Update("1234")
+            .Set(x => new BasicPkEntityUpdateModel { Age = 32 })
+            .Where(x => x.Name == "Test")
+            .UpdateAsync();
+        
+        // === Format String Style ===
+        // Format string update
         await table.Update("1234")
             .Set("SET age={0}", 32)
             .UpdateAsync();
         
-        // String expression update with condition
+        // Format string update with condition
         await table.Update("1234")
             .Set("SET age={0}", 32)
             .Where("name = {0}", "Test")
             .UpdateAsync();
         
-        // c# lambda exression update
+        // === Manual WithValue Style ===
+        // Manual update with explicit attributes and values
         await table.Update("1234")
-            .Set(x => new BasicPkEntityUpdateModel
-            {
-                Age = 32
-            })
+            .Set("SET #age = :age")
+            .WithAttribute("#age", "age")
+            .WithValue(":age", 32)
             .UpdateAsync();
         
-        // c# lambda expression update and condition
+        // Manual update with condition
         await table.Update("1234")
-            .Set(x => new BasicPkEntityUpdateModel
-            {
-                Age = 32
-            })
+            .Set("SET #age = :age")
+            .Where("#name = :name")
+            .WithAttribute("#age", "age")
+            .WithAttribute("#name", "name")
+            .WithValue(":age", 32)
+            .WithValue(":name", "Test")
+            .UpdateAsync();
+        
+        // === Entity Accessor Patterns ===
+        // Lambda on EntityAccessor
+        await table.BasicPkEntitys.Update("1234")
+            .Set(x => new BasicPkEntityUpdateModel { Age = 32 })
+            .UpdateAsync();
+        
+        // Lambda with condition on EntityAccessor
+        await table.BasicPkEntitys.Update("1234")
+            .Set(x => new BasicPkEntityUpdateModel { Age = 32 })
             .Where(x => x.Name == "Test")
             .UpdateAsync();
         
-        // String expression update on EntityAccessor
+        // Format string on EntityAccessor
         await table.BasicPkEntitys.Update("1234")
             .Set("SET age={0}", 32)
             .UpdateAsync();
         
-        // String expression update with condition on EntityAccessor
+        // Format string with condition on EntityAccessor
         await table.BasicPkEntitys.Update("1234")
             .Set("SET age={0}", 32)
             .Where("name = {0}", "Test")
-            .UpdateAsync();
-        
-        // c# lambda exression update on EntityAccessor
-        await table.BasicPkEntitys.Update("1234")
-            .Set(x => new BasicPkEntityUpdateModel
-            {
-                Age = 32
-            })
-            .UpdateAsync();
-        
-        // c# lambda expression update and condition on EntityAccessor
-        await table.BasicPkEntitys.Update("1234")
-            .Set(x => new BasicPkEntityUpdateModel
-            {
-                Age = 32
-            })
-            .Where(x => x.Name == "Test")
             .UpdateAsync();
     }
     
@@ -76,61 +91,71 @@ public class UpdateApiSurface
         var client = Substitute.For<IAmazonDynamoDB>();
         BasicPkSkTable table = new BasicPkSkTable(client, "basicPkSk", options: null);
 
-        // Many of these need to be updated for proper field names once the correct methods are available
-        // String expression update 
+        // === Lambda Expression Style (Preferred) ===
         await table.Update("1234", "test")
-            .Set("SET totalCount={0}", 5)
+            .Set(x => new BasicPkSkEntityUpdateModel { TotalCount = 5 })
             .UpdateAsync();
         
-        // String expression update with condition
+        // Lambda with increment
         await table.Update("1234", "test")
-            .Set("SET totalCount={0}", 5)
-            .Where("name = {0}", "Test")
+            .Set(x => new BasicPkSkEntityUpdateModel { TotalCount = x.TotalCount + 1 })
             .UpdateAsync();
         
-        // c# lambda exression update
+        // Lambda with condition
         await table.Update("1234", "test")
-            .Set(x => new BasicPkSkEntityUpdateModel
-            {
-                TotalCount = 5
-            })
-            .UpdateAsync();
-        
-        // c# lambda expression update and condition
-        await table.Update("1234", "test")
-            .Set(x => new BasicPkSkEntityUpdateModel
-            {
-                TotalCount = 5
-            })
+            .Set(x => new BasicPkSkEntityUpdateModel { TotalCount = 5 })
             .Where(x => x.TotalCount > 0)
             .UpdateAsync();
         
-        // String expression update on EntityAccessor
-        await table.BasicPkSkEntitys.Update("1234", "test")
+        // === Format String Style ===
+        await table.Update("1234", "test")
             .Set("SET totalCount={0}", 5)
             .UpdateAsync();
         
-        // String expression update with condition on EntityAccessor
-        await table.BasicPkSkEntitys.Update("1234", "test")
-            .Set("SET totalCount={0}", 5)
-            .Where("name = {0}", "Test")
+        // === Manual WithValue Style ===
+        await table.Update("1234", "test")
+            .Set("SET #tc = :tc")
+            .WithAttribute("#tc", "totalCount")
+            .WithValue(":tc", 5)
             .UpdateAsync();
         
-        // c# lambda exression update on EntityAccessor
+        // === Entity Accessor Patterns ===
         await table.BasicPkSkEntitys.Update("1234", "test")
-            .Set(x => new BasicPkSkEntityUpdateModel
-            {
-                TotalCount = 5
-            })
+            .Set(x => new BasicPkSkEntityUpdateModel { TotalCount = 5 })
             .UpdateAsync();
         
-        // c# lambda expression update and condition on EntityAccessor
         await table.BasicPkSkEntitys.Update("1234", "test")
-            .Set(x => new BasicPkSkEntityUpdateModel
-            {
-                TotalCount = 5
-            })
+            .Set(x => new BasicPkSkEntityUpdateModel { TotalCount = 5 })
             .Where(x => x.TotalCount > 0)
             .UpdateAsync();
+    }
+    
+    [Fact(Skip = "API Surface Validation")]
+    public async Task RawSdkOverloads_Update_ShouldCompile()
+    {
+        var client = Substitute.For<IAmazonDynamoDB>();
+        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
+        
+        // === Raw SDK Request Overloads ===
+        var request = new UpdateItemRequest
+        {
+            TableName = "basicPk",
+            Key = new Dictionary<string, AttributeValue>
+            {
+                { "pk", new AttributeValue { S = "1234" } }
+            },
+            UpdateExpression = "SET #age = :age",
+            ExpressionAttributeNames = new Dictionary<string, string> { { "#age", "age" } },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                { ":age", new AttributeValue { N = "32" } }
+            }
+        };
+        
+        // Raw SDK builder pattern
+        await table.Update<BasicPkEntity>(request).UpdateAsync();
+        
+        // Raw SDK convenience method
+        await table.UpdateAsync<BasicPkEntity>(request);
     }
 }

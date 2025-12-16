@@ -223,3 +223,88 @@ If the project grows significantly or API changes become more frequent, reconsid
 - Hook on changes to `Attributes/` folder for new attribute documentation
 - Hook on changes to `Requests/` folder for builder documentation
 - Hook on changes to public interfaces for API reference updates
+
+
+## Steering Document Synchronization (fluentdynamodb.md)
+
+The `.kiro/steering/fluentdynamodb.md` file is a compact API reference designed for AI assistants in consuming projects. It must stay synchronized with the actual API surface.
+
+### When to Update fluentdynamodb.md
+
+The steering document MUST be updated when:
+
+1. **New CRUD Operations**: Adding new operation types (Get, Put, Update, Delete, Query, Scan)
+2. **New Expression Styles**: Adding or modifying Lambda, Format String, or Manual expression patterns
+3. **Builder Method Changes**: Adding, renaming, or removing builder methods
+4. **Terminal Method Changes**: Changes to terminal methods (GetItemAsync, PutAsync, UpdateAsync, DeleteAsync, ToListAsync, ExecuteAsync)
+5. **Convenience Method Changes**: Adding or modifying direct async methods (GetAsync, PutAsync, DeleteAsync)
+6. **Index Operation Changes**: Modifications to GSI/LSI query patterns via DynamoDbIndex
+7. **Batch Operation Changes**: Changes to DynamoDbBatch.Get, DynamoDbBatch.Write, or DynamoDbBatch.PartiQL patterns
+8. **Transaction Changes**: Modifications to DynamoDbTransactions.Get or DynamoDbTransactions.Write patterns
+9. **PartiQL Changes**: Updates to ExecutePartiQL methods or batch PartiQL operations
+10. **Raw SDK Access Changes**: Modifications to methods accepting pre-built SDK request objects
+11. **New Attributes**: Adding attributes that affect entity definition or operation behavior
+
+### API Change Checklist
+
+When making API changes, use this checklist to ensure fluentdynamodb.md stays current:
+
+- [ ] **Operation Added/Modified**: Is this a new or changed CRUD operation?
+  - Update the corresponding section (Get, Put, Update, Delete, Query, Scan)
+  - Show all three expression styles if applicable
+  - Include both builder pattern and convenience method examples
+
+- [ ] **Builder Method Changed**: Did you add/modify a builder method?
+  - Update the relevant operation section with the new method
+  - Ensure method chaining examples are accurate
+
+- [ ] **Terminal Method Changed**: Did you change how operations are executed?
+  - Update the Terminal Methods Reference table
+  - Update all affected code examples
+
+- [ ] **Index Operations Changed**: Did you modify GSI/LSI query patterns?
+  - Update the Index Operations section
+  - Verify DynamoDbIndex usage examples
+
+- [ ] **Batch/Transaction Changed**: Did you modify batch or transaction APIs?
+  - Update Batch Operations or Transactions section
+  - Verify result access patterns are documented
+
+- [ ] **New Attribute Added**: Did you add a new entity attribute?
+  - Update Entity Definition section if it affects entity structure
+  - Add usage example if the attribute changes operation behavior
+
+- [ ] **Line Count Check**: Is the document still under 500 lines?
+  - Run `wc -l .kiro/steering/fluentdynamodb.md`
+  - If over 500 lines, consolidate or remove less critical examples
+
+### Validation with ApiConsistencyTests
+
+Every pattern documented in fluentdynamodb.md should have a corresponding compile-time test in the `Oproto.FluentDynamoDb.ApiConsistencyTests` project:
+
+| Steering Doc Section | Test File Location |
+|---------------------|-------------------|
+| Get Operations | `SingleEntityTables/GetApiSurface.cs` |
+| Put Operations | `SingleEntityTables/PutApiSurface.cs` |
+| Update Operations | `SingleEntityTables/UpdateApiSurface.cs` |
+| Delete Operations | `SingleEntityTables/DeleteApiSurface.cs` |
+| Query Operations | `SingleEntityTables/QueryApiSurface.cs` |
+| Scan Operations | `SingleEntityTables/ScanApiSurface.cs` |
+| Index Operations | `Indexes/IndexQueryApiSurface.cs` |
+| Batch Operations | `Batch/BatchGetApiSurface.cs`, `BatchWriteApiSurface.cs`, `BatchPartiQLApiSurface.cs` |
+| Transactions | `Transactions/TransactionGetApiSurface.cs`, `TransactionWriteApiSurface.cs` |
+| PartiQL | `SingleEntityTables/PartiQLApiSurface.cs` |
+| Raw SDK Access | `SingleEntityTables/RawSdkApiSurface.cs` |
+
+**Validation Process**:
+1. After updating fluentdynamodb.md, ensure corresponding tests exist in ApiConsistencyTests
+2. Build the ApiConsistencyTests project to verify all documented patterns compile
+3. If a pattern doesn't compile, either fix the documentation or implement the missing API
+
+### Synchronization Workflow
+
+1. **Before API Changes**: Review fluentdynamodb.md to understand current documented patterns
+2. **During Development**: Note which sections will need updates
+3. **After Implementation**: Update fluentdynamodb.md with new/changed patterns
+4. **Validation**: Build ApiConsistencyTests to verify documentation accuracy
+5. **PR Review**: Include fluentdynamodb.md changes in the same PR as API changes
