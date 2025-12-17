@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-
+# Updated 2025-12-16
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
