@@ -1,133 +1,110 @@
 # AWS Encryption SDK Field Encryption - Implementation Status
 
-## Completed (Task 8)
+## Overview
 
-### 8.1 FieldEncryptionException Class ✅
-- Created comprehensive exception class with all required properties:
-  - `FieldName`: The field that failed encryption/decryption
-  - `ContextId`: Optional context identifier (e.g., tenant ID)
-  - `KeyId`: Optional KMS key ARN that was used
-- Multiple constructors supporting inner exceptions
-- Enhanced `ToString()` method for detailed error reporting
-- Extensive XML documentation with usage examples
+Field-level encryption using AWS Encryption SDK with KMS keyring support is **complete**. All core encryption functionality is implemented and tested.
 
-### 8.2 AwsEncryptionSdkFieldEncryptor Class ✅
-- Implemented class structure with proper dependency injection:
-  - Accepts `IKmsKeyResolver` for key resolution
-  - Accepts optional `AwsEncryptionSdkOptions` for configuration
-  - Supports optional blob storage provider (for future use)
-  - Supports optional logger (for future use)
-- Caching configuration setup:
-  - Creates `CachingConfiguration` when `EnableCaching` is true
-  - Properly configures TTL, message limits, and byte limits
-  - Null configuration when caching is disabled
+## Completed Features
 
-### 8.3 EncryptAsync Method ✅
-- Implemented method signature and core logic flow:
-  - Resolves KMS key ARN via `IKmsKeyResolver.ResolveKeyId`
-  - Validates key resolution results
-  - Builds encryption context dictionary
-  - Proper error handling with `FieldEncryptionException`
-  - Comprehensive XML documentation
+### Core Encryption ✅
+- **EncryptAsync**: Full implementation using AWS Encryption SDK with KMS keyring
+- **DecryptAsync**: Full implementation with encryption context validation
+- **Algorithm Suite**: Uses `ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384` with key commitment
+- **Encryption Context**: Field name and context ID bound to ciphertext for audit trails
 
-### 8.4 DecryptAsync Method ✅
-- Implemented method signature and core logic flow:
-  - Resolves KMS key ARN for keyring
-  - Builds expected encryption context for validation
-  - Proper error handling with `FieldEncryptionException`
-  - Comprehensive XML documentation
+### Key Management ✅
+- **IKmsKeyResolver**: Interface for resolving context IDs to KMS key ARNs
+- **DefaultKmsKeyResolver**: Default implementation with context-to-key mapping
+- **Keyring Caching**: Thread-safe keyring caching with tenant isolation
 
-### 8.5 BuildEncryptionContext Helper Method ✅
-- Created static helper method for building encryption context:
-  - Always includes field name as "field" key
-  - Conditionally includes context ID as "context" key
-  - Optionally includes entity type as "entity" key
-  - Returns `Dictionary<string, string>` for AWS Encryption SDK
-  - Comprehensive XML documentation explaining AAD and audit trails
+### Error Handling ✅
+- **FieldEncryptionException**: Comprehensive exception with field name, context ID, and key ARN
+- **Null Key Rejection**: Validates key resolver returns non-empty key ARN
+- **Error Wrapping**: All SDK exceptions wrapped with context information
+- **Clear Error Messages**: Specific messages for access denied, key not found, and decryption failures
 
-## Pending AWS Encryption SDK Integration
+### Backward Compatibility ✅
+- **IFieldEncryptor**: Interface unchanged
+- **IKmsKeyResolver**: Interface unchanged
+- **AwsEncryptionSdkOptions**: All existing properties maintained with same defaults
+- **FieldEncryptionContext**: Class unchanged
+- **FieldEncryptionException**: Exception class unchanged
 
-The implementation is **structurally complete** but requires AWS Encryption SDK API integration. The current implementation includes TODO comments marking where AWS SDK calls need to be added.
+### Testing ✅
+- **Property-Based Tests**: Round-trip consistency, encryption context preservation, tenant isolation, null key rejection, error wrapping
+- **Unit Tests**: Constructor, key resolution, error handling, configuration
+- **Backward Compatibility Tests**: Interface and class signature verification
 
-### What's Missing
+## Known Limitations
 
-The `AWS.EncryptionSDK` package (version 3.0.0+) is referenced but the actual API integration is pending because:
+### Data Key Caching Not Supported
+The AWS Encryption SDK for .NET does not support data key caching like other language implementations (Java, Python, JavaScript). Each encryption operation calls KMS to generate a new data key.
 
-1. **Namespace Verification Needed**: The exact namespaces for AWS Encryption SDK 3.x need to be confirmed:
-   - `AWS.Cryptography.EncryptionSDK`
-   - `AWS.Cryptography.MaterialProviders`
-   - `AWS.Cryptography.KeyManagement`
+**Impact:**
+- Higher KMS API call volume compared to implementations with data key caching
+- Cost: ~$0.03 per 10,000 KMS API calls (acceptable for most applications)
 
-2. **API Surface Verification**: The specific classes and methods need to be confirmed:
-   - `ESDK` class and initialization
-   - `IAwsCryptographicMaterialProviders` interface
-   - Keyring creation APIs
-   - CMM (Cryptographic Materials Manager) creation APIs
-   - Encrypt/Decrypt input/output structures
+**Workaround:**
+For applications requiring reduced KMS API calls, consider using the AWS KMS Hierarchical Keyring, which stores branch keys in a DynamoDB table. This requires additional infrastructure setup.
 
-### Integration Points Marked with TODO
+### AOT Compatibility
 
-Both `EncryptAsync` and `DecryptAsync` methods contain detailed TODO comments explaining:
+**Build Status:** ✅ No trim/AOT warnings from encryption code
 
-1. **For EncryptAsync**:
-   - Create KMS keyring with resolved key ARN
-   - Create CMM (with or without caching)
-   - Call ESDK.Encrypt with plaintext, CMM, and encryption context
-   - Return encrypted data in AWS Encryption SDK message format
+The `Oproto.FluentDynamoDb.Encryption.Kms` project is configured with:
+- `IsTrimmable=true`
+- `IsAotCompatible=true`
+- `EnableTrimAnalyzer=true`
 
-2. **For DecryptAsync**:
-   - Create KMS keyring with resolved key ARN
-   - Create CMM (with or without caching)
-   - Call ESDK.Decrypt with ciphertext and CMM
-   - Validate encryption context from decrypted message
-   - Return decrypted plaintext
+The encryption code itself produces **zero trim analyzer warnings**. However, the `AWS.Cryptography.EncryptionSDK` package has transitive dependencies that may have AOT limitations:
 
-### Current Behavior
+#### Transitive Dependencies with AOT Considerations
 
-Both methods currently:
-- Validate all inputs
-- Resolve KMS key ARNs correctly
-- Build encryption contexts properly
-- Throw `NotImplementedException` with descriptive messages
-- Maintain proper error handling structure
+| Package | Version | AOT Concern |
+|---------|---------|-------------|
+| `DafnyRuntime` | 4.2.0 | Generated from Dafny specifications; may use reflection internally |
+| `BouncyCastle.Cryptography` | 2.2.1 | Known to have some AOT limitations in certain cryptographic operations |
+| `AWS.Cryptography.MaterialProviders` | 1.0.0 | Depends on DafnyRuntime |
+| `AWS.Cryptography.Internal.*` | 1.0.0+ | Internal AWS packages with Dafny-generated code |
 
-### Next Steps
+#### What This Means
 
-To complete the AWS Encryption SDK integration:
+1. **Our Code is AOT-Safe**: The `AwsEncryptionSdkFieldEncryptor` class and all supporting code in this package:
+   - Uses no reflection
+   - Uses no dynamic code generation
+   - Produces no trim analyzer warnings
 
-1. **Verify Package Installation**: Ensure `AWS.EncryptionSDK` 3.0.0+ is properly installed
-2. **Confirm Namespaces**: Check the actual namespaces in the installed package
-3. **Review API Documentation**: Consult AWS Encryption SDK for .NET documentation
-4. **Implement SDK Calls**: Replace TODO sections with actual AWS SDK calls
-5. **Add Logging**: Integrate optional logger for Debug and Error level logging
-6. **Test Integration**: Create integration tests with real KMS keys
+2. **AWS SDK Dependencies May Not Be**: The AWS Encryption SDK and its dependencies are generated from Dafny and may use patterns that are not fully AOT-compatible. AWS has not officially certified these packages for Native AOT.
+
+3. **Runtime Behavior**: The encryption operations may work in AOT environments, but this depends on:
+   - Which code paths are exercised
+   - Whether the trimmer preserves necessary types
+   - The specific AOT runtime configuration
+
+#### Recommendations
+
+1. **Test in AOT Environment**: If deploying to Native AOT, thoroughly test encryption operations in that environment during CI/CD.
+
+2. **Fallback Strategy**: If AOT issues are encountered at runtime:
+   - Consider running encryption operations in a non-AOT service/Lambda
+   - Use a separate microservice for encryption that runs in standard .NET runtime
+
+3. **Monitor AWS Updates**: AWS may improve AOT support in future versions of the Encryption SDK.
+
+4. **Alternative for AOT-Critical Scenarios**: If full AOT compatibility is required:
+   - Consider using AWS KMS directly with `AWSSDK.KeyManagementService` (which has better AOT support)
+   - Implement envelope encryption manually using .NET's built-in AES-GCM
+   - Note: This loses interoperability with AWS Encryption SDK in other languages
+
+### Pluggable Data Key Cache Deferred
+The pluggable data key cache feature (IDataKeyCache) was removed from this implementation because:
+- AWS Encryption SDK handles data key generation internally
+- Implementing custom envelope encryption would break interoperability with other AWS Encryption SDK implementations
+- The AWS KMS Hierarchical Keyring is the recommended alternative for data key caching
 
 ## Build Status
 
 ✅ **Project builds successfully** with no compilation errors
-✅ **All interfaces properly implemented**
-✅ **Comprehensive XML documentation**
-✅ **Proper error handling structure**
-✅ **Thread-safe design**
-
-## Requirements Coverage
-
-All requirements from the design document are addressed:
-
-- ✅ **Requirement 2.1**: Encryption support in separate assembly
-- ✅ **Requirement 2.2**: Encryption before storing (structure ready)
-- ✅ **Requirement 2.3**: Transparent decryption (structure ready)
-- ✅ **Requirement 2.4**: AWS Encryption SDK with KMS keyring (pending API integration)
-- ✅ **Requirement 2.5**: Binary storage format (structure ready)
-- ✅ **Requirement 5.1-5.3**: FieldEncryptionException with all properties
-- ✅ **Requirement 5.4**: Debug level logging (structure ready for logger integration)
-
-## Testing Recommendations
-
-Once AWS SDK integration is complete:
-
-1. **Unit Tests**: Mock AWS Encryption SDK for testing logic flow
-2. **Integration Tests**: Test with real KMS keys in AWS
-3. **Error Handling Tests**: Verify all exception scenarios
-4. **Caching Tests**: Verify caching behavior with different configurations
-5. **Context Validation Tests**: Verify encryption context validation during decryption
+✅ **All unit tests passing**
+✅ **All property-based tests passing**
+✅ **No trim analyzer warnings**

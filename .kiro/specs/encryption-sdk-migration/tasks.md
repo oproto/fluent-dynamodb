@@ -1,0 +1,174 @@
+# Implementation Plan
+
+- [x] 1. Update package references and verify build
+  - [x] 1.1 Remove AWS.EncryptionSDK package reference from csproj
+    - Remove the old `<PackageReference Include="AWS.EncryptionSDK" ...>` line
+    - _Requirements: 1.1_
+  - [x] 1.2 Add AWS.Cryptography.EncryptionSDK package reference
+    - Add `<PackageReference Include="AWS.Cryptography.EncryptionSDK" Version="[4.0.0,5.0.0)" />`
+    - _Requirements: 1.1, 1.3_
+  - [x] 1.3 Verify project builds successfully with new package
+    - Run `dotnet build` and resolve any namespace/API errors
+    - _Requirements: 1.2_
+
+- [x] 2. Refactor AwsEncryptionSdkFieldEncryptor constructor and fields
+  - [x] 2.1 Add new SDK client fields and initialization
+    - Add `MaterialProviders _materialProviders` field
+    - Add `ESDK _esdk` field
+    - Add `ICryptographicMaterialsCache? _cache` field
+    - Add `ConcurrentDictionary<string, IKeyring> _keyringCache` field
+    - Initialize clients in constructor
+    - _Requirements: 2.1, 4.1_
+  - [x] 2.2 Remove obsolete CachingConfiguration class
+    - Remove the internal `CachingConfiguration` class (no longer needed)
+    - Update constructor to use new caching approach
+    - _Requirements: 4.1_
+  - [x] 2.3 Implement GetOrCreateKeyring helper method
+    - Create method to get cached keyring or create new one
+    - Use `ConcurrentDictionary.GetOrAdd` for thread safety
+    - _Requirements: 2.2_
+
+- [x] 3. Implement EncryptAsync method
+  - [x] 3.1 Implement core encryption logic
+    - Resolve KMS key ARN via key resolver
+    - Get or create keyring for the key ARN
+    - Build encryption context dictionary
+    - Create EncryptInput with plaintext, keyring/CMM, and context
+    - Call ESDK.Encrypt and return ciphertext bytes
+    - _Requirements: 2.1, 2.2, 2.3, 2.5_
+  - [x] 3.2 Implement caching CMM integration for encryption
+    - When caching enabled, wrap keyring in caching CMM
+    - Use MaterialsManager instead of Keyring in EncryptInput
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  - [x] 3.3 Implement error handling for encryption
+    - Catch SDK exceptions and wrap in FieldEncryptionException
+    - Include field name, context ID, and key ARN in exception
+    - Preserve inner exception
+    - _Requirements: 2.4, 7.2, 7.4_
+  - [x] 3.4 Write property test for round-trip consistency (encryption part)
+    - **Property 1: Round-trip consistency**
+    - **Validates: Requirements 2.1, 3.1**
+
+- [x] 4. Implement DecryptAsync method
+  - [x] 4.1 Implement core decryption logic
+    - Resolve KMS key ARN via key resolver
+    - Get or create keyring for the key ARN
+    - Create DecryptInput with ciphertext and keyring/CMM
+    - Call ESDK.Decrypt and return plaintext bytes
+    - _Requirements: 3.1_
+  - [x] 4.2 Implement encryption context validation
+    - After decryption, verify encryption context contains expected field name
+    - Verify encryption context contains expected context ID (if provided)
+    - Throw FieldEncryptionException on mismatch
+    - _Requirements: 3.2, 3.3_
+  - [x] 4.3 Implement error handling for decryption
+    - Catch SDK exceptions and wrap in FieldEncryptionException
+    - Handle wrong key errors with clear message
+    - Preserve inner exception
+    - _Requirements: 3.4, 3.5, 7.3, 7.5_
+  - [x] 4.4 Write property test for round-trip consistency (full test)
+    - **Property 1: Round-trip consistency**
+    - **Validates: Requirements 2.1, 3.1**
+  - [x] 4.5 Write property test for encryption context preservation
+    - **Property 2: Encryption context preservation**
+    - **Validates: Requirements 2.3, 3.2**
+
+- [x] 5. Checkpoint - Verify core encryption/decryption works
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 6. Implement caching behavior
+  - [x] 6.1 Implement cache creation with configurable capacity
+    - Create cache in constructor when EnableCaching is true
+    - Use DefaultCache with configurable EntryCapacity
+    - _Requirements: 4.1_
+  - [x] 6.2 Implement caching CMM with TTL support
+    - Create caching CMM that wraps the keyring's default CMM
+    - Configure CacheLimitTtl from DefaultCacheTtlSeconds option
+    - _Requirements: 4.2_
+  - [x] 6.3 Ensure tenant isolation in cache
+    - Include context ID in cache partition key
+    - Verify different contexts use different cache entries
+    - _Requirements: 4.6_
+  - [x] 6.4 Write property test for tenant isolation
+    - **Property 3: Tenant isolation via cache partitioning**
+    - **Validates: Requirements 4.6**
+
+- [x] 7. Implement null key rejection
+  - [x] 7.1 Add validation for null/empty key ARN in EncryptAsync
+    - Check key resolver result before creating keyring
+    - Throw FieldEncryptionException with descriptive message
+    - _Requirements: 7.1_
+  - [x] 7.2 Add validation for null/empty key ARN in DecryptAsync
+    - Check key resolver result before creating keyring
+    - Throw FieldEncryptionException with descriptive message
+    - _Requirements: 7.1_
+  - [x] 7.3 Write property test for null key rejection
+    - **Property 4: Null key rejection**
+    - **Validates: Requirements 7.1**
+
+- [x] 8. Implement error wrapping
+  - [x] 8.1 Ensure all SDK exceptions are wrapped consistently
+    - Review all catch blocks in EncryptAsync and DecryptAsync
+    - Verify FieldEncryptionException includes field name, context ID, key ARN
+    - Verify InnerException is preserved
+    - _Requirements: 7.4, 7.5_
+  - [x] 8.2 Write property test for error wrapping
+    - **Property 5: Error wrapping**
+    - **Validates: Requirements 7.4, 7.5**
+
+- [x] 9. Checkpoint - Verify all properties pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 10. Verify backward compatibility
+  - [x] 10.1 Verify IFieldEncryptor interface unchanged
+    - Confirm interface signature matches original
+    - _Requirements: 6.1_
+  - [x] 10.2 Verify IKmsKeyResolver interface unchanged
+    - Confirm interface signature matches original
+    - _Requirements: 6.2_
+  - [x] 10.3 Verify AwsEncryptionSdkOptions properties unchanged
+    - Confirm all existing properties with same defaults
+    - _Requirements: 6.3_
+  - [x] 10.4 Verify FieldEncryptionContext unchanged
+    - Confirm class signature matches original
+    - _Requirements: 6.4_
+  - [x] 10.5 Verify FieldEncryptionException unchanged
+    - Confirm exception class matches original
+    - _Requirements: 6.5_
+  - [x] 10.6 Write unit tests for backward compatibility
+    - Test that existing code patterns still compile and work
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+
+- [x] 11. Update documentation and clean up
+  - [x] 11.1 Update README.md with new package information
+    - Update package name in installation instructions
+    - Note any API differences if applicable
+    - _Requirements: 1.1_
+  - [x] 11.2 Update IMPLEMENTATION_STATUS.md
+    - Mark AWS SDK integration as complete
+    - Document any known limitations
+    - _Requirements: 5.3, 5.4_
+  - [x] 11.3 Remove obsolete code and comments
+    - Remove TODO comments that are now implemented
+    - Remove any dead code paths
+    - _Requirements: 1.2_
+
+- [x] 12. AOT compatibility verification
+  - [x] 12.1 Build with trim analyzers enabled
+    - Verify no new trim warnings from encryption code
+    - _Requirements: 5.2_
+  - [x] 12.2 Document any AOT limitations discovered
+    - If AWS.Cryptography.EncryptionSDK has AOT issues, document them
+    - Provide workarounds if possible
+    - _Requirements: 5.3, 5.4_
+
+- [~] 13. Pluggable data key cache (REMOVED)
+  - **Status**: Feature removed from this spec
+  - **Reason**: AWS Encryption SDK for .NET handles data key generation internally and does not expose hooks for injecting cached data keys
+  - **Impact**: Implementing custom envelope encryption would break interoperability with other AWS Encryption SDK implementations (Java, Python, JavaScript)
+  - **Alternative**: Consider AWS KMS Hierarchical Keyring in a future spec
+  - **Cost context**: KMS API calls cost ~$0.03 per 10,000 requests; acceptable for most applications
+  - _See: design.md "Data Key Cache Deferral" section for detailed analysis_
+
+- [x] 14. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
