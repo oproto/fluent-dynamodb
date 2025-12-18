@@ -35,6 +35,11 @@
             <PrivateAssets>none</PrivateAssets>
             <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
         </ProjectReference>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj">
+            <SetTargetFramework>TargetFramework=net8.0</SetTargetFramework>
+            <PrivateAssets>none</PrivateAssets>
+            <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+        </ProjectReference>
     </ItemGroup>
 
 </Project>

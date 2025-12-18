@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Comprehensive FluentResults API Integration** - Complete Result<T> pattern alternative to traditional async/exception-based API
+  - New `GetItemAsyncResult()`, `PutAsyncResult()`, `UpdateAsyncResult()`, `DeleteAsyncResult()` extension methods for all CRUD operations
+  - New `ToListAsyncResult()`, `ToCompositeEntityAsyncResult()`, `ToCompositeEntityListAsyncResult()` for query and scan operations
+  - New `ExecuteAsyncResult()` for batch operations (`BatchGetBuilder`, `BatchWriteBuilder`, `BatchPartiQLBuilder`)
+  - New `ExecuteAsyncResult()` for transaction operations (`TransactionWriteBuilder`, `TransactionGetBuilder`)
+  - New `ExecuteAndMapAsyncResult<T1,...,T8>()` tuple methods for batch get operations
+  - New `SpatialQueryAsyncResult()` for geospatial proximity and bounding box queries
+  - Comprehensive error type hierarchy with `DynamoDbError` base class and typed errors:
+    - Transaction errors: `TransactionCancelledError`, `TransactionConflictError`, `TransactionInProgressError`, `OptimisticLockingError`
+    - Configuration errors: `MissingClientError`, `ClientMismatchError`, `EmptyOperationError`, `OperationLimitExceededError`
+    - Mapping errors: `MappingError`, `DiscriminatorMismatchError`, `ProjectionValidationError`, `ExpressionTranslationError`
+    - Validation errors: `SchemaValidationError`, `EmptyCollectionError`, `FormatStringError`
+    - Storage errors: `BlobStorageError`, `EncryptionError`, `DecryptionError`
+    - Geospatial errors: `SpatialQueryError`, `InvalidCoordinatesError`, `InvalidBoundingBoxError`
+  - `DynamoDbErrors.FromException()` factory method maps all AWS SDK and library exceptions to typed errors
+  - `UnprocessedItemsWarning` and `BatchStatementErrorWarning` for partial success scenarios in batch operations
+  - All errors include `ErrorCode` property for programmatic error handling
+  - Cancellation tokens properly re-throw `OperationCanceledException` without wrapping
+  - _Requirements: 1.1-1.5, 2.1-2.7, 3.1-3.3, 4.1-4.5, 5.1-5.5, 6.1-6.5, 7.1-7.4, 10.1-10.3, 11.1-11.3, 12.1-12.2, 14.1-14.17, 16.1-16.3_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.FluentResults;
+  
+  // Traditional (throws exceptions)
+  var user = await table.Users.Get(userId).GetItemAsync();
+  
+  // FluentResults (returns Result<T>)
+  var result = await table.Users.Get(userId).GetItemAsyncResult();
+  if (result.IsSuccess)
+      var user = result.Value;
+  else
+      foreach (var error in result.Errors.OfType<DynamoDbError>())
+          Console.WriteLine($"[{error.ErrorCode}]: {error.Message}");
+  ```
+
+- **`[UseFluentResults]` Attribute** - Source generator attribute for opt-in FluentResults API generation
+  - Apply to entity classes to generate Result-returning convenience methods on entity accessors
+  - `HideGeneratedAsyncMethods` property (default: `true`) controls whether traditional async methods are suppressed
+  - Generated methods: `GetAsyncResult()`, `PutAsyncResult()`, `DeleteAsyncResult()`, `QueryAsyncResult()`
+  - _Requirements: 8.1-8.5, 9.1-9.5_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("Users")]
+  [UseFluentResults]
+  public partial class User { ... }
+  
+  // Generated convenience methods:
+  var result = await table.Users.GetAsyncResult(userId);
+  var result = await table.Users.PutAsyncResult(user);
+  var result = await table.Users.QueryAsyncResult(x => x.TenantId == tenantId);
+  ```
+
 - **Response metadata via `.Response` property** - Request builders now expose a `.Response` property after execution containing operation metadata. This keeps IntelliSense clean during request building while providing access to response details.
   - `QueryOperationResponse` - LastEvaluatedKey, ScannedCount, ResultCount, ConsumedCapacity, HasMorePages
   - `ScanOperationResponse` - LastEvaluatedKey, ScannedCount, ResultCount, ConsumedCapacity, HasMorePages

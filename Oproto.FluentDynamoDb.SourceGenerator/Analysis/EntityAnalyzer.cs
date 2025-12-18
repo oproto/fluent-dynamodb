@@ -184,6 +184,9 @@ internal class EntityAnalyzer
         // Extract dynamic fields attribute
         ExtractEnableDynamicFieldsAttribute(typeDecl, semanticModel, entityModel);
 
+        // Extract UseFluentResults attribute
+        ExtractUseFluentResultsAttribute(typeDecl, semanticModel, entityModel);
+
         return !string.IsNullOrEmpty(entityModel.TableName);
     }
 
@@ -247,6 +250,34 @@ internal class EntityAnalyzer
     {
         var requireWriteTransactionAttribute = GetAttribute(typeDecl, semanticModel, "RequireWriteTransactionAttribute");
         entityModel.RequiresWriteTransaction = requireWriteTransactionAttribute != null;
+    }
+
+    private void ExtractUseFluentResultsAttribute(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)
+    {
+        var useFluentResultsAttribute = GetAttribute(typeDecl, semanticModel, "UseFluentResultsAttribute");
+        if (useFluentResultsAttribute == null)
+        {
+            entityModel.UseFluentResults = false;
+            return;
+        }
+
+        entityModel.UseFluentResults = true;
+        
+        // Default to hiding traditional async methods
+        entityModel.HideGeneratedAsyncMethods = true;
+
+        // Extract HideGeneratedAsyncMethods property if specified
+        if (useFluentResultsAttribute.ArgumentList != null)
+        {
+            foreach (var arg in useFluentResultsAttribute.ArgumentList.Arguments)
+            {
+                if (arg.NameEquals?.Name.Identifier.ValueText == "HideGeneratedAsyncMethods" &&
+                    arg.Expression is LiteralExpressionSyntax hideAsyncMethodsLiteral)
+                {
+                    entityModel.HideGeneratedAsyncMethods = bool.Parse(hideAsyncMethodsLiteral.Token.ValueText);
+                }
+            }
+        }
     }
 
     private void ExtractEntityPropertyConfiguration(TypeDeclarationSyntax typeDecl, SemanticModel semanticModel, EntityModel entityModel)

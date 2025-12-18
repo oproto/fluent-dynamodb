@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-16
+# Updated 2025-12-17
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -343,4 +343,152 @@ await table.Users.Put(user).Where(x => x.UserId.AttributeNotExists()).PutAsync()
 
 // Increment counter
 await table.Users.Update(userId).Set(x => new UserUpdateModel { Count = x.Count + 1 }).UpdateAsync();
+```
+
+## FluentResults API (Result Pattern)
+
+The `Oproto.FluentDynamoDb.FluentResults` package provides Result-returning alternatives to all async operations.
+
+```csharp
+using Oproto.FluentDynamoDb.FluentResults;
+```
+
+### Traditional vs Result Pattern
+
+```csharp
+// Traditional (throws exceptions)
+var user = await table.Users.Get(userId).GetItemAsync();
+
+// FluentResults (returns Result<T>)
+var result = await table.Users.Get(userId).GetItemAsyncResult();
+if (result.IsSuccess)
+    var user = result.Value;
+```
+
+### Result-Returning Methods
+
+| Traditional | FluentResults |
+|-------------|---------------|
+| `.GetItemAsync()` | `.GetItemAsyncResult()` |
+| `.PutAsync()` | `.PutAsyncResult()` |
+| `.UpdateAsync()` | `.UpdateAsyncResult()` |
+| `.DeleteAsync()` | `.DeleteAsyncResult()` |
+| `.ToListAsync()` | `.ToListAsyncResult()` |
+| `.ExecuteAsync()` | `.ExecuteAsyncResult()` |
+| `.ToCompositeEntityAsync()` | `.ToCompositeEntityAsyncResult()` |
+| `.ExecuteAndMapAsync<T1,T2>()` | `.ExecuteAndMapAsyncResult<T1,T2>()` |
+
+### CRUD Operations
+
+```csharp
+// Get
+var result = await table.Users.Get(userId).GetItemAsyncResult();
+
+// Put with condition
+var result = await table.Users.Put(user)
+    .Where(x => x.UserId.AttributeNotExists())
+    .PutAsyncResult();
+
+// Update with optimistic locking
+var result = await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Version = x.Version + 1 })
+    .Where(x => x.Version == currentVersion)
+    .UpdateAsyncResult();
+
+// Query
+var result = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .ToListAsyncResult();
+```
+
+### Batch Operations
+
+```csharp
+// Batch Get
+var result = await DynamoDbBatch.Get
+    .Add(table.Users.Get(userId1))
+    .Add(table.Users.Get(userId2))
+    .ExecuteAsyncResult();
+
+// Batch Write
+var result = await DynamoDbBatch.Write
+    .Add(table.Users.Put(user))
+    .Add(table.Users.Delete(oldUserId))
+    .ExecuteAsyncResult();
+
+// Batch Get with tuple mapping
+var result = await DynamoDbBatch.Get
+    .Add(table.Users.Get(userId))
+    .Add(table.Orders.Get(orderId))
+    .ExecuteAndMapAsyncResult<User, Order>();
+```
+
+### Transaction Operations
+
+```csharp
+// Transaction Write
+var result = await DynamoDbTransactions.Write
+    .Add(table.Users.Put(newUser))
+    .Add(table.Accounts.Update(accountId)
+        .Set(x => new AccountUpdateModel { Balance = x.Balance - 100 }))
+    .ExecuteAsyncResult();
+
+// Transaction Get
+var result = await DynamoDbTransactions.Get
+    .Add(table.Users.Get(userId))
+    .ExecuteAsyncResult();
+```
+
+### Error Handling
+
+```csharp
+var result = await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Version = x.Version + 1 })
+    .Where(x => x.Version == expectedVersion)
+    .UpdateAsyncResult();
+
+if (result.IsFailed)
+{
+    foreach (var error in result.Errors.OfType<DynamoDbError>())
+    {
+        switch (error)
+        {
+            case OptimisticLockingError:
+                // Retry with fresh data
+                break;
+            case TransactionCancelledError tce:
+                Console.WriteLine($"Cancelled: {string.Join(", ", tce.CancellationReasons)}");
+                break;
+            default:
+                Console.WriteLine($"[{error.ErrorCode}]: {error.Message}");
+                break;
+        }
+    }
+}
+```
+
+### Common Error Types
+
+| Error Type | ErrorCode | Description |
+|------------|-----------|-------------|
+| `OptimisticLockingError` | `OPTIMISTIC_LOCKING_FAILED` | Conditional check failed |
+| `TransactionCancelledError` | `TRANSACTION_CANCELLED` | Transaction was cancelled |
+| `TransactionConflictError` | `TRANSACTION_CONFLICT` | Concurrent transaction |
+| `OperationLimitExceededError` | `OPERATION_LIMIT_EXCEEDED` | Too many operations |
+| `MissingClientError` | `MISSING_CLIENT` | No DynamoDB client |
+| `MappingError` | `MAPPING_ERROR` | Entity mapping failed |
+| `EncryptionError` | `ENCRYPTION_FAILED` | Encryption failed |
+
+### UseFluentResults Attribute
+
+```csharp
+[DynamoDbTable("Users")]
+[UseFluentResults]  // Generates Result-returning convenience methods
+public partial class User { ... }
+
+// Generated methods:
+var result = await table.Users.GetAsyncResult(userId);
+var result = await table.Users.PutAsyncResult(user);
+var result = await table.Users.DeleteAsyncResult(userId);
+var result = await table.Users.QueryAsyncResult(x => x.TenantId == tenantId);
 ```

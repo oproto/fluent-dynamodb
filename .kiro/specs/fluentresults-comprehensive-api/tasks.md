@@ -1,0 +1,287 @@
+# Implementation Plan
+
+- [x] 1. Refactor DynamoDbErrors and Error Type Hierarchy
+  - [x] 1.1 Move DynamoDbErrors class to Oproto.FluentDynamoDb.FluentResults namespace
+    - Update namespace from Oproto.Shared.Api.DynamoDb to Oproto.FluentDynamoDb.FluentResults
+    - _Requirements: 1.1_
+  - [x] 1.2 Create base DynamoDbError class extending FluentResults.Error
+    - Add ErrorCode abstract property
+    - Add InnerException property
+    - _Requirements: 1.5_
+  - [x] 1.3 Create TransactionError hierarchy
+    - TransactionCancelledError with CancellationReasons
+    - TransactionConflictError
+    - TransactionInProgressError
+    - _Requirements: 6.3, 6.4_
+  - [x] 1.4 Create MappingError hierarchy
+    - MappingError with EntityType and FieldName
+    - DiscriminatorMismatchError
+    - ProjectionValidationError
+    - ExpressionTranslationError
+    - _Requirements: 14.1, 14.3, 14.7, 14.8_
+  - [x] 1.5 Create ValidationError hierarchy
+    - SchemaValidationError with ValidationErrors list
+    - EmptyCollectionError with ParameterName
+    - FormatStringError with FormatDetails
+    - _Requirements: 14.2, 14.16, 14.17_
+  - [x] 1.6 Create ConfigurationError hierarchy
+    - MissingClientError
+    - EncryptionConfigurationError with PropertyNames
+    - WriteTransactionRequiredError with EntityName
+    - ClientMismatchError
+    - EmptyOperationError
+    - OperationLimitExceededError with Limit and ActualCount
+    - UpdateExpressionConflictError
+    - _Requirements: 14.9-14.15_
+  - [x] 1.7 Create StorageError hierarchy
+    - BlobStorageError with BlobKey and OperationType
+    - EncryptionError with FieldName, ContextId, KeyArn
+    - DecryptionError with FieldName, ContextId
+    - _Requirements: 14.4, 14.5, 16.1-16.3_
+  - [x] 1.8 Implement comprehensive FromException method
+    - Pattern match all AWS SDK exceptions
+    - Pattern match all custom library exceptions
+    - Pattern match InvalidOperationException by message content
+    - Pattern match ArgumentException and FormatException
+    - Add fallback UnexpectedError
+    - _Requirements: 1.2, 1.3, 14.1-14.17_
+  - [x] 1.9 Write property test for exception to error mapping
+    - **Property 1: Exception to Error Mapping Completeness**
+    - **Property 5: Error Type Specificity**
+    - **Validates: Requirements 1.2, 1.3, 1.4, 14.1-14.17**
+
+- [x] 2. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 3. Implement Core CRUD FluentResults Extensions
+  - [x] 3.1 Implement GetItemAsyncResult extension method
+    - Wrap GetItemAsync with try/catch
+    - Re-throw OperationCanceledException
+    - Return Result.Fail with DynamoDbErrors.FromException on failure
+    - _Requirements: 2.1, 12.1_
+  - [x] 3.2 Implement GetItemAsyncResult with IBlobStorageProvider overload
+    - Support blob reference hydration
+    - _Requirements: 4.1_
+  - [x] 3.3 Implement PutAsyncResult extension method
+    - Wrap PutAsync with try/catch
+    - Return Result.Ok() on success, Result.Fail on failure
+    - _Requirements: 2.2_
+  - [x] 3.4 Implement PutAsyncResult with IBlobStorageProvider overload
+    - Support blob reference storage
+    - _Requirements: 4.2_
+  - [x] 3.5 Implement UpdateAsyncResult extension method
+    - Wrap UpdateAsync with try/catch
+    - _Requirements: 2.3_
+  - [x] 3.6 Implement DeleteAsyncResult extension method
+    - Wrap DeleteAsync with try/catch
+    - _Requirements: 2.4_
+  - [x] 3.7 Implement ToListAsyncResult for QueryRequestBuilder
+    - Wrap ToListAsync with try/catch
+    - _Requirements: 2.5_
+  - [x] 3.8 Implement ToListAsyncResult for QueryRequestBuilder with IBlobStorageProvider
+    - Support blob reference hydration
+    - _Requirements: 4.3_
+  - [x] 3.9 Implement ToListAsyncResult for ScanRequestBuilder
+    - Wrap ToListAsync with try/catch
+    - _Requirements: 2.6_
+  - [x] 3.10 Implement ToListAsyncResult for ScanRequestBuilder with IBlobStorageProvider
+    - Support blob reference hydration
+    - _Requirements: 4.4_
+  - [x] 3.11 Write property tests for core CRUD extensions
+    - **Property 2: Result Success Preserves Value**
+    - **Property 3: Result Failure Contains Error**
+    - **Property 4: Cancellation Token Passthrough**
+    - **Validates: Requirements 2.1-2.7, 4.1-4.5, 12.1**
+
+- [x] 4. Implement Composite Entity FluentResults Extensions
+  - [x] 4.1 Implement ToCompositeEntityAsyncResult for QueryRequestBuilder
+    - Wrap ToCompositeEntityAsync with try/catch
+    - _Requirements: 3.1_
+  - [x] 4.2 Implement ToCompositeEntityListAsyncResult for QueryRequestBuilder
+    - Wrap ToCompositeEntityListAsync with try/catch
+    - _Requirements: 3.2_
+  - [x] 4.3 Implement ToCompositeEntityListAsyncResult for ScanRequestBuilder
+    - Wrap ToCompositeEntityListAsync with try/catch
+    - _Requirements: 3.3_
+  - [x] 4.4 Write property tests for composite entity extensions
+    - **Property 2: Result Success Preserves Value** (composite entity variant)
+    - **Validates: Requirements 3.1-3.3**
+
+- [x] 5. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 6. Implement Batch Operation FluentResults Extensions
+  - [x] 6.1 Implement ExecuteAsyncResult for BatchGetBuilder
+    - Wrap ExecuteAsync with try/catch
+    - _Requirements: 5.1_
+  - [x] 6.2 Implement ExecuteAsyncResult for BatchWriteBuilder
+    - Wrap ExecuteAsync with try/catch
+    - _Requirements: 5.2_
+  - [x] 6.3 Implement ExecuteAsyncResult for BatchPartiQLBuilder
+    - Wrap ExecuteAsync with try/catch
+    - _Requirements: 5.3_
+  - [x] 6.4 Implement unprocessed items warning handling
+    - Return success with warnings when UnprocessedItems/UnprocessedKeys exist
+    - _Requirements: 5.4_
+  - [x] 6.5 Implement ExecuteAndMapAsyncResult tuple methods for BatchGetBuilder
+    - Support ExecuteAndMapAsyncResult<T1,T2> through ExecuteAndMapAsyncResult<T1,...,T8>
+    - _Requirements: 5.5_
+  - [x] 6.6 Write property tests for batch operation extensions
+    - **Property 6: Batch Unprocessed Items Warning**
+    - **Property 7: Error Aggregation Ordering**
+    - **Validates: Requirements 5.1-5.5, 11.1**
+
+- [x] 7. Implement Transaction Operation FluentResults Extensions
+  - [x] 7.1 Implement ExecuteAsyncResult for TransactionWriteBuilder
+    - Wrap ExecuteAsync with try/catch
+    - Handle TransactionCanceledException with cancellation reasons
+    - _Requirements: 6.1, 6.3_
+  - [x] 7.2 Implement ExecuteAsyncResult for TransactionGetBuilder
+    - Wrap ExecuteAsync with try/catch
+    - _Requirements: 6.2_
+  - [x] 7.3 Implement transaction-specific error handling
+    - Extract cancellation reasons from TransactionCanceledException
+    - Handle TransactionConflictException
+    - Handle IdempotentParameterMismatchException
+    - _Requirements: 6.3, 6.4, 6.5_
+  - [x] 7.4 Write property tests for transaction operation extensions
+    - **Property 7: Error Aggregation Ordering** (transaction variant)
+    - **Validates: Requirements 6.1-6.5, 11.2, 11.3**
+
+- [x] 8. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. Implement PartiQL FluentResults Extensions
+  - [x] 9.1 Implement ToListAsyncResult for PartiQLRequestBuilder
+    - Wrap ToListAsync with try/catch
+    - _Requirements: 10.1_
+  - [x] 9.2 Implement ExecuteAsyncResult for PartiQLRequestBuilder (non-SELECT)
+    - Wrap ExecuteAsync with try/catch
+    - _Requirements: 10.2_
+  - [x] 9.3 Write property tests for PartiQL extensions
+    - **Property 3: Result Failure Contains Error** (PartiQL variant)
+    - **Validates: Requirements 10.1-10.3**
+
+- [x] 10. Implement Geospatial FluentResults Extensions
+  - [x] 10.1 Implement SpatialQueryAsyncResult for IDynamoDbTable (proximity)
+    - Wrap SpatialQueryAsync with try/catch
+    - _Requirements: 7.1_
+  - [x] 10.2 Implement SpatialQueryAsyncResult for IDynamoDbTable (bounding box)
+    - Wrap SpatialQueryAsync with try/catch
+    - _Requirements: 7.2_
+  - [x] 10.3 Implement SpatialQueryAsyncResult for DynamoDbIndex
+    - Wrap SpatialQueryAsync with try/catch
+    - _Requirements: 7.3_
+  - [x] 10.4 Create SpatialQueryError for invalid coordinate handling
+    - Include validation details in error
+    - _Requirements: 7.4_
+  - [x] 10.5 Write property tests for geospatial extensions
+    - **Property 3: Result Failure Contains Error** (geospatial variant)
+    - **Validates: Requirements 7.1-7.4**
+
+- [x] 11. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 12. Implement UseFluentResults Attribute and Source Generator
+  - [x] 12.1 Create UseFluentResultsAttribute in Oproto.FluentDynamoDb.Attributes
+    - Add HideGeneratedAsyncMethods property with default true
+    - _Requirements: 8.1, 8.5_
+  - [x] 12.2 Extend source generator to detect UseFluentResults attribute
+    - Check for attribute on entity classes
+    - Check for attribute on table classes
+    - _Requirements: 8.1, 8.2_
+  - [x] 12.3 Generate Result-returning convenience methods on entity accessors
+    - Generate GetAsyncResult method
+    - Generate PutAsyncResult method
+    - Generate DeleteAsyncResult method
+    - Generate QueryAsyncResult method
+    - _Requirements: 9.1-9.5_
+  - [x] 12.4 Implement HideGeneratedAsyncMethods logic
+    - When true, suppress traditional async method generation
+    - When false, generate both traditional and Result-returning methods
+    - _Requirements: 8.3, 8.4_
+  - [x] 12.5 Write unit tests for source generator
+    - Test attribute detection
+    - Test method generation
+    - Test HideGeneratedAsyncMethods behavior
+    - _Requirements: 8.1-8.5, 9.1-9.5_
+
+- [x] 13. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 14. Update Documentation
+  - [x] 14.1 Update FluentResults README.md
+    - Add comprehensive usage examples for all operation types
+    - Document error handling patterns
+    - Document UseFluentResults attribute usage
+    - _Requirements: 15.1_
+  - [x] 14.2 Update .kiro/steering/fluentdynamodb.md
+    - Add FluentResults API patterns section
+    - Show side-by-side examples of traditional vs Result patterns
+    - _Requirements: 15.2_
+  - [x] 14.3 Create docs/core-features/FluentResults.md guide
+    - Detailed examples for all operation types
+    - Error handling best practices
+    - Migration guide from traditional async
+    - _Requirements: 15.3_
+  - [x] 14.4 Update CHANGELOG.md
+    - Add FluentResults enhancement entry
+    - Document breaking changes if any
+    - _Requirements: 15.4_
+
+- [x] 15. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [-] 16. Add FluentResults API Surface Tests to ApiConsistencyTests
+  - [x] 16.1 Create FluentResults folder structure in ApiConsistencyTests
+    - Create FluentResults/ folder for FluentResults-specific API surface tests
+    - _Requirements: 2.1-2.7, 3.1-3.3_
+  - [x] 16.2 Create GetApiSurfaceFluentResults.cs
+    - Add GetItemAsyncResult patterns for PK-only and PK+SK tables
+    - Add GetItemAsyncResult with blob provider overload
+    - _Requirements: 2.1, 4.1_
+  - [x] 16.3 Create PutApiSurfaceFluentResults.cs
+    - Add PutAsyncResult patterns
+    - Add PutAsyncResult with blob provider overload
+    - _Requirements: 2.2, 4.2_
+  - [x] 16.4 Create UpdateApiSurfaceFluentResults.cs
+    - Add UpdateAsyncResult patterns
+    - _Requirements: 2.3_
+  - [x] 16.5 Create DeleteApiSurfaceFluentResults.cs
+    - Add DeleteAsyncResult patterns
+    - _Requirements: 2.4_
+  - [x] 16.6 Create QueryApiSurfaceFluentResults.cs
+    - Add ToListAsyncResult patterns
+    - Add ToCompositeEntityAsyncResult patterns
+    - Add ToCompositeEntityListAsyncResult patterns
+    - Add blob provider overloads
+    - _Requirements: 2.5, 3.1, 3.2, 4.3_
+  - [x] 16.7 Create ScanApiSurfaceFluentResults.cs
+    - Add ToListAsyncResult patterns
+    - Add ToCompositeEntityListAsyncResult patterns
+    - Add blob provider overloads
+    - _Requirements: 2.6, 3.3, 4.4_
+  - [x] 16.8 Create BatchApiSurfaceFluentResults.cs
+    - Add ExecuteAsyncResult for BatchGetBuilder
+    - Add ExecuteAsyncResult for BatchWriteBuilder
+    - Add ExecuteAsyncResult for BatchPartiQLBuilder
+    - Add ExecuteAndMapAsyncResult tuple patterns (T1 through T8)
+    - _Requirements: 5.1-5.5_
+  - [x] 16.9 Create TransactionApiSurfaceFluentResults.cs
+    - Add ExecuteAsyncResult for TransactionWriteBuilder
+    - Add ExecuteAsyncResult for TransactionGetBuilder
+    - Add ExecuteAndMapAsyncResult tuple patterns
+    - _Requirements: 6.1, 6.2_
+  - [x] 16.10 Create PartiQLApiSurfaceFluentResults.cs
+    - Add ToListAsyncResult patterns
+    - Add ExecuteAsyncResult patterns
+    - _Requirements: 10.1, 10.2_
+  - [x] 16.11 Create GeospatialApiSurfaceFluentResults.cs
+    - Add SpatialQueryAsyncResult for table proximity queries
+    - Add SpatialQueryAsyncResult for table bounding box queries
+    - Add SpatialQueryAsyncResult for index queries
+    - Add SpatialQueryAsyncResult for custom cell list queries
+    - _Requirements: 7.1-7.4_
+
+- [x] 17. Final Checkpoint - Ensure ApiConsistencyTests compile
+  - Build ApiConsistencyTests project to verify all FluentResults API patterns compile correctly.

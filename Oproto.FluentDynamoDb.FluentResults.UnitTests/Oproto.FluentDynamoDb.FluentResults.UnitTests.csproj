@@ -14,6 +14,8 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="AwesomeAssertions" Version="9.3.0" />
+        <PackageReference Include="FsCheck" Version="2.16.6" />
+        <PackageReference Include="FsCheck.Xunit" Version="2.16.6" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
         <PackageReference Include="NSubstitute" Version="5.3.0" />
         <PackageReference Include="xunit" Version="2.9.3" />
@@ -26,6 +28,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Oproto.FluentDynamoDb.FluentResults\Oproto.FluentDynamoDb.FluentResults.csproj" />
         <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj" />
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
     </ItemGroup>
 
 </Project>
