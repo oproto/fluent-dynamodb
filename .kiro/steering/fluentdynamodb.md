@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-17
+# Updated 2025-12-18
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -491,4 +491,36 @@ var result = await table.Users.GetAsyncResult(userId);
 var result = await table.Users.PutAsyncResult(user);
 var result = await table.Users.DeleteAsyncResult(userId);
 var result = await table.Users.QueryAsyncResult(x => x.TenantId == tenantId);
+```
+
+## Table Creation (Integration Testing)
+
+Create DynamoDB tables from entity metadata for integration testing.
+
+```csharp
+using Oproto.FluentDynamoDb.Provisioning;
+
+// Generated static method - creates table with PK, SK, GSIs, LSIs from entity metadata
+var result = await UsersTable.CreateTableAsync(client, "test-users-table");
+
+// With TTL enabled
+var result = await UsersTable.CreateTableAsync(client, "test-users-table", 
+    new TableCreationOptions { EnableTtl = true });
+```
+
+### Integration Test Pattern
+
+```csharp
+public class UserTests : IAsyncLifetime
+{
+    private readonly string _tableName = $"users_test_{Guid.NewGuid():N}";
+    
+    public async Task InitializeAsync()
+    {
+        await UsersTable.CreateTableAsync(_client, _tableName);
+        _table = new UsersTable(_client, _tableName);
+    }
+    
+    public async Task DisposeAsync() => await _client.DeleteTableAsync(_tableName);
+}
 ```

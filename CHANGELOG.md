@@ -195,6 +195,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   await DynamoDbTransactions.WriteAsync(client, existingTransactWriteRequest);
   ```
 
+- **Table Creation from Metadata** - Create DynamoDB tables programmatically from entity metadata for integration testing
+  - New `TableCreator` class with `CreateAsync` and `BuildCreateTableRequest` methods
+  - New `TableCreationOptions` class for configuring billing mode, throughput, TTL, and wait behavior
+  - New `TableCreationResult` class with table information (TableName, TableArn, TableStatus, TtlEnabled)
+  - New `ProvisionedThroughputConfig` class for PROVISIONED billing mode configuration
+  - Source-generated static `CreateTableAsync` method on table classes
+  - Supports primary key (partition + optional sort key) configuration
+  - Supports Global Secondary Index (GSI) creation with projection types (ALL, KEYS_ONLY, INCLUDE)
+  - Supports Local Secondary Index (LSI) creation with projection types
+  - Supports TTL enablement when entity metadata defines TTL attribute
+  - Supports PAY_PER_REQUEST (default) and PROVISIONED billing modes
+  - Configurable wait-for-active behavior with timeout and polling interval
+  - Complements `ValidateSchemaAsync` for complete table lifecycle management
+  - _Requirements: 1.1-1.5, 2.1-2.6, 3.1-3.5, 4.1-4.3, 5.1-5.4, 6.1-6.2, 7.1-7.3_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.Provisioning;
+  
+  // Using generated static method (recommended for integration tests)
+  var result = await UsersTable.CreateTableAsync(client, "test-users-table");
+  
+  // With options
+  var result = await UsersTable.CreateTableAsync(client, "test-users-table",
+      new TableCreationOptions
+      {
+          EnableTtl = true,
+          WaitForActive = true,
+          WaitTimeout = TimeSpan.FromSeconds(60)
+      });
+  
+  // Using TableCreator directly
+  var creator = new TableCreator();
+  var result = await creator.CreateAsync(client, "my-table", User.GetEntityMetadata());
+  
+  // Inspect request before execution
+  var request = creator.BuildCreateTableRequest("my-table", User.GetEntityMetadata());
+  ```
+
 - **Schema Validation** - Runtime validation of DynamoDB table schemas against entity metadata
   - New `ValidateSchemaAsync(IAmazonDynamoDB, SchemaValidationOptions?)` method generated on table classes
   - Validates primary key configuration (partition key name/type, sort key name/type/presence)

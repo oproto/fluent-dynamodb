@@ -57,6 +57,45 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-18]
+
+### File: docs/advanced-topics/TableCreation.md (NEW)
+
+**Category:** New Documentation - Table Creation Feature
+
+**Summary:** Created comprehensive documentation for the Table Creation feature, including:
+- Overview and primary use cases (integration testing, time-series tables, development environments)
+- Basic usage with `TableCreator` class
+- `TableCreationOptions` configuration (billing mode, throughput, TTL, wait behavior)
+- `TableCreationResult` properties
+- Generated static `CreateTableAsync` method usage
+- Complete integration testing example with xUnit and DynamoDB Local
+- Test fixture pattern for shared setup
+- Error handling guidance
+- Best practices
+
+**Files added:**
+- `docs/advanced-topics/TableCreation.md`
+
+**Reason:** New feature documentation for Table Creation from Metadata per Requirements 1.1-1.5, 2.1-2.6, 3.1-3.5, 4.1-4.3, 5.1-5.4, 6.1-6.2, 7.1-7.3. This feature complements Schema Validation by providing the inverse operation: creating tables from entity metadata.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Table Creation Section
+
+**Summary:** Added new "Table Creation (Integration Testing)" section to the steering file with:
+- Generated static method usage
+- TableCreator direct usage
+- TableCreationOptions reference table
+- TableCreationResult properties
+- Integration test pattern example
+
+**Reason:** Steering file must be updated when new features are added to ensure AI assistants have accurate API reference information.
+
+---
+
 ## [2025-12-16]
 
 ### Files: Multiple documentation files
