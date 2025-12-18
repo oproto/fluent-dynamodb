@@ -145,6 +145,21 @@ internal class EntityModel
     public bool DynamicFieldsSensitiveLogging { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether FluentResults API generation is enabled for this entity.
+    /// When true, the source generator will generate Result-returning convenience methods
+    /// (e.g., GetAsyncResult, PutAsyncResult, DeleteAsyncResult, QueryAsyncResult).
+    /// </summary>
+    public bool UseFluentResults { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to suppress generation of traditional async methods
+    /// when UseFluentResults is enabled.
+    /// When true (default), only Result-returning methods are generated.
+    /// When false, both traditional async and Result-returning methods are generated.
+    /// </summary>
+    public bool HideGeneratedAsyncMethods { get; set; } = true;
+
+    /// <summary>
     /// Gets the partition key property, if any.
     /// </summary>
     public PropertyModel? PartitionKeyProperty => Properties.FirstOrDefault(p => p.IsPartitionKey);
