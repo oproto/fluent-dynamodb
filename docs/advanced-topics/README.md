@@ -116,6 +116,16 @@ Validate DynamoDB table schemas against entity metadata at application startup. 
 - Fail-fast validation for Lambda cold starts
 - Logging integration for validation results
 
+### [Table Creation](TableCreation.md)
+Create DynamoDB tables programmatically from entity metadata for integration testing. Covers:
+- `TableCreator` class with `CreateAsync` and `BuildCreateTableRequest` methods
+- `TableCreationOptions` for billing mode, throughput, TTL, and wait behavior
+- Generated static `CreateTableAsync` method on table classes
+- Primary key, GSI, and LSI configuration from entity metadata
+- PAY_PER_REQUEST and PROVISIONED billing modes
+- Integration testing patterns with DynamoDB Local
+- Complements `ValidateSchemaAsync` for complete table lifecycle management
+
 ### [DynamicTable](DynamicTable.md)
 Access any DynamoDB table without defining entity classes. Covers:
 - Schema-less table access with `DynamicTable` and `DynamicEntity`
@@ -173,7 +183,8 @@ If you're new to advanced topics, we recommend starting with:
 7. **[Geospatial Support](Geospatial.md)** - Enable location-based queries with spatial indexing
 8. **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - Enable alternative query patterns
 9. **[Schema Validation](SchemaValidation.md)** - Validate table schema at startup for fail-fast behavior
-10. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
+10. **[Table Creation](TableCreation.md)** - Create tables from entity metadata for integration testing
+11. **[Performance Optimization](PerformanceOptimization.md)** - Improve efficiency and reduce costs
 
 ## Prerequisites
 

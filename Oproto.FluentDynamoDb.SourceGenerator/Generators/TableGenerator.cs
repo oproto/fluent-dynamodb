@@ -141,6 +141,16 @@ internal static class TableGenerator
             SchemaValidationGenerator.GenerateValidateSchemaAsyncMethod(sb, tableName, primaryEntity);
         }
         
+        // Generate CreateTableAsync method for table creation
+        if (defaultEntity != null)
+        {
+            TableCreationGenerator.GenerateCreateTableAsyncMethodForMultiEntity(sb, defaultEntity);
+        }
+        else
+        {
+            TableCreationGenerator.GenerateCreateTableAsyncMethod(sb, primaryEntity);
+        }
+        
         sb.AppendLine("}");
         
         return sb.ToString();
@@ -253,6 +263,9 @@ internal static class TableGenerator
         
         // Generate ValidateSchemaAsync method for schema validation
         SchemaValidationGenerator.GenerateValidateSchemaAsyncMethod(sb, entity.TableName ?? entity.ClassName, entity);
+        
+        // Generate CreateTableAsync method for table creation
+        TableCreationGenerator.GenerateCreateTableAsyncMethod(sb, entity);
         
         sb.AppendLine("}");
         
