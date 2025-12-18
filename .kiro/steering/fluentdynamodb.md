@@ -155,16 +155,28 @@ var users = await table.Users.Query()
     .WithFilter(x => x.Status == "active")
     .ToListAsync();
 
-// Pagination
+// Pagination - access response metadata via builder.Response
 var query = table.Users.Query()
     .Where(x => x.CustomerId == tenantId)
     .Take(25);
 var users = await query.ToListAsync();
-var lastKey = query.Response.LastEvaluatedKey;  // Access response after execution
 
+// Access response metadata after execution
+var hasMore = query.Response?.HasMorePages ?? false;
+var lastKey = query.Response?.LastEvaluatedKey;
+var scannedCount = query.Response?.ScannedCount;
+
+// Continue with raw LastEvaluatedKey
 var nextPage = await table.Users.Query()
     .Where(x => x.CustomerId == tenantId)
-    .WithPaginationToken(lastKey)
+    .StartAt(lastKey!)
+    .ToListAsync();
+
+// Or use encoded pagination token (for API responses)
+var token = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
+var nextPageWithToken = await table.Users.Query()
+    .Where(x => x.CustomerId == tenantId)
+    .Paginate(new PaginationRequest(25, token))
     .ToListAsync();
 
 // Options
@@ -183,6 +195,57 @@ var users = await table.Users.Query()
 ```csharp
 var logs = await table.Logs.Scan().ToListAsync();
 var logs = await table.Logs.Scan().WithFilter(x => x.Level == "ERROR").Take(100).ToListAsync();
+
+// Scan pagination
+var scan = table.Logs.Scan().Take(100);
+var logs = await scan.ToListAsync();
+var nextToken = scan.Response?.GetEncodedPaginationToken() ?? string.Empty;
+```
+
+## Response Metadata
+
+Query and Scan builders expose a `.Response` property after execution containing operation metadata.
+
+```csharp
+// QueryOperationResponse properties
+var query = table.Users.Query().Where(x => x.TenantId == tenantId);
+var users = await query.ToListAsync();
+var lastKey = query.Response?.LastEvaluatedKey;      // For pagination
+var hasMore = query.Response?.HasMorePages ?? false; // Convenience property
+var scanned = query.Response?.ScannedCount;          // Items evaluated
+var returned = query.Response?.ResultCount;          // Items returned
+var capacity = query.Response?.ConsumedCapacity;     // If ReturnConsumedCapacity set
+
+// ScanOperationResponse has the same properties
+var scan = table.Logs.Scan();
+var logs = await scan.ToListAsync();
+var scanHasMore = scan.Response?.HasMorePages ?? false;
+```
+
+## Pagination Tokens
+
+Encode/decode pagination tokens for API responses:
+
+```csharp
+using Oproto.FluentDynamoDb.Pagination;
+
+// Encode token from response
+var query = table.Users.Query().Where(x => x.TenantId == tenantId).Take(25);
+var users = await query.ToListAsync();
+var token = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
+
+// Use token in next request via Paginate()
+var nextPage = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .Paginate(new PaginationRequest(25, token))
+    .ToListAsync();
+
+// Or use raw LastEvaluatedKey with StartAt()
+var nextPage2 = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .StartAt(query.Response?.LastEvaluatedKey!)
+    .Take(25)
+    .ToListAsync();
 ```
 
 ## Index Operations (GSI/LSI)

@@ -59,6 +59,49 @@ Entries may be categorized as:
 
 ## [2025-12-18]
 
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Pagination and Response Metadata
+
+**Summary:** Enhanced pagination documentation and added new sections:
+- Updated Query Operations pagination example to show `builder.Response` access pattern
+- Added new "Response Metadata" section documenting `QueryOperationResponse` and `ScanOperationResponse` properties
+- Added new "Pagination Tokens" section documenting `GetEncodedPaginationToken()` extension method
+- Added scan pagination example in Scan Operations section
+
+**Before:**
+```csharp
+var lastKey = query.Response.LastEvaluatedKey;  // Access response after execution
+```
+
+**After:**
+```csharp
+var hasMore = query.Response?.HasMorePages ?? false;
+var lastKey = query.Response?.LastEvaluatedKey;
+var token = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
+```
+
+**Reason:** `PaginationExtensions.GetEncodedPaginationToken()` was updated to support `QueryOperationResponse` and `ScanOperationResponse` types. Documentation needed to reflect the recommended pattern of using `builder.Response?.GetEncodedPaginationToken()` instead of raw SDK response types.
+
+---
+
+### File: Oproto.FluentDynamoDb/Pagination/PaginationExtensions.cs
+
+**Category:** API Enhancement - Pagination Token Encoding
+
+**Summary:** Added new overloads for `GetEncodedPaginationToken()` extension method:
+- New overload for `QueryOperationResponse` - recommended for use with query builders
+- New overload for `ScanOperationResponse` - recommended for use with scan builders
+- New overload for raw AWS SDK `ScanResponse` - for direct SDK usage
+- Existing `QueryResponse` overload retained for backward compatibility
+- All overloads now return empty string when `LastEvaluatedKey` is null or empty
+
+**Reason:** The original implementation only supported `QueryResponse` from the AWS SDK. Users accessing pagination via `builder.Response` (which returns `QueryOperationResponse` or `ScanOperationResponse`) needed direct support without extracting the raw SDK response.
+
+---
+
+## [2025-12-18]
+
 ### File: docs/advanced-topics/TableCreation.md (NEW)
 
 **Category:** New Documentation - Table Creation Feature

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **PaginationExtensions.GetEncodedPaginationToken()** - Updated to support `QueryOperationResponse` and `ScanOperationResponse` types
+  - New overload for `QueryOperationResponse` - use via `builder.Response?.GetEncodedPaginationToken()`
+  - New overload for `ScanOperationResponse` - use via `builder.Response?.GetEncodedPaginationToken()`
+  - New overload for raw AWS SDK `ScanResponse` for direct SDK usage
+  - Existing `QueryResponse` overload retained for backward compatibility
+  - All overloads return empty string when `LastEvaluatedKey` is null or empty
+  
+  **Usage:**
+  ```csharp
+  // Query pagination (recommended)
+  var query = table.Users.Query().Where(x => x.TenantId == tenantId).Take(25);
+  var users = await query.ToListAsync();
+  var nextToken = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
+  
+  // Scan pagination
+  var scan = table.Logs.Scan().Take(100);
+  var logs = await scan.ToListAsync();
+  var nextToken = scan.Response?.GetEncodedPaginationToken() ?? string.Empty;
+  ```
+
 ### Added
 
 - **Comprehensive FluentResults API Integration** - Complete Result<T> pattern alternative to traditional async/exception-based API
