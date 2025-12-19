@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;

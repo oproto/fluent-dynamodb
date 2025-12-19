@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using FluentAssertions;
+using AwesomeAssertions;
 using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
