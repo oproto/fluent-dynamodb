@@ -1,5 +1,5 @@
 using Amazon.DynamoDBv2.Model;
-using AwesomeAssertions;
+using FluentAssertions;
 
 using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Entities;
@@ -24,7 +24,7 @@ public class DynamoDbOperationContextTests
             };
         }
 
-        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
         {
             var entity = new TestEntity
             {

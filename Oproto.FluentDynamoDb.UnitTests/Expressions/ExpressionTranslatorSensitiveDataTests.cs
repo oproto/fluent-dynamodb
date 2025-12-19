@@ -1,4 +1,4 @@
-using AwesomeAssertions;
+using FluentAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Logging;

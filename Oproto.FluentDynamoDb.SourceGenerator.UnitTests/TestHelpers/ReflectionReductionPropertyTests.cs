@@ -75,7 +75,10 @@ public class ReflectionReductionPropertyTests
         "StreamMapperGeneratorTests.cs",
         "StreamRegistryGeneratorTests.cs",
         "ProjectionExpressionGeneratorDiscriminatorTests.cs",
-        "CoordinateStoragePropertyTests.cs"
+        "CoordinateStoragePropertyTests.cs",
+        "TypeBasedTableReferencePropertyTests.cs",
+        "StringBasedTableReferencePropertyTests.cs",
+        "IndexDeduplicationPropertyTests.cs"
     };
     
     // Paths to exclude from checks

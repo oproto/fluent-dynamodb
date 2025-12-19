@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using AwesomeAssertions;
+using FluentAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
@@ -35,7 +35,7 @@ public class WithUpdateExpressionExtensionsTests
             where TSelf : IDynamoDbEntity => new();
 
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-            where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();
+            where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntity();
 
         public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
             where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();

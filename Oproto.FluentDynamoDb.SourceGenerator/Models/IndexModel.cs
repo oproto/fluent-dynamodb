@@ -6,9 +6,22 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 internal class IndexModel
 {
     /// <summary>
-    /// Gets or sets the name of the secondary index.
+    /// Gets or sets the name of the secondary index (the DynamoDB index name).
     /// </summary>
     public string IndexName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the custom C# property name specified via the Name property on the attribute.
+    /// If not specified, this will be null.
+    /// </summary>
+    public string? CustomName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resolved C# property name for the generated index accessor.
+    /// This is either the <see cref="CustomName"/> if specified, or a PascalCase conversion
+    /// of the <see cref="IndexName"/>.
+    /// </summary>
+    public string ResolvedPropertyName { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the type of index (GSI or LSI).

@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -19,8 +20,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// - Large tables will require multiple scan operations due to 1MB response limits
 /// - Consider using parallel scans for large tables to improve throughput
 /// - Always use filter expressions to reduce data transfer, though this doesn't reduce consumed capacity
+/// Now supports both full entities and projections through IReadOnlyEntity constraint.
 /// </summary>
-/// <typeparam name="TEntity">The entity type being scanned.</typeparam>
+/// <typeparam name="TEntity">The entity or projection type being scanned. Must implement IReadOnlyEntity&lt;TEntity&gt;.</typeparam>
 /// <example>
 /// <code>
 /// // Basic scan with filter
@@ -39,7 +41,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </example>
 public class ScanRequestBuilder<TEntity> :
     IWithAttributeNames<ScanRequestBuilder<TEntity>>, IWithAttributeValues<ScanRequestBuilder<TEntity>>, IWithFilterExpression<ScanRequestBuilder<TEntity>>, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IReadOnlyEntity
 {
     /// <summary>
     /// Initializes a new instance of the ScanRequestBuilder.

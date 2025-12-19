@@ -43,7 +43,7 @@ namespace Oproto.FluentDynamoDb.Examples;
 /// </remarks>
 public class ProjectionPrecedenceRulesExamples
 {
-    public class Transaction
+    public class Transaction : Entities.IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public decimal Amount { get; set; }
@@ -51,9 +51,18 @@ public class ProjectionPrecedenceRulesExamples
         public DateTime CreatedDate { get; set; }
         public string Description { get; set; } = string.Empty;
         public Dictionary<string, string> Metadata { get; set; } = new();
+        
+        // IDynamoDbEntity implementation
+        public static Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => new();
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : Entities.IReadOnlyEntity => throw new NotImplementedException();
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => throw new NotImplementedException();
+        public static string GetPartitionKey(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => string.Empty;
+        public static bool MatchesEntity(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => false;
+        public static Metadata.EntityMetadata GetEntityMetadata() => new();
+        public static bool RequiresWriteTransaction => false;
     }
 
-    public class TransactionSummary
+    public class TransactionSummary : Entities.IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public decimal Amount { get; set; }
@@ -61,6 +70,15 @@ public class ProjectionPrecedenceRulesExamples
         
         // Simulating generated projection metadata
         public static string ProjectionExpression => "id, amount, status";
+        
+        // IDynamoDbEntity implementation
+        public static Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => new();
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : Entities.IReadOnlyEntity => throw new NotImplementedException();
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => throw new NotImplementedException();
+        public static string GetPartitionKey(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => string.Empty;
+        public static bool MatchesEntity(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => false;
+        public static Metadata.EntityMetadata GetEntityMetadata() => new();
+        public static bool RequiresWriteTransaction => false;
     }
 
     public class TransactionsTable : IDynamoDbTable

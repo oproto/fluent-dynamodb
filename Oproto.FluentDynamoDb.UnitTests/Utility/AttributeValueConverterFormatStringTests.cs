@@ -1,5 +1,5 @@
 using Amazon.DynamoDBv2.Model;
-using AwesomeAssertions;
+using FluentAssertions;
 using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Utility;

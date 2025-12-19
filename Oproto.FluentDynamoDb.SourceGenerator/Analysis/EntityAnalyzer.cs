@@ -129,10 +129,29 @@ internal class EntityAnalyzer
             return false;
         }
 
-        // Extract table name from constructor argument
-        if (tableAttribute.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax tableNameLiteral)
+        // Extract table name or type from constructor argument
+        var firstArg = tableAttribute.ArgumentList?.Arguments.FirstOrDefault();
+        if (firstArg?.Expression is LiteralExpressionSyntax tableNameLiteral)
         {
+            // String-based table reference: [DynamoDbTable("TableName")]
             entityModel.TableName = tableNameLiteral.Token.ValueText;
+        }
+        else if (firstArg?.Expression is TypeOfExpressionSyntax typeOfExpr)
+        {
+            // Type-based table reference: [DynamoDbTable(typeof(MyTable))]
+            var typeInfo = semanticModel.GetTypeInfo(typeOfExpr.Type);
+            if (typeInfo.Type is INamedTypeSymbol namedType)
+            {
+                entityModel.IsTableTypeReference = true;
+                entityModel.TableTypeName = namedType.Name;
+                entityModel.TableNamespace = namedType.ContainingNamespace.ToDisplayString();
+                
+                // Use the type name as the table name for grouping entities
+                entityModel.TableName = namedType.Name;
+                
+                // Validate that the referenced type is partial
+                ValidateTableTypeIsPartial(typeOfExpr, namedType, semanticModel);
+            }
         }
 
         // Extract IsDefault and Namespace properties from named arguments
@@ -148,7 +167,12 @@ internal class EntityAnalyzer
                 else if (arg.NameEquals?.Name.Identifier.ValueText == "Namespace" &&
                     arg.Expression is LiteralExpressionSyntax namespaceLiteral)
                 {
-                    entityModel.TableNamespace = namespaceLiteral.Token.ValueText;
+                    // Only override namespace for string-based table references
+                    // Type-based references use the type's namespace
+                    if (!entityModel.IsTableTypeReference)
+                    {
+                        entityModel.TableNamespace = namespaceLiteral.Token.ValueText;
+                    }
                 }
             }
         }
@@ -675,6 +699,9 @@ internal class EntityAnalyzer
                 {
                     switch (arg.NameEquals?.Name.Identifier.ValueText)
                     {
+                        case "Name" when arg.Expression is LiteralExpressionSyntax nameLiteral:
+                            gsiModel.CustomName = nameLiteral.Token.ValueText;
+                            break;
                         case "IsPartitionKey" when arg.Expression is LiteralExpressionSyntax partitionKeyLiteral:
                             gsiModel.IsPartitionKey = bool.Parse(partitionKeyLiteral.Token.ValueText);
                             break;
@@ -714,6 +741,20 @@ internal class EntityAnalyzer
             if (lsiAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
             {
                 lsiModel.IndexName = indexNameLiteral.Token.ValueText;
+            }
+
+            // Extract named arguments
+            if (lsiAttr.ArgumentList != null)
+            {
+                foreach (var arg in lsiAttr.ArgumentList.Arguments)
+                {
+                    switch (arg.NameEquals?.Name.Identifier.ValueText)
+                    {
+                        case "Name" when arg.Expression is LiteralExpressionSyntax nameLiteral:
+                            lsiModel.CustomName = nameLiteral.Token.ValueText;
+                            break;
+                    }
+                }
             }
 
             lsiModels.Add(lsiModel);
@@ -995,6 +1036,12 @@ internal class EntityAnalyzer
                 {
                     indexModel.GsiDiscriminator = gsi.Discriminator;
                 }
+
+                // Propagate custom name (use first one found if multiple properties define it)
+                if (!string.IsNullOrEmpty(gsi.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))
+                {
+                    indexModel.CustomName = gsi.CustomName;
+                }
             }
         }
 
@@ -1020,7 +1067,21 @@ internal class EntityAnalyzer
 
                 // The property with [LocalSecondaryIndex] is the sort key for that LSI
                 indexModel.SortKeyProperty = property.PropertyName;
+
+                // Propagate custom name (use first one found if multiple properties define it)
+                if (!string.IsNullOrEmpty(lsi.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))
+                {
+                    indexModel.CustomName = lsi.CustomName;
+                }
             }
+        }
+
+        // Compute ResolvedPropertyName for all indexes
+        foreach (var indexModel in indexes.Values)
+        {
+            indexModel.ResolvedPropertyName = !string.IsNullOrEmpty(indexModel.CustomName)
+                ? indexModel.CustomName
+                : ConvertToPascalCase(indexModel.IndexName);
         }
 
         entityModel.Indexes = indexes.Values.ToArray();
@@ -2222,6 +2283,39 @@ internal class EntityAnalyzer
         _diagnostics.Add(diagnostic);
     }
 
+    /// <summary>
+    /// Validates that a type-based table reference uses a partial class.
+    /// </summary>
+    /// <param name="typeOfExpr">The typeof expression from the attribute.</param>
+    /// <param name="namedType">The type symbol being referenced.</param>
+    /// <param name="semanticModel">The semantic model for symbol resolution.</param>
+    private void ValidateTableTypeIsPartial(TypeOfExpressionSyntax typeOfExpr, INamedTypeSymbol namedType, SemanticModel semanticModel)
+    {
+        // Check if the type is declared as partial by examining its syntax references
+        var isPartial = false;
+        
+        foreach (var syntaxRef in namedType.DeclaringSyntaxReferences)
+        {
+            var syntax = syntaxRef.GetSyntax();
+            if (syntax is TypeDeclarationSyntax typeDecl)
+            {
+                if (typeDecl.Modifiers.Any(m => m.ValueText == "partial"))
+                {
+                    isPartial = true;
+                    break;
+                }
+            }
+        }
+
+        if (!isPartial)
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.NonPartialTableType,
+                typeOfExpr.GetLocation(),
+                namedType.Name);
+        }
+    }
+
     private static bool IsCriticalError(string diagnosticId)
     {
         // Only these errors prevent code generation
@@ -2230,6 +2324,7 @@ internal class EntityAnalyzer
             "DYNDB001" => true, // Missing partition key
             "DYNDB002" => true, // Multiple partition keys
             "DYNDB010" => true, // Entity must be partial
+            "FDDB051" => true, // Non-partial table type
             "DYNDB007" => false, // Missing DynamoDbAttribute - not critical, can still generate
             _ => false
         };
@@ -2244,5 +2339,64 @@ internal class EntityAnalyzer
     {
         return compilation.ReferencedAssemblyNames
             .Any(a => a.Name == "Oproto.FluentDynamoDb.Geospatial");
+    }
+
+    /// <summary>
+    /// Converts a DynamoDB index name to a valid C# PascalCase identifier.
+    /// Handles hyphens, underscores, and other special characters by removing them
+    /// and capitalizing the following character.
+    /// </summary>
+    /// <param name="indexName">The DynamoDB index name to convert.</param>
+    /// <returns>A valid C# identifier in PascalCase format.</returns>
+    /// <example>
+    /// "gsi1" -> "Gsi1"
+    /// "status-index" -> "StatusIndex"
+    /// "user_email_index" -> "UserEmailIndex"
+    /// "GSI-1" -> "Gsi1"
+    /// </example>
+    internal static string ConvertToPascalCase(string indexName)
+    {
+        if (string.IsNullOrEmpty(indexName))
+            return "Index";
+
+        // Split by hyphens, underscores, and other non-alphanumeric characters
+        var parts = indexName.Split(new[] { '-', '_', '.', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        
+        if (parts.Length == 0)
+            return "Index";
+
+        var result = new System.Text.StringBuilder();
+        
+        foreach (var part in parts)
+        {
+            if (string.IsNullOrEmpty(part))
+                continue;
+
+            // Capitalize first character, lowercase the rest for each part
+            result.Append(char.ToUpperInvariant(part[0]));
+            
+            if (part.Length > 1)
+            {
+                // Check if the part is all uppercase (like "GSI") - keep it as-is but lowercase
+                if (part.All(char.IsUpper))
+                {
+                    result.Append(part.Substring(1).ToLowerInvariant());
+                }
+                else
+                {
+                    result.Append(part.Substring(1));
+                }
+            }
+        }
+
+        var resultString = result.ToString();
+        
+        // Ensure the result starts with a letter (valid C# identifier)
+        if (resultString.Length > 0 && !char.IsLetter(resultString[0]))
+        {
+            resultString = "Index" + resultString;
+        }
+
+        return string.IsNullOrEmpty(resultString) ? "Index" : resultString;
     }
 }

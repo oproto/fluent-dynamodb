@@ -308,7 +308,7 @@ public class PartiQLRequestBuilderPropertyTests
         }
 
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-            where TSelf : Oproto.FluentDynamoDb.Entities.IDynamoDbEntity
+            where TSelf : Oproto.FluentDynamoDb.Entities.IReadOnlyEntity
         {
             var entity = new TestEntity
             {

@@ -43,7 +43,7 @@ public class BatchGetBuilder
     /// </code>
     /// </example>
     public BatchGetBuilder Add<TEntity>(GetItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         InferClientIfNeeded(builder);
         

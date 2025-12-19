@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using AwesomeAssertions;
+using FluentAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Examples;
 using Oproto.FluentDynamoDb.Requests;

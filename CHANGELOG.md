@@ -7,6 +7,133 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Custom Index Property Naming** - New `Name` property on `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` attributes for customizing generated index property names
+  - Specify `Name = "StatusIndex"` to generate `table.StatusIndex` instead of derived name from DynamoDB index name
+  - When not specified, property name is derived from DynamoDB index name using PascalCase conversion (e.g., `"status-index"` → `StatusIndex`)
+  - Multi-entity tables: when only one entity specifies a `Name`, it applies to all entities sharing that index
+  - _Requirements: 1.1, 1.2, 1.3, 1.5_
+  
+  **Usage:**
+  ```csharp
+  // Custom index property name
+  [GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; }
+  
+  // Generated: table.StatusIndex.Query<T>()
+  var orders = await table.StatusIndex.Query<Order>()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  ```
+
+- **Type-Based Table Class References** - New constructor overload on `[DynamoDbTable]` accepting `Type` for compile-time safe table class references
+  - Use `[DynamoDbTable(typeof(MyTableClass))]` instead of string-based table names
+  - Provides refactoring support and compile-time validation
+  - Referenced type must be declared as `partial` class
+  - String-based `[DynamoDbTable("name")]` continues to work unchanged
+  - _Requirements: 4.1, 4.2, 4.4, 4.5_
+  
+  **Usage:**
+  ```csharp
+  // Define your table class as partial
+  public partial class OrdersTable { }
+  
+  // Reference it in entity definition
+  [DynamoDbTable(typeof(OrdersTable))]
+  public partial class Order
+  {
+      // Entity properties...
+  }
+  ```
+
+- **Enhanced Typed Index Classes** - Generated index classes now inherit from `DynamoDbIndex` and provide consistent Query builder methods
+  - Index classes are generated as `partial` for extensibility
+  - Generic `Query<T>()` methods with lambda, format string, and key+filter overloads
+  - Non-generic `Query()` methods when projection type is defined
+  - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2_
+  
+  **Usage:**
+  ```csharp
+  // Generic query methods
+  var orders = await table.StatusIndex.Query<Order>()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  
+  // With key and filter expressions
+  var filtered = await table.StatusIndex.Query<Order>(
+      x => x.Status == "active",
+      x => x.Amount > 100)
+      .ToListAsync();
+  
+  // Non-generic when projection type defined
+  var projected = await table.StatusIndex.Query()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  ```
+
+- **New Diagnostic Codes** - Compile-time validation for index and table configurations
+  - `FDDB050` (Error): Conflicting index `Name` values across entities sharing a table
+  - `FDDB051` (Error): Type-based table reference must be a partial class
+  - `FDDB052` (Warning): Index `Name` specified on multiple entities (informational)
+  - _Requirements: 1.4, 4.3, 5.2_
+
+- **Projection Interface Enhancement** - Projections now implement `IReadOnlyEntity<TSelf>` for seamless `QueryRequestBuilder` compatibility
+  - New `IReadOnlyEntity<TSelf>` interface as base for both projections and full entities
+  - `IDynamoDbEntity<TSelf>` now inherits from `IReadOnlyEntity<TSelf>` (backward compatible)
+  - Generated projections implement both `IProjectionModel<TSelf>` and `IReadOnlyEntity<TSelf>`
+  - Projections inherit metadata from source entity (table name, partition key, sort key)
+  - `QueryRequestBuilder<T>` constraint updated to `where T : class, IReadOnlyEntity<T>`
+  - Existing entity types continue to work without modification due to interface inheritance
+  - Projections work with standard `ToListAsync()` - projection expression is automatically applied
+  - Non-generic `Query()` methods on `DynamoDbIndex<TDefault>` for projection-typed indexes
+  - New diagnostic codes for projection configuration errors:
+    - `FDDB060` (Error): Projection source entity not found
+    - `FDDB061` (Error): Metadata inheritance failure
+    - `FDDB062` (Error): Projection interface violation (projection used in write context)
+  - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.5, 4.1-4.5, 5.1-5.5, 6.1-6.5, 7.1-7.5, 8.1-8.5_
+  
+  **Interface Hierarchy:**
+  ```
+  IEntityMetadataProvider
+          │
+          ▼
+    IReadOnlyEntity<TSelf>  ◄── Projections implement this
+          │
+          ▼
+    IDynamoDbEntity<TSelf>  ◄── Full entities implement this
+  ```
+  
+  **Usage:**
+  ```csharp
+  // Define a projection for an entity
+  [DynamoDbProjection(typeof(Order))]
+  public partial class OrderSummary
+  {
+      [DynamoDbAttribute("orderId")]
+      public string OrderId { get; set; } = string.Empty;
+
+      [DynamoDbAttribute("status")]
+      public string Status { get; set; } = string.Empty;
+
+      [DynamoDbAttribute("totalAmount")]
+      public decimal TotalAmount { get; set; }
+  }
+  
+  // Define an index with default projection type
+  public DynamoDbIndex<OrderSummary> StatusIndex => 
+      new DynamoDbIndex<OrderSummary>(this, "status-index", OrderSummary.ProjectionExpression);
+  
+  // Query the index - non-generic Query() uses OrderSummary automatically
+  var results = await table.StatusIndex.Query().Where(x => x.Status == "pending").ToListAsync();
+  var results = await table.StatusIndex.Query("status = {0}", "pending").ToListAsync();
+  
+  // Projections are read-only - write operations fail at compile time
+  // ❌ await table.Put(orderSummary).PutAsync();  // Won't compile
+  // ✅ await table.Put(order).PutAsync();         // Use source entity
+  ```
+
 ### Changed
 
 - **PaginationExtensions.GetEncodedPaginationToken()** - Updated to support `QueryOperationResponse` and `ScanOperationResponse` types

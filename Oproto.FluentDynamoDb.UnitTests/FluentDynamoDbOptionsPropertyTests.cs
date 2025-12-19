@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using AwesomeAssertions;
+using FluentAssertions;
 using FsCheck;
 using FsCheck.Xunit;
 using NSubstitute;
@@ -341,10 +341,10 @@ internal class TestTableForLoggerPropagation : IDynamoDbTable
     public IDynamoDbLogger GetLoggerForTest() => Logger;
     
     // Methods that mirror source-generated table classes
-    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
         => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
-    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class
+    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
         => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
     public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
@@ -360,7 +360,7 @@ internal class TestTableForLoggerPropagation : IDynamoDbTable
     /// Creates a new Scan operation builder for this table.
     /// Added for testing purposes to verify Scan builder creation.
     /// </summary>
-    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity =>
         new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 }
 
@@ -376,7 +376,7 @@ internal class TestEntity : IDynamoDbEntity
         where TSelf : IDynamoDbEntity => new();
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();
+        where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntity();
 
     public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
         where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntity();
@@ -993,10 +993,10 @@ internal class TestTableForDefaultOptions : IDynamoDbTable
     public IFieldEncryptor? GetEncryptorForTest() => FieldEncryptor;
 
     // Methods that mirror source-generated table classes
-    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
         => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
-    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class
+    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
         => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
     public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
@@ -1015,7 +1015,7 @@ internal class TestTableForDefaultOptions : IDynamoDbTable
     /// Creates a new Scan operation builder for this table.
     /// Added for testing purposes to verify Scan builder creation.
     /// </summary>
-    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity =>
         new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 }
 
@@ -1031,7 +1031,7 @@ internal class TestEntityForDefaultOptions : IDynamoDbEntity
         where TSelf : IDynamoDbEntity => new();
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityForDefaultOptions();
+        where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntityForDefaultOptions();
 
     public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
         where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityForDefaultOptions();

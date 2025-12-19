@@ -22,8 +22,11 @@ internal static class TableGenerator
             return string.Empty;
         }
 
-        // Use the table name to generate the table class name
-        var tableClassName = GetTableClassName(tableName);
+        // Check if any entity uses a type-based table reference
+        var entityWithTableType = entities.FirstOrDefault(e => e.IsTableTypeReference && !string.IsNullOrEmpty(e.TableTypeName));
+        
+        // Use the specified type name if available, otherwise generate from table name
+        var tableClassName = entityWithTableType?.TableTypeName ?? GetTableClassName(tableName);
         
         // Determine the default entity (single entity or marked as default)
         var defaultEntity = entities.Count == 1 
@@ -171,8 +174,11 @@ internal static class TableGenerator
             return string.Empty;
         }
 
-        // Use provided table class name or derive from table name
-        var className = tableClassName ?? GetTableClassName(entity.TableName ?? entity.ClassName);
+        // Use provided table class name, type-based reference name, or derive from table name
+        var className = tableClassName 
+            ?? (entity.IsTableTypeReference && !string.IsNullOrEmpty(entity.TableTypeName) 
+                ? entity.TableTypeName 
+                : GetTableClassName(entity.TableName ?? entity.ClassName));
 
         var sb = new StringBuilder();
         
@@ -2112,14 +2118,23 @@ internal static class TableGenerator
 
         foreach (var index in entity.Indexes)
         {
-            var indexPropertyName = SanitizeIndexName(index.IndexName);
+            // Use ResolvedPropertyName which is either the custom Name or derived from IndexName
+            var indexPropertyName = !string.IsNullOrEmpty(index.ResolvedPropertyName) 
+                ? index.ResolvedPropertyName 
+                : SanitizeIndexName(index.IndexName);
+            
+            var indexType = index.IsGsi ? "Global Secondary Index" : "Local Secondary Index";
             
             sb.AppendLine($"    /// <summary>");
-            sb.AppendLine($"    /// Global Secondary Index: {index.IndexName}");
+            sb.AppendLine($"    /// {indexType}: {index.IndexName}");
             sb.AppendLine($"    /// Partition Key: {index.PartitionKeyProperty}");
             if (index.HasSortKey)
             {
                 sb.AppendLine($"    /// Sort Key: {index.SortKeyProperty}");
+            }
+            if (!string.IsNullOrEmpty(index.CustomName))
+            {
+                sb.AppendLine($"    /// Custom Property Name: {index.CustomName}");
             }
             sb.AppendLine($"    /// </summary>");
             
@@ -2142,17 +2157,22 @@ internal static class TableGenerator
 
     private static void GenerateTypedIndexClass(StringBuilder sb, EntityModel entity, IndexModel index, string tableClassName)
     {
-        var indexPropertyName = index.IndexName.Replace("-", "").Replace("_", "");
+        // Use ResolvedPropertyName which is either the custom Name or derived from IndexName
+        var indexPropertyName = !string.IsNullOrEmpty(index.ResolvedPropertyName) 
+            ? index.ResolvedPropertyName 
+            : index.IndexName.Replace("-", "").Replace("_", "");
         var indexClassName = $"{indexPropertyName}Index";
         var projectionExpression = BuildProjectionExpression(entity, index);
+        var indexType = index.IsGsi ? "Global Secondary Index" : "Local Secondary Index";
         
         sb.AppendLine($"    /// <summary>");
-        sb.AppendLine($"    /// Typed index class for {index.IndexName} Global Secondary Index.");
-        sb.AppendLine($"    /// Provides type-safe query operations with LINQ expression support and automatic index configuration.");
+        sb.AppendLine($"    /// Typed index class for {index.IndexName} {indexType}.");
+        sb.AppendLine($"    /// Inherits from <see cref=\"DynamoDbIndex\"/> and provides type-safe query operations");
+        sb.AppendLine($"    /// with LINQ expression support and automatic index configuration.");
         sb.AppendLine($"    /// Supports GSI overloading - can query different entity types from the same index.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <remarks>");
-        sb.AppendLine($"    /// <para>This nested class provides strongly-typed access to the {index.IndexName} GSI.</para>");
+        sb.AppendLine($"    /// <para>This nested class provides strongly-typed access to the {index.IndexName} index.</para>");
         sb.AppendLine($"    /// <para>Index Name: {index.IndexName}</para>");
         sb.AppendLine($"    /// <para>Partition Key: {index.PartitionKeyProperty}</para>");
         if (index.HasSortKey)
@@ -2161,11 +2181,12 @@ internal static class TableGenerator
         }
         sb.AppendLine($"    /// ");
         sb.AppendLine($"    /// Benefits of using this typed index class:");
+        sb.AppendLine($"    /// - Inherits from DynamoDbIndex for extensibility via partial classes");
         sb.AppendLine($"    /// - Automatic index name configuration (no need to specify \"{index.IndexName}\" manually)");
         sb.AppendLine($"    /// - Type-safe query building with compile-time checking");
         sb.AppendLine($"    /// - LINQ expression support for key conditions and filters");
         sb.AppendLine($"    /// - Automatic projection expression configuration if defined");
-        sb.AppendLine($"    /// - Support for querying multiple entity types from the same GSI (GSI overloading)");
+        sb.AppendLine($"    /// - Support for querying multiple entity types from the same index (GSI overloading)");
         sb.AppendLine($"    /// </remarks>");
         sb.AppendLine($"    /// <example>");
         sb.AppendLine($"    /// <code>");
@@ -2196,23 +2217,30 @@ internal static class TableGenerator
         sb.AppendLine($"    ///     .ToListAsync();");
         sb.AppendLine($"    /// </code>");
         sb.AppendLine($"    /// </example>");
-        sb.AppendLine($"    public partial class {indexClassName}");
+        sb.AppendLine($"    public partial class {indexClassName} : DynamoDbIndex");
         sb.AppendLine("    {");
         sb.AppendLine($"        private readonly {tableClassName} _table;");
         sb.AppendLine();
         
-        // Constructor
+        // Constructor - calls base constructor
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Initializes a new instance of the {indexClassName}.");
         sb.AppendLine($"        /// </summary>");
         sb.AppendLine($"        /// <param name=\"table\">The parent table.</param>");
-        sb.AppendLine($"        public {indexClassName}({tableClassName} table)");
+        if (!string.IsNullOrEmpty(projectionExpression))
+        {
+            sb.AppendLine($"        public {indexClassName}({tableClassName} table) : base(table, \"{index.IndexName}\", \"{projectionExpression}\")");
+        }
+        else
+        {
+            sb.AppendLine($"        public {indexClassName}({tableClassName} table) : base(table, \"{index.IndexName}\")");
+        }
         sb.AppendLine($"        {{");
         sb.AppendLine($"            _table = table;");
         sb.AppendLine($"        }}");
         sb.AppendLine();
         
-        // Generic Query<T>() method
+        // Generic Query<T>() method - uses 'new' to hide base class method
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Creates a new Query operation builder for this index with a specific entity type.");
         sb.AppendLine($"        /// The IndexName is automatically set to \"{index.IndexName}\".");
@@ -2221,28 +2249,19 @@ internal static class TableGenerator
         sb.AppendLine($"        /// <returns>A QueryRequestBuilder&lt;T&gt; configured for this index.</returns>");
         sb.AppendLine($"        /// <example>");
         sb.AppendLine($"        /// <code>");
-        sb.AppendLine($"        /// // Query for an entity type stored in this GSI");
+        sb.AppendLine($"        /// // Query for an entity type stored in this index");
         sb.AppendLine($"        /// var results = await table.{indexPropertyName}.Query&lt;{entity.ClassName}&gt;()");
         sb.AppendLine($"        ///     .Where(\"gsi1pk = {{0}}\", \"VALUE\")");
         sb.AppendLine($"        ///     .ToListAsync();");
         sb.AppendLine($"        /// </code>");
         sb.AppendLine($"        /// </example>");
-        sb.AppendLine($"        public QueryRequestBuilder<T> Query<T>() where T : class");
+        sb.AppendLine($"        public new QueryRequestBuilder<T> Query<T>() where T : class");
         sb.AppendLine($"        {{");
-        sb.AppendLine($"            var builder = new QueryRequestBuilder<T>(_table.DynamoDbClient)");
-        sb.AppendLine($"                .ForTable(_table.Name)");
-        sb.AppendLine($"                .UsingIndex(\"{index.IndexName}\");");
-        
-        if (!string.IsNullOrEmpty(projectionExpression))
-        {
-            sb.AppendLine($"            builder = builder.WithProjection(\"{projectionExpression}\");");
-        }
-        
-        sb.AppendLine($"            return builder;");
+        sb.AppendLine($"            return base.Query<T>();");
         sb.AppendLine($"        }}");
         sb.AppendLine();
         
-        // Generic Query<T>(string, params object[]) method
+        // Generic Query<T>(string, params object[]) method - uses 'new' to hide base class method
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Creates a new Query operation builder with a key condition expression and specific entity type.");
         sb.AppendLine($"        /// Uses format string syntax for parameters: {{0}}, {{1}}, etc.");
@@ -2258,9 +2277,9 @@ internal static class TableGenerator
         sb.AppendLine($"        /// var results = await table.{indexPropertyName}.Query&lt;{entity.ClassName}&gt;(\"gsi1pk = {{0}}\", \"VALUE\").ToListAsync();");
         sb.AppendLine($"        /// </code>");
         sb.AppendLine($"        /// </example>");
-        sb.AppendLine($"        public QueryRequestBuilder<T> Query<T>(string keyConditionExpression, params object[] values) where T : class");
+        sb.AppendLine($"        public new QueryRequestBuilder<T> Query<T>(string keyConditionExpression, params object[] values) where T : class");
         sb.AppendLine($"        {{");
-        sb.AppendLine($"            return WithConditionExpressionExtensions.Where(Query<T>(), keyConditionExpression, values);");
+        sb.AppendLine($"            return base.Query<T>(keyConditionExpression, values);");
         sb.AppendLine($"        }}");
         sb.AppendLine();
         
@@ -2317,7 +2336,88 @@ internal static class TableGenerator
         sb.AppendLine($"            return Query<T>().Where(keyCondition).WithFilter(filterCondition);");
         sb.AppendLine($"        }}");
         
+        // Generate non-generic Query methods when a real projection type exists (not just "HasProjection" marker)
+        var projectionType = GetProjectionTypeForIndex(entity, index);
+        if (projectionType != null && projectionType != "HasProjection")
+        {
+            GenerateNonGenericQueryMethods(sb, entity, index, indexPropertyName, projectionType);
+        }
+        
         sb.AppendLine("    }");
+    }
+    
+    /// <summary>
+    /// Generates non-generic Query methods that default to the projection type.
+    /// These methods are only generated when a projection type is defined via [UseProjection].
+    /// </summary>
+    private static void GenerateNonGenericQueryMethods(StringBuilder sb, EntityModel entity, IndexModel index, string indexPropertyName, string projectionType)
+    {
+        sb.AppendLine();
+        
+        // Non-generic Query() method
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Creates a new Query operation builder for this index using the default projection type.");
+        sb.AppendLine($"        /// The IndexName is automatically set to \"{index.IndexName}\".");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <returns>A QueryRequestBuilder&lt;{projectionType}&gt; configured for this index.</returns>");
+        sb.AppendLine($"        /// <example>");
+        sb.AppendLine($"        /// <code>");
+        sb.AppendLine($"        /// // Query using default projection type");
+        sb.AppendLine($"        /// var results = await table.{indexPropertyName}.Query()");
+        sb.AppendLine($"        ///     .Where(\"gsi1pk = {{0}}\", \"VALUE\")");
+        sb.AppendLine($"        ///     .ToListAsync();");
+        sb.AppendLine($"        /// </code>");
+        sb.AppendLine($"        /// </example>");
+        sb.AppendLine($"        public QueryRequestBuilder<{projectionType}> Query()");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            return Query<{projectionType}>();");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+        
+        // Non-generic Query(Expression<Func<TProjection, bool>>) method
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Creates a new Query operation builder with a LINQ expression for the key condition using the default projection type.");
+        sb.AppendLine($"        /// Provides type-safe query building with compile-time checking of property access.");
+        sb.AppendLine($"        /// The IndexName is automatically set to \"{index.IndexName}\".");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"keyCondition\">The LINQ expression representing the key condition.</param>");
+        sb.AppendLine($"        /// <returns>A QueryRequestBuilder&lt;{projectionType}&gt; configured with the key condition.</returns>");
+        sb.AppendLine($"        /// <example>");
+        sb.AppendLine($"        /// <code>");
+        sb.AppendLine($"        /// // Query with LINQ expression using default projection type");
+        sb.AppendLine($"        /// var results = await table.{indexPropertyName}.Query(x => x.{index.PartitionKeyProperty} == \"VALUE\").ToListAsync();");
+        sb.AppendLine($"        /// </code>");
+        sb.AppendLine($"        /// </example>");
+        sb.AppendLine($"        public QueryRequestBuilder<{projectionType}> Query(Expression<Func<{projectionType}, bool>> keyCondition)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            return Query<{projectionType}>(keyCondition);");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+        
+        // Non-generic Query(Expression, Expression) method
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Creates a new Query operation builder with LINQ expressions for both key condition and filter using the default projection type.");
+        sb.AppendLine($"        /// Provides type-safe query building with compile-time checking of property access.");
+        sb.AppendLine($"        /// The IndexName is automatically set to \"{index.IndexName}\".");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"keyCondition\">The LINQ expression representing the key condition.</param>");
+        sb.AppendLine($"        /// <param name=\"filterCondition\">The LINQ expression representing the filter condition.</param>");
+        sb.AppendLine($"        /// <returns>A QueryRequestBuilder&lt;{projectionType}&gt; configured with both key condition and filter.</returns>");
+        sb.AppendLine($"        /// <example>");
+        sb.AppendLine($"        /// <code>");
+        sb.AppendLine($"        /// // Query with key condition and filter using default projection type");
+        sb.AppendLine($"        /// var results = await table.{indexPropertyName}.Query(");
+        sb.AppendLine($"        ///     x => x.{index.PartitionKeyProperty} == \"VALUE\",");
+        sb.AppendLine($"        ///     x => x.Status == \"ACTIVE\"");
+        sb.AppendLine($"        /// ).ToListAsync();");
+        sb.AppendLine($"        /// </code>");
+        sb.AppendLine($"        /// </example>");
+        sb.AppendLine($"        public QueryRequestBuilder<{projectionType}> Query(");
+        sb.AppendLine($"            Expression<Func<{projectionType}, bool>> keyCondition,");
+        sb.AppendLine($"            Expression<Func<{projectionType}, bool>> filterCondition)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            return Query<{projectionType}>(keyCondition, filterCondition);");
+        sb.AppendLine($"        }}");
     }
 
     private static string BuildProjectionExpression(EntityModel entity, IndexModel index)
@@ -2526,9 +2626,9 @@ internal static class TableGenerator
         sb.AppendLine($"    /// WARNING: Scan operations read every item in a table or index and can be very expensive.");
         sb.AppendLine($"    /// Use Query operations instead whenever possible.");
         sb.AppendLine($"    /// </summary>");
-        sb.AppendLine($"    /// <typeparam name=\"TEntity\">The entity type to scan for.</typeparam>");
+        sb.AppendLine($"    /// <typeparam name=\"TEntity\">The entity or projection type to scan for. Must implement IReadOnlyEntity.</typeparam>");
         sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;TEntity&gt; configured for this table.</returns>");
-        sb.AppendLine($"    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>");
+        sb.AppendLine($"    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity =>");
         sb.AppendLine($"        new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
         sb.AppendLine();
     }
@@ -2600,9 +2700,9 @@ internal static class TableGenerator
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Creates a new Query operation builder for this table.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    /// <typeparam name=\"TEntity\">The entity type to query.</typeparam>");
+        sb.AppendLine("    /// <typeparam name=\"TEntity\">The entity or projection type to query. Must implement IReadOnlyEntity.</typeparam>");
         sb.AppendLine("    /// <returns>A QueryRequestBuilder configured for this table.</returns>");
-        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class =>");
+        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity =>");
         sb.AppendLine("        new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
         sb.AppendLine();
         
@@ -2610,7 +2710,7 @@ internal static class TableGenerator
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Creates a new Query operation builder with a key condition expression.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class");
+        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class, IReadOnlyEntity");
         sb.AppendLine("    {");
         sb.AppendLine("        var builder = Query<TEntity>();");
         sb.AppendLine("        return WithConditionExpressionExtensions.Where(builder, keyConditionExpression, values);");
@@ -2621,7 +2721,7 @@ internal static class TableGenerator
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Creates a new GetItem operation builder for this table.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    public virtual GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class =>");
+        sb.AppendLine("    public virtual GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity =>");
         sb.AppendLine("        new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);");
         sb.AppendLine();
         
@@ -2717,7 +2817,7 @@ internal static class TableGenerator
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Creates a GetItem operation builder configured with a pre-built SDK request.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    public GetItemRequestBuilder<TEntity> Get<TEntity>(GetItemRequest request) where TEntity : class");
+        sb.AppendLine("    public GetItemRequestBuilder<TEntity> Get<TEntity>(GetItemRequest request) where TEntity : class, IReadOnlyEntity");
         sb.AppendLine("        => Get<TEntity>().WithRequest(request);");
         sb.AppendLine();
         
@@ -2734,7 +2834,7 @@ internal static class TableGenerator
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Creates a Query operation builder configured with a pre-built SDK request.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>(QueryRequest request) where TEntity : class");
+        sb.AppendLine("    public QueryRequestBuilder<TEntity> Query<TEntity>(QueryRequest request) where TEntity : class, IReadOnlyEntity");
         sb.AppendLine("        => Query<TEntity>().WithRequest(request);");
         sb.AppendLine();
         
@@ -2751,7 +2851,7 @@ internal static class TableGenerator
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Creates a Scan operation builder configured with a pre-built SDK request.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    public ScanRequestBuilder<TEntity> Scan<TEntity>(ScanRequest request) where TEntity : class");
+        sb.AppendLine("    public ScanRequestBuilder<TEntity> Scan<TEntity>(ScanRequest request) where TEntity : class, IReadOnlyEntity");
         sb.AppendLine("        => new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name).WithRequest(request);");
         sb.AppendLine();
         

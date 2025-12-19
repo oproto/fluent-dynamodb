@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -9,8 +10,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// Fluent builder for DynamoDB GetItem operations.
 /// Provides a type-safe way to construct GetItem requests with support for key specification,
 /// projection expressions, consistent reads, and attribute name mapping.
+/// Now supports both full entities and projections through IReadOnlyEntity constraint.
 /// </summary>
-/// <typeparam name="TEntity">The entity type being retrieved.</typeparam>
+/// <typeparam name="TEntity">The entity or projection type being retrieved. Must implement IReadOnlyEntity&lt;TEntity&gt;.</typeparam>
 /// <example>
 /// <code>
 /// // Get an item by primary key
@@ -29,7 +31,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>, ITransactableGetBuilder, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IReadOnlyEntity
 {
     /// <summary>
     /// Initializes a new instance of the GetItemRequestBuilder.

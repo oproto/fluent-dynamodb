@@ -1,4 +1,4 @@
-using AwesomeAssertions;
+using FluentAssertions;
 using Oproto.FluentDynamoDb.Context;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;

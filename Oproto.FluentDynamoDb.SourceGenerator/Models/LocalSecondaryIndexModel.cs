@@ -7,7 +7,13 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 internal class LocalSecondaryIndexModel
 {
     /// <summary>
-    /// Gets or sets the name of the Local Secondary Index.
+    /// Gets or sets the name of the Local Secondary Index (the DynamoDB index name).
     /// </summary>
     public string IndexName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the custom C# property name specified via the Name property on the attribute.
+    /// If not specified, this will be null.
+    /// </summary>
+    public string? CustomName { get; set; }
 }

@@ -1,6 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
-using AwesomeAssertions;
+using FluentAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Requests;
@@ -37,13 +37,13 @@ public class DynamoDbTableTests
         public DynamoDbIndex Gsi1 => new DynamoDbIndex(this, "gsi1");
 
         // Methods that mirror source-generated table classes
-        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
+        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
             => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
-        public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class
+        public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class, IReadOnlyEntity
             => WithConditionExpressionExtensions.Where(Query<TEntity>(), keyConditionExpression, values);
 
-        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class
+        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
             => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
         public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity

@@ -341,7 +341,7 @@ internal class TestEntityWithMetadata : IDynamoDbEntity
         where TSelf : IDynamoDbEntity => new();
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityWithMetadata();
+        where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntityWithMetadata();
 
     public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
         where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityWithMetadata();

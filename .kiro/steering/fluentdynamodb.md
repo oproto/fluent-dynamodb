@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-18
+# Updated 2025-12-19
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -59,10 +59,47 @@ public string CategoryId { get; set; }
 [DynamoDbAttribute("createdAt")]
 public DateTime CreatedAt { get; set; }
 
+// GSI/LSI with custom property names
+[GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
+[DynamoDbAttribute("status")]
+public string Status { get; set; }
+
+// Type-based table reference (compile-time safe)
+[DynamoDbTable(typeof(MyCustomTable))]
+public partial class Order { ... }
+
+// Define the table class as partial
+public partial class MyCustomTable { }
+
 // Scannable (required for Scan operations)
 [DynamoDbTable("Logs")]
 [Scannable]
 public partial class LogEntry { ... }
+```
+
+## Projection Definition
+
+Projections are read-only entity types that represent a subset of attributes from a source entity. They implement both `IReadOnlyEntity` and `IProjectionModel` interfaces.
+
+```csharp
+// Define a projection for an entity
+[DynamoDbProjection(typeof(Order))]
+public partial class OrderSummary
+{
+    [DynamoDbAttribute("orderId")]
+    public string OrderId { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("totalAmount")]
+    public decimal TotalAmount { get; set; }
+}
+
+// Generated code implements:
+// - IReadOnlyEntity (for QueryRequestBuilder compatibility)
+// - IProjectionModel<OrderSummary> (for projection expression)
+// - Inherits metadata from source entity (table name, keys)
 ```
 
 ## Get Operations
@@ -139,53 +176,22 @@ await table.Users.Delete(userId).Where(x => x.Status == "inactive").DeleteAsync(
 ## Query Operations
 
 ```csharp
-// Lambda (Preferred)
-var users = await table.Users.Query()
-    .Where(x => x.CustomerId == tenantId && x.OrderId.StartsWith("2024"))
-    .ToListAsync();
+// Lambda (Preferred) - Query(keyCondition) is shorthand for Query().Where(keyCondition)
+var users = await table.Users.Query(x => x.CustomerId == tenantId && x.OrderId.StartsWith("2024")).ToListAsync();
 
 // Format String
-var users = await table.Users.Query()
-    .Where("pk = {0} AND begins_with(sk, {1})", tenantId, "2024")
-    .ToListAsync();
+var users = await table.Users.Query("pk = {0} AND begins_with(sk, {1})", tenantId, "2024").ToListAsync();
 
-// Filter
-var users = await table.Users.Query()
-    .Where(x => x.CustomerId == tenantId)
-    .WithFilter(x => x.Status == "active")
-    .ToListAsync();
+// With filter - Query(keyCondition, filterCondition)
+var users = await table.Users.Query(x => x.CustomerId == tenantId, x => x.Status == "active").ToListAsync();
 
-// Pagination - access response metadata via builder.Response
-var query = table.Users.Query()
-    .Where(x => x.CustomerId == tenantId)
-    .Take(25);
+// Pagination
+var query = table.Users.Query(x => x.CustomerId == tenantId).Take(25);
 var users = await query.ToListAsync();
-
-// Access response metadata after execution
 var hasMore = query.Response?.HasMorePages ?? false;
-var lastKey = query.Response?.LastEvaluatedKey;
-var scannedCount = query.Response?.ScannedCount;
+var nextPage = await table.Users.Query(x => x.CustomerId == tenantId).StartAt(query.Response?.LastEvaluatedKey!).ToListAsync();
 
-// Continue with raw LastEvaluatedKey
-var nextPage = await table.Users.Query()
-    .Where(x => x.CustomerId == tenantId)
-    .StartAt(lastKey!)
-    .ToListAsync();
-
-// Or use encoded pagination token (for API responses)
-var token = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
-var nextPageWithToken = await table.Users.Query()
-    .Where(x => x.CustomerId == tenantId)
-    .Paginate(new PaginationRequest(25, token))
-    .ToListAsync();
-
-// Options
-var users = await table.Users.Query()
-    .Where(x => x.CustomerId == tenantId)
-    .UsingConsistentRead()
-    .ScanIndexForward(false)
-    .WithProjection("name, email")
-    .ToListAsync();
+// Options: UsingConsistentRead(), ScanIndexForward(false), WithProjection("name, email")
 ```
 
 ## Scan Operations
@@ -195,99 +201,80 @@ var users = await table.Users.Query()
 ```csharp
 var logs = await table.Logs.Scan().ToListAsync();
 var logs = await table.Logs.Scan().WithFilter(x => x.Level == "ERROR").Take(100).ToListAsync();
-
-// Scan pagination
-var scan = table.Logs.Scan().Take(100);
-var logs = await scan.ToListAsync();
-var nextToken = scan.Response?.GetEncodedPaginationToken() ?? string.Empty;
 ```
 
-## Response Metadata
-
-Query and Scan builders expose a `.Response` property after execution containing operation metadata.
+## Response Metadata & Pagination
 
 ```csharp
-// QueryOperationResponse properties
-var query = table.Users.Query().Where(x => x.TenantId == tenantId);
-var users = await query.ToListAsync();
-var lastKey = query.Response?.LastEvaluatedKey;      // For pagination
-var hasMore = query.Response?.HasMorePages ?? false; // Convenience property
-var scanned = query.Response?.ScannedCount;          // Items evaluated
-var returned = query.Response?.ResultCount;          // Items returned
-var capacity = query.Response?.ConsumedCapacity;     // If ReturnConsumedCapacity set
-
-// ScanOperationResponse has the same properties
-var scan = table.Logs.Scan();
-var logs = await scan.ToListAsync();
-var scanHasMore = scan.Response?.HasMorePages ?? false;
-```
-
-## Pagination Tokens
-
-Encode/decode pagination tokens for API responses:
-
-```csharp
-using Oproto.FluentDynamoDb.Pagination;
-
-// Encode token from response
-var query = table.Users.Query().Where(x => x.TenantId == tenantId).Take(25);
+// Response properties: LastEvaluatedKey, HasMorePages, ScannedCount, ResultCount, ConsumedCapacity
+var query = table.Users.Query(x => x.TenantId == tenantId).Take(25);
 var users = await query.ToListAsync();
 var token = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
 
-// Use token in next request via Paginate()
-var nextPage = await table.Users.Query()
-    .Where(x => x.TenantId == tenantId)
-    .Paginate(new PaginationRequest(25, token))
-    .ToListAsync();
-
-// Or use raw LastEvaluatedKey with StartAt()
-var nextPage2 = await table.Users.Query()
-    .Where(x => x.TenantId == tenantId)
-    .StartAt(query.Response?.LastEvaluatedKey!)
-    .Take(25)
-    .ToListAsync();
+// Continue with token
+var nextPage = await table.Users.Query(x => x.TenantId == tenantId).Paginate(new PaginationRequest(25, token)).ToListAsync();
 ```
 
 ## Index Operations (GSI/LSI)
 
 ```csharp
-var products = await table.gsi1.Query<Product>()
-    .Where(x => x.CategoryId == categoryId)
-    .WithProjection("productId, productName")
-    .ToListAsync();
+// Query GSI/LSI - Query<T>(keyCondition) is shorthand for Query<T>().Where(keyCondition)
+var products = await table.gsi1.Query<Product>(x => x.CategoryId == categoryId).ToListAsync();
+var orders = await table.StatusIndex.Query<Order>(x => x.Status == "pending").ToListAsync();
+var recentOrders = await table.lsi1.Query<Order>(x => x.CustomerId == customerId && x.CreatedAt > startDate).ToListAsync();
 
-var orders = await table.lsi1.Query<Order>()
-    .Where(x => x.CustomerId == customerId && x.CreatedAt > startDate)
-    .ToListAsync();
+// Index with projection type - non-generic Query() defaults to projection
+var projectedOrders = await table.StatusIndex.Query(x => x.Status == "active").ToListAsync();
 ```
+
+## Projection Queries
+
+Projections work seamlessly with QueryRequestBuilder through the `IReadOnlyEntity` interface - just use `ToListAsync()` like any other entity.
+
+```csharp
+// Define an index with a default projection type
+public DynamoDbIndex<OrderSummary> StatusIndex => 
+    new DynamoDbIndex<OrderSummary>(this, "status-index", OrderSummary.ProjectionExpression);
+
+// Query the index - non-generic Query() uses OrderSummary automatically
+var results = await table.StatusIndex.Query().Where(x => x.Status == "pending").ToListAsync();
+var results = await table.StatusIndex.Query("status = {0}", "pending").ToListAsync();
+
+// Query entity and project to different type
+var summaries = await table.Orders.Query(x => x.CustomerId == customerId).ToListAsync<Order, OrderSummary>();
+
+// Discriminated projections (filter by entity type in multi-entity tables)
+var orderSummaries = await table.gsi1.Query<Order>(x => x.Status == "active").ToDiscriminatedListAsync<Order, OrderSummary>();
+```
+
+### Projection Interface Hierarchy
+
+```
+IEntityMetadataProvider
+        │
+        ▼
+  IReadOnlyEntity ◄── Projections implement this
+        │
+        ▼
+  IDynamoDbEntity ◄── Full entities implement this
+```
+
+- `IReadOnlyEntity`: Read operations (FromDynamoDb, GetPartitionKey, GetEntityMetadata)
+- `IDynamoDbEntity`: Adds write operations (ToDynamoDb, MatchesEntity, RequiresWriteTransaction)
+- Projections inherit metadata from source entity (table name, keys)
 
 ## Batch Operations
 
 ```csharp
 // Batch Get
-var response = await DynamoDbBatch.Get
-    .Add(table.Users.Get(userId1))
-    .Add(table.Users.Get(userId2))
-    .ExecuteAsync();
-var users = response.Responses["Users"];
-
-// Batch Get with tuple mapping
-var (user, order) = await DynamoDbBatch.Get
-    .Add(table.Users.Get(userId))
-    .Add(table.Orders.Get(customerId, orderId))
-    .ExecuteAndMapAsync<User, Order>();
+var response = await DynamoDbBatch.Get.Add(table.Users.Get(userId1)).Add(table.Users.Get(userId2)).ExecuteAsync();
+var (user, order) = await DynamoDbBatch.Get.Add(table.Users.Get(userId)).Add(table.Orders.Get(customerId, orderId)).ExecuteAndMapAsync<User, Order>();
 
 // Batch Write
-await DynamoDbBatch.Write
-    .Add(table.Users.Put(user1))
-    .Add(table.Users.Delete(oldUserId))
-    .ExecuteAsync();
+await DynamoDbBatch.Write.Add(table.Users.Put(user1)).Add(table.Users.Delete(oldUserId)).ExecuteAsync();
 
 // Batch PartiQL
-var response = await DynamoDbBatch.PartiQL
-    .Add(table.ExecutePartiQL<User>("SELECT * FROM Users WHERE pk = ?", userId))
-    .ExecuteAsync();
-var user = response.GetItem<User>(0);
+var response = await DynamoDbBatch.PartiQL.Add(table.ExecutePartiQL<User>("SELECT * FROM Users WHERE pk = ?", userId)).ExecuteAsync();
 ```
 
 ## Transactions
@@ -298,15 +285,10 @@ await DynamoDbTransactions.Write
     .Add(table.Users.Put(newUser))
     .Add(table.Accounts.Update(accountId).Set(x => new AccountUpdateModel { Balance = x.Balance - 100 }))
     .Add(table.Orders.Put(order).Where(x => x.OrderId.AttributeNotExists()))
-    .Add(table.Audit.ConditionCheck(auditId).Where(x => x.Version == expectedVersion))
     .ExecuteAsync();
 
 // Transaction Get
-var response = await DynamoDbTransactions.Get
-    .Add(table.Users.Get(userId))
-    .Add(table.Accounts.Get(accountId))
-    .ExecuteAsync();
-var userItem = response.Responses[0].Item;
+var response = await DynamoDbTransactions.Get.Add(table.Users.Get(userId)).Add(table.Accounts.Get(accountId)).ExecuteAsync();
 
 // Idempotency
 await DynamoDbTransactions.Write.Add(table.Orders.Put(order)).WithClientRequestToken(token).ExecuteAsync();
@@ -315,10 +297,7 @@ await DynamoDbTransactions.Write.Add(table.Orders.Put(order)).WithClientRequestT
 ## PartiQL
 
 ```csharp
-// Select
 var users = await table.ExecutePartiQL<User>("SELECT * FROM Users WHERE pk = ?", userId).ToListAsync();
-
-// Insert/Update/Delete
 await table.ExecutePartiQL("INSERT INTO Users VALUE {'pk': ?, 'name': ?}", userId, name).ExecuteAsync();
 await table.ExecutePartiQL("UPDATE Users SET name = ? WHERE pk = ?", newName, userId).ExecuteAsync();
 await table.ExecutePartiQL("DELETE FROM Users WHERE pk = ?", userId).ExecuteAsync();
@@ -327,16 +306,9 @@ await table.ExecutePartiQL("DELETE FROM Users WHERE pk = ?", userId).ExecuteAsyn
 ## Raw SDK Access
 
 ```csharp
-// Pre-built SDK requests
-var request = new GetItemRequest { TableName = "Users", Key = ... };
-var user = await table.Get<User>(request).GetItemAsync();
-
-var queryRequest = new QueryRequest { TableName = "Orders", KeyConditionExpression = "pk = :pk", ... };
-var orders = await table.Query<Order>(queryRequest).ToListAsync();
-
-// Direct SDK execution
+var user = await table.Get<User>(new GetItemRequest { TableName = "Users", Key = ... }).GetItemAsync();
+var orders = await table.Query<Order>(new QueryRequest { TableName = "Orders", KeyConditionExpression = "pk = :pk", ... }).ToListAsync();
 await DynamoDbTransactions.WriteAsync(client, transactWriteRequest);
-await DynamoDbBatch.GetAsync(client, batchGetRequest);
 ```
 
 ## Terminal Methods Reference
@@ -360,52 +332,55 @@ await DynamoDbBatch.GetAsync(client, batchGetRequest);
 
 ## Lambda Expression Functions
 
-Extension methods for DynamoDB functions in lambda expressions:
-
 | C# Method | DynamoDB Function | Example |
 |-----------|------------------|---------|
-| `string.StartsWith()` | `begins_with()` | `x => x.Name.StartsWith("John")` |
-| `string.Contains()` | `contains()` | `x => x.Email.Contains("@example")` |
+| `StartsWith()` | `begins_with()` | `x => x.Name.StartsWith("John")` |
+| `Contains()` | `contains()` | `x => x.Email.Contains("@example")` |
 | `.Between(low, high)` | `BETWEEN` | `x => x.Age.Between(18, 65)` |
-| `.AttributeExists()` | `attribute_exists()` | `x => x.OptionalField.AttributeExists()` |
+| `.AttributeExists()` | `attribute_exists()` | `x => x.Field.AttributeExists()` |
 | `.AttributeNotExists()` | `attribute_not_exists()` | `x => x.Id.AttributeNotExists()` |
 | `.Size()` | `size()` | `x => x.Items.Size() > 5` |
-
-```csharp
-// Conditional put (create only) - Lambda style
-await table.Users.Put(user).Where(x => x.UserId.AttributeNotExists()).PutAsync();
-
-// Range query on sort key
-var orders = await table.Orders.Query()
-    .Where(x => x.CustomerId == customerId && x.OrderDate.Between("2024-01", "2024-12"))
-    .ToListAsync();
-
-// Filter by collection size
-var users = await table.Users.Query()
-    .Where(x => x.TenantId == tenantId)
-    .WithFilter(x => x.Tags.Size() > 0 && x.Email.AttributeExists())
-    .ToListAsync();
-
-// Check for optional fields
-var incomplete = await table.Users.Scan()
-    .WithFilter(x => x.PhoneNumber.AttributeNotExists() || x.Email.AttributeNotExists())
-    .ToListAsync();
-```
 
 ## Common Patterns
 
 ```csharp
 // Optimistic locking
-await table.Users.Update(userId)
-    .Set(x => new UserUpdateModel { Version = x.Version + 1 })
-    .Where(x => x.Version == currentVersion)
-    .UpdateAsync();
+await table.Users.Update(userId).Set(x => new UserUpdateModel { Version = x.Version + 1 }).Where(x => x.Version == currentVersion).UpdateAsync();
 
 // Conditional put (create only)
 await table.Users.Put(user).Where(x => x.UserId.AttributeNotExists()).PutAsync();
 
 // Increment counter
 await table.Users.Update(userId).Set(x => new UserUpdateModel { Count = x.Count + 1 }).UpdateAsync();
+```
+
+## Projection Error Handling
+
+Common projection-related errors and diagnostics:
+
+| Diagnostic | Code | Description |
+|------------|------|-------------|
+| Source Entity Not Found | FDDB060 | Projection references non-existent source entity |
+| Metadata Inheritance Failure | FDDB061 | Cannot inherit metadata from source entity |
+| Projection Interface Violation | FDDB062 | Projection used in write operation context |
+
+```csharp
+// Projections are read-only - write operations will fail at compile time
+// ❌ This won't compile - projections don't implement IDynamoDbEntity
+await table.Put(orderSummary).PutAsync();  // Compile error
+
+// ✅ Use the source entity for write operations
+await table.Put(order).PutAsync();
+
+// Projection mapping errors throw DynamoDbMappingException
+try
+{
+    var summaries = await table.gsi1.Query<OrderSummary>(x => x.Status == "pending").ToListAsync();
+}
+catch (DynamoDbMappingException ex)
+{
+    Console.WriteLine($"Mapping failed: {ex.Message}");
+}
 ```
 
 ## FluentResults API (Result Pattern)
@@ -440,67 +415,6 @@ if (result.IsSuccess)
 | `.ExecuteAsync()` | `.ExecuteAsyncResult()` |
 | `.ToCompositeEntityAsync()` | `.ToCompositeEntityAsyncResult()` |
 | `.ExecuteAndMapAsync<T1,T2>()` | `.ExecuteAndMapAsyncResult<T1,T2>()` |
-
-### CRUD Operations
-
-```csharp
-// Get
-var result = await table.Users.Get(userId).GetItemAsyncResult();
-
-// Put with condition
-var result = await table.Users.Put(user)
-    .Where(x => x.UserId.AttributeNotExists())
-    .PutAsyncResult();
-
-// Update with optimistic locking
-var result = await table.Users.Update(userId)
-    .Set(x => new UserUpdateModel { Version = x.Version + 1 })
-    .Where(x => x.Version == currentVersion)
-    .UpdateAsyncResult();
-
-// Query
-var result = await table.Users.Query()
-    .Where(x => x.TenantId == tenantId)
-    .ToListAsyncResult();
-```
-
-### Batch Operations
-
-```csharp
-// Batch Get
-var result = await DynamoDbBatch.Get
-    .Add(table.Users.Get(userId1))
-    .Add(table.Users.Get(userId2))
-    .ExecuteAsyncResult();
-
-// Batch Write
-var result = await DynamoDbBatch.Write
-    .Add(table.Users.Put(user))
-    .Add(table.Users.Delete(oldUserId))
-    .ExecuteAsyncResult();
-
-// Batch Get with tuple mapping
-var result = await DynamoDbBatch.Get
-    .Add(table.Users.Get(userId))
-    .Add(table.Orders.Get(orderId))
-    .ExecuteAndMapAsyncResult<User, Order>();
-```
-
-### Transaction Operations
-
-```csharp
-// Transaction Write
-var result = await DynamoDbTransactions.Write
-    .Add(table.Users.Put(newUser))
-    .Add(table.Accounts.Update(accountId)
-        .Set(x => new AccountUpdateModel { Balance = x.Balance - 100 }))
-    .ExecuteAsyncResult();
-
-// Transaction Get
-var result = await DynamoDbTransactions.Get
-    .Add(table.Users.Get(userId))
-    .ExecuteAsyncResult();
-```
 
 ### Error Handling
 
@@ -549,41 +463,15 @@ if (result.IsFailed)
 [UseFluentResults]  // Generates Result-returning convenience methods
 public partial class User { ... }
 
-// Generated methods:
-var result = await table.Users.GetAsyncResult(userId);
-var result = await table.Users.PutAsyncResult(user);
-var result = await table.Users.DeleteAsyncResult(userId);
-var result = await table.Users.QueryAsyncResult(x => x.TenantId == tenantId);
+// Generated: GetAsyncResult, PutAsyncResult, DeleteAsyncResult
 ```
 
 ## Table Creation (Integration Testing)
 
-Create DynamoDB tables from entity metadata for integration testing.
-
 ```csharp
 using Oproto.FluentDynamoDb.Provisioning;
 
-// Generated static method - creates table with PK, SK, GSIs, LSIs from entity metadata
+// Create table from entity metadata
 var result = await UsersTable.CreateTableAsync(client, "test-users-table");
-
-// With TTL enabled
-var result = await UsersTable.CreateTableAsync(client, "test-users-table", 
-    new TableCreationOptions { EnableTtl = true });
-```
-
-### Integration Test Pattern
-
-```csharp
-public class UserTests : IAsyncLifetime
-{
-    private readonly string _tableName = $"users_test_{Guid.NewGuid():N}";
-    
-    public async Task InitializeAsync()
-    {
-        await UsersTable.CreateTableAsync(_client, _tableName);
-        _table = new UsersTable(_client, _tableName);
-    }
-    
-    public async Task DisposeAsync() => await _client.DeleteTableAsync(_tableName);
-}
+var result = await UsersTable.CreateTableAsync(client, "test-users-table", new TableCreationOptions { EnableTtl = true });
 ```

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Utility;
 
@@ -42,7 +43,7 @@ public static class PaginationExtensions
     /// </code>
     /// </example>
     public static QueryRequestBuilder<TEntity> Paginate<TEntity>(this QueryRequestBuilder<TEntity> builder, IPaginationRequest request) 
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         var startAt = DecodePaginationToken(request.PaginationToken);
 
@@ -75,7 +76,7 @@ public static class PaginationExtensions
     /// </code>
     /// </example>
     public static ScanRequestBuilder<TEntity> Paginate<TEntity>(this ScanRequestBuilder<TEntity> builder, IPaginationRequest request) 
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         var startAt = DecodePaginationToken(request.PaginationToken);
 

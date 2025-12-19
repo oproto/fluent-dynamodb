@@ -30,6 +30,18 @@ internal class EntityModel
     public string? TableNamespace { get; set; }
 
     /// <summary>
+    /// Gets or sets the type name of the table class when using type-based table references.
+    /// When set, the source generator uses this type name instead of generating one.
+    /// </summary>
+    public string? TableTypeName { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this entity uses a type-based table reference.
+    /// When true, TableTypeName contains the referenced type name.
+    /// </summary>
+    public bool IsTableTypeReference { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional entity discriminator for multi-type tables.
     /// </summary>
     [Obsolete("Use Discriminator property instead")]

@@ -1,11 +1,13 @@
-using AwesomeAssertions;
+using FluentAssertions;
 using Oproto.FluentDynamoDb.Attributes;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using NSubstitute;
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using System.Linq.Expressions;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Expressions;
@@ -15,13 +17,19 @@ namespace Oproto.FluentDynamoDb.UnitTests.Expressions;
 /// </summary>
 public class ExpressionCombiningTests
 {
-    private class TestEntity : IEntityMetadataProvider
+    private class TestEntity : IReadOnlyEntity
     {
         public string PartitionKey { get; set; } = string.Empty;
         public string SortKey { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public int Age { get; set; }
         public string Status { get; set; } = string.Empty;
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+            where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntity();
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item) =>
+            item.TryGetValue("PK", out var pk) ? pk.S : string.Empty;
 
         public static EntityMetadata GetEntityMetadata()
         {

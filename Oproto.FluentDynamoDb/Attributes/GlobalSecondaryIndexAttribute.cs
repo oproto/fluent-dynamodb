@@ -14,6 +14,18 @@ public class GlobalSecondaryIndexAttribute : Attribute
     public string IndexName { get; }
 
     /// <summary>
+    /// Gets or sets the C# property name for the generated index accessor.
+    /// If not specified, the name is derived from <see cref="IndexName"/> using PascalCase conversion.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// [GlobalSecondaryIndex("gsi1", Name = "StatusIndex", IsPartitionKey = true)]
+    /// // Generates: table.StatusIndex.Query&lt;T&gt;()
+    /// </code>
+    /// </example>
+    public string? Name { get; set; }
+
+    /// <summary>
     /// Gets or sets whether this property is the partition key for the GSI.
     /// </summary>
     public bool IsPartitionKey { get; set; }

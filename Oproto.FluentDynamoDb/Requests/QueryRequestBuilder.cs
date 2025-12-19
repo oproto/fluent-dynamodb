@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -10,8 +11,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// Query operations efficiently retrieve items using the primary key and optional sort key conditions.
 /// This is the preferred method for retrieving multiple items when you know the primary key.
 /// Query operations are much more efficient than Scan operations and should be used whenever possible.
+/// Now supports both full entities and projections through IReadOnlyEntity constraint.
 /// </summary>
-/// <typeparam name="TEntity">The entity type being queried.</typeparam>
+/// <typeparam name="TEntity">The entity or projection type being queried. Must implement IReadOnlyEntity&lt;TEntity&gt;.</typeparam>
 /// <example>
 /// <code>
 /// // Query items with a specific primary key
@@ -34,7 +36,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </example>
 public class QueryRequestBuilder<TEntity> :
     IWithAttributeNames<QueryRequestBuilder<TEntity>>, IWithConditionExpression<QueryRequestBuilder<TEntity>>, IWithAttributeValues<QueryRequestBuilder<TEntity>>, IWithFilterExpression<QueryRequestBuilder<TEntity>>, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IReadOnlyEntity
 {
     /// <summary>
     /// Initializes a new instance of the QueryRequestBuilder.

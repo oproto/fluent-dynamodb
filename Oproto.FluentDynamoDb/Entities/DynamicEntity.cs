@@ -79,7 +79,7 @@ public sealed class DynamicEntity : IDynamoDbEntity
     /// <param name="options">Optional configuration options. Not used for DynamicEntity.</param>
     /// <returns>A DynamicEntity with all attributes in the DynamicFields collection.</returns>
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-        where TSelf : IDynamoDbEntity
+        where TSelf : IReadOnlyEntity
     {
         var entity = new DynamicEntity
         {

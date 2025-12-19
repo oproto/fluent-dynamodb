@@ -1,3 +1,4 @@
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb.Storage;
@@ -90,7 +91,7 @@ public class DynamoDbIndex
     /// </code>
     /// </example>
     public QueryRequestBuilder<TEntity> Query<TEntity>() 
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         var options = _table.GetOptions();
         var builder = new QueryRequestBuilder<TEntity>(_table.DynamoDbClient, options)
@@ -125,7 +126,7 @@ public class DynamoDbIndex
     /// </code>
     /// </example>
     public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) 
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         return Requests.Extensions.WithConditionExpressionExtensions.Where(Query<TEntity>(), keyConditionExpression, values);
     }
@@ -145,17 +146,22 @@ public class DynamoDbIndex
 ///         "StatusIndex", 
 ///         "id, amount, status, entity_type");
 /// 
-/// // Query using fluent API
+/// // Query using fluent API - non-generic uses TDefault
+/// var results = await table.StatusIndex.Query()
+///     .Where("gsi1pk = {0}", "ACTIVE")
+///     .ToListAsync();
+/// 
+/// // Query with explicit type parameter
 /// var results = await table.StatusIndex.Query&lt;TransactionSummary&gt;()
 ///     .Where("gsi1pk = {0}", "ACTIVE")
 ///     .ToListAsync();
 /// 
 /// // Query with expression string shorthand
-/// var results = await table.StatusIndex.Query&lt;TransactionSummary&gt;("gsi1pk = {0}", "ACTIVE")
+/// var results = await table.StatusIndex.Query("gsi1pk = {0}", "ACTIVE")
 ///     .ToListAsync();
 /// </code>
 /// </example>
-public class DynamoDbIndex<TDefault> where TDefault : class, new()
+public class DynamoDbIndex<TDefault> where TDefault : class, IReadOnlyEntity, new()
 {
     private readonly DynamoDbIndex _innerIndex;
 
@@ -195,7 +201,40 @@ public class DynamoDbIndex<TDefault> where TDefault : class, new()
     public string Name => _innerIndex.Name;
 
     /// <summary>
-    /// Creates a new Query operation builder for this index.
+    /// Creates a new Query operation builder for this index using the default type TDefault.
+    /// This is the preferred method when querying with the index's default projection type.
+    /// </summary>
+    /// <returns>A QueryRequestBuilder configured for this index with TDefault as the entity type.</returns>
+    /// <example>
+    /// <code>
+    /// // Non-generic Query() uses TDefault
+    /// var results = await table.StatusIndex.Query()
+    ///     .Where("gsi1pk = {0}", "ACTIVE")
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TDefault> Query() => _innerIndex.Query<TDefault>();
+
+    /// <summary>
+    /// Creates a new Query operation builder with a key condition expression using the default type TDefault.
+    /// Uses format string syntax for parameters: {0}, {1}, etc.
+    /// </summary>
+    /// <param name="keyConditionExpression">The key condition expression with format placeholders.</param>
+    /// <param name="values">The values to substitute into the expression.</param>
+    /// <returns>A QueryRequestBuilder configured with the key condition using TDefault as the entity type.</returns>
+    /// <example>
+    /// <code>
+    /// // Non-generic Query with expression uses TDefault
+    /// var results = await table.StatusIndex.Query("gsi1pk = {0}", "ACTIVE")
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TDefault> Query(string keyConditionExpression, params object[] values) =>
+        _innerIndex.Query<TDefault>(keyConditionExpression, values);
+
+    /// <summary>
+    /// Creates a new Query operation builder for this index with an explicit entity type.
+    /// Use this when you need to query with a different type than TDefault.
     /// </summary>
     /// <returns>A QueryRequestBuilder configured for this index.</returns>
     /// <example>
@@ -206,7 +245,7 @@ public class DynamoDbIndex<TDefault> where TDefault : class, new()
     /// </code>
     /// </example>
     public QueryRequestBuilder<TEntity> Query<TEntity>() 
-        where TEntity : class => _innerIndex.Query<TEntity>();
+        where TEntity : class, IReadOnlyEntity => _innerIndex.Query<TEntity>();
     
     /// <summary>
     /// Creates a new Query operation builder with a key condition expression.
@@ -225,6 +264,6 @@ public class DynamoDbIndex<TDefault> where TDefault : class, new()
     /// </code>
     /// </example>
     public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) 
-        where TEntity : class => 
+        where TEntity : class, IReadOnlyEntity => 
         _innerIndex.Query<TEntity>(keyConditionExpression, values);
 }

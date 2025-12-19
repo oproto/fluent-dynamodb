@@ -59,4 +59,10 @@ internal class ProjectionModel
     /// Gets or sets the original class declaration syntax node.
     /// </summary>
     public ClassDeclarationSyntax? ClassDeclaration { get; set; }
+
+    /// <summary>
+    /// Gets or sets the inherited metadata from the source entity.
+    /// This metadata is used to generate the IReadOnlyEntity implementation.
+    /// </summary>
+    public ProjectionMetadata? InheritedMetadata { get; set; }
 }

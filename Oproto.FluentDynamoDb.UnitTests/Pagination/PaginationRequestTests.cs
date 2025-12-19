@@ -1,4 +1,4 @@
-using AwesomeAssertions;
+using FluentAssertions;
 using Oproto.FluentDynamoDb.Pagination;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Pagination;

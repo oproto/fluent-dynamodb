@@ -1,4 +1,4 @@
-using AwesomeAssertions;
+using FluentAssertions;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Geospatial;
 using Oproto.FluentDynamoDb.Requests;

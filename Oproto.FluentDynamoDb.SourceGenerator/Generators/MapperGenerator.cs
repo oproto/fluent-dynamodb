@@ -327,7 +327,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
         sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
         sb.AppendLine("        {");
         sb.AppendLine($"            throw new NotSupportedException(");
         sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
@@ -1694,7 +1694,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <returns>A mapped entity instance.</returns>");
         sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when the type parameter doesn't match the entity type.</exception>");
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
         sb.AppendLine("        {");
         
         // Generate entry logging

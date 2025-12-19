@@ -68,10 +68,17 @@ internal class ProjectionModelAnalyzer
         
         if (sourceEntity == null)
         {
+            // FDDB060: Projection source entity not found
             ReportDiagnostic(
-                DiagnosticDescriptors.InvalidProjectionSourceEntity,
+                DiagnosticDescriptors.ProjectionSourceEntityNotFound,
                 classDecl.Identifier.GetLocation(),
-                sourceEntityType, classSymbol.Name);
+                classSymbol.Name, sourceEntityType);
+            return null;
+        }
+        
+        // Validate source entity has required metadata for inheritance
+        if (!ValidateSourceEntityMetadata(sourceEntity, classSymbol.Name, classDecl.Identifier.GetLocation()))
+        {
             return null;
         }
         
@@ -98,6 +105,9 @@ internal class ProjectionModelAnalyzer
         
         // Check for suboptimal configurations (warnings)
         CheckForSuboptimalConfigurations(projectionModel, sourceEntity);
+        
+        // Create inherited metadata from source entity
+        projectionModel.InheritedMetadata = MetadataInheritanceStrategy.CreateProjectionMetadata(sourceEntity, projectionModel);
         
         // Only return null if there are critical errors
         var criticalErrors = _diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
@@ -265,6 +275,70 @@ internal class ProjectionModelAnalyzer
             .Replace("System.Byte[]", "byte[]");
         
         return normalized;
+    }
+    
+    /// <summary>
+    /// Validates that the source entity has the required metadata for projection inheritance.
+    /// </summary>
+    /// <param name="sourceEntity">The source entity to validate.</param>
+    /// <param name="projectionName">The name of the projection for error reporting.</param>
+    /// <param name="location">The location for diagnostic reporting.</param>
+    /// <returns>True if validation passes, false otherwise.</returns>
+    private bool ValidateSourceEntityMetadata(EntityModel sourceEntity, string projectionName, Location? location)
+    {
+        // Check if source entity has a table name
+        if (string.IsNullOrEmpty(sourceEntity.TableName))
+        {
+            // FDDB061: Metadata inheritance failure - missing table name
+            ReportDiagnostic(
+                DiagnosticDescriptors.ProjectionMetadataInheritanceFailure,
+                location,
+                projectionName, sourceEntity.ClassName);
+            return false;
+        }
+        
+        // Check if source entity has a partition key
+        if (sourceEntity.PartitionKeyProperty == null)
+        {
+            // FDDB061: Metadata inheritance failure - missing partition key
+            ReportDiagnostic(
+                DiagnosticDescriptors.ProjectionMetadataInheritanceFailure,
+                location,
+                projectionName, sourceEntity.ClassName);
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// <summary>
+    /// Public wrapper for ValidateSourceEntityMetadata for testing purposes.
+    /// Validates that the source entity has the required metadata for projection inheritance.
+    /// </summary>
+    /// <param name="sourceEntity">The source entity to validate.</param>
+    /// <param name="projectionName">The name of the projection for error reporting.</param>
+    /// <param name="location">The location for diagnostic reporting.</param>
+    /// <returns>True if validation passes, false otherwise.</returns>
+    public bool ValidateSourceEntityMetadataPublic(EntityModel sourceEntity, string projectionName, Location? location)
+    {
+        _diagnostics.Clear();
+        return ValidateSourceEntityMetadata(sourceEntity, projectionName, location);
+    }
+    
+    /// <summary>
+    /// Validates that a projection is not being used in a write operation context.
+    /// This method can be called by other analyzers to check for interface violations.
+    /// </summary>
+    /// <param name="projectionName">The name of the projection.</param>
+    /// <param name="sourceEntityName">The name of the source entity.</param>
+    /// <param name="location">The location for diagnostic reporting.</param>
+    public void ReportInterfaceViolation(string projectionName, string sourceEntityName, Location? location)
+    {
+        // FDDB062: Projection interface violation
+        ReportDiagnostic(
+            DiagnosticDescriptors.ProjectionInterfaceViolation,
+            location,
+            projectionName, sourceEntityName);
     }
     
     private void ReportDiagnostic(DiagnosticDescriptor descriptor, Location? location, params object[] messageArgs)
