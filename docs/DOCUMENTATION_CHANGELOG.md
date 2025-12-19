@@ -59,6 +59,80 @@ Entries may be categorized as:
 
 ## [2025-12-19]
 
+### File: docs/core-features/LinqExpressions.md
+
+**Category:** New Documentation - Conditional Filter Patterns
+
+**Summary:** Added comprehensive new section "Conditional Filter Patterns (OR/AND with Local Conditions)" documenting natural `||` and `&&` patterns with local boolean conditions in filter expressions:
+- Pattern overview table showing behavior for OR and AND with local conditions
+- OR pattern examples for skipping filters when condition is true
+- AND pattern examples for including filters only when condition is true
+- Multiple optional filters examples
+- Negated conditions examples
+- Method calls in local conditions examples
+- Compound local conditions examples
+- Important rules section explaining local condition requirements and limitations
+- Comparison section explaining when to use ternary vs OR/AND patterns
+
+**Before:**
+```csharp
+// Only ternary pattern was documented
+x => hasFilter ? x.Status == status : true
+```
+
+**After:**
+```csharp
+// OR pattern - skip filter when condition is true
+x => string.IsNullOrWhiteSpace(status) || x.Status == status
+
+// AND pattern - include filter only when condition is true
+x => enableDateFilter && x.OrderDate > minDate
+
+// Multiple optional filters
+x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.OrderDate > minDate)
+```
+
+**Reason:** New conditional filter expressions feature (Requirements 1.1-1.3, 2.1-2.3, 3.1-3.3, 4.1-4.3, 5.1-5.3, 6.1-6.3, 7.1-7.3) allows developers to write more natural conditional queries using `||` and `&&` operators instead of ternary expressions. Full documentation needed in the LINQ Expressions guide.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Conditional Filter Expressions
+
+**Summary:** Added new "Conditional Filter Patterns" section documenting natural `||` and `&&` patterns with local boolean conditions in filter expressions:
+- Pattern table showing behavior for OR and AND with local conditions
+- Code examples for optional filters, feature flag controlled filters, multiple optional filters, and negated conditions
+- Rules section explaining local condition requirements and limitations
+
+**Before:**
+```csharp
+// No conditional filter pattern documentation existed
+// Users had to use ternary operators: (flag ? true : x.Status == status)
+```
+
+**After:**
+```csharp
+// Optional filter based on parameter presence
+var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+    .WithFilter(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
+    .ToListAsync();
+
+// Feature flag controlled filter
+var items = await table.Items.Query(x => x.Key == key)
+    .WithFilter(x => enableDateFilter && x.Date > minDate)
+    .ToListAsync();
+
+// Multiple optional filters
+var results = await table.Orders.Query(x => x.CustomerId == customerId)
+    .WithFilter(x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.Date > minDate))
+    .ToListAsync();
+```
+
+**Reason:** New conditional filter expressions feature (Requirements 1.1-1.3, 2.1-2.3, 3.1-3.3, 4.1-4.3, 5.1-5.3, 6.1-6.3, 7.1-7.3) allows developers to write more natural conditional queries using `||` and `&&` operators instead of ternary expressions. Documentation needed to explain the pattern table, common use cases, and rules.
+
+---
+
 ### File: .kiro/steering/fluentdynamodb.md
 
 **Category:** API Reference Update - Projection Interface Enhancement

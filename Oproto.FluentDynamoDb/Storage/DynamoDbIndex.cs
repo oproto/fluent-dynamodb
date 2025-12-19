@@ -1,5 +1,7 @@
+using System.Linq.Expressions;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Requests;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.Storage;
 
@@ -129,6 +131,53 @@ public class DynamoDbIndex
         where TEntity : class, IReadOnlyEntity
     {
         return Requests.Extensions.WithConditionExpressionExtensions.Where(Query<TEntity>(), keyConditionExpression, values);
+    }
+    
+    /// <summary>
+    /// Creates a new Query operation builder with a LINQ expression for the key condition.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <param name="keyCondition">The LINQ expression representing the key condition.</param>
+    /// <returns>A QueryRequestBuilder configured with the key condition.</returns>
+    /// <example>
+    /// <code>
+    /// // Lambda expression query
+    /// var results = await index.Query&lt;MyEntity&gt;(x => x.Gsi1Pk == "STATUS#ACTIVE")
+    ///     .ToListAsync();
+    /// 
+    /// // Composite key with lambda
+    /// var results = await index.Query&lt;MyEntity&gt;(x => x.Gsi1Pk == "STATUS#ACTIVE" &amp;&amp; x.Gsi1Sk.StartsWith("USER#"))
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TEntity> Query<TEntity>(Expression<Func<TEntity, bool>> keyCondition) 
+        where TEntity : class, IReadOnlyEntity
+    {
+        return Query<TEntity>().Where(keyCondition);
+    }
+    
+    /// <summary>
+    /// Creates a new Query operation builder with LINQ expressions for both key condition and filter.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <param name="keyCondition">The LINQ expression representing the key condition.</param>
+    /// <param name="filterCondition">The LINQ expression representing the filter condition.</param>
+    /// <returns>A QueryRequestBuilder configured with both key condition and filter.</returns>
+    /// <example>
+    /// <code>
+    /// // Query with key condition and filter
+    /// var results = await index.Query&lt;MyEntity&gt;(
+    ///         x => x.Gsi1Pk == "STATUS#ACTIVE",
+    ///         x => x.Amount > 100)
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TEntity> Query<TEntity>(
+        Expression<Func<TEntity, bool>> keyCondition,
+        Expression<Func<TEntity, bool>> filterCondition) 
+        where TEntity : class, IReadOnlyEntity
+    {
+        return Query<TEntity>().Where(keyCondition).WithFilter(filterCondition);
     }
 }
 
@@ -266,4 +315,78 @@ public class DynamoDbIndex<TDefault> where TDefault : class, IReadOnlyEntity, ne
     public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) 
         where TEntity : class, IReadOnlyEntity => 
         _innerIndex.Query<TEntity>(keyConditionExpression, values);
+    
+    /// <summary>
+    /// Creates a new Query operation builder with a LINQ expression for the key condition using the default type TDefault.
+    /// </summary>
+    /// <param name="keyCondition">The LINQ expression representing the key condition.</param>
+    /// <returns>A QueryRequestBuilder configured with the key condition using TDefault as the entity type.</returns>
+    /// <example>
+    /// <code>
+    /// // Non-generic Query with lambda uses TDefault
+    /// var results = await table.StatusIndex.Query(x => x.Status == "ACTIVE")
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TDefault> Query(Expression<Func<TDefault, bool>> keyCondition) =>
+        _innerIndex.Query<TDefault>(keyCondition);
+    
+    /// <summary>
+    /// Creates a new Query operation builder with LINQ expressions for both key condition and filter using the default type TDefault.
+    /// </summary>
+    /// <param name="keyCondition">The LINQ expression representing the key condition.</param>
+    /// <param name="filterCondition">The LINQ expression representing the filter condition.</param>
+    /// <returns>A QueryRequestBuilder configured with both key condition and filter using TDefault as the entity type.</returns>
+    /// <example>
+    /// <code>
+    /// // Non-generic Query with key condition and filter uses TDefault
+    /// var results = await table.StatusIndex.Query(
+    ///         x => x.Status == "ACTIVE",
+    ///         x => x.Amount > 100)
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TDefault> Query(
+        Expression<Func<TDefault, bool>> keyCondition,
+        Expression<Func<TDefault, bool>> filterCondition) =>
+        _innerIndex.Query<TDefault>(keyCondition, filterCondition);
+    
+    /// <summary>
+    /// Creates a new Query operation builder with a LINQ expression for the key condition.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <param name="keyCondition">The LINQ expression representing the key condition.</param>
+    /// <returns>A QueryRequestBuilder configured with the key condition.</returns>
+    /// <example>
+    /// <code>
+    /// // Lambda expression query with explicit type
+    /// var results = await index.Query&lt;MyEntity&gt;(x => x.Gsi1Pk == "STATUS#ACTIVE")
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TEntity> Query<TEntity>(Expression<Func<TEntity, bool>> keyCondition) 
+        where TEntity : class, IReadOnlyEntity =>
+        _innerIndex.Query<TEntity>(keyCondition);
+    
+    /// <summary>
+    /// Creates a new Query operation builder with LINQ expressions for both key condition and filter.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <param name="keyCondition">The LINQ expression representing the key condition.</param>
+    /// <param name="filterCondition">The LINQ expression representing the filter condition.</param>
+    /// <returns>A QueryRequestBuilder configured with both key condition and filter.</returns>
+    /// <example>
+    /// <code>
+    /// // Query with key condition and filter using explicit type
+    /// var results = await index.Query&lt;MyEntity&gt;(
+    ///         x => x.Gsi1Pk == "STATUS#ACTIVE",
+    ///         x => x.Amount > 100)
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TEntity> Query<TEntity>(
+        Expression<Func<TEntity, bool>> keyCondition,
+        Expression<Func<TEntity, bool>> filterCondition) 
+        where TEntity : class, IReadOnlyEntity =>
+        _innerIndex.Query<TEntity>(keyCondition, filterCondition);
 }

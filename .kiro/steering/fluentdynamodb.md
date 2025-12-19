@@ -341,6 +341,44 @@ await DynamoDbTransactions.WriteAsync(client, transactWriteRequest);
 | `.AttributeNotExists()` | `attribute_not_exists()` | `x => x.Id.AttributeNotExists()` |
 | `.Size()` | `size()` | `x => x.Items.Size() > 5` |
 
+## Conditional Filter Patterns
+
+Use `||` and `&&` operators with local boolean conditions to conditionally include or skip filter clauses at translation time.
+
+| Pattern | Local Value | Behavior |
+|---------|-------------|----------|
+| `localCondition \|\| x.Prop == val` | `true` | Skip filter (return all) |
+| `localCondition \|\| x.Prop == val` | `false` | Apply filter |
+| `localCondition && x.Prop == val` | `true` | Apply filter |
+| `localCondition && x.Prop == val` | `false` | Skip filter (return all) |
+
+```csharp
+// Optional filter based on parameter presence
+var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+    .WithFilter(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
+    .ToListAsync();
+
+// Feature flag controlled filter
+var items = await table.Items.Query(x => x.Key == key)
+    .WithFilter(x => enableDateFilter && x.Date > minDate)
+    .ToListAsync();
+
+// Multiple optional filters
+var results = await table.Orders.Query(x => x.CustomerId == customerId)
+    .WithFilter(x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.Date > minDate))
+    .ToListAsync();
+
+// Negated conditions
+var items = await table.Items.Query(x => x.Key == key)
+    .WithFilter(x => !excludeArchived || x.Archived == false)
+    .ToListAsync();
+```
+
+**Rules:**
+- Local condition must not reference the entity parameter (evaluated at translation time)
+- OR between two entity conditions throws `UnsupportedExpressionException`
+- Works with method calls (`string.IsNullOrWhiteSpace()`), negations (`!flag`), and compound expressions
+
 ## Common Patterns
 
 ```csharp

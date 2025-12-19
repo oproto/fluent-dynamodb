@@ -255,6 +255,51 @@ public class ExpressionTranslator
         // Handle logical operators (&&, ||)
         if (node.NodeType == ExpressionType.AndAlso || node.NodeType == ExpressionType.OrElse)
         {
+            var leftReferencesEntity = ReferencesEntityParameter(node.Left, entityParameter);
+            var rightReferencesEntity = ReferencesEntityParameter(node.Right, entityParameter);
+            
+            // Case 1: Neither side references entity - evaluate entire expression
+            if (!leftReferencesEntity && !rightReferencesEntity)
+            {
+                return EvaluateAndHandleLocalBooleanExpression(node, context);
+            }
+            
+            // Case 2: Only one side references entity - conditional filter pattern
+            // But NOT if the non-entity side is a ConditionalExpression (ternary) - those should be visited normally
+            // because they may contain entity references in their branches
+            if (leftReferencesEntity != rightReferencesEntity)
+            {
+                var localOperand = leftReferencesEntity ? node.Right : node.Left;
+                
+                // If the local operand is a ConditionalExpression (ternary), let normal flow handle it
+                // The ternary may have entity references in its branches that need to be processed
+                if (localOperand is not ConditionalExpression)
+                {
+                    return HandleConditionalFilterPattern(node, entityParameter, context, 
+                        leftReferencesEntity, rightReferencesEntity);
+                }
+            }
+            
+            // Case 3: Both sides reference entity (or one side is a ternary that references entity)
+            // Only throw for key expressions (KeysOnly mode) - filter expressions support OR between entity conditions
+            if (node.NodeType == ExpressionType.OrElse && context.ValidationMode == ExpressionValidationMode.KeysOnly)
+            {
+                // Check if this is actually a valid OR pattern (one side is a ternary that will evaluate to empty)
+                // If both sides truly reference entity properties directly, throw
+                var leftIsDirectEntityRef = IsDirectEntityPropertyComparison(node.Left, entityParameter);
+                var rightIsDirectEntityRef = IsDirectEntityPropertyComparison(node.Right, entityParameter);
+                
+                if (leftIsDirectEntityRef && rightIsDirectEntityRef)
+                {
+                    // OR between two entity conditions is not supported in DynamoDB key expressions
+                    throw new UnsupportedExpressionException(
+                        "OR operator between two entity property conditions is not supported in DynamoDB key expressions. " +
+                        "Use separate queries or restructure your data model.",
+                        node);
+                }
+            }
+            
+            // AND/OR between entity conditions or with ternary expressions - visit both sides
             var left = Visit(node.Left, entityParameter, context);
             var right = Visit(node.Right, entityParameter, context);
             var op = node.NodeType == ExpressionType.AndAlso ? "AND" : "OR";
@@ -751,7 +796,23 @@ public class ExpressionTranslator
 
         if (testResult)
         {
-            // Condition is true - process the true branch
+            // Condition is true - check if true branch is constant true (skip filter)
+            if (IsConstantTrue(node.IfTrue))
+            {
+                // Return empty string to signal that this part of the filter should be omitted
+                return string.Empty;
+            }
+            
+            // Check if true branch is constant false (would return no results)
+            if (IsConstantFalse(node.IfTrue))
+            {
+                throw new UnsupportedExpressionException(
+                    "Filter expression evaluates to constant false, which would return no results. " +
+                    "Remove the filter or fix the condition.",
+                    node);
+            }
+            
+            // Process the true branch
             return Visit(node.IfTrue, entityParameter, context);
         }
         else
@@ -803,6 +864,123 @@ public class ExpressionTranslator
             return !b;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Handles conditional filter patterns where one operand is a local boolean condition
+    /// and the other references entity properties.
+    /// </summary>
+    /// <remarks>
+    /// <para><strong>Supported Patterns:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>OR with local condition: (localCondition || x.Property == value) - skip filter when local is true</description></item>
+    /// <item><description>AND with local condition: (localCondition &amp;&amp; x.Property == value) - include filter only when local is true</description></item>
+    /// </list>
+    /// </remarks>
+    /// <param name="node">The binary expression node.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="leftReferencesEntity">Whether the left operand references the entity parameter.</param>
+    /// <param name="rightReferencesEntity">Whether the right operand references the entity parameter.</param>
+    /// <returns>The translated DynamoDB expression string, or empty string if the filter should be omitted.</returns>
+    /// <exception cref="ExpressionTranslationException">Thrown when the local condition cannot be evaluated.</exception>
+    private string HandleConditionalFilterPattern(
+        BinaryExpression node,
+        ParameterExpression entityParameter,
+        ExpressionContext context,
+        bool leftReferencesEntity,
+        bool rightReferencesEntity)
+    {
+        var localOperand = leftReferencesEntity ? node.Right : node.Left;
+        var entityOperand = leftReferencesEntity ? node.Left : node.Right;
+
+        // Evaluate the local operand
+        bool localValue;
+        try
+        {
+            var evaluated = EvaluateExpression(localOperand);
+            localValue = evaluated is bool b ? b : Convert.ToBoolean(evaluated);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate local condition in filter expression: {ex.Message}",
+                node);
+        }
+
+        if (node.NodeType == ExpressionType.OrElse)
+        {
+            // OR pattern: (localCondition || entityFilter)
+            // If local is true → skip filter (return empty)
+            // If local is false → apply entity filter
+            if (localValue)
+            {
+                return string.Empty;
+            }
+            return Visit(entityOperand, entityParameter, context);
+        }
+        else // AndAlso
+        {
+            // AND pattern: (localCondition && entityFilter)
+            // If local is true → apply entity filter
+            // If local is false → skip filter (return empty)
+            if (localValue)
+            {
+                return Visit(entityOperand, entityParameter, context);
+            }
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Evaluates and handles a fully local boolean expression where neither operand references the entity.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When both operands of a logical expression don't reference the entity parameter,
+    /// the entire expression can be evaluated at translation time.
+    /// </para>
+    /// <para>
+    /// If the expression evaluates to true, an empty string is returned to omit the filter.
+    /// If the expression evaluates to false, an exception is thrown because a constant false
+    /// filter would return no results.
+    /// </para>
+    /// </remarks>
+    /// <param name="node">The binary expression node.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>Empty string if the expression evaluates to true.</returns>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the expression evaluates to constant false.</exception>
+    /// <exception cref="ExpressionTranslationException">Thrown when the expression cannot be evaluated.</exception>
+    private string EvaluateAndHandleLocalBooleanExpression(
+        BinaryExpression node,
+        ExpressionContext context)
+    {
+        bool result;
+        try
+        {
+            var evaluated = EvaluateExpression(node);
+            result = evaluated is bool b ? b : Convert.ToBoolean(evaluated);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate local boolean expression: {ex.Message}",
+                node);
+        }
+
+        if (result)
+        {
+            // Expression evaluates to true - return empty to omit
+            return string.Empty;
+        }
+        else
+        {
+            // Expression evaluates to false - this would filter out everything
+            throw new UnsupportedExpressionException(
+                "Filter expression evaluates to constant false, which would return no results. " +
+                "Remove the filter or fix the condition.",
+                node);
+        }
     }
 
     /// <summary>
@@ -1035,6 +1213,8 @@ public class ExpressionTranslator
             BinaryExpression binary => 
                 ReferencesEntityParameter(binary.Left, entityParameter) ||
                 ReferencesEntityParameter(binary.Right, entityParameter),
+            // Handle indexer expressions like x.DynamicFields["fieldName"]
+            IndexExpression index => ReferencesEntityParameter(index.Object!, entityParameter),
             _ => false
         };
     }
@@ -1049,6 +1229,58 @@ public class ExpressionTranslator
 
         // Check if the member is directly on the entity parameter (x.PropertyName)
         return member.Expression == entityParameter;
+    }
+
+    /// <summary>
+    /// Checks if an expression is a direct entity property comparison (e.g., x.Property == value).
+    /// This excludes conditional expressions (ternary) and other complex patterns.
+    /// </summary>
+    /// <param name="node">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <returns>True if this is a direct entity property comparison, false otherwise.</returns>
+    private bool IsDirectEntityPropertyComparison(Expression node, ParameterExpression entityParameter)
+    {
+        // Conditional expressions (ternary) are not direct comparisons
+        if (node is ConditionalExpression)
+            return false;
+
+        // Binary comparisons (==, !=, <, >, etc.) with entity property access
+        if (node is BinaryExpression binary)
+        {
+            // Check if this is a comparison operator (not AND/OR)
+            if (binary.NodeType != ExpressionType.AndAlso && binary.NodeType != ExpressionType.OrElse)
+            {
+                return IsEntityPropertyAccess(binary.Left, entityParameter) ||
+                       IsEntityPropertyAccess(binary.Right, entityParameter);
+            }
+            
+            // For AND/OR, recursively check both sides
+            return IsDirectEntityPropertyComparison(binary.Left, entityParameter) ||
+                   IsDirectEntityPropertyComparison(binary.Right, entityParameter);
+        }
+
+        // Method calls on entity properties (e.g., x.Name.StartsWith("value"))
+        if (node is MethodCallExpression methodCall)
+        {
+            if (methodCall.Object != null && IsEntityPropertyAccess(methodCall.Object, entityParameter))
+                return true;
+            
+            // Extension methods like Between, AttributeExists
+            if (methodCall.Arguments.Count > 0 && IsEntityPropertyAccess(methodCall.Arguments[0], entityParameter))
+                return true;
+        }
+
+        // Unary expressions (e.g., !x.IsActive)
+        if (node is UnaryExpression unary)
+        {
+            return IsDirectEntityPropertyComparison(unary.Operand, entityParameter);
+        }
+
+        // Direct entity property access (e.g., x.IsActive as boolean)
+        if (IsEntityPropertyAccess(node, entityParameter))
+            return true;
+
+        return false;
     }
 
     /// <summary>

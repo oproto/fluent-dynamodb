@@ -397,6 +397,11 @@ internal static class TableGenerator
             
             var accessorClassName = $"{entity.ClassName}Accessor";
             
+            // Determine the table class name - use TableTypeName directly for type-based references
+            var tableClassName = entity.IsTableTypeReference && !string.IsNullOrEmpty(entity.TableTypeName)
+                ? entity.TableTypeName
+                : GetTableClassName(entity.TableName);
+            
             sb.AppendLine();
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Nested accessor class for {entity.ClassName} entity operations.");
@@ -406,7 +411,7 @@ internal static class TableGenerator
             sb.AppendLine($"    {{");
             
             // Private readonly field for parent table reference
-            sb.AppendLine($"        private readonly {GetTableClassName(entity.TableName)} _table;");
+            sb.AppendLine($"        private readonly {tableClassName} _table;");
             sb.AppendLine();
             
             // Internal constructor accepting parent table
@@ -414,7 +419,7 @@ internal static class TableGenerator
             sb.AppendLine($"        /// Initializes a new instance of the {accessorClassName}.");
             sb.AppendLine($"        /// </summary>");
             sb.AppendLine($"        /// <param name=\"table\">The parent table instance.</param>");
-            sb.AppendLine($"        internal {accessorClassName}({GetTableClassName(entity.TableName)} table)");
+            sb.AppendLine($"        internal {accessorClassName}({tableClassName} table)");
             sb.AppendLine($"        {{");
             sb.AppendLine($"            _table = table;");
             sb.AppendLine($"        }}");

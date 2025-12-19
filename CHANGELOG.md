@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Conditional Filter Expressions** - Support for natural `||` and `&&` patterns with local boolean conditions in filter expressions
+  - `(localCondition || x.Property == value)` - skip filter when local condition is true
+  - `(localCondition && x.Property == value)` - include filter only when local condition is true
+  - Works with method calls like `string.IsNullOrWhiteSpace()`, negations (`!flag`), and compound expressions
+  - Local conditions are evaluated at translation time, not sent to DynamoDB
+  - OR between two entity conditions throws `UnsupportedExpressionException` (DynamoDB limitation)
+  - _Requirements: 1.1-1.3, 2.1-2.3, 3.1-3.3, 4.1-4.3, 5.1-5.3, 6.1-6.3, 7.1-7.3_
+  
+  **Usage:**
+  ```csharp
+  // Optional filter based on parameter presence
+  var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+      .WithFilter(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
+      .ToListAsync();
+  
+  // Feature flag controlled filter
+  var items = await table.Items.Query(x => x.Key == key)
+      .WithFilter(x => enableDateFilter && x.Date > minDate)
+      .ToListAsync();
+  
+  // Multiple optional filters
+  var results = await table.Orders.Query(x => x.CustomerId == customerId)
+      .WithFilter(x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.Date > minDate))
+      .ToListAsync();
+  ```
+
 - **Custom Index Property Naming** - New `Name` property on `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` attributes for customizing generated index property names
   - Specify `Name = "StatusIndex"` to generate `table.StatusIndex` instead of derived name from DynamoDB index name
   - When not specified, property name is derived from DynamoDB index name using PascalCase conversion (e.g., `"status-index"` → `StatusIndex`)
