@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Multi-Entity Index Consolidation** - Indexes defined on any entity in a multi-entity table are now consolidated and available on the generated table class
+  - Indexes from all entities sharing a table are collected and merged
+  - Multiple entities defining the same index with identical configuration generate a single index property
+  - Indexes defined on non-default entities are now properly generated
+  - New diagnostics for conflicting index configurations:
+    - `FDDB053`: Conflicting partition keys on same index name
+    - `FDDB054`: Conflicting sort keys on same index name
+    - `FDDB055`: Conflicting index types (GSI vs LSI) on same index name
+  - Index documentation includes all referencing entities
+  - Full backward compatibility with existing single-entity and multi-entity tables
+  - _Requirements: 1.1-1.3, 2.1-2.4, 3.1-3.4, 4.1-4.3, 5.1-5.3, 6.1-6.3_
+  
+  **Usage:**
+  ```csharp
+  // Multi-entity table with indexes on different entities
+  [DynamoDbTable("shared-table", IsDefault = true)]
+  public partial class Order
+  {
+      [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+      [DynamoDbAttribute("status")]
+      public string Status { get; set; }
+  }
+  
+  [DynamoDbTable("shared-table")]
+  public partial class Customer
+  {
+      [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+      [DynamoDbAttribute("email")]
+      public string Email { get; set; }
+  }
+  
+  // Both indexes are available on the generated table class
+  var ordersByStatus = await table.StatusIndex.Query<Order>()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  
+  var customersByEmail = await table.EmailIndex.Query<Customer>()
+      .Where(x => x.Email == "user@example.com")
+      .ToListAsync();
+  ```
+
 - **Conditional Filter Expressions** - Support for natural `||` and `&&` patterns with local boolean conditions in filter expressions
   - `(localCondition || x.Property == value)` - skip filter when local condition is true
   - `(localCondition && x.Property == value)` - include filter only when local condition is true

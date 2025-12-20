@@ -102,6 +102,85 @@ public partial class OrderSummary
 // - Inherits metadata from source entity (table name, keys)
 ```
 
+## Composite Entity Definition (Multi-Item Entities)
+
+Composite entities span multiple DynamoDB items sharing the same partition key but different sort keys. Use `[RelatedEntity]` to define parent-child relationships that `ToCompositeEntityAsync()` automatically assembles.
+
+```csharp
+// Parent entity with related child collection
+[DynamoDbTable("invoices", IsDefault = true)]
+public partial class Invoice
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "INVOICE")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    // Related entity collection - automatically populated by ToCompositeEntityAsync
+    // Pattern "INVOICE#*#LINE#*" matches sort keys like "INVOICE#INV-001#LINE#1"
+    [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+    public List<InvoiceLine> Lines { get; set; } = new();
+}
+
+// Child entity with hierarchical sort key
+[DynamoDbTable("invoices")]
+public partial class InvoiceLine
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    // Sort key extends parent: "INVOICE#INV-001#LINE#1"
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("lineNumber")]
+    public int LineNumber { get; set; }
+
+    [DynamoDbAttribute("amount")]
+    public decimal Amount { get; set; }
+}
+```
+
+### RelatedEntity Attribute
+
+| Property | Description |
+|----------|-------------|
+| Pattern (positional) | Sort key pattern with `*` wildcards (e.g., `"INVOICE#*#LINE#*"`) |
+| `EntityType` | The type to map matching items to (required for collections) |
+
+### Querying Composite Entities
+
+```csharp
+// Query with begins_with to fetch parent + all children in one call
+var invoice = await table.Invoices.Query()
+    .Where(x => x.Pk == pk && x.Sk.StartsWith("INVOICE#INV-001"))
+    .ToCompositeEntityAsync<Invoice>();
+
+// invoice.Lines is automatically populated with matching InvoiceLine items
+
+// For multiple composite entities
+var invoices = await table.Invoices.Query()
+    .Where(x => x.Pk == pk)
+    .ToCompositeEntityListAsync<Invoice>();
+```
+
+### Key Design Pattern
+
+Hierarchical sort keys enable single-query retrieval:
+- Invoice: `sk = "INVOICE#INV-001"`
+- Line 1: `sk = "INVOICE#INV-001#LINE#1"`
+- Line 2: `sk = "INVOICE#INV-001#LINE#2"`
+
+Query with `begins_with(sk, "INVOICE#INV-001")` returns all items, and `ToCompositeEntityAsync` assembles them into a single Invoice with populated Lines collection.
+
 ## Get Operations
 
 ```csharp
@@ -226,6 +305,51 @@ var recentOrders = await table.lsi1.Query<Order>(x => x.CustomerId == customerId
 // Index with projection type - non-generic Query() defaults to projection
 var projectedOrders = await table.StatusIndex.Query(x => x.Status == "active").ToListAsync();
 ```
+
+## Multi-Entity Index Consolidation
+
+In multi-entity tables, indexes from all entities are consolidated onto the generated table class:
+
+```csharp
+// Multi-entity table with indexes on different entities
+[DynamoDbTable("shared-table", IsDefault = true)]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("shared-table")]
+public partial class Customer
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+    [DynamoDbAttribute("email")]
+    public string Email { get; set; } = string.Empty;
+}
+
+// Both indexes are available on the generated table class
+var ordersByStatus = await table.StatusIndex.Query<Order>(x => x.Status == "pending").ToListAsync();
+var customersByEmail = await table.EmailIndex.Query<Customer>(x => x.Email == "user@example.com").ToListAsync();
+```
+
+### Index Consolidation Rules
+
+| Scenario | Behavior |
+|----------|----------|
+| Same index, same config | Single index property generated |
+| Same index, different partition key | FDDB053 diagnostic error |
+| Same index, different sort key | FDDB054 diagnostic error |
+| Same index, different type (GSI vs LSI) | FDDB055 diagnostic error |
+| Index on non-default entity | Index property generated normally |
 
 ## Projection Queries
 

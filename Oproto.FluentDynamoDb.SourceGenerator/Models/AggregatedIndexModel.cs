@@ -47,10 +47,46 @@ internal class AggregatedIndexModel
     public IndexType Type { get; set; } = IndexType.GlobalSecondaryIndex;
 
     /// <summary>
+    /// Gets or sets the partition key property name for this index.
+    /// Captured from the first entity that defines this index.
+    /// </summary>
+    public string? PartitionKeyProperty { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sort key property name for this index, if any.
+    /// Captured from the first entity that defines this index.
+    /// </summary>
+    public string? SortKeyProperty { get; set; }
+
+    /// <summary>
+    /// Gets or sets the GSI-specific discriminator configuration.
+    /// Captured from the first entity that defines this index.
+    /// </summary>
+    public DiscriminatorConfig? GsiDiscriminator { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of the first entity that defined this index.
+    /// Used for diagnostic messages when configuration conflicts are detected.
+    /// </summary>
+    public string? FirstDefiningEntityName { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether there is a conflict in the Name property
     /// across entities referencing this index.
     /// </summary>
     public bool HasConflict { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether there is a configuration conflict
+    /// (partition key, sort key, or index type mismatch) across entities referencing this index.
+    /// </summary>
+    public bool HasConfigurationConflict { get; set; }
+
+    /// <summary>
+    /// Gets or sets the list of configuration conflict details describing what conflicts were detected.
+    /// Each entry describes a specific conflict (e.g., "Partition key mismatch: 'Status' vs 'Category'").
+    /// </summary>
+    public List<string> ConfigurationConflictDetails { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the list of conflicting custom names when multiple entities specify

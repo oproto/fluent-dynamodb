@@ -226,11 +226,17 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             var entityWithTableType = tableEntities.FirstOrDefault(e => e.IsTableTypeReference && !string.IsNullOrEmpty(e.TableTypeName));
             var tableClassName = entityWithTableType?.TableTypeName ?? GetTableClassName(tableName);
             
-            var tableCode = TableGenerator.GenerateTableClass(tableName, tableEntities);
-            if (!string.IsNullOrEmpty(tableCode))
+            var tableCode = TableGenerator.GenerateTableClassWithDiagnostics(tableName, tableEntities);
+            if (!string.IsNullOrEmpty(tableCode.Code))
             {
                 // Use the determined table class name for the file name
-                context.AddSource($"{tableClassName}.g.cs", tableCode);
+                context.AddSource($"{tableClassName}.g.cs", tableCode.Code);
+                
+                // Report any diagnostics from index aggregation
+                foreach (var diagnostic in tableCode.Diagnostics)
+                {
+                    context.ReportDiagnostic(diagnostic);
+                }
             }
             
             // Generate OnStream method and registry if any entities have stream conversion enabled

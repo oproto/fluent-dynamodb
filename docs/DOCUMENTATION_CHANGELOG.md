@@ -59,6 +59,20 @@ Entries may be categorized as:
 
 ## [2025-12-19]
 
+### File: docs/advanced-topics/MultiEntityTables.md
+
+**Category:** New Documentation - Index Consolidation Section
+
+**Summary:** Added new "Index Consolidation" section documenting how indexes from multiple entities are consolidated in multi-entity tables:
+- Explanation of how index consolidation works
+- Index consolidation rules table (same config, conflicting PK/SK/type)
+- Shared indexes across entities example
+- Resolving index conflicts guidance with FDDB053/054/055 diagnostics
+
+**Reason:** New multi-entity index consolidation feature requires documentation explaining the behavior and how to resolve conflicts when they occur.
+
+---
+
 ### File: docs/core-features/LinqExpressions.md
 
 **Category:** New Documentation - Conditional Filter Patterns

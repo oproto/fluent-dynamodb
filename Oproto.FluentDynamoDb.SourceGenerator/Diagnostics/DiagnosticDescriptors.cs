@@ -1002,4 +1002,42 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Projections implement IReadOnlyEntity<T> which only supports read operations (Query, Get). For write operations, use the full source entity type that implements IDynamoDbEntity<T>.");
+
+    // Index Configuration Conflict Diagnostics (FDDB053-FDDB055)
+
+    /// <summary>
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different partition keys.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingIndexPartitionKey = new(
+        "FDDB053",
+        "Conflicting index partition key",
+        "Index '{0}' has conflicting partition keys: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, they must use the same partition key property. Indexes with the same name must have identical key configurations across all entities.");
+
+    /// <summary>
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different sort keys.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingIndexSortKey = new(
+        "FDDB054",
+        "Conflicting index sort key",
+        "Index '{0}' has conflicting sort keys: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, they must use the same sort key property (or both have no sort key). Indexes with the same name must have identical key configurations across all entities.");
+
+    /// <summary>
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different index types (GSI vs LSI).
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingIndexType = new(
+        "FDDB055",
+        "Conflicting index type",
+        "Index '{0}' has conflicting types: {1} on entity '{2}' vs {3} on entity '{4}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, they must use the same index type (either all GSI or all LSI). An index cannot be both a Global Secondary Index and a Local Secondary Index.");
 }

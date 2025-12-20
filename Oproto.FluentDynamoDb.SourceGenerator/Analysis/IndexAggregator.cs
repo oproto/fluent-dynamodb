@@ -40,12 +40,22 @@ internal class IndexAggregator
             {
                 if (!indexesByName.TryGetValue(index.IndexName, out var aggregatedIndex))
                 {
+                    // First occurrence - capture configuration from this entity
                     aggregatedIndex = new AggregatedIndexModel
                     {
                         DynamoDbIndexName = index.IndexName,
-                        Type = index.IndexType
+                        Type = index.IndexType,
+                        PartitionKeyProperty = index.PartitionKeyProperty,
+                        SortKeyProperty = index.SortKeyProperty,
+                        GsiDiscriminator = index.GsiDiscriminator,
+                        FirstDefiningEntityName = entity.ClassName
                     };
                     indexesByName[index.IndexName] = aggregatedIndex;
+                }
+                else
+                {
+                    // Subsequent occurrence - validate configuration matches
+                    ValidateIndexConfiguration(aggregatedIndex, index, entity);
                 }
 
                 // Add the entity to the referencing entities list
@@ -112,6 +122,44 @@ internal class IndexAggregator
     }
 
     /// <summary>
+    /// Validates that an index definition matches the captured configuration from the first entity.
+    /// Sets HasConfigurationConflict and populates ConfigurationConflictDetails if conflicts are found.
+    /// </summary>
+    /// <param name="aggregatedIndex">The aggregated index with captured configuration.</param>
+    /// <param name="index">The index definition from the current entity.</param>
+    /// <param name="entity">The entity containing the index definition.</param>
+    private void ValidateIndexConfiguration(AggregatedIndexModel aggregatedIndex, IndexModel index, EntityModel entity)
+    {
+        // Check partition key conflict
+        if (!string.Equals(aggregatedIndex.PartitionKeyProperty, index.PartitionKeyProperty, StringComparison.Ordinal))
+        {
+            aggregatedIndex.HasConfigurationConflict = true;
+            aggregatedIndex.ConfigurationConflictDetails.Add(
+                $"PK:{aggregatedIndex.PartitionKeyProperty ?? "(none)"}:{aggregatedIndex.FirstDefiningEntityName}:{index.PartitionKeyProperty ?? "(none)"}:{entity.ClassName}");
+        }
+
+        // Check sort key conflict (both null is OK, both same value is OK)
+        var aggregatedSortKey = aggregatedIndex.SortKeyProperty ?? string.Empty;
+        var indexSortKey = index.SortKeyProperty ?? string.Empty;
+        if (!string.Equals(aggregatedSortKey, indexSortKey, StringComparison.Ordinal))
+        {
+            aggregatedIndex.HasConfigurationConflict = true;
+            var firstSortKey = string.IsNullOrEmpty(aggregatedIndex.SortKeyProperty) ? "(none)" : aggregatedIndex.SortKeyProperty;
+            var secondSortKey = string.IsNullOrEmpty(index.SortKeyProperty) ? "(none)" : index.SortKeyProperty;
+            aggregatedIndex.ConfigurationConflictDetails.Add(
+                $"SK:{firstSortKey}:{aggregatedIndex.FirstDefiningEntityName}:{secondSortKey}:{entity.ClassName}");
+        }
+
+        // Check index type conflict (GSI vs LSI)
+        if (aggregatedIndex.Type != index.IndexType)
+        {
+            aggregatedIndex.HasConfigurationConflict = true;
+            aggregatedIndex.ConfigurationConflictDetails.Add(
+                $"TYPE:{aggregatedIndex.Type}:{aggregatedIndex.FirstDefiningEntityName}:{index.IndexType}:{entity.ClassName}");
+        }
+    }
+
+    /// <summary>
     /// Derives a valid C# property name from a DynamoDB index name using PascalCase conversion.
     /// </summary>
     /// <param name="indexName">The DynamoDB index name.</param>
@@ -158,10 +206,11 @@ internal class IndexAggregator
     /// </summary>
     private void ReportDiagnostics(AggregatedIndexModel aggregatedIndex, List<EntityModel> entities)
     {
+        var location = GetLocationForIndex(aggregatedIndex, entities);
+
+        // Report name conflicts (FDDB050)
         if (aggregatedIndex.HasConflict && aggregatedIndex.ConflictingNames.Count >= 2)
         {
-            // Report FDDB050 - Conflicting index names
-            var location = GetLocationForIndex(aggregatedIndex, entities);
             _diagnostics.Add(Diagnostic.Create(
                 DiagnosticDescriptors.ConflictingIndexNames,
                 location,
@@ -172,12 +221,77 @@ internal class IndexAggregator
         else if (aggregatedIndex.HasRedundantSpecification && aggregatedIndex.CustomNameCount > 1)
         {
             // Report FDDB052 - Redundant name specification
-            var location = GetLocationForIndex(aggregatedIndex, entities);
             _diagnostics.Add(Diagnostic.Create(
                 DiagnosticDescriptors.RedundantIndexNameSpecification,
                 location,
                 aggregatedIndex.DynamoDbIndexName,
                 aggregatedIndex.CustomPropertyName ?? string.Empty));
+        }
+
+        // Report configuration conflicts (FDDB053, FDDB054, FDDB055)
+        if (aggregatedIndex.HasConfigurationConflict)
+        {
+            ReportConfigurationConflictDiagnostics(aggregatedIndex, location);
+        }
+    }
+
+    /// <summary>
+    /// Reports configuration conflict diagnostics (FDDB053, FDDB054, FDDB055).
+    /// </summary>
+    /// <param name="aggregatedIndex">The aggregated index with configuration conflicts.</param>
+    /// <param name="location">The location for diagnostic reporting.</param>
+    private void ReportConfigurationConflictDiagnostics(AggregatedIndexModel aggregatedIndex, Location location)
+    {
+        foreach (var detail in aggregatedIndex.ConfigurationConflictDetails)
+        {
+            // Parse the conflict detail format: "TYPE:value1:entity1:value2:entity2"
+            var parts = detail.Split(':');
+            if (parts.Length < 5)
+            {
+                continue;
+            }
+
+            var conflictType = parts[0];
+            var value1 = parts[1];
+            var entity1 = parts[2];
+            var value2 = parts[3];
+            var entity2 = parts[4];
+
+            switch (conflictType)
+            {
+                case "PK":
+                    _diagnostics.Add(Diagnostic.Create(
+                        DiagnosticDescriptors.ConflictingIndexPartitionKey,
+                        location,
+                        aggregatedIndex.DynamoDbIndexName,
+                        value1,
+                        entity1,
+                        value2,
+                        entity2));
+                    break;
+
+                case "SK":
+                    _diagnostics.Add(Diagnostic.Create(
+                        DiagnosticDescriptors.ConflictingIndexSortKey,
+                        location,
+                        aggregatedIndex.DynamoDbIndexName,
+                        value1,
+                        entity1,
+                        value2,
+                        entity2));
+                    break;
+
+                case "TYPE":
+                    _diagnostics.Add(Diagnostic.Create(
+                        DiagnosticDescriptors.ConflictingIndexType,
+                        location,
+                        aggregatedIndex.DynamoDbIndexName,
+                        value1,
+                        entity1,
+                        value2,
+                        entity2));
+                    break;
+            }
         }
     }
 
@@ -233,9 +347,9 @@ internal class IndexAggregator
     /// Validates index configurations and returns true if there are no conflicts.
     /// </summary>
     /// <param name="aggregatedIndexes">The aggregated indexes to validate.</param>
-    /// <returns>True if all indexes are valid (no conflicts), false otherwise.</returns>
+    /// <returns>True if all indexes are valid (no name or configuration conflicts), false otherwise.</returns>
     public static bool HasNoConflicts(List<AggregatedIndexModel> aggregatedIndexes)
     {
-        return !aggregatedIndexes.Any(ai => ai.HasConflict);
+        return !aggregatedIndexes.Any(ai => ai.HasConflict || ai.HasConfigurationConflict);
     }
 }
