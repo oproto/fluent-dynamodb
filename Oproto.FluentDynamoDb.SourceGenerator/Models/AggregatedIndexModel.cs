@@ -53,10 +53,24 @@ internal class AggregatedIndexModel
     public string? PartitionKeyProperty { get; set; }
 
     /// <summary>
+    /// Gets or sets the DynamoDB attribute name for the partition key.
+    /// Captured from the first entity that defines this index.
+    /// Used for validation across entities sharing the same index.
+    /// </summary>
+    public string? PartitionKeyAttribute { get; set; }
+
+    /// <summary>
     /// Gets or sets the sort key property name for this index, if any.
     /// Captured from the first entity that defines this index.
     /// </summary>
     public string? SortKeyProperty { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DynamoDB attribute name for the sort key, if any.
+    /// Captured from the first entity that defines this index.
+    /// Used for validation across entities sharing the same index.
+    /// </summary>
+    public string? SortKeyAttribute { get; set; }
 
     /// <summary>
     /// Gets or sets the GSI-specific discriminator configuration.

@@ -1006,28 +1006,28 @@ internal static class DiagnosticDescriptors
     // Index Configuration Conflict Diagnostics (FDDB053-FDDB055)
 
     /// <summary>
-    /// Error when multiple entities define indexes with the same DynamoDB index name but different partition keys.
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different partition key attributes.
     /// </summary>
     public static readonly DiagnosticDescriptor ConflictingIndexPartitionKey = new(
         "FDDB053",
-        "Conflicting index partition key",
-        "Index '{0}' has conflicting partition keys: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
+        "Conflicting index partition key attribute",
+        "Index '{0}' has conflicting partition key attributes: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "When multiple entities define the same DynamoDB index, they must use the same partition key property. Indexes with the same name must have identical key configurations across all entities.");
+        description: "When multiple entities define the same DynamoDB index, they must use the same DynamoDB attribute for the partition key. Different C# property names are allowed as long as they map to the same DynamoDB attribute name.");
 
     /// <summary>
-    /// Error when multiple entities define indexes with the same DynamoDB index name but different sort keys.
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different sort key attributes.
     /// </summary>
     public static readonly DiagnosticDescriptor ConflictingIndexSortKey = new(
         "FDDB054",
-        "Conflicting index sort key",
-        "Index '{0}' has conflicting sort keys: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
+        "Conflicting index sort key attribute",
+        "Index '{0}' has conflicting sort key attributes: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
         "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "When multiple entities define the same DynamoDB index, they must use the same sort key property (or both have no sort key). Indexes with the same name must have identical key configurations across all entities.");
+        description: "When multiple entities define the same DynamoDB index, they must use the same DynamoDB attribute for the sort key (or both have no sort key). Different C# property names are allowed as long as they map to the same DynamoDB attribute name.");
 
     /// <summary>
     /// Error when multiple entities define indexes with the same DynamoDB index name but different index types (GSI vs LSI).

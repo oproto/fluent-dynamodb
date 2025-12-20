@@ -1023,11 +1023,13 @@ internal class EntityAnalyzer
                 if (gsi.IsPartitionKey)
                 {
                     indexModel.PartitionKeyProperty = property.PropertyName;
+                    indexModel.PartitionKeyAttribute = property.AttributeName;
                     indexModel.PartitionKeyFormat = gsi.KeyFormat;
                 }
                 else if (gsi.IsSortKey)
                 {
                     indexModel.SortKeyProperty = property.PropertyName;
+                    indexModel.SortKeyAttribute = property.AttributeName;
                     indexModel.SortKeyFormat = gsi.KeyFormat;
                 }
 
@@ -1060,6 +1062,7 @@ internal class EntityAnalyzer
                         IndexType = IndexType.LocalSecondaryIndex,
                         // LSIs inherit the partition key from the base table
                         PartitionKeyProperty = partitionKeyProperty?.PropertyName ?? string.Empty,
+                        PartitionKeyAttribute = partitionKeyProperty?.AttributeName ?? string.Empty,
                         PartitionKeyFormat = partitionKeyProperty?.KeyFormat?.Prefix
                     };
                     indexes[lsi.IndexName] = indexModel;
@@ -1067,6 +1070,7 @@ internal class EntityAnalyzer
 
                 // The property with [LocalSecondaryIndex] is the sort key for that LSI
                 indexModel.SortKeyProperty = property.PropertyName;
+                indexModel.SortKeyAttribute = property.AttributeName;
 
                 // Propagate custom name (use first one found if multiple properties define it)
                 if (!string.IsNullOrEmpty(lsi.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))

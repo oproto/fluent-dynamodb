@@ -46,7 +46,9 @@ internal class IndexAggregator
                         DynamoDbIndexName = index.IndexName,
                         Type = index.IndexType,
                         PartitionKeyProperty = index.PartitionKeyProperty,
+                        PartitionKeyAttribute = index.PartitionKeyAttribute,
                         SortKeyProperty = index.SortKeyProperty,
+                        SortKeyAttribute = index.SortKeyAttribute,
                         GsiDiscriminator = index.GsiDiscriminator,
                         FirstDefiningEntityName = entity.ClassName
                     };
@@ -124,28 +126,30 @@ internal class IndexAggregator
     /// <summary>
     /// Validates that an index definition matches the captured configuration from the first entity.
     /// Sets HasConfigurationConflict and populates ConfigurationConflictDetails if conflicts are found.
+    /// Validation is based on DynamoDB attribute names, not C# property names, since different entities
+    /// may use different property names for the same DynamoDB attribute.
     /// </summary>
     /// <param name="aggregatedIndex">The aggregated index with captured configuration.</param>
     /// <param name="index">The index definition from the current entity.</param>
     /// <param name="entity">The entity containing the index definition.</param>
     private void ValidateIndexConfiguration(AggregatedIndexModel aggregatedIndex, IndexModel index, EntityModel entity)
     {
-        // Check partition key conflict
-        if (!string.Equals(aggregatedIndex.PartitionKeyProperty, index.PartitionKeyProperty, StringComparison.Ordinal))
+        // Check partition key conflict - compare DynamoDB attribute names, not C# property names
+        if (!string.Equals(aggregatedIndex.PartitionKeyAttribute, index.PartitionKeyAttribute, StringComparison.Ordinal))
         {
             aggregatedIndex.HasConfigurationConflict = true;
             aggregatedIndex.ConfigurationConflictDetails.Add(
-                $"PK:{aggregatedIndex.PartitionKeyProperty ?? "(none)"}:{aggregatedIndex.FirstDefiningEntityName}:{index.PartitionKeyProperty ?? "(none)"}:{entity.ClassName}");
+                $"PK:{aggregatedIndex.PartitionKeyAttribute ?? "(none)"}:{aggregatedIndex.FirstDefiningEntityName}:{index.PartitionKeyAttribute ?? "(none)"}:{entity.ClassName}");
         }
 
-        // Check sort key conflict (both null is OK, both same value is OK)
-        var aggregatedSortKey = aggregatedIndex.SortKeyProperty ?? string.Empty;
-        var indexSortKey = index.SortKeyProperty ?? string.Empty;
+        // Check sort key conflict (both null/empty is OK, both same value is OK) - compare DynamoDB attribute names
+        var aggregatedSortKey = aggregatedIndex.SortKeyAttribute ?? string.Empty;
+        var indexSortKey = index.SortKeyAttribute ?? string.Empty;
         if (!string.Equals(aggregatedSortKey, indexSortKey, StringComparison.Ordinal))
         {
             aggregatedIndex.HasConfigurationConflict = true;
-            var firstSortKey = string.IsNullOrEmpty(aggregatedIndex.SortKeyProperty) ? "(none)" : aggregatedIndex.SortKeyProperty;
-            var secondSortKey = string.IsNullOrEmpty(index.SortKeyProperty) ? "(none)" : index.SortKeyProperty;
+            var firstSortKey = string.IsNullOrEmpty(aggregatedIndex.SortKeyAttribute) ? "(none)" : aggregatedIndex.SortKeyAttribute;
+            var secondSortKey = string.IsNullOrEmpty(index.SortKeyAttribute) ? "(none)" : index.SortKeyAttribute;
             aggregatedIndex.ConfigurationConflictDetails.Add(
                 $"SK:{firstSortKey}:{aggregatedIndex.FirstDefiningEntityName}:{secondSortKey}:{entity.ClassName}");
         }
