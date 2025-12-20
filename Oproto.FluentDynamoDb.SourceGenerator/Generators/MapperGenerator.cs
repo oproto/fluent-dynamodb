@@ -2737,10 +2737,50 @@ internal static class MapperGenerator
         foreach (var property in nonCollectionProperties)
         {
             var varName = property.PropertyName.ToLowerInvariant() + "Value";
-            sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
-            sb.AppendLine("            {");
-            sb.AppendLine($"                entity.{property.PropertyName} = {GetFromAttributeValueExpression(property, varName)};");
-            sb.AppendLine("            }");
+            var escapedPropertyName = EscapePropertyName(property.PropertyName);
+            
+            // Check if property is a JsonBlob - requires special JSON deserialization handling
+            if (property.ComplexType?.IsJsonBlob == true)
+            {
+                var baseType = GetBaseType(property.PropertyType);
+                sb.AppendLine($"            // Deserialize JSON blob property {property.PropertyName}");
+                sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
+                sb.AppendLine("            {");
+                sb.AppendLine("                if (options?.JsonSerializer == null)");
+                sb.AppendLine("                {");
+                sb.AppendLine($"                    throw new InvalidOperationException(");
+                sb.AppendLine($"                        \"Property '{property.PropertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+                sb.AppendLine($"                        \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+                sb.AppendLine("                }");
+                sb.AppendLine();
+                sb.AppendLine("                try");
+                sb.AppendLine("                {");
+                sb.AppendLine($"                    if ({varName}.S != null)");
+                sb.AppendLine("                    {");
+                sb.AppendLine($"                        entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>({varName}.S);");
+                sb.AppendLine("                    }");
+                sb.AppendLine("                }");
+                sb.AppendLine("                catch (Exception ex)");
+                sb.AppendLine("                {");
+                sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+                sb.AppendLine($"                        typeof({entity.ClassName}),");
+                sb.AppendLine($"                        \"{property.PropertyName}\",");
+                sb.AppendLine($"                        {varName},");
+                sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+                sb.AppendLine("                        ex)");
+                sb.AppendLine($"                        .WithContext(\"SerializerType\", \"RuntimeConfigured\")");
+                sb.AppendLine($"                        .WithContext(\"PropertyType\", \"{baseType}\")");
+                sb.AppendLine($"                        .WithContext(\"Operation\", \"JsonDeserialization\");");
+                sb.AppendLine("                }");
+                sb.AppendLine("            }");
+            }
+            else
+            {
+                sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
+                sb.AppendLine("            {");
+                sb.AppendLine($"                entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+                sb.AppendLine("            }");
+            }
         }
         sb.AppendLine();
     }
