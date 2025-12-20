@@ -444,7 +444,7 @@ async Task SearchGeoHashAsync()
     
     // PREFERRED: Using lambda expression with WithinDistanceKilometers on the GSI
     // The expression translator converts this to a BETWEEN query on the geohash_cell attribute
-    var results = await geoHashTable.geohashindex.Query<StoreGeoHash>()
+    var results = await geoHashTable.GeohashIndex.Query<StoreGeoHash>()
         .Where<StoreGeoHash>(x => x.Location.WithinDistanceKilometers(center, radius))
         .ToListAsync();
     
@@ -596,7 +596,7 @@ async Task CompareAllAsync()
     
     // GeoHash search - uses lambda expression with WithinDistanceKilometers
     var startGeoHash = DateTime.UtcNow;
-    var geoHashRawResults = await geoHashTable.geohashindex.Query<StoreGeoHash>()
+    var geoHashRawResults = await geoHashTable.GeohashIndex.Query<StoreGeoHash>()
         .Where<StoreGeoHash>(x => x.Location.WithinDistanceKilometers(center, radius))
         .ToListAsync();
     var elapsedGeoHash = DateTime.UtcNow - startGeoHash;

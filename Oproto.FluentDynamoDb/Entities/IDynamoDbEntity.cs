@@ -5,9 +5,15 @@ namespace Oproto.FluentDynamoDb.Entities;
 
 /// <summary>
 /// Interface that DynamoDB entities must implement to support automatic mapping.
+/// Inherits from <see cref="IReadOnlyEntity"/> to provide read operations and adds write operations.
 /// Uses static abstract interface methods for compile-time type safety and AOT compatibility.
 /// </summary>
-public interface IDynamoDbEntity : IEntityMetadataProvider
+/// <remarks>
+/// This interface extends <see cref="IReadOnlyEntity"/> with write-specific operations like
+/// <see cref="ToDynamoDb{TSelf}"/> and <see cref="MatchesEntity"/>. Full entities implement
+/// this interface, while projections (read-only views) implement only <see cref="IReadOnlyEntity"/>.
+/// </remarks>
+public interface IDynamoDbEntity : IReadOnlyEntity
 {
     /// <summary>
     /// Converts an entity instance to a DynamoDB AttributeValue dictionary.
@@ -20,17 +26,6 @@ public interface IDynamoDbEntity : IEntityMetadataProvider
         where TSelf : IDynamoDbEntity;
 
     /// <summary>
-    /// Creates an entity instance from a single DynamoDB item.
-    /// Used for single-item entities.
-    /// </summary>
-    /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>
-    /// <param name="item">The DynamoDB item as an AttributeValue dictionary.</param>
-    /// <param name="options">Optional configuration options including logger, JSON serializer, etc. If null, default behavior is used.</param>
-    /// <returns>The mapped entity instance.</returns>
-    static abstract TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-        where TSelf : IDynamoDbEntity;
-
-    /// <summary>
     /// Creates an entity instance from multiple DynamoDB items.
     /// Used for multi-item entities where a single logical entity spans multiple DynamoDB items.
     /// </summary>
@@ -40,14 +35,6 @@ public interface IDynamoDbEntity : IEntityMetadataProvider
     /// <returns>The mapped entity instance.</returns>
     static abstract TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
         where TSelf : IDynamoDbEntity;
-
-    /// <summary>
-    /// Extracts the partition key value from a DynamoDB item.
-    /// Used for grouping items that belong to the same entity.
-    /// </summary>
-    /// <param name="item">The DynamoDB item.</param>
-    /// <returns>The partition key value.</returns>
-    static abstract string GetPartitionKey(Dictionary<string, AttributeValue> item);
 
     /// <summary>
     /// Determines whether a DynamoDB item matches this entity type.
@@ -65,5 +52,6 @@ public interface IDynamoDbEntity : IEntityMetadataProvider
     /// </summary>
     static abstract bool RequiresWriteTransaction { get; }
 
+    // FromDynamoDb(single item) and GetPartitionKey are inherited from IReadOnlyEntity
     // GetEntityMetadata() is inherited from IEntityMetadataProvider
 }

@@ -1,0 +1,65 @@
+# Implementation Plan
+
+- [x] 1. Fix table-level method generation in TableGenerator.cs
+  - [x] 1.1 Update GenerateTableLevelGetMethod to conditionally generate GetAsync
+    - Add `generateTraditionalAsync` check before generating `GetAsync` method
+    - Add generation of `GetAsyncResult` method when `UseFluentResults` is enabled
+    - Handle both single partition key and composite key scenarios
+    - _Requirements: 1.1, 1.3, 2.1_
+  - [x] 1.2 Update GenerateTableLevelDeleteMethod to conditionally generate DeleteAsync
+    - Add `generateTraditionalAsync` check before generating `DeleteAsync` method
+    - Add generation of `DeleteAsyncResult` method when `UseFluentResults` is enabled
+    - Handle both single partition key and composite key scenarios
+    - _Requirements: 1.2, 1.4, 2.2_
+  - [x] 1.3 Update GenerateTableLevelPutMethod to add PutAsyncResult
+    - Add generation of `PutAsyncResult` method when `UseFluentResults` is enabled
+    - _Requirements: 2.3_
+  - [x] 1.4 Update GenerateTableLevelQueryMethods to add QueryAsyncResult
+    - Add generation of `QueryAsyncResult` method when `UseFluentResults` is enabled
+    - _Requirements: 2.4_
+  - [x] 1.5 Write property test for traditional async method suppression
+    - **Property 1: Traditional async methods suppressed when UseFluentResults with default settings**
+    - **Validates: Requirements 1.1, 1.2, 3.3**
+  - [x] 1.6 Write property test for Result-returning method generation
+    - **Property 4: Result-returning methods generated when UseFluentResults is enabled**
+    - **Validates: Requirements 2.1, 2.2, 2.3, 2.4**
+
+- [x] 2. Add API consistency tests for FluentResults table-level methods
+  - [x] 2.1 Create FluentResults test entity in ApiConsistencyTests
+    - Create a new entity with `[UseFluentResults]` attribute
+    - Include partition key and sort key for composite key testing
+    - _Requirements: 3.1, 3.2_
+  - [x] 2.2 Create FluentResultsTableLevelApiSurface.cs test file
+    - Add compile-time tests for `GetAsyncResult` method existence
+    - Add compile-time tests for `DeleteAsyncResult` method existence
+    - Add compile-time tests for `PutAsyncResult` method existence
+    - Add compile-time tests for `QueryAsyncResult` method existence
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2_
+  - [x] 2.3 Write property test for generated code compilation
+    - **Property 5: Generated code compiles successfully**
+    - **Validates: Requirements 3.1, 3.2**
+
+- [x] 3. Checkpoint - Make sure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 4. Add source generator unit tests
+  - [x] 4.1 Add unit test for UseFluentResults with default HideGeneratedAsyncMethods
+    - Verify generated table class does not contain `GetAsync` or `DeleteAsync` methods
+    - Verify generated table class contains `GetAsyncResult` and `DeleteAsyncResult` methods
+    - _Requirements: 1.1, 1.2, 2.1, 2.2_
+  - [x] 4.2 Add unit test for UseFluentResults with HideGeneratedAsyncMethods = false
+    - Verify generated table class contains both traditional and Result-returning methods
+    - _Requirements: 1.3, 1.4, 3.4_
+  - [x] 4.3 Add unit test for entity without UseFluentResults
+    - Verify generated table class contains traditional async methods
+    - Verify generated table class does not contain Result-returning methods
+    - _Requirements: 1.5_
+  - [x] 4.4 Write property test for HideGeneratedAsyncMethods = false
+    - **Property 2: Traditional async methods generated when HideGeneratedAsyncMethods is false**
+    - **Validates: Requirements 1.3, 1.4, 3.4**
+  - [x] 4.5 Write property test for entities without UseFluentResults
+    - **Property 3: Traditional async methods generated without UseFluentResults**
+    - **Validates: Requirements 1.5**
+
+- [x] 5. Final Checkpoint - Make sure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

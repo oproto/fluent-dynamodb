@@ -57,6 +57,395 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-19]
+
+### File: docs/advanced-topics/MultiEntityTables.md
+
+**Category:** New Documentation - Index Consolidation Section
+
+**Summary:** Added new "Index Consolidation" section documenting how indexes from multiple entities are consolidated in multi-entity tables:
+- Explanation of how index consolidation works
+- Index consolidation rules table (same config, conflicting PK/SK/type)
+- Shared indexes across entities example
+- Resolving index conflicts guidance with FDDB053/054/055 diagnostics
+
+**Reason:** New multi-entity index consolidation feature requires documentation explaining the behavior and how to resolve conflicts when they occur.
+
+---
+
+### File: docs/core-features/LinqExpressions.md
+
+**Category:** New Documentation - Conditional Filter Patterns
+
+**Summary:** Added comprehensive new section "Conditional Filter Patterns (OR/AND with Local Conditions)" documenting natural `||` and `&&` patterns with local boolean conditions in filter expressions:
+- Pattern overview table showing behavior for OR and AND with local conditions
+- OR pattern examples for skipping filters when condition is true
+- AND pattern examples for including filters only when condition is true
+- Multiple optional filters examples
+- Negated conditions examples
+- Method calls in local conditions examples
+- Compound local conditions examples
+- Important rules section explaining local condition requirements and limitations
+- Comparison section explaining when to use ternary vs OR/AND patterns
+
+**Before:**
+```csharp
+// Only ternary pattern was documented
+x => hasFilter ? x.Status == status : true
+```
+
+**After:**
+```csharp
+// OR pattern - skip filter when condition is true
+x => string.IsNullOrWhiteSpace(status) || x.Status == status
+
+// AND pattern - include filter only when condition is true
+x => enableDateFilter && x.OrderDate > minDate
+
+// Multiple optional filters
+x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.OrderDate > minDate)
+```
+
+**Reason:** New conditional filter expressions feature (Requirements 1.1-1.3, 2.1-2.3, 3.1-3.3, 4.1-4.3, 5.1-5.3, 6.1-6.3, 7.1-7.3) allows developers to write more natural conditional queries using `||` and `&&` operators instead of ternary expressions. Full documentation needed in the LINQ Expressions guide.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Conditional Filter Expressions
+
+**Summary:** Added new "Conditional Filter Patterns" section documenting natural `||` and `&&` patterns with local boolean conditions in filter expressions:
+- Pattern table showing behavior for OR and AND with local conditions
+- Code examples for optional filters, feature flag controlled filters, multiple optional filters, and negated conditions
+- Rules section explaining local condition requirements and limitations
+
+**Before:**
+```csharp
+// No conditional filter pattern documentation existed
+// Users had to use ternary operators: (flag ? true : x.Status == status)
+```
+
+**After:**
+```csharp
+// Optional filter based on parameter presence
+var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+    .WithFilter(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
+    .ToListAsync();
+
+// Feature flag controlled filter
+var items = await table.Items.Query(x => x.Key == key)
+    .WithFilter(x => enableDateFilter && x.Date > minDate)
+    .ToListAsync();
+
+// Multiple optional filters
+var results = await table.Orders.Query(x => x.CustomerId == customerId)
+    .WithFilter(x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.Date > minDate))
+    .ToListAsync();
+```
+
+**Reason:** New conditional filter expressions feature (Requirements 1.1-1.3, 2.1-2.3, 3.1-3.3, 4.1-4.3, 5.1-5.3, 6.1-6.3, 7.1-7.3) allows developers to write more natural conditional queries using `||` and `&&` operators instead of ternary expressions. Documentation needed to explain the pattern table, common use cases, and rules.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Projection Interface Enhancement
+
+**Summary:** Added comprehensive documentation for the new projection interface hierarchy and query patterns:
+- New "Projection Definition" section explaining how to define projections with `[DynamoDbProjection]` attribute
+- New "Projection Queries" section with examples of querying with projection types
+- New "Projection Interface Hierarchy" subsection documenting `IReadOnlyEntity` and `IDynamoDbEntity` relationship
+- New "Projection Error Handling" section with diagnostic codes and error handling examples
+- Updated "Index Operations" section with projection type examples
+
+**Before:**
+```csharp
+// No projection-specific documentation existed
+// Projections only implemented IProjectionModel<TSelf>
+```
+
+**After:**
+```csharp
+// Define a projection for an entity
+[DynamoDbProjection(typeof(Order))]
+public partial class OrderSummary
+{
+    [DynamoDbAttribute("orderId")]
+    public string OrderId { get; set; } = string.Empty;
+    // ...
+}
+
+// Define an index with default projection type
+public DynamoDbIndex<OrderSummary> StatusIndex => 
+    new DynamoDbIndex<OrderSummary>(this, "status-index", OrderSummary.ProjectionExpression);
+
+// Query the index - non-generic Query() uses OrderSummary automatically
+var results = await table.StatusIndex.Query().Where(x => x.Status == "pending").ToListAsync();
+
+// Interface hierarchy:
+// IEntityMetadataProvider → IReadOnlyEntity → IDynamoDbEntity
+```
+
+**Reason:** New projection interface enhancement feature (Requirements 1.1-1.5, 2.1-2.5, 3.1-3.5, 4.1-4.5, 5.1-5.5, 6.1-6.5, 7.1-7.5, 8.1-8.5) introduces `IReadOnlyEntity<TSelf>` interface that projections implement for `QueryRequestBuilder` compatibility. Documentation needed to explain the new interface hierarchy, projection definition patterns, query patterns, and error handling.
+
+---
+
+### File: Oproto.FluentDynamoDb/Entities/IReadOnlyEntity.cs (NEW)
+
+**Category:** New Interface - Projection Interface Hierarchy
+
+**Summary:** Created new `IReadOnlyEntity<TSelf>` interface as the base interface for read-only entity operations:
+- Inherits from `IEntityMetadataProvider`
+- Defines `FromDynamoDb()` static abstract method for entity hydration
+- Defines `GetPartitionKey()` static abstract method for key extraction
+- Projections implement this interface for `QueryRequestBuilder` compatibility
+- `IDynamoDbEntity<TSelf>` now inherits from `IReadOnlyEntity<TSelf>`
+
+**Reason:** New interface enables projections to work with `QueryRequestBuilder<T>` while maintaining their read-only nature. The constraint `where T : class, IReadOnlyEntity<T>` allows both projections and full entities to be used with query builders.
+
+---
+
+### File: Oproto.FluentDynamoDb/Entities/IDynamoDbEntity.cs
+
+**Category:** Interface Update - Inheritance Change
+
+**Summary:** Updated `IDynamoDbEntity<TSelf>` to inherit from `IReadOnlyEntity<TSelf>`:
+- Added inheritance: `IDynamoDbEntity<TSelf> : IReadOnlyEntity<TSelf>`
+- Moved `FromDynamoDb(single item)` and `GetPartitionKey()` to base interface
+- Retained write-specific methods: `ToDynamoDb()`, `FromDynamoDb(multiple items)`, `MatchesEntity()`, `RequiresWriteTransaction`
+- Backward compatible - existing entities continue to work without modification
+
+**Before:**
+```csharp
+public interface IDynamoDbEntity<TSelf> : IEntityMetadataProvider
+    where TSelf : IDynamoDbEntity<TSelf>
+{
+    static abstract TSelf FromDynamoDb(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null);
+    static abstract string GetPartitionKey(Dictionary<string, AttributeValue> item);
+    // ... write methods
+}
+```
+
+**After:**
+```csharp
+public interface IDynamoDbEntity<TSelf> : IReadOnlyEntity<TSelf>
+    where TSelf : IDynamoDbEntity<TSelf>
+{
+    // FromDynamoDb(single item) and GetPartitionKey inherited from IReadOnlyEntity
+    static abstract Dictionary<string, AttributeValue> ToDynamoDb(TSelf entity, FluentDynamoDbOptions? options = null);
+    static abstract TSelf FromDynamoDb(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null);
+    // ... other write methods
+}
+```
+
+**Reason:** Interface inheritance enables `QueryRequestBuilder<T>` to accept both projections (implementing `IReadOnlyEntity`) and full entities (implementing `IDynamoDbEntity` which inherits from `IReadOnlyEntity`).
+
+---
+
+### File: Oproto.FluentDynamoDb/Requests/QueryRequestBuilder.cs
+
+**Category:** API Update - Generic Constraint Change
+
+**Summary:** Updated `QueryRequestBuilder<TEntity>` generic constraint to accept `IReadOnlyEntity<TEntity>`:
+
+**Before:**
+```csharp
+public class QueryRequestBuilder<TEntity> : ...
+    where TEntity : class
+```
+
+**After:**
+```csharp
+public class QueryRequestBuilder<TEntity> : ...
+    where TEntity : class, IReadOnlyEntity<TEntity>
+```
+
+**Reason:** Updated constraint enables projections to be used directly with `QueryRequestBuilder<T>` for type-safe projection queries.
+
+---
+
+### File: Oproto.FluentDynamoDb/Requests/Extensions/ProjectionExtensions.cs
+
+**Category:** Extension Method - Projection Query Support
+
+**Summary:** Added `ToListAsync<T>()` overload for projection types that implement both `IReadOnlyEntity` and `IProjectionModel`:
+- Projections now work with standard `ToListAsync()` - no special method needed
+- Automatically applies projection expression from `IProjectionModel<T>.ProjectionExpression`
+- Returns properly hydrated projection instances
+
+**Usage:**
+```csharp
+// Define an index with default projection type
+public DynamoDbIndex<OrderSummary> StatusIndex => 
+    new DynamoDbIndex<OrderSummary>(this, "status-index", OrderSummary.ProjectionExpression);
+
+// Query the index - non-generic Query() uses OrderSummary automatically
+var results = await table.StatusIndex.Query().Where(x => x.Status == "pending").ToListAsync();
+```
+
+**Reason:** Projections implementing `IReadOnlyEntity` work seamlessly with the standard `ToListAsync()` method, providing a consistent API experience.
+
+---
+
+### File: Oproto.FluentDynamoDb/Storage/DynamoDbIndex.cs
+
+**Category:** API Update - Non-Generic Query Methods
+
+**Summary:** Added non-generic `Query()` methods to `DynamoDbIndex<TDefault>` for indexes with default projection types:
+- `Query()` - Returns `QueryRequestBuilder<TDefault>` for the default projection type
+- `Query(Expression<Func<TDefault, bool>> keyCondition)` - Lambda-based key condition
+- `Query(string expression, params object[] values)` - Format string-based key condition
+
+**Usage:**
+```csharp
+// Index with default projection type
+public DynamoDbIndex<OrderSummary> StatusIndex => 
+    new DynamoDbIndex<OrderSummary>(this, "status-index", OrderSummary.ProjectionExpression);
+
+// Non-generic Query() uses the default projection type
+var results = await table.StatusIndex.Query(x => x.Status == "pending").ToListAsync();
+```
+
+**Reason:** Enables indexes to have a default projection type, simplifying queries when the projection is known at index definition time.
+
+---
+
+### Files: Multiple constraint propagation updates
+
+**Category:** API Update - IReadOnlyEntity Constraint Propagation
+
+**Summary:** Propagated `IReadOnlyEntity<TEntity>` constraint to all related classes and extension methods:
+- `Oproto.FluentDynamoDb/Pagination/PaginationExtensions.cs`
+- `Oproto.FluentDynamoDb/Storage/GenericTable.cs`
+- `Oproto.FluentDynamoDb/Requests/BatchGetBuilder.cs`
+- `Oproto.FluentDynamoDb/Requests/TransactionGetBuilder.cs`
+- Various extension files in `Oproto.FluentDynamoDb/Requests/Extensions/`
+
+**Reason:** Ensures consistent type constraints across the entire API surface for projection compatibility.
+
+---
+
+### File: Oproto.FluentDynamoDb.SourceGenerator/Diagnostics/DiagnosticDescriptors.cs
+
+**Category:** New Diagnostics - Projection Error Codes
+
+**Summary:** Added new diagnostic codes for projection configuration errors:
+- `FDDB060` (Error): Projection source entity not found - triggered when `[DynamoDbProjection(typeof(SourceEntity))]` references a non-existent or invalid source entity
+- `FDDB061` (Error): Metadata inheritance failure - triggered when projection cannot inherit metadata from source entity
+- `FDDB062` (Error): Projection interface violation - triggered when projection is used in write operation context
+
+**Reason:** Provides clear compile-time errors with helpful suggestions for resolving projection configuration issues.
+
+---
+
+## [2025-12-18]
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Enhanced Index and Table Generation
+
+**Summary:** Added documentation for new index naming and type-based table reference features:
+- Added custom index property naming examples using `Name` property on GSI/LSI attributes
+- Added type-based table reference example using `[DynamoDbTable(typeof(MyTable))]`
+- Updated Index Operations section with custom-named index query examples
+- Added non-generic `Query()` method example for indexes with projection types
+
+**Before:**
+```csharp
+// GSI/LSI
+[GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+[DynamoDbAttribute("gsi1pk")]
+public string CategoryId { get; set; }
+```
+
+**After:**
+```csharp
+// GSI/LSI with custom property names
+[GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
+[DynamoDbAttribute("status")]
+public string Status { get; set; }
+
+// Type-based table reference (compile-time safe)
+[DynamoDbTable(typeof(MyCustomTable))]
+public partial class Order { ... }
+```
+
+**Reason:** New features for custom index property naming (Requirements 1.1, 1.2) and type-based table references (Requirements 4.1) require documentation updates.
+
+---
+
+### File: docs/SourceGeneratorGuide.md
+
+**Category:** API Reference Update - Enhanced Index and Table Generation
+
+**Summary:** Added comprehensive documentation for new index and table generation features:
+- Updated GSI example to show `Name` property usage
+- Added new "Custom Index Property Names" section explaining the `Name` property
+- Added new "Type-Based Table References" section explaining `typeof()` usage
+- Updated GSI query example to show typed index property access
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+[DynamoDbAttribute("status")]
+public string Status { get; set; }
+```
+
+**After:**
+```csharp
+// GSI with custom property name
+[GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
+[DynamoDbAttribute("status")]
+public string Status { get; set; }
+```
+
+**Reason:** New features for custom index property naming and type-based table references require documentation in the Source Generator Guide.
+
+---
+
+## [2025-12-18]
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Pagination and Response Metadata
+
+**Summary:** Enhanced pagination documentation and added new sections:
+- Updated Query Operations pagination example to show `builder.Response` access pattern
+- Added new "Response Metadata" section documenting `QueryOperationResponse` and `ScanOperationResponse` properties
+- Added new "Pagination Tokens" section documenting `GetEncodedPaginationToken()` extension method
+- Added scan pagination example in Scan Operations section
+
+**Before:**
+```csharp
+var lastKey = query.Response.LastEvaluatedKey;  // Access response after execution
+```
+
+**After:**
+```csharp
+var hasMore = query.Response?.HasMorePages ?? false;
+var lastKey = query.Response?.LastEvaluatedKey;
+var token = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
+```
+
+**Reason:** `PaginationExtensions.GetEncodedPaginationToken()` was updated to support `QueryOperationResponse` and `ScanOperationResponse` types. Documentation needed to reflect the recommended pattern of using `builder.Response?.GetEncodedPaginationToken()` instead of raw SDK response types.
+
+---
+
+### File: Oproto.FluentDynamoDb/Pagination/PaginationExtensions.cs
+
+**Category:** API Enhancement - Pagination Token Encoding
+
+**Summary:** Added new overloads for `GetEncodedPaginationToken()` extension method:
+- New overload for `QueryOperationResponse` - recommended for use with query builders
+- New overload for `ScanOperationResponse` - recommended for use with scan builders
+- New overload for raw AWS SDK `ScanResponse` - for direct SDK usage
+- Existing `QueryResponse` overload retained for backward compatibility
+- All overloads now return empty string when `LastEvaluatedKey` is null or empty
+
+**Reason:** The original implementation only supported `QueryResponse` from the AWS SDK. Users accessing pagination via `builder.Response` (which returns `QueryOperationResponse` or `ScanOperationResponse`) needed direct support without extracting the raw SDK response.
+
+---
+
 ## [2025-12-18]
 
 ### File: docs/advanced-topics/TableCreation.md (NEW)

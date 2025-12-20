@@ -15,7 +15,7 @@ public class PlaceholderEntity : IDynamoDbEntity
         return new Dictionary<string, AttributeValue>();
     }
 
-    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {
         throw new NotImplementedException();
     }

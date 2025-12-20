@@ -15,6 +15,18 @@ public class LocalSecondaryIndexAttribute : Attribute
     public string IndexName { get; }
 
     /// <summary>
+    /// Gets or sets the C# property name for the generated index accessor.
+    /// If not specified, the name is derived from <see cref="IndexName"/> using PascalCase conversion.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// [LocalSecondaryIndex("lsi1", Name = "CreatedAtIndex")]
+    /// // Generates: table.CreatedAtIndex.Query&lt;T&gt;()
+    /// </code>
+    /// </example>
+    public string? Name { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the LocalSecondaryIndexAttribute class.
     /// </summary>
     /// <param name="indexName">The name of the Local Secondary Index.</param>

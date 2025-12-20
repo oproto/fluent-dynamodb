@@ -18,7 +18,7 @@ public sealed class RawDictionaryEntity : IDynamoDbEntity
         where TSelf : IDynamoDbEntity => new();
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-        where TSelf : IDynamoDbEntity => (TSelf)(object)new RawDictionaryEntity();
+        where TSelf : IReadOnlyEntity => (TSelf)(object)new RawDictionaryEntity();
 
     public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null)
         where TSelf : IDynamoDbEntity => (TSelf)(object)new RawDictionaryEntity();

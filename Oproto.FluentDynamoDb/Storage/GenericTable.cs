@@ -75,20 +75,20 @@ internal class GenericTable : IDynamoDbTable
     /// <summary>
     /// Creates a new Query operation builder for the specified entity type.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <typeparam name="TEntity">The entity or projection type to query. Must implement IReadOnlyEntity.</typeparam>
     /// <returns>A QueryRequestBuilder configured for this table.</returns>
-    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IDynamoDbEntity, new()
+    public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
         => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
     /// <summary>
     /// Creates a new Query operation builder with a format string key condition.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <typeparam name="TEntity">The entity or projection type to query. Must implement IReadOnlyEntity.</typeparam>
     /// <param name="keyConditionExpression">The key condition expression with format placeholders.</param>
     /// <param name="values">The values to substitute for placeholders.</param>
     /// <returns>A QueryRequestBuilder configured with the key condition.</returns>
     public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values)
-        where TEntity : class, IDynamoDbEntity, new()
+        where TEntity : class, IReadOnlyEntity
         => WithConditionExpressionExtensions.Where(Query<TEntity>(), keyConditionExpression, values);
 
     #endregion
@@ -98,13 +98,13 @@ internal class GenericTable : IDynamoDbTable
     /// <summary>
     /// Creates a new Scan operation builder for the specified entity type.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to scan.</typeparam>
+    /// <typeparam name="TEntity">The entity or projection type to scan. Must implement IReadOnlyEntity.</typeparam>
     /// <returns>A ScanRequestBuilder configured for this table.</returns>
     /// <remarks>
     /// WARNING: Scan operations read every item in a table and can be very expensive.
     /// Use Query operations instead whenever possible.
     /// </remarks>
-    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IDynamoDbEntity, new()
+    public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity
         => new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
     #endregion
@@ -114,29 +114,29 @@ internal class GenericTable : IDynamoDbTable
     /// <summary>
     /// Creates a new GetItem operation builder for the specified entity type.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to get.</typeparam>
+    /// <typeparam name="TEntity">The entity or projection type to get. Must implement IReadOnlyEntity.</typeparam>
     /// <returns>A GetItemRequestBuilder configured for this table.</returns>
-    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IDynamoDbEntity, new()
+    public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
         => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
     /// <summary>
     /// Creates a GetItem operation builder configured with a pre-built SDK request.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to get.</typeparam>
+    /// <typeparam name="TEntity">The entity or projection type to get. Must implement IReadOnlyEntity.</typeparam>
     /// <param name="request">The pre-built GetItemRequest.</param>
     /// <returns>A GetItemRequestBuilder configured with the request.</returns>
-    public GetItemRequestBuilder<TEntity> Get<TEntity>(GetItemRequest request) where TEntity : class, IDynamoDbEntity, new()
+    public GetItemRequestBuilder<TEntity> Get<TEntity>(GetItemRequest request) where TEntity : class, IReadOnlyEntity
         => Get<TEntity>().WithRequest(request);
 
     /// <summary>
     /// Executes a pre-built GetItemRequest and hydrates the result.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to get.</typeparam>
+    /// <typeparam name="TEntity">The entity type to get. Must implement IDynamoDbEntity for entity mapping.</typeparam>
     /// <param name="request">The pre-built GetItemRequest.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The hydrated entity or null if not found.</returns>
     public async Task<TEntity?> GetAsync<TEntity>(GetItemRequest request, CancellationToken cancellationToken = default)
-        where TEntity : class, IDynamoDbEntity, new()
+        where TEntity : class, IDynamoDbEntity
         => await EntityExecuteAsyncExtensions.GetItemAsync(Get<TEntity>(request), cancellationToken);
 
     #endregion
@@ -286,41 +286,41 @@ internal class GenericTable : IDynamoDbTable
     /// <summary>
     /// Creates a Query operation builder configured with a pre-built SDK request.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <typeparam name="TEntity">The entity or projection type to query. Must implement IReadOnlyEntity.</typeparam>
     /// <param name="request">The pre-built QueryRequest.</param>
     /// <returns>A QueryRequestBuilder configured with the request.</returns>
-    public QueryRequestBuilder<TEntity> Query<TEntity>(QueryRequest request) where TEntity : class, IDynamoDbEntity, new()
+    public QueryRequestBuilder<TEntity> Query<TEntity>(QueryRequest request) where TEntity : class, IReadOnlyEntity
         => Query<TEntity>().WithRequest(request);
 
     /// <summary>
     /// Executes a pre-built QueryRequest and hydrates the results.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to query.</typeparam>
+    /// <typeparam name="TEntity">The entity type to query. Must implement IDynamoDbEntity for entity mapping.</typeparam>
     /// <param name="request">The pre-built QueryRequest.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A list of hydrated entities.</returns>
     public async Task<List<TEntity>> QueryAsync<TEntity>(QueryRequest request, CancellationToken cancellationToken = default)
-        where TEntity : class, IDynamoDbEntity, new()
+        where TEntity : class, IDynamoDbEntity
         => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Query<TEntity>(request), cancellationToken);
 
     /// <summary>
     /// Creates a Scan operation builder configured with a pre-built SDK request.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to scan.</typeparam>
+    /// <typeparam name="TEntity">The entity or projection type to scan. Must implement IReadOnlyEntity.</typeparam>
     /// <param name="request">The pre-built ScanRequest.</param>
     /// <returns>A ScanRequestBuilder configured with the request.</returns>
-    public ScanRequestBuilder<TEntity> Scan<TEntity>(ScanRequest request) where TEntity : class, IDynamoDbEntity, new()
+    public ScanRequestBuilder<TEntity> Scan<TEntity>(ScanRequest request) where TEntity : class, IReadOnlyEntity
         => Scan<TEntity>().WithRequest(request);
 
     /// <summary>
     /// Executes a pre-built ScanRequest and hydrates the results.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to scan.</typeparam>
+    /// <typeparam name="TEntity">The entity type to scan. Must implement IDynamoDbEntity for entity mapping.</typeparam>
     /// <param name="request">The pre-built ScanRequest.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A list of hydrated entities.</returns>
     public async Task<List<TEntity>> ScanAsync<TEntity>(ScanRequest request, CancellationToken cancellationToken = default)
-        where TEntity : class, IDynamoDbEntity, new()
+        where TEntity : class, IDynamoDbEntity
         => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Scan<TEntity>(request), cancellationToken);
 
     #endregion

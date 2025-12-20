@@ -222,24 +222,32 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             var tableName = tableGroup.Key;
             var tableEntities = tableGroup.Value;
             
-            var tableCode = TableGenerator.GenerateTableClass(tableName, tableEntities);
-            if (!string.IsNullOrEmpty(tableCode))
+            // Check if any entity uses a type-based table reference
+            var entityWithTableType = tableEntities.FirstOrDefault(e => e.IsTableTypeReference && !string.IsNullOrEmpty(e.TableTypeName));
+            var tableClassName = entityWithTableType?.TableTypeName ?? GetTableClassName(tableName);
+            
+            var tableCode = TableGenerator.GenerateTableClassWithDiagnostics(tableName, tableEntities);
+            if (!string.IsNullOrEmpty(tableCode.Code))
             {
-                // Use table name for the file name
-                var tableClassName = GetTableClassName(tableName);
-                context.AddSource($"{tableClassName}.g.cs", tableCode);
+                // Use the determined table class name for the file name
+                context.AddSource($"{tableClassName}.g.cs", tableCode.Code);
+                
+                // Report any diagnostics from index aggregation
+                foreach (var diagnostic in tableCode.Diagnostics)
+                {
+                    context.ReportDiagnostic(diagnostic);
+                }
             }
             
             // Generate OnStream method and registry if any entities have stream conversion enabled
             var streamCode = StreamRegistryGenerator.GenerateOnStreamMethod(
                 tableName,
                 tableEntities,
-                GetTableClassName(tableName),
+                tableClassName,
                 tableEntities[0].Namespace);
             
             if (!string.IsNullOrEmpty(streamCode))
             {
-                var tableClassName = GetTableClassName(tableName);
                 context.AddSource($"{tableClassName}StreamProcessor.g.cs", streamCode);
                 
                 // Validate consistent discriminator properties

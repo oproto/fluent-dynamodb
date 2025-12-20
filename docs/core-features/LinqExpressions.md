@@ -543,6 +543,185 @@ await table.Query()
    //         which would return no results."
    ```
 
+## Conditional Filter Patterns (OR/AND with Local Conditions)
+
+In addition to ternary expressions, you can use natural `||` and `&&` operators with local boolean conditions to conditionally include or skip filter clauses. This provides a more intuitive syntax for optional filters.
+
+### Pattern Overview
+
+| Pattern | Local Value | Behavior |
+|---------|-------------|----------|
+| `localCondition \|\| x.Prop == val` | `true` | Skip filter (return all) |
+| `localCondition \|\| x.Prop == val` | `false` | Apply filter |
+| `localCondition && x.Prop == val` | `true` | Apply filter |
+| `localCondition && x.Prop == val` | `false` | Skip filter (return all) |
+
+### OR Pattern - Skip Filter When Condition is True
+
+Use `||` when you want to skip a filter when a local condition is true:
+
+```csharp
+var status = "ACTIVE";
+
+// When status is null/empty, skip the filter entirely
+// When status has a value, apply the filter
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
+    .ToListAsync();
+
+// If status is empty: No filter applied (returns all orders for customer)
+// If status is "ACTIVE": Filter: #status = :p0
+```
+
+### AND Pattern - Include Filter When Condition is True
+
+Use `&&` when you want to include a filter only when a local condition is true:
+
+```csharp
+var enableDateFilter = true;
+var minDate = DateTime.UtcNow.AddDays(-30);
+
+// Only apply date filter when enableDateFilter is true
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => enableDateFilter && x.OrderDate > minDate)
+    .ToListAsync();
+
+// If enableDateFilter is false: No filter applied
+// If enableDateFilter is true: Filter: #orderDate > :p0
+```
+
+### Multiple Optional Filters
+
+Combine multiple conditional filters in a single expression:
+
+```csharp
+var skipStatusFilter = false;
+var skipDateFilter = true;
+var status = "SHIPPED";
+var minDate = DateTime.UtcNow.AddDays(-7);
+
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => 
+        (skipStatusFilter || x.Status == status) && 
+        (skipDateFilter || x.OrderDate > minDate))
+    .ToListAsync();
+
+// skipStatusFilter=false, skipDateFilter=true:
+// Filter: #status = :p0
+// (Only status filter applied, date filter skipped)
+```
+
+### Negated Conditions
+
+Use negation for more readable expressions:
+
+```csharp
+var excludeArchived = true;
+
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => !excludeArchived || x.Archived == false)
+    .ToListAsync();
+
+// If excludeArchived is true: Filter: #archived = :p0 (false)
+// If excludeArchived is false: No filter applied
+```
+
+### Method Calls in Local Conditions
+
+Local conditions can include method calls that don't reference the entity:
+
+```csharp
+var searchTerm = "   ";  // Whitespace only
+
+await table.Query()
+    .Where<Product>(x => x.CategoryId == categoryId)
+    .WithFilter<Product>(x => string.IsNullOrWhiteSpace(searchTerm) || x.Name.Contains(searchTerm.Trim()))
+    .ToListAsync();
+
+// string.IsNullOrWhiteSpace("   ") returns true
+// Filter is skipped entirely
+```
+
+### Compound Local Conditions
+
+Local conditions can be compound boolean expressions:
+
+```csharp
+var hasStatusFilter = true;
+var hasDateFilter = false;
+var status = "ACTIVE";
+var minDate = DateTime.UtcNow.AddDays(-30);
+
+// Compound condition: both flags must be true to apply both filters
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => 
+        ((hasStatusFilter && hasDateFilter) && (x.Status == status && x.OrderDate > minDate)) ||
+        (hasStatusFilter && !hasDateFilter && x.Status == status) ||
+        (!hasStatusFilter && hasDateFilter && x.OrderDate > minDate) ||
+        (!hasStatusFilter && !hasDateFilter))
+    .ToListAsync();
+
+// Simpler approach - use separate conditional patterns:
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => 
+        (!hasStatusFilter || x.Status == status) && 
+        (!hasDateFilter || x.OrderDate > minDate))
+    .ToListAsync();
+```
+
+### Important Rules for Conditional Filter Patterns
+
+1. **Local condition must not reference the entity parameter**
+   ```csharp
+   // ✗ Invalid: Condition references entity property
+   x => x.IsActive || x.Status == "PENDING"
+   
+   // ✓ Valid: Condition uses captured variable
+   var skipFilter = true;
+   x => skipFilter || x.Status == "PENDING"
+   ```
+
+2. **OR between two entity conditions throws an exception**
+   ```csharp
+   // ✗ Throws UnsupportedExpressionException
+   x => x.Status == "ACTIVE" || x.Status == "PENDING"
+   // Error: "OR operator between two entity property conditions 
+   //         is not supported in DynamoDB expressions."
+   
+   // ✓ Use IN operator or separate queries instead
+   ```
+
+3. **Local conditions are evaluated at translation time**
+   - The condition is evaluated once when the expression is translated
+   - The result determines whether the filter is included or omitted
+   - No runtime evaluation occurs in DynamoDB
+
+### Comparison: Ternary vs OR/AND Patterns
+
+Both approaches achieve the same result. Choose based on readability:
+
+```csharp
+// Ternary pattern (existing)
+x => hasFilter ? x.Status == status : true
+
+// OR pattern (new) - more natural for "skip when true"
+x => !hasFilter || x.Status == status
+
+// AND pattern (new) - more natural for "include when true"
+x => hasFilter && x.Status == status
+```
+
+**When to use each:**
+- **Ternary**: When you need different filters for true/false cases
+- **OR pattern**: When you want to skip a filter when a condition is true
+- **AND pattern**: When you want to include a filter only when a condition is true
+
 ## Local Function Evaluation
 
 Local functions that don't reference the entity parameter are evaluated at translation time:

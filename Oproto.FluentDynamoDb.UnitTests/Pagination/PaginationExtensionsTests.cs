@@ -2,6 +2,8 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using AwesomeAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Pagination;
 using Oproto.FluentDynamoDb.Requests;
 
@@ -9,7 +11,20 @@ namespace Oproto.FluentDynamoDb.UnitTests.Pagination;
 
 public class PaginationExtensionsTests
 {
-    private class TestEntity { }
+    private class TestEntity : IReadOnlyEntity
+    {
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+            where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntity();
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item) =>
+            item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+
+        public static EntityMetadata GetEntityMetadata() => new()
+        {
+            TableName = "test-table",
+            Properties = Array.Empty<PropertyMetadata>()
+        };
+    }
     [Fact]
     public void Paginate_WithPageSizeAndNoToken_Success()
     {

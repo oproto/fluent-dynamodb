@@ -315,7 +315,7 @@ public class DirectSdkRequestPropertyTests
         }
 
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-            where TSelf : IDynamoDbEntity
+            where TSelf : IReadOnlyEntity
         {
             var entity = new TestEntity
             {

@@ -153,6 +153,7 @@ internal static class ProjectionExpressionGenerator
     /// <summary>
     /// Generates FromDynamoDb method for a projection model.
     /// Creates a partial class with static method to hydrate projection from DynamoDB response.
+    /// Also generates IReadOnlyEntity implementation methods (GetPartitionKey, GetEntityMetadata).
     /// </summary>
     /// <param name="projection">The projection model to generate method for.</param>
     /// <returns>Generated C# source code for the partial class with FromDynamoDb method.</returns>
@@ -169,25 +170,28 @@ internal static class ProjectionExpressionGenerator
         sb.AppendLine("using System.IO;");
         sb.AppendLine("using Amazon.DynamoDBv2.Model;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine();
         
         // Namespace
         sb.AppendLine($"namespace {projection.Namespace}");
         sb.AppendLine("{");
         
-        // Partial class - implement IProjectionModel or IDiscriminatedProjection
+        // Partial class - implement IProjectionModel or IDiscriminatedProjection AND IReadOnlyEntity
         sb.AppendLine($"    /// <summary>");
         sb.AppendLine($"    /// Generated implementation for projection model {projection.ClassName}.");
         sb.AppendLine($"    /// Provides automatic mapping from DynamoDB AttributeValue dictionaries.");
+        sb.AppendLine($"    /// Implements both IProjectionModel and IReadOnlyEntity for QueryRequestBuilder compatibility.");
         sb.AppendLine($"    /// </summary>");
         
         // Determine which interface to implement based on discriminator presence
         var hasDiscriminator = projection.Discriminator != null && projection.Discriminator.IsValid;
-        var interfaceType = hasDiscriminator 
+        var projectionInterface = hasDiscriminator 
             ? $"IDiscriminatedProjection<{projection.ClassName}>"
             : $"IProjectionModel<{projection.ClassName}>";
         
-        sb.AppendLine($"    public partial class {projection.ClassName} : {interfaceType}");
+        // Implement both IProjectionModel (or IDiscriminatedProjection) and IReadOnlyEntity
+        sb.AppendLine($"    public partial class {projection.ClassName} : {projectionInterface}, IReadOnlyEntity");
         sb.AppendLine("    {");
         
         // Static ProjectionExpression property (required by IProjectionModel)
@@ -268,6 +272,13 @@ internal static class ProjectionExpressionGenerator
         sb.AppendLine("                    ex);");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
+        sb.AppendLine();
+        
+        // Generate IReadOnlyEntity implementation methods
+        GenerateReadOnlyEntityMethods(sb, projection);
+        
+        // Generate the generic FromDynamoDb<TSelf> method required by IReadOnlyEntity
+        GenerateGenericFromDynamoDbMethod(sb, projection);
         
         // Close class
         sb.AppendLine("    }");
@@ -276,6 +287,216 @@ internal static class ProjectionExpressionGenerator
         sb.AppendLine("}");
         
         return sb.ToString();
+    }
+    
+    /// <summary>
+    /// Generates the IReadOnlyEntity interface implementation methods for a projection.
+    /// This includes GetPartitionKey (delegating to source entity) and GetEntityMetadata.
+    /// </summary>
+    private static void GenerateReadOnlyEntityMethods(StringBuilder sb, ProjectionModel projection)
+    {
+        // Generate GetPartitionKey method that delegates to source entity
+        sb.AppendLine("        // ===== IReadOnlyEntity Implementation =====");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Extracts the partition key value from a DynamoDB item.");
+        sb.AppendLine($"        /// Delegates to source entity: {projection.SourceEntityType}.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <param name=\"item\">The DynamoDB item.</param>");
+        sb.AppendLine("        /// <returns>The partition key value.</returns>");
+        sb.AppendLine("        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)");
+        sb.AppendLine("        {");
+        
+        // If we have inherited metadata with partition key info, use it directly
+        if (projection.InheritedMetadata != null && !string.IsNullOrEmpty(projection.InheritedMetadata.PartitionKeyAttributeName))
+        {
+            var pkAttrName = projection.InheritedMetadata.PartitionKeyAttributeName;
+            sb.AppendLine($"            // Extract partition key from attribute '{pkAttrName}'");
+            sb.AppendLine($"            if (item.TryGetValue(\"{pkAttrName}\", out var pkAttr))");
+            sb.AppendLine("            {");
+            sb.AppendLine("                return pkAttr.S ?? pkAttr.N ?? string.Empty;");
+            sb.AppendLine("            }");
+            sb.AppendLine("            return string.Empty;");
+        }
+        else
+        {
+            // Delegate to source entity's GetPartitionKey method
+            sb.AppendLine($"            // Delegate to source entity's GetPartitionKey method");
+            sb.AppendLine($"            return {projection.SourceEntityType}.GetPartitionKey(item);");
+        }
+        
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        
+        // Generate GetEntityMetadata method
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Gets the entity metadata for this projection.");
+        sb.AppendLine($"        /// Metadata is inherited from source entity: {projection.SourceEntityType}.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <returns>The entity metadata.</returns>");
+        sb.AppendLine("        public static EntityMetadata GetEntityMetadata()");
+        sb.AppendLine("        {");
+        
+        // If we have inherited metadata, generate it inline
+        if (projection.InheritedMetadata != null)
+        {
+            GenerateInlineEntityMetadata(sb, projection);
+        }
+        else
+        {
+            // Delegate to source entity and modify for projection
+            sb.AppendLine($"            // Get metadata from source entity and modify for projection");
+            sb.AppendLine($"            var sourceMetadata = {projection.SourceEntityType}.GetEntityMetadata();");
+            sb.AppendLine("            return new EntityMetadata");
+            sb.AppendLine("            {");
+            sb.AppendLine("                TableName = sourceMetadata.TableName,");
+            sb.AppendLine("                PartitionKeyAttributeName = sourceMetadata.PartitionKeyAttributeName,");
+            sb.AppendLine("                PartitionKeyAttributeType = sourceMetadata.PartitionKeyAttributeType,");
+            sb.AppendLine("                SortKeyAttributeName = sourceMetadata.SortKeyAttributeName,");
+            sb.AppendLine("                SortKeyAttributeType = sourceMetadata.SortKeyAttributeType,");
+            sb.AppendLine("                // Projections are read-only - exclude write-specific metadata");
+            sb.AppendLine("                RequiresWriteTransaction = false,");
+            sb.AppendLine("                IsMultiItemEntity = false,");
+            sb.AppendLine("                Properties = Array.Empty<PropertyMetadata>(),");
+            sb.AppendLine("                Indexes = Array.Empty<IndexMetadata>(),");
+            sb.AppendLine("                Relationships = Array.Empty<RelationshipMetadata>()");
+            sb.AppendLine("            };");
+        }
+        
+        sb.AppendLine("        }");
+    }
+    
+    /// <summary>
+    /// Generates inline EntityMetadata from the projection's inherited metadata.
+    /// </summary>
+    private static void GenerateInlineEntityMetadata(StringBuilder sb, ProjectionModel projection)
+    {
+        var metadata = projection.InheritedMetadata!;
+        
+        sb.AppendLine("            return new EntityMetadata");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                TableName = \"{EscapeString(metadata.TableName)}\",");
+        sb.AppendLine($"                PartitionKeyAttributeName = \"{EscapeString(metadata.PartitionKeyAttributeName)}\",");
+        sb.AppendLine($"                PartitionKeyAttributeType = \"{EscapeString(metadata.PartitionKeyAttributeType)}\",");
+        
+        if (!string.IsNullOrEmpty(metadata.SortKeyAttributeName))
+        {
+            sb.AppendLine($"                SortKeyAttributeName = \"{EscapeString(metadata.SortKeyAttributeName)}\",");
+            sb.AppendLine($"                SortKeyAttributeType = \"{EscapeString(metadata.SortKeyAttributeType ?? "S")}\",");
+        }
+        else
+        {
+            sb.AppendLine("                SortKeyAttributeName = null,");
+            sb.AppendLine("                SortKeyAttributeType = null,");
+        }
+        
+        // Projections are read-only - exclude write-specific metadata
+        sb.AppendLine("                RequiresWriteTransaction = false,");
+        sb.AppendLine("                IsMultiItemEntity = false,");
+        
+        // Generate property metadata array
+        if (metadata.Properties.Length > 0)
+        {
+            sb.AppendLine("                Properties = new PropertyMetadata[]");
+            sb.AppendLine("                {");
+            foreach (var prop in metadata.Properties)
+            {
+                sb.AppendLine("                    new PropertyMetadata");
+                sb.AppendLine("                    {");
+                sb.AppendLine($"                        PropertyName = \"{EscapeString(prop.PropertyName)}\",");
+                sb.AppendLine($"                        AttributeName = \"{EscapeString(prop.AttributeName)}\",");
+                sb.AppendLine($"                        PropertyType = {GetTypeOfExpression(prop.PropertyType)},");
+                sb.AppendLine($"                        IsPartitionKey = {prop.IsPartitionKey.ToString().ToLower()},");
+                sb.AppendLine($"                        IsSortKey = {prop.IsSortKey.ToString().ToLower()},");
+                sb.AppendLine($"                        IsNullable = {prop.IsNullable.ToString().ToLower()}");
+                sb.AppendLine("                    },");
+            }
+            sb.AppendLine("                },");
+        }
+        else
+        {
+            sb.AppendLine("                Properties = Array.Empty<PropertyMetadata>(),");
+        }
+        
+        sb.AppendLine("                Indexes = Array.Empty<IndexMetadata>(),");
+        sb.AppendLine("                Relationships = Array.Empty<RelationshipMetadata>()");
+        sb.AppendLine("            };");
+    }
+    
+    /// <summary>
+    /// Gets the typeof() expression for a property type string.
+    /// </summary>
+    private static string GetTypeOfExpression(string propertyType)
+    {
+        if (string.IsNullOrEmpty(propertyType))
+            return "typeof(object)";
+        
+        // Handle nullable types
+        var isNullable = propertyType.EndsWith("?");
+        var baseType = propertyType.TrimEnd('?');
+        
+        // Map common type names to their typeof expressions
+        var typeExpression = baseType switch
+        {
+            "string" or "String" or "System.String" => "typeof(string)",
+            "int" or "Int32" or "System.Int32" => "typeof(int)",
+            "long" or "Int64" or "System.Int64" => "typeof(long)",
+            "double" or "Double" or "System.Double" => "typeof(double)",
+            "float" or "Single" or "System.Single" => "typeof(float)",
+            "decimal" or "Decimal" or "System.Decimal" => "typeof(decimal)",
+            "bool" or "Boolean" or "System.Boolean" => "typeof(bool)",
+            "DateTime" or "System.DateTime" => "typeof(DateTime)",
+            "DateTimeOffset" or "System.DateTimeOffset" => "typeof(DateTimeOffset)",
+            "Guid" or "System.Guid" => "typeof(Guid)",
+            "byte[]" or "System.Byte[]" => "typeof(byte[])",
+            _ => $"typeof({baseType})"
+        };
+        
+        return typeExpression;
+    }
+    
+    /// <summary>
+    /// Escapes a string for use in generated code.
+    /// </summary>
+    private static string EscapeString(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
+    }
+    
+    /// <summary>
+    /// Generates the generic FromDynamoDb&lt;TSelf&gt; method required by IReadOnlyEntity interface.
+    /// This method delegates to the non-generic FromDynamoDb method.
+    /// </summary>
+    private static void GenerateGenericFromDynamoDbMethod(StringBuilder sb, ProjectionModel projection)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Creates an entity instance from a single DynamoDB item.");
+        sb.AppendLine("        /// Required by IReadOnlyEntity interface.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <typeparam name=\"TSelf\">The entity type implementing this interface.</typeparam>");
+        sb.AppendLine("        /// <param name=\"item\">The DynamoDB item as an AttributeValue dictionary.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options. Not used for projections.</param>");
+        sb.AppendLine("        /// <returns>The mapped projection instance.</returns>");
+        sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when the type parameter doesn't match the projection type.</exception>");
+        sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            if (typeof(TSelf) != typeof({projection.ClassName}))");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                throw new ArgumentException($\"Type parameter must be {projection.ClassName}, but was {{typeof(TSelf).Name}}\", nameof(TSelf));");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        sb.AppendLine("            // Delegate to the non-generic FromDynamoDb method");
+        sb.AppendLine($"            return (TSelf)(object)FromDynamoDb(item);");
+        sb.AppendLine("        }");
     }
     
     /// <summary>

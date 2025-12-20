@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Utility;
 
@@ -27,6 +28,7 @@ public static class PaginationExtensions
     /// Configures a QueryRequestBuilder with pagination parameters.
     /// Automatically handles pagination token decoding and applies the appropriate StartAt and Take settings.
     /// </summary>
+    /// <typeparam name="TEntity">The entity type being queried.</typeparam>
     /// <param name="builder">The QueryRequestBuilder to configure.</param>
     /// <param name="request">The pagination request containing page size and token.</param>
     /// <returns>The configured QueryRequestBuilder.</returns>
@@ -37,44 +39,140 @@ public static class PaginationExtensions
     ///     .Where("pk = :pk")
     ///     .WithValue(":pk", "USER#123")
     ///     .Paginate(paginationRequest)
-    ///     .ExecuteAsync();
+    ///     .ToListAsync();
     /// </code>
     /// </example>
-    public static QueryRequestBuilder<TEntity> Paginate<TEntity>(this QueryRequestBuilder<TEntity> builder, IPaginationRequest request) where TEntity : class
+    public static QueryRequestBuilder<TEntity> Paginate<TEntity>(this QueryRequestBuilder<TEntity> builder, IPaginationRequest request) 
+        where TEntity : class, IReadOnlyEntity
     {
-        Dictionary<string, AttributeValue>? startAt = null;
+        var startAt = DecodePaginationToken(request.PaginationToken);
 
-        if (!String.IsNullOrWhiteSpace(request.PaginationToken))
+        if (startAt != null && request.PageSize != 0)
         {
-            try
+            builder.StartAt(startAt).Take(request.PageSize);
+        }
+        else if (request.PageSize != 0)
+        {
+            builder.Take(request.PageSize);
+        }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures a ScanRequestBuilder with pagination parameters.
+    /// Automatically handles pagination token decoding and applies the appropriate StartAt and Take settings.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being scanned.</typeparam>
+    /// <param name="builder">The ScanRequestBuilder to configure.</param>
+    /// <param name="request">The pagination request containing page size and token.</param>
+    /// <returns>The configured ScanRequestBuilder.</returns>
+    /// <example>
+    /// <code>
+    /// var paginationRequest = new PaginationRequest(10, previousToken);
+    /// var response = await table.Scan&lt;MyEntity&gt;()
+    ///     .Paginate(paginationRequest)
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public static ScanRequestBuilder<TEntity> Paginate<TEntity>(this ScanRequestBuilder<TEntity> builder, IPaginationRequest request) 
+        where TEntity : class, IReadOnlyEntity
+    {
+        var startAt = DecodePaginationToken(request.PaginationToken);
+
+        if (startAt != null && request.PageSize != 0)
+        {
+            builder.StartAt(startAt).Take(request.PageSize);
+        }
+        else if (request.PageSize != 0)
+        {
+            builder.Take(request.PageSize);
+        }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Decodes a base64-encoded pagination token into a LastEvaluatedKey dictionary.
+    /// </summary>
+    /// <param name="paginationToken">The base64-encoded pagination token.</param>
+    /// <returns>The decoded LastEvaluatedKey dictionary, or null if the token is empty.</returns>
+    private static Dictionary<string, AttributeValue>? DecodePaginationToken(string? paginationToken)
+    {
+        if (String.IsNullOrWhiteSpace(paginationToken))
+        {
+            return null;
+        }
+
+        try
+        {
+            var startAt = JsonSerializer.Deserialize<Dictionary<string, AttributeValue>>(
+                Convert.FromBase64String(paginationToken), SerializationContext.Default.DictionaryStringAttributeValue);
+            
+            if (startAt != null)
             {
-                startAt = JsonSerializer.Deserialize<Dictionary<string, AttributeValue>>(
-                    Convert.FromBase64String(request.PaginationToken), SerializationContext.Default.DictionaryStringAttributeValue);
-                foreach (var key in startAt!.Keys)
+                foreach (var key in startAt.Keys)
                 {
                     // Bug fix for deserialization of AttributeValue from DynamoDb
                     GetAttributeValueNullField(startAt[key]) = null;
                 }
             }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
+            
+            return startAt;
         }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
 
-        if (startAt != null && request.PageSize != 0)
-        {
-            return builder.StartAt(startAt).Take(request.PageSize);
-        }
-        else if (startAt == null && request.PageSize != 0)
-        {
-            return builder.Take(request.PageSize);
-        }
-        else
-        {
-            return builder;
-        }
+    /// <summary>
+    /// Generates a base64-encoded pagination token from a QueryOperationResponse's LastEvaluatedKey.
+    /// This token can be used in subsequent requests to continue pagination from where this query left off.
+    /// The encoding is AOT-compatible using System.Text.Json with a serialization context.
+    /// </summary>
+    /// <param name="response">The QueryOperationResponse containing the LastEvaluatedKey.</param>
+    /// <returns>A base64-encoded pagination token, or empty string if there are no more pages.</returns>
+    /// <example>
+    /// <code>
+    /// var items = await query.ToListAsync();
+    /// var nextToken = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
+    /// // Use nextToken in the next pagination request
+    /// </code>
+    /// </example>
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.", Justification = "Using Serialization Context")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Using Serialization Context")]
+    public static string GetEncodedPaginationToken(this QueryOperationResponse response)
+    {
+        if (response.LastEvaluatedKey == null || response.LastEvaluatedKey.Count == 0)
+            return string.Empty;
+
+        return EncodeLastEvaluatedKey(response.LastEvaluatedKey);
+    }
+
+    /// <summary>
+    /// Generates a base64-encoded pagination token from a ScanOperationResponse's LastEvaluatedKey.
+    /// This token can be used in subsequent requests to continue pagination from where this scan left off.
+    /// The encoding is AOT-compatible using System.Text.Json with a serialization context.
+    /// </summary>
+    /// <param name="response">The ScanOperationResponse containing the LastEvaluatedKey.</param>
+    /// <returns>A base64-encoded pagination token, or empty string if there are no more pages.</returns>
+    /// <example>
+    /// <code>
+    /// var items = await scan.ToListAsync();
+    /// var nextToken = scan.Response?.GetEncodedPaginationToken() ?? string.Empty;
+    /// // Use nextToken in the next pagination request
+    /// </code>
+    /// </example>
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.", Justification = "Using Serialization Context")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Using Serialization Context")]
+    public static string GetEncodedPaginationToken(this ScanOperationResponse response)
+    {
+        if (response.LastEvaluatedKey == null || response.LastEvaluatedKey.Count == 0)
+            return string.Empty;
+
+        return EncodeLastEvaluatedKey(response.LastEvaluatedKey);
     }
 
     /// <summary>
@@ -84,16 +182,47 @@ public static class PaginationExtensions
     /// </summary>
     /// <param name="queryResponse">The QueryResponse containing the LastEvaluatedKey.</param>
     /// <returns>A base64-encoded pagination token, or empty string if there are no more pages.</returns>
-    /// <example>
-    /// <code>
-    /// var response = await query.ExecuteAsync();
-    /// var nextToken = response.GetEncodedPaginationToken();
-    /// // Use nextToken in the next pagination request
-    /// </code>
-    /// </example>
+    /// <remarks>
+    /// This overload accepts the raw AWS SDK QueryResponse. For most use cases, prefer using
+    /// the QueryOperationResponse overload via builder.Response?.GetEncodedPaginationToken().
+    /// </remarks>
     [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.", Justification = "Using Serialization Context")]
     [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Using Serialization Context")]
     public static string GetEncodedPaginationToken(this QueryResponse queryResponse)
+    {
+        if (queryResponse.LastEvaluatedKey == null || queryResponse.LastEvaluatedKey.Count == 0)
+            return string.Empty;
+
+        return EncodeLastEvaluatedKey(queryResponse.LastEvaluatedKey);
+    }
+
+    /// <summary>
+    /// Generates a base64-encoded pagination token from a ScanResponse's LastEvaluatedKey.
+    /// This token can be used in subsequent requests to continue pagination from where this scan left off.
+    /// The encoding is AOT-compatible using System.Text.Json with a serialization context.
+    /// </summary>
+    /// <param name="scanResponse">The ScanResponse containing the LastEvaluatedKey.</param>
+    /// <returns>A base64-encoded pagination token, or empty string if there are no more pages.</returns>
+    /// <remarks>
+    /// This overload accepts the raw AWS SDK ScanResponse. For most use cases, prefer using
+    /// the ScanOperationResponse overload via builder.Response?.GetEncodedPaginationToken().
+    /// </remarks>
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.", Justification = "Using Serialization Context")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Using Serialization Context")]
+    public static string GetEncodedPaginationToken(this ScanResponse scanResponse)
+    {
+        if (scanResponse.LastEvaluatedKey == null || scanResponse.LastEvaluatedKey.Count == 0)
+            return string.Empty;
+
+        return EncodeLastEvaluatedKey(scanResponse.LastEvaluatedKey);
+    }
+
+    /// <summary>
+    /// Encodes a LastEvaluatedKey dictionary to a base64 pagination token.
+    /// </summary>
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.", Justification = "Using Serialization Context")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Using Serialization Context")]
+    private static string EncodeLastEvaluatedKey(Dictionary<string, AttributeValue> lastEvaluatedKey)
     {
         // Override defaults to have the smallest serialization possible
         var options = new JsonSerializerOptions(JsonSerializerDefaults.General);
@@ -103,9 +232,9 @@ public static class PaginationExtensions
         options.TypeInfoResolver = SerializationContext.Default.DictionaryStringAttributeValue
             .OriginatingResolver;
 
-        var lastEvaluationKey = JsonSerializer.Serialize(queryResponse.LastEvaluatedKey, options);
+        var lastEvaluationKey = JsonSerializer.Serialize(lastEvaluatedKey, options);
         var lastEvaluationKeyBytes = Encoding.UTF8.GetBytes(lastEvaluationKey);
 
-        return System.Convert.ToBase64String(lastEvaluationKeyBytes);
+        return Convert.ToBase64String(lastEvaluationKeyBytes);
     }
 }

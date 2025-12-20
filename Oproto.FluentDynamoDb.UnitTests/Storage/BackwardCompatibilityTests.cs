@@ -37,10 +37,10 @@ public class BackwardCompatibilityTests
         protected FluentDynamoDbOptions Options { get; }
 
         // Methods that mirror source-generated table classes
-        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
+        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
             => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
-        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class
+        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
             => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
         public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
@@ -78,10 +78,10 @@ public class BackwardCompatibilityTests
         protected FluentDynamoDbOptions Options { get; }
 
         // Methods that mirror source-generated table classes
-        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class
+        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
             => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
-        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class
+        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
             => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
 
         public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
@@ -876,7 +876,7 @@ public class BackwardCompatibilityTests
             };
         }
 
-        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
         {
             var entity = new TestEntity
             {

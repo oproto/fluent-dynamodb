@@ -830,7 +830,7 @@ public class MapperGeneratorTests
             sb.AppendLine("            return new Dictionary<string, AttributeValue>();");
             sb.AppendLine("        }");
             sb.AppendLine();
-            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
             sb.AppendLine("        {");
             sb.AppendLine($"            return (TSelf)(object)new {entityType}();");
             sb.AppendLine("        }");

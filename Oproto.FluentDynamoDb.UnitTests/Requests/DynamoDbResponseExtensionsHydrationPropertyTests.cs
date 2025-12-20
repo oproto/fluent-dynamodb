@@ -199,7 +199,7 @@ public class TestHydrationEntity : IDynamoDbEntity
         item.TryGetValue("pk", out var pk) ? pk.S : "";
     
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
-        where TSelf : IDynamoDbEntity =>
+        where TSelf : IReadOnlyEntity =>
         (TSelf)(object)new TestHydrationEntity { Id = item.TryGetValue("id", out var id) ? id.S : "" };
     
     public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) 
@@ -234,7 +234,7 @@ public class AnotherTestEntity : IDynamoDbEntity
         item.TryGetValue("pk", out var pk) ? pk.S : "";
     
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
-        where TSelf : IDynamoDbEntity =>
+        where TSelf : IReadOnlyEntity =>
         (TSelf)(object)new AnotherTestEntity { Name = item.TryGetValue("name", out var name) ? name.S : "" };
     
     public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) 

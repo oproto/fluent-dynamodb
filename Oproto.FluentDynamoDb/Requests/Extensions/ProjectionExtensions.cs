@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Hydration;
 using Oproto.FluentDynamoDb.Mapping;
@@ -6,11 +7,88 @@ using Oproto.FluentDynamoDb.Mapping;
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 
 /// <summary>
-/// Extension methods for automatic projection application and hydration.
-/// These extensions detect projection models and automatically apply projection expressions.
+/// Extension methods for projection types implementing IReadOnlyEntity.
+/// These extensions enable projections to work seamlessly with QueryRequestBuilder
+/// using the standard ToListAsync() method.
 /// </summary>
 public static class ProjectionExtensions
 {
+    /// <summary>
+    /// Executes a Query operation and returns results as projection instances.
+    /// This overload works with projection types that implement IReadOnlyEntity and IProjectionModel.
+    /// Automatically applies the projection expression if not manually set.
+    /// </summary>
+    /// <typeparam name="T">The projection type implementing IReadOnlyEntity and IProjectionModel.</typeparam>
+    /// <param name="builder">The QueryRequestBuilder instance.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>A list of projection instances.</returns>
+    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
+    /// <example>
+    /// <code>
+    /// // Query using a projection type - works with standard ToListAsync()
+    /// var projections = await table.gsi1.Query&lt;OrderProjection&gt;()
+    ///     .Where(x => x.Status == "pending")
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    public static async Task<List<T>> ToListAsync<T>(
+        this QueryRequestBuilder<T> builder,
+        CancellationToken cancellationToken = default)
+        where T : class, IReadOnlyEntity, IProjectionModel<T>
+    {
+        try
+        {
+            // Apply projection expression if no manual projection was set
+            var request = builder.ToQueryRequest();
+            if (string.IsNullOrEmpty(request.ProjectionExpression))
+            {
+                var projectionExpression = T.ProjectionExpression;
+                if (!string.IsNullOrEmpty(projectionExpression))
+                {
+                    builder = builder.WithProjection(projectionExpression);
+                }
+            }
+
+            // Execute the query
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
+            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
+
+            // Populate response metadata
+            builder.Response = new QueryOperationResponse
+            {
+                LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null,
+                ScannedCount = response.ScannedCount,
+                ResultCount = response.Count,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata
+            };
+
+            // Populate operation context
+            DynamoDbOperationContext.Current = new OperationContextData
+            {
+                OperationType = "Query",
+                TableName = request.TableName,
+                IndexName = request.IndexName,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ItemCount = response.Count,
+                ScannedCount = response.ScannedCount,
+                LastEvaluatedKey = response.LastEvaluatedKey,
+                RawItems = items,
+                ResponseMetadata = response.ResponseMetadata
+            };
+            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
+
+            // Hydrate results - projections don't need MatchesEntity filtering
+            var options = builder.GetOptions();
+            return items.Select(item => T.FromDynamoDb<T>(item, options)).ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new DynamoDbMappingException(
+                $"Failed to execute Query operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
+        }
+    }
+
     /// <summary>
     /// Executes query and returns results as specified projection type.
     /// Automatically applies projection expression based on TResult's ProjectionExpression.
@@ -25,7 +103,7 @@ public static class ProjectionExtensions
     public static async Task<List<TResult>> ToListAsync<TEntity, TResult>(
         this QueryRequestBuilder<TEntity> builder,
         CancellationToken cancellationToken = default)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
         where TResult : class, IProjectionModel<TResult>
     {
         try
@@ -59,7 +137,7 @@ public static class ProjectionExtensions
     public static async Task<List<TResult>> ToDiscriminatedListAsync<TEntity, TResult>(
         this QueryRequestBuilder<TEntity> builder,
         CancellationToken cancellationToken = default)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
         where TResult : class, IDiscriminatedProjection<TResult>
     {
         try
@@ -82,10 +160,11 @@ public static class ProjectionExtensions
 
     /// <summary>
     /// Applies projection expression if no manual projection has been set.
+    /// Used when the entity type and projection type are different.
     /// </summary>
     private static QueryRequestBuilder<TEntity> ApplyProjectionIfNeeded<TEntity, TResult>(
         QueryRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
         where TResult : IProjectionModel<TResult>
     {
         // Check if a manual projection was already set

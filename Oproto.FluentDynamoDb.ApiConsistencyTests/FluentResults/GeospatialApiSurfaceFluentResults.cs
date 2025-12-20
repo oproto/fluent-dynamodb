@@ -151,7 +151,7 @@ public class GeospatialApiSurfaceFluentResults
         double radiusKm = 20.0;
 
         // === SpatialQueryAsyncResult for proximity queries on index ===
-        var result = await table.gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
+        var result = await table.Gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
             locationSelector: e => e.Location,
             spatialIndexType: SpatialIndexType.GeoHash,
             precision: 6,
@@ -169,7 +169,7 @@ public class GeospatialApiSurfaceFluentResults
         }
 
         // === With pagination and maxCells ===
-        result = await table.gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
+        result = await table.Gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
             locationSelector: e => e.Location,
             spatialIndexType: SpatialIndexType.GeoHash,
             precision: 6,
@@ -193,7 +193,7 @@ public class GeospatialApiSurfaceFluentResults
             northeast: new GeoLocation(45.0, -93.0));
 
         // === SpatialQueryAsyncResult for bounding box queries on index ===
-        var result = await table.gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
+        var result = await table.Gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
             locationSelector: e => e.Location,
             spatialIndexType: SpatialIndexType.GeoHash,
             precision: 6,
@@ -203,7 +203,7 @@ public class GeospatialApiSurfaceFluentResults
                 .Take(pagination.PageSize > 0 ? pagination.PageSize : 100));
 
         // === With pagination ===
-        result = await table.gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
+        result = await table.Gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
             locationSelector: e => e.Location,
             spatialIndexType: SpatialIndexType.GeoHash,
             precision: 6,
@@ -243,7 +243,7 @@ public class GeospatialApiSurfaceFluentResults
             radiusKilometers: 20.0);
 
         // === SpatialQueryAsyncResult with custom cell list on index ===
-        result = await table.gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
+        result = await table.Gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
             locationSelector: e => e.Location,
             cells: cells,
             queryBuilder: (builder, cell, pagination) => builder
@@ -251,7 +251,7 @@ public class GeospatialApiSurfaceFluentResults
                 .Take(pagination.PageSize > 0 ? pagination.PageSize : 100));
 
         // === With pagination ===
-        result = await table.gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
+        result = await table.Gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
             locationSelector: e => e.Location,
             cells: cells,
             queryBuilder: (builder, cell, pagination) => builder
@@ -282,7 +282,7 @@ public class GeospatialApiSurfaceFluentResults
             cancellationToken: cancellationToken);
 
         // === Index proximity with cancellation token ===
-        result = await table.gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
+        result = await table.Gsi1.SpatialQueryAsyncResult<GeoHashEntity>(
             locationSelector: e => e.Location,
             spatialIndexType: SpatialIndexType.GeoHash,
             precision: 6,

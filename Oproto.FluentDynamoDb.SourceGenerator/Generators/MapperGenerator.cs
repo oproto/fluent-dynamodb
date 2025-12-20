@@ -327,7 +327,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
         sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
         sb.AppendLine("        {");
         sb.AppendLine($"            throw new NotSupportedException(");
         sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
@@ -1694,7 +1694,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <returns>A mapped entity instance.</returns>");
         sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when the type parameter doesn't match the entity type.</exception>");
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
         sb.AppendLine("        {");
         
         // Generate entry logging
@@ -1969,6 +1969,18 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         
+        // For nullable properties, check if DynamoDB stored a NULL value
+        // DynamoDB represents null as { NULL: true } which is a valid attribute
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"                if ({propertyName.ToLowerInvariant()}Value.NULL == true)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = null;");
+            sb.AppendLine("                }");
+            sb.AppendLine("                else");
+            sb.AppendLine("                {");
+        }
+        
         // Use formatted deserialization if format string is present (non-DateTime types)
         if (needsFormattedDeserialization)
         {
@@ -1988,6 +2000,12 @@ internal static class MapperGenerator
             sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
             sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
             sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+        }
+        
+        // Close the else block for nullable properties
+        if (property.IsNullable)
+        {
             sb.AppendLine("                }");
         }
         
@@ -2056,6 +2074,18 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         
+        // For nullable properties, check if DynamoDB stored a NULL value
+        // DynamoDB represents null as { NULL: true } which is a valid attribute
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"                if ({propertyName.ToLowerInvariant()}Value.NULL == true)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = null;");
+            sb.AppendLine("                }");
+            sb.AppendLine("                else");
+            sb.AppendLine("                {");
+        }
+        
         // Use formatted deserialization if format string is present (non-DateTime types)
         if (needsFormattedDeserialization)
         {
@@ -2075,6 +2105,12 @@ internal static class MapperGenerator
             sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
             sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
             sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+        }
+        
+        // Close the else block for nullable properties
+        if (property.IsNullable)
+        {
             sb.AppendLine("                }");
         }
         
@@ -2737,10 +2773,67 @@ internal static class MapperGenerator
         foreach (var property in nonCollectionProperties)
         {
             var varName = property.PropertyName.ToLowerInvariant() + "Value";
-            sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
-            sb.AppendLine("            {");
-            sb.AppendLine($"                entity.{property.PropertyName} = {GetFromAttributeValueExpression(property, varName)};");
-            sb.AppendLine("            }");
+            var escapedPropertyName = EscapePropertyName(property.PropertyName);
+            
+            // Check if property is a JsonBlob - requires special JSON deserialization handling
+            if (property.ComplexType?.IsJsonBlob == true)
+            {
+                var baseType = GetBaseType(property.PropertyType);
+                sb.AppendLine($"            // Deserialize JSON blob property {property.PropertyName}");
+                sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
+                sb.AppendLine("            {");
+                sb.AppendLine("                if (options?.JsonSerializer == null)");
+                sb.AppendLine("                {");
+                sb.AppendLine($"                    throw new InvalidOperationException(");
+                sb.AppendLine($"                        \"Property '{property.PropertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+                sb.AppendLine($"                        \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+                sb.AppendLine("                }");
+                sb.AppendLine();
+                sb.AppendLine("                try");
+                sb.AppendLine("                {");
+                sb.AppendLine($"                    if ({varName}.S != null)");
+                sb.AppendLine("                    {");
+                sb.AppendLine($"                        entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>({varName}.S);");
+                sb.AppendLine("                    }");
+                sb.AppendLine("                }");
+                sb.AppendLine("                catch (Exception ex)");
+                sb.AppendLine("                {");
+                sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+                sb.AppendLine($"                        typeof({entity.ClassName}),");
+                sb.AppendLine($"                        \"{property.PropertyName}\",");
+                sb.AppendLine($"                        {varName},");
+                sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+                sb.AppendLine("                        ex)");
+                sb.AppendLine($"                        .WithContext(\"SerializerType\", \"RuntimeConfigured\")");
+                sb.AppendLine($"                        .WithContext(\"PropertyType\", \"{baseType}\")");
+                sb.AppendLine($"                        .WithContext(\"Operation\", \"JsonDeserialization\");");
+                sb.AppendLine("                }");
+                sb.AppendLine("            }");
+            }
+            else
+            {
+                sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
+                sb.AppendLine("            {");
+                
+                // For nullable properties, check if DynamoDB stored a NULL value
+                if (property.IsNullable)
+                {
+                    sb.AppendLine($"                if ({varName}.NULL == true)");
+                    sb.AppendLine("                {");
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = null;");
+                    sb.AppendLine("                }");
+                    sb.AppendLine("                else");
+                    sb.AppendLine("                {");
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+                    sb.AppendLine("                }");
+                }
+                else
+                {
+                    sb.AppendLine($"                entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+                }
+                
+                sb.AppendLine("            }");
+            }
         }
         sb.AppendLine();
     }
