@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Nullable Property NULL Handling** - Fixed an issue where nullable properties (e.g., `DateTime?`, `int?`, `decimal?`) would throw a conversion error when reading back records where `null` was stored
+  - DynamoDB represents null values as `{ NULL: true }` which is a valid attribute
+  - Previously, the generated `FromDynamoDb` code would find the attribute but fail when trying to parse the non-existent value
+  - Error message was: "Failed to convert DynamoDB attribute 'PropertyName' to Type. Attribute type: Null"
+  - Now properly checks for `NULL == true` before attempting to parse nullable properties
+  - Affects all nullable value types: `DateTime?`, `int?`, `long?`, `decimal?`, `double?`, `float?`, `bool?`, `Guid?`, etc.
+
 ### Added
 
 - **Multi-Entity Index Consolidation** - Indexes defined on any entity in a multi-entity table are now consolidated and available on the generated table class

@@ -1969,6 +1969,18 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         
+        // For nullable properties, check if DynamoDB stored a NULL value
+        // DynamoDB represents null as { NULL: true } which is a valid attribute
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"                if ({propertyName.ToLowerInvariant()}Value.NULL == true)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = null;");
+            sb.AppendLine("                }");
+            sb.AppendLine("                else");
+            sb.AppendLine("                {");
+        }
+        
         // Use formatted deserialization if format string is present (non-DateTime types)
         if (needsFormattedDeserialization)
         {
@@ -1988,6 +2000,12 @@ internal static class MapperGenerator
             sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
             sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
             sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+        }
+        
+        // Close the else block for nullable properties
+        if (property.IsNullable)
+        {
             sb.AppendLine("                }");
         }
         
@@ -2056,6 +2074,18 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         
+        // For nullable properties, check if DynamoDB stored a NULL value
+        // DynamoDB represents null as { NULL: true } which is a valid attribute
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"                if ({propertyName.ToLowerInvariant()}Value.NULL == true)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    entity.{escapedPropertyName} = null;");
+            sb.AppendLine("                }");
+            sb.AppendLine("                else");
+            sb.AppendLine("                {");
+        }
+        
         // Use formatted deserialization if format string is present (non-DateTime types)
         if (needsFormattedDeserialization)
         {
@@ -2075,6 +2105,12 @@ internal static class MapperGenerator
             sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
             sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
             sb.AppendLine("                        ex);");
+            sb.AppendLine("                }");
+        }
+        
+        // Close the else block for nullable properties
+        if (property.IsNullable)
+        {
             sb.AppendLine("                }");
         }
         
@@ -2778,7 +2814,24 @@ internal static class MapperGenerator
             {
                 sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
                 sb.AppendLine("            {");
-                sb.AppendLine($"                entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+                
+                // For nullable properties, check if DynamoDB stored a NULL value
+                if (property.IsNullable)
+                {
+                    sb.AppendLine($"                if ({varName}.NULL == true)");
+                    sb.AppendLine("                {");
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = null;");
+                    sb.AppendLine("                }");
+                    sb.AppendLine("                else");
+                    sb.AppendLine("                {");
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+                    sb.AppendLine("                }");
+                }
+                else
+                {
+                    sb.AppendLine($"                entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+                }
+                
                 sb.AppendLine("            }");
             }
         }
