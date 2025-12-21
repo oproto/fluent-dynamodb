@@ -57,6 +57,80 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-21]
+
+### File: docs/core-features/MapsAndLists.md (NEW)
+
+**Category:** New Documentation - Maps and Lists Guide
+
+**Summary:** Created comprehensive guide for working with nested objects (maps), lists, and sets in FluentDynamoDb:
+- Entity definition patterns with `[DynamoDbEntity]` and `[DynamoDbMap]` attributes
+- Multi-level nesting examples
+- Query patterns for nested properties (filter and condition expressions only)
+- Clear documentation that nested access is NOT supported in key condition expressions
+- Update patterns for nested properties with generated UpdateModel types
+- List operations reference (Append, Prepend, AppendRange, PrependRange, Set by index, Remove by index)
+- Set operations reference (Add, Delete for string and numeric sets)
+- Performance considerations for nested operations
+- Common patterns and best practices
+- Troubleshooting section for common errors
+
+**Reason:** New nested map and list lambda expression support feature (Requirements 6.4) requires detailed documentation explaining entity definition, query patterns, update patterns, and collection operations.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** API Reference Update - Nested Map and List Lambda Expression Support
+
+**Summary:** Added comprehensive documentation for nested map and list lambda expression support:
+- New "Nested Map (Object) Expressions" section documenting nested property access in filters and updates
+- New "List Expressions" section documenting list index access and list operations (Append, Prepend, AppendRange, PrependRange, Set by index, Remove by index)
+- New "Set Operations" section documenting Add and Delete operations for DynamoDB sets
+- Updated "Lambda Expression Functions" table remains unchanged (existing functions still apply)
+
+**Before:**
+```csharp
+// No nested property access support documented
+// No list operation support documented
+// No set operation support documented
+```
+
+**After:**
+```csharp
+// Nested Map (Object) Expressions
+// Filter on nested property (works in .WithFilter() and .Where() on writes, NOT key conditions)
+var customers = await table.Customers.Query(x => x.CustomerId == tenantId)
+    .WithFilter(x => x.ShippingAddress.City == "Seattle").ToListAsync();
+
+// Update nested property - generates: SET #address.#city = :v0
+await table.Customers.Update(customerId)
+    .Set(x => new CustomerUpdateModel { ShippingAddress = new AddressUpdateModel { City = "Portland" } })
+    .UpdateAsync();
+
+// List Expressions
+// Filter on list element by index
+var items = await table.Items.Query(x => x.Category == "electronics")
+    .WithFilter(x => x.Tags[0] == "featured").ToListAsync();
+
+// Append/Prepend - generates: SET #tags = list_append(#tags, :v0)
+await table.Items.Update(itemId).Set(x => x.Tags.Append("new-tag")).UpdateAsync();
+
+// Update/Remove by index
+await table.Items.Update(itemId).Set(x => x.Tags[0], "updated").UpdateAsync();
+await table.Items.Update(itemId).Remove(x => x.Tags[2]).UpdateAsync();
+
+// Set Operations
+// Add to set - generates: ADD #categories :v0
+await table.Items.Update(itemId).Add(x => x.Categories, "electronics").UpdateAsync();
+// Delete from set - generates: DELETE #categories :v0
+await table.Items.Update(itemId).Delete(x => x.Categories, "clearance").UpdateAsync();
+```
+
+**Reason:** New nested map and list lambda expression support feature (Requirements 1.1-1.6, 2.1-2.4, 3.1-3.5, 4.1-4.6, 5.1-5.5, 6.1-6.4) enables type-safe lambda expressions for nested object properties, list indexing, and collection operations. Documentation needed to explain the new patterns and usage.
+
+---
+
 ## [2025-12-19]
 
 ### File: docs/advanced-topics/MultiEntityTables.md

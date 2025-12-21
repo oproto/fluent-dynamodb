@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Nested Map and List Lambda Expression Support** - Full lambda expression support for nested object properties, list indexing, and collection operations
+  - **Nested Property Access in Filters/Conditions**: Query nested map properties using lambda expressions in `.WithFilter()` and `.Where()` on Put/Update/Delete operations
+    - Single-level: `.WithFilter(x => x.Address.City == "Seattle")`
+    - Multi-level: `.WithFilter(x => x.ShippingAddress.Country.Code == "US")`
+    - Works with all comparison operators and logical operators
+  - **List Index Access in Filters/Conditions**: Filter on specific list elements by index
+    - Direct index: `.WithFilter(x => x.Tags[0] == "featured")`
+    - Nested list: `.WithFilter(x => x.Metadata.Keywords[0] == "sale")`
+    - Object in list: `.WithFilter(x => x.LineItems[0].ProductId == productId)`
+  - **Nested Property Updates**: Partially update nested objects without replacing the entire map
+    - Single property: `.Set(x => new CustomerUpdateModel { ShippingAddress = new AddressUpdateModel { City = "Portland" } })`
+    - Multiple properties in single expression
+    - Multi-level nesting support
+    - Combined with top-level updates
+  - **List Operations**: New extension methods for list manipulation in update expressions
+    - `Append<T>(item)` - Add element to end of list
+    - `Prepend<T>(item)` - Add element to beginning of list
+    - `AppendRange<T>(items)` - Add multiple elements to end
+    - `PrependRange<T>(items)` - Add multiple elements to beginning
+    - `Set(x => x.List[index], value)` - Update element at specific index
+    - `Remove(x => x.List[index])` - Remove element at specific index
+    - Works with nested lists: `.Set(x => x.Metadata.Keywords.Append("sale"))`
+  - **Set Operations**: New builder methods for DynamoDB set manipulation
+    - `Add(x => x.SetProperty, value)` - Add element to set
+    - `Add(x => x.SetProperty, values[])` - Add multiple elements
+    - `Delete(x => x.SetProperty, value)` - Remove element from set
+    - `Delete(x => x.SetProperty, values[])` - Remove multiple elements
+    - Supports `HashSet<string>`, `HashSet<int>`, and other set types
+  - **Source Generator Enhancement**: Automatically generates nested `*UpdateModel` types for entities with `[DynamoDbMap]` properties
+  - _Requirements: 1.1-1.6, 2.1-2.4, 3.1-3.5, 4.1-4.6, 5.1-5.5, 6.1-6.4_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.Expressions;
+  
+  // Filter on nested property
+  var customers = await table.Customers.Query(x => x.CustomerId == tenantId)
+      .WithFilter(x => x.ShippingAddress.City == "Seattle")
+      .ToListAsync();
+  
+  // Update nested property
+  await table.Customers.Update(customerId)
+      .Set(x => new CustomerUpdateModel 
+      { 
+          ShippingAddress = new AddressUpdateModel { City = "Portland" } 
+      })
+      .UpdateAsync();
+  
+  // List operations
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.Append("new-tag"))
+      .UpdateAsync();
+  
+  // Set operations
+  await table.Items.Update(itemId)
+      .Add(x => x.Categories, "electronics")
+      .UpdateAsync();
+  ```
+
 ### Fixed
 
 - **Nullable Property NULL Handling** - Fixed an issue where nullable properties (e.g., `DateTime?`, `int?`, `decimal?`) would throw a conversion error when reading back records where `null` was stored

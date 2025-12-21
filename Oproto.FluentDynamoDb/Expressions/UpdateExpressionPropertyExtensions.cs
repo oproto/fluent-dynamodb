@@ -585,6 +585,131 @@ public static class UpdateExpressionPropertyExtensions
     public static List<T> ListPrepend<T>(this UpdateExpressionProperty<List<T>> property, params T[] elements)
         => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
 
+    /// <summary>
+    /// Appends a single element to the end of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="item">The item to append to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(#attr, :val)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This is a convenience method that wraps a single item in a list for the list_append operation.
+    /// For appending multiple items at once, use <see cref="AppendRange{T}"/> instead.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Append single tag
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.Append("new-tag") })
+    /// 
+    /// // Append to nested list
+    /// .Set(x => new OrderUpdateModel { Metadata = new MetadataUpdateModel { Keywords = x.Metadata.Keywords.Append("sale") } })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> Append<T>(this UpdateExpressionProperty<List<T>> property, T item)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Prepends a single element to the beginning of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="item">The item to prepend to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(:val, #attr)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This is a convenience method that wraps a single item in a list for the list_append operation.
+    /// For prepending multiple items at once, use <see cref="PrependRange{T}"/> instead.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Prepend single priority tag
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.Prepend("priority-tag") })
+    /// 
+    /// // Prepend to nested list
+    /// .Set(x => new OrderUpdateModel { Metadata = new MetadataUpdateModel { Keywords = x.Metadata.Keywords.Prepend("urgent") } })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> Prepend<T>(this UpdateExpressionProperty<List<T>> property, T item)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Appends multiple elements to the end of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="items">The items to append to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(#attr, :val)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// More efficient than multiple <see cref="Append{T}"/> calls for adding several items.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Append multiple tags
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.AppendRange(new[] { "tag1", "tag2", "tag3" }) })
+    /// 
+    /// // Append from variable
+    /// var newTags = new List&lt;string&gt; { "featured", "sale" };
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.AppendRange(newTags) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> AppendRange<T>(this UpdateExpressionProperty<List<T>> property, IEnumerable<T> items)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Prepends multiple elements to the beginning of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="items">The items to prepend to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(:val, #attr)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// More efficient than multiple <see cref="Prepend{T}"/> calls for adding several items.
+    /// Items are added in the order provided (first item in the enumerable will be first in the list).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Prepend multiple priority tags
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.PrependRange(new[] { "urgent", "priority" }) })
+    /// 
+    /// // Prepend from variable
+    /// var priorityTags = new List&lt;string&gt; { "featured", "pinned" };
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.PrependRange(priorityTags) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> PrependRange<T>(this UpdateExpressionProperty<List<T>> property, IEnumerable<T> items)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
     #endregion
 
     #region Dynamic Field Operations

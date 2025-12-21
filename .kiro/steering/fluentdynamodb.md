@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-19
+# Updated 2025-12-21
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -464,6 +464,67 @@ await DynamoDbTransactions.WriteAsync(client, transactWriteRequest);
 | `.AttributeExists()` | `attribute_exists()` | `x => x.Field.AttributeExists()` |
 | `.AttributeNotExists()` | `attribute_not_exists()` | `x => x.Id.AttributeNotExists()` |
 | `.Size()` | `size()` | `x => x.Items.Size() > 5` |
+
+## Nested Map (Object) Expressions
+
+Lambda expressions support nested property access for entities with `[DynamoDbMap]` attributes.
+
+```csharp
+// Entity with nested object
+[DynamoDbEntity]
+public partial class Address
+{
+    [DynamoDbAttribute("city")] public string City { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("Customers")]
+public partial class Customer
+{
+    [PartitionKey] [DynamoDbAttribute("pk")] public string CustomerId { get; set; } = string.Empty;
+    [DynamoDbMap] [DynamoDbAttribute("address")] public Address ShippingAddress { get; set; } = new();
+}
+
+// Filter on nested property (works in .WithFilter() and .Where() on writes, NOT key conditions)
+var customers = await table.Customers.Query(x => x.CustomerId == tenantId)
+    .WithFilter(x => x.ShippingAddress.City == "Seattle").ToListAsync();
+await table.Customers.Put(customer).Where(x => x.ShippingAddress.City == "Seattle").PutAsync();
+
+// Update nested property - generates: SET #address.#city = :v0
+await table.Customers.Update(customerId)
+    .Set(x => new CustomerUpdateModel { ShippingAddress = new AddressUpdateModel { City = "Portland" } })
+    .UpdateAsync();
+```
+
+## List Expressions
+
+```csharp
+// Filter on list element by index (works in .WithFilter() and .Where(), NOT key conditions)
+var items = await table.Items.Query(x => x.Category == "electronics")
+    .WithFilter(x => x.Tags[0] == "featured").ToListAsync();
+// Also: x.Metadata.Keywords[0] (nested list), x.LineItems[0].ProductId (object in list)
+
+using Oproto.FluentDynamoDb.Expressions;
+
+// Append/Prepend - generates: SET #tags = list_append(#tags, :v0) or list_append(:v0, #tags)
+await table.Items.Update(itemId).Set(x => x.Tags.Append("new-tag")).UpdateAsync();
+await table.Items.Update(itemId).Set(x => x.Tags.Prepend("priority")).UpdateAsync();
+await table.Items.Update(itemId).Set(x => x.Tags.AppendRange(new[] { "tag1", "tag2" })).UpdateAsync();
+
+// Update/Remove by index - generates: SET #tags[0] = :v0 or REMOVE #tags[2]
+await table.Items.Update(itemId).Set(x => x.Tags[0], "updated").UpdateAsync();
+await table.Items.Update(itemId).Remove(x => x.Tags[2]).UpdateAsync();
+```
+
+## Set Operations
+
+```csharp
+// Add to set - generates: ADD #categories :v0
+await table.Items.Update(itemId).Add(x => x.Categories, "electronics").UpdateAsync();
+await table.Items.Update(itemId).Add(x => x.Categories, new[] { "a", "b" }).UpdateAsync();
+// Delete from set - generates: DELETE #categories :v0
+await table.Items.Update(itemId).Delete(x => x.Categories, "clearance").UpdateAsync();
+await table.Items.Update(itemId).Add(x => x.Scores, 100).UpdateAsync();  // Numeric sets
+```
 
 ## Conditional Filter Patterns
 

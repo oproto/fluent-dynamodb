@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq.Expressions;
 using System.Text;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Metadata;
 
@@ -229,6 +230,12 @@ public class ExpressionTranslator
         if (IsDynamicFieldIndexerAccess(node, entityParameter, out var dynamicFieldName))
         {
             return TranslateDynamicFieldAccess(dynamicFieldName!, context);
+        }
+
+        // Check for list indexer access via MethodCallExpression: x.Tags[0] or x.Metadata.Keywords[0]
+        if (IsListIndexerMethodCall(node, entityParameter, out var listExpr, out var listIndex))
+        {
+            return BuildListIndexPath(listExpr!, listIndex!.Value, entityParameter, context);
         }
 
         return node switch
@@ -612,13 +619,32 @@ public class ExpressionTranslator
     }
 
     /// <summary>
-    /// Visits a member expression node (property access like x.PropertyName).
+    /// Visits a member expression node (property access like x.PropertyName or x.Address.City).
     /// </summary>
     private string VisitMember(MemberExpression node, ParameterExpression entityParameter, ExpressionContext context)
     {
-        // Check if this is entity property access (x.PropertyName)
+        // Check if this is entity property access (x.PropertyName or x.Address.City)
         if (IsEntityPropertyAccess(node, entityParameter))
         {
+            // Check if this is nested property access (x.Address.City)
+            if (IsNestedPropertyAccess(node, entityParameter))
+            {
+                // Nested property access is only valid in filter expressions and condition expressions
+                // Not valid in key condition expressions (KeysOnly mode)
+                if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
+                {
+                    throw new InvalidKeyExpressionException(
+                        $"Nested property access '{GetNestedPropertyPath(node)}' is not supported in key condition expressions. " +
+                        "DynamoDB key conditions only support partition key and sort key attributes. " +
+                        "Use nested property access in filter expressions (.WithFilter()) or condition expressions (.Where() on Put/Update/Delete) instead.",
+                        node);
+                }
+
+                // Build document path for nested access
+                return BuildDocumentPathFromMemberChain(node, entityParameter, context);
+            }
+
+            // Direct property access (x.PropertyName)
             var propertyName = node.Member.Name;
 
             // Validate property against entity metadata if available
@@ -676,6 +702,24 @@ public class ExpressionTranslator
         // Evaluate the member expression to get its value
         var value = EvaluateExpression(node);
         return CaptureValue(value, context, propertyMetadata: null);
+    }
+
+    /// <summary>
+    /// Gets a human-readable path string for a nested property access (for error messages).
+    /// </summary>
+    /// <param name="node">The member expression.</param>
+    /// <returns>A string like "Address.City".</returns>
+    private string GetNestedPropertyPath(MemberExpression node)
+    {
+        var parts = new List<string>();
+        Expression? current = node;
+        while (current is MemberExpression member)
+        {
+            parts.Add(member.Member.Name);
+            current = member.Expression;
+        }
+        parts.Reverse();
+        return string.Join(".", parts);
     }
 
     /// <summary>
@@ -1220,7 +1264,8 @@ public class ExpressionTranslator
     }
 
     /// <summary>
-    /// Checks if a member expression is accessing an entity property.
+    /// Checks if a member expression is accessing an entity property (direct or nested).
+    /// Also handles property access after list index (e.g., x.LineItems[0].ProductId).
     /// </summary>
     private bool IsEntityPropertyAccess(Expression node, ParameterExpression entityParameter)
     {
@@ -1228,7 +1273,204 @@ public class ExpressionTranslator
             return false;
 
         // Check if the member is directly on the entity parameter (x.PropertyName)
-        return member.Expression == entityParameter;
+        if (member.Expression == entityParameter)
+            return true;
+
+        // Check for nested property access (x.Address.City)
+        // Also handles property access after list index (x.LineItems[0].ProductId)
+        return IsNestedPropertyAccess(member, entityParameter);
+    }
+
+    /// <summary>
+    /// Checks if a member expression is a nested property access (e.g., x.Address.City).
+    /// Also handles property access after list index (e.g., x.LineItems[0].ProductId).
+    /// </summary>
+    /// <param name="node">The member expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <returns>True if this is a nested property access, false otherwise.</returns>
+    private bool IsNestedPropertyAccess(MemberExpression node, ParameterExpression entityParameter)
+    {
+        // Walk up the expression tree to find if we eventually reach the entity parameter
+        Expression? current = node.Expression;
+        while (current != null)
+        {
+            if (current == entityParameter)
+            {
+                // We reached the entity parameter through a chain of member accesses
+                // This is nested if we had at least one intermediate member
+                return node.Expression != entityParameter;
+            }
+
+            if (current is MemberExpression member)
+            {
+                current = member.Expression;
+            }
+            else if (current is MethodCallExpression methodCall && methodCall.Method.Name == "get_Item")
+            {
+                // Handle list indexer access (x.LineItems[0].ProductId)
+                // The list indexer appears as a MethodCallExpression with method name "get_Item"
+                current = methodCall.Object;
+            }
+            else if (current is IndexExpression indexExpr)
+            {
+                // Handle IndexExpression (alternative representation of list indexer)
+                current = indexExpr.Object;
+            }
+            else
+            {
+                // Not a member expression chain leading to entity parameter
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Builds a DynamoDB document path from a chained member expression (e.g., x.Address.City -> #address.#city).
+    /// Also handles property access after list index (e.g., x.LineItems[0].ProductId -> #lineItems[0].#productId).
+    /// </summary>
+    /// <param name="node">The member expression representing the nested property access.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The DynamoDB document path string.</returns>
+    private string BuildDocumentPathFromMemberChain(MemberExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var pathBuilder = new DocumentPathBuilder(context.AttributeNames);
+        
+        // Use a list to collect segments that can include both properties and indices
+        var segments = new List<object>(); // Either (string PropertyName, string AttributeName) or int index
+
+        // Collect all segments from leaf to root
+        Expression? current = node;
+        while (current != null && current != entityParameter)
+        {
+            if (current is MemberExpression member)
+            {
+                var propertyName = member.Member.Name;
+                var attributeName = GetDynamoDbAttributeName(member, entityParameter, context);
+                segments.Add((propertyName, attributeName));
+                current = member.Expression;
+            }
+            else if (current is MethodCallExpression methodCall && methodCall.Method.Name == "get_Item")
+            {
+                // Handle list indexer access (x.LineItems[0].ProductId)
+                // Extract the index value
+                if (methodCall.Arguments.Count == 1)
+                {
+                    try
+                    {
+                        var indexValue = EvaluateConstantExpression<int>(methodCall.Arguments[0]);
+                        if (indexValue < 0)
+                        {
+                            throw new UnsupportedExpressionException(
+                                $"List index must be non-negative. Got: {indexValue}",
+                                methodCall);
+                        }
+                        segments.Add(indexValue);
+                    }
+                    catch (UnsupportedExpressionException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        throw new UnsupportedExpressionException(
+                            "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
+                            methodCall);
+                    }
+                }
+                current = methodCall.Object;
+            }
+            else if (current is IndexExpression indexExpr)
+            {
+                // Handle IndexExpression (alternative representation of list indexer)
+                if (indexExpr.Arguments.Count == 1)
+                {
+                    try
+                    {
+                        var indexValue = EvaluateConstantExpression<int>(indexExpr.Arguments[0]);
+                        if (indexValue < 0)
+                        {
+                            throw new UnsupportedExpressionException(
+                                $"List index must be non-negative. Got: {indexValue}",
+                                indexExpr);
+                        }
+                        segments.Add(indexValue);
+                    }
+                    catch (UnsupportedExpressionException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        throw new UnsupportedExpressionException(
+                            "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
+                            indexExpr);
+                    }
+                }
+                current = indexExpr.Object;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        // Reverse to build path from root to leaf
+        segments.Reverse();
+
+        // Build path
+        foreach (var segment in segments)
+        {
+            if (segment is ValueTuple<string, string> propSegment)
+            {
+                pathBuilder.AddProperty(propSegment.Item1, propSegment.Item2);
+            }
+            else if (segment is int indexSegment)
+            {
+                pathBuilder.AddIndex(indexSegment);
+            }
+        }
+
+        return pathBuilder.Build();
+    }
+
+    /// <summary>
+    /// Gets the DynamoDB attribute name for a member expression.
+    /// </summary>
+    /// <param name="member">The member expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The DynamoDB attribute name.</returns>
+    private string GetDynamoDbAttributeName(MemberExpression member, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var propertyName = member.Member.Name;
+
+        // If we have entity metadata and this is a direct property on the entity, use the metadata
+        if (context.EntityMetadata != null && member.Expression == entityParameter)
+        {
+            var propertyMetadata = context.EntityMetadata.Properties
+                .FirstOrDefault(p => p.PropertyName == propertyName);
+            if (propertyMetadata != null)
+            {
+                return propertyMetadata.AttributeName;
+            }
+        }
+
+        // For nested properties or when no metadata is available, check for DynamoDbAttribute
+        // Use reflection to get the attribute (AOT-safe since we're reading compile-time metadata)
+        if (member.Member is System.Reflection.PropertyInfo propInfo)
+        {
+            var dynamoDbAttr = propInfo.GetCustomAttributes(typeof(DynamoDbAttributeAttribute), true)
+                .FirstOrDefault() as DynamoDbAttributeAttribute;
+            if (dynamoDbAttr != null)
+            {
+                return dynamoDbAttr.AttributeName;
+            }
+        }
+
+        // Default to property name
+        return propertyName;
     }
 
     /// <summary>
@@ -1747,7 +1989,7 @@ public class ExpressionTranslator
     #region Dynamic Field Support
 
     /// <summary>
-    /// Visits an index expression node (indexer access like x.DynamicFields["fieldName"]).
+    /// Visits an index expression node (indexer access like x.DynamicFields["fieldName"] or x.Tags[0]).
     /// </summary>
     private string VisitIndex(IndexExpression node, ParameterExpression entityParameter, ExpressionContext context)
     {
@@ -1757,10 +1999,201 @@ public class ExpressionTranslator
             return TranslateDynamicFieldAccess(fieldName!, context);
         }
 
+        // Check if this is a list index access (x.Tags[0] or x.Metadata.Keywords[0])
+        if (IsListIndexAccess(node, entityParameter, out var listIndex))
+        {
+            return BuildListIndexPath(node.Object!, listIndex!.Value, entityParameter, context);
+        }
+
         throw new UnsupportedExpressionException(
             $"Index expression is not supported in DynamoDB expressions. " +
-            $"Only DynamicFields indexer access is supported (e.g., x.DynamicFields[\"fieldName\"]).",
+            $"Supported patterns: DynamicFields indexer (x.DynamicFields[\"fieldName\"]) and list index access (x.Tags[0]).",
             node);
+    }
+
+    /// <summary>
+    /// Checks if an IndexExpression is a list index access pattern (e.g., x.Tags[0]).
+    /// </summary>
+    /// <param name="node">The index expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="index">The list index if this is a list index access.</param>
+    /// <returns>True if this is a list index access, false otherwise.</returns>
+    private bool IsListIndexAccess(IndexExpression node, ParameterExpression entityParameter, out int? index)
+    {
+        index = null;
+
+        // The object must be an entity property access (direct or nested)
+        if (node.Object == null || !IsEntityPropertyAccess(node.Object, entityParameter))
+            return false;
+
+        // Must have exactly one argument (the index)
+        if (node.Arguments.Count != 1)
+            return false;
+
+        // The index must be a constant integer
+        try
+        {
+            var indexValue = EvaluateConstantExpression<int>(node.Arguments[0]);
+            if (indexValue < 0)
+            {
+                throw new UnsupportedExpressionException(
+                    $"List index must be non-negative. Got: {indexValue}",
+                    node);
+            }
+            index = indexValue;
+            return true;
+        }
+        catch (UnsupportedExpressionException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Index is not a constant integer
+            throw new UnsupportedExpressionException(
+                "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
+                node);
+        }
+    }
+
+    /// <summary>
+    /// Builds a document path for list index access (e.g., x.Tags[0] -> #tags[0], x.Metadata.Keywords[0] -> #metadata.#keywords[0]).
+    /// </summary>
+    /// <param name="listExpression">The expression representing the list (e.g., x.Tags or x.Metadata.Keywords).</param>
+    /// <param name="index">The list index.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The DynamoDB document path string.</returns>
+    private string BuildListIndexPath(Expression listExpression, int index, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // List index access is only valid in filter expressions and condition expressions
+        // Not valid in key condition expressions (KeysOnly mode)
+        if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
+        {
+            throw new InvalidKeyExpressionException(
+                $"List index access is not supported in key condition expressions. " +
+                "DynamoDB key conditions only support partition key and sort key attributes. " +
+                "Use list index access in filter expressions (.WithFilter()) or condition expressions (.Where() on Put/Update/Delete) instead.",
+                listExpression);
+        }
+
+        var pathBuilder = new DocumentPathBuilder(context.AttributeNames);
+
+        // Build the path for the list property (may be nested like x.Metadata.Keywords)
+        if (listExpression is MemberExpression memberExpr)
+        {
+            BuildMemberPathSegments(memberExpr, entityParameter, context, pathBuilder);
+        }
+
+        // Add the index segment
+        pathBuilder.AddIndex(index);
+
+        return pathBuilder.Build();
+    }
+
+    /// <summary>
+    /// Builds path segments for a member expression chain into a DocumentPathBuilder.
+    /// </summary>
+    /// <param name="memberExpr">The member expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathBuilder">The path builder to add segments to.</param>
+    private void BuildMemberPathSegments(MemberExpression memberExpr, ParameterExpression entityParameter, ExpressionContext context, DocumentPathBuilder pathBuilder)
+    {
+        var segments = new Stack<(string PropertyName, string AttributeName)>();
+
+        // Collect all segments from leaf to root
+        Expression? current = memberExpr;
+        while (current is MemberExpression member)
+        {
+            var propertyName = member.Member.Name;
+            var attributeName = GetDynamoDbAttributeName(member, entityParameter, context);
+            segments.Push((propertyName, attributeName));
+            current = member.Expression;
+        }
+
+        // Build path from root to leaf
+        while (segments.Count > 0)
+        {
+            var (propName, attrName) = segments.Pop();
+            pathBuilder.AddProperty(propName, attrName);
+        }
+    }
+
+    /// <summary>
+    /// Checks if a MethodCallExpression is a list indexer access pattern (e.g., x.Tags[0] via get_Item).
+    /// In C# expression trees, list[index] is represented as a MethodCallExpression with method name "get_Item".
+    /// </summary>
+    /// <param name="node">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="listExpression">The expression representing the list if this is a list indexer access.</param>
+    /// <param name="index">The list index if this is a list indexer access.</param>
+    /// <returns>True if this is a list indexer access, false otherwise.</returns>
+    private bool IsListIndexerMethodCall(Expression node, ParameterExpression entityParameter, out Expression? listExpression, out int? index)
+    {
+        listExpression = null;
+        index = null;
+
+        // List indexer access appears as a MethodCallExpression with method name "get_Item"
+        if (node is not MethodCallExpression methodCall)
+            return false;
+
+        // Check if this is an indexer call (get_Item)
+        if (methodCall.Method.Name != "get_Item")
+            return false;
+
+        // The object must be an entity property access (direct or nested)
+        if (methodCall.Object == null || !IsEntityPropertyAccess(methodCall.Object, entityParameter))
+            return false;
+
+        // Exclude DynamicFields indexer - that's handled separately
+        if (methodCall.Object is MemberExpression memberExpr && memberExpr.Member.Name == "DynamicFields")
+            return false;
+
+        // Must have exactly one argument (the index)
+        if (methodCall.Arguments.Count != 1)
+            return false;
+
+        // Check if the declaring type is a list/collection type (List<T>, IList<T>, etc.)
+        var declaringType = methodCall.Method.DeclaringType;
+        if (declaringType == null)
+            return false;
+
+        // Accept List<T>, IList<T>, IReadOnlyList<T>, and array types
+        var isListType = declaringType.IsGenericType && (
+            declaringType.GetGenericTypeDefinition() == typeof(List<>) ||
+            declaringType.GetGenericTypeDefinition() == typeof(IList<>) ||
+            declaringType.GetGenericTypeDefinition() == typeof(IReadOnlyList<>));
+        var isArrayType = declaringType.IsArray;
+
+        if (!isListType && !isArrayType)
+            return false;
+
+        // The index must be a constant integer
+        try
+        {
+            var indexValue = EvaluateConstantExpression<int>(methodCall.Arguments[0]);
+            if (indexValue < 0)
+            {
+                throw new UnsupportedExpressionException(
+                    $"List index must be non-negative. Got: {indexValue}",
+                    node);
+            }
+            listExpression = methodCall.Object;
+            index = indexValue;
+            return true;
+        }
+        catch (UnsupportedExpressionException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Index is not a constant integer
+            throw new UnsupportedExpressionException(
+                "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
+                node);
+        }
     }
 
     /// <summary>
