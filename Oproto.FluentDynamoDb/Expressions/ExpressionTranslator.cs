@@ -1328,6 +1328,8 @@ public class ExpressionTranslator
     /// <summary>
     /// Builds a DynamoDB document path from a chained member expression (e.g., x.Address.City -> #address.#city).
     /// Also handles property access after list index (e.g., x.LineItems[0].ProductId -> #lineItems[0].#productId).
+    /// Supports dynamic indices (variables, method calls, property access) as long as they
+    /// don't reference the entity parameter.
     /// </summary>
     /// <param name="node">The member expression representing the nested property access.</param>
     /// <param name="entityParameter">The entity parameter.</param>
@@ -1354,59 +1356,24 @@ public class ExpressionTranslator
             else if (current is MethodCallExpression methodCall && methodCall.Method.Name == "get_Item")
             {
                 // Handle list indexer access (x.LineItems[0].ProductId)
-                // Extract the index value
+                // Extract the index value - supports dynamic indices
                 if (methodCall.Arguments.Count == 1)
                 {
-                    try
-                    {
-                        var indexValue = EvaluateConstantExpression<int>(methodCall.Arguments[0]);
-                        if (indexValue < 0)
-                        {
-                            throw new UnsupportedExpressionException(
-                                $"List index must be non-negative. Got: {indexValue}",
-                                methodCall);
-                        }
-                        segments.Add(indexValue);
-                    }
-                    catch (UnsupportedExpressionException)
-                    {
-                        throw;
-                    }
-                    catch
-                    {
-                        throw new UnsupportedExpressionException(
-                            "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
-                            methodCall);
-                    }
+                    var indexValue = EvaluateIndexExpression(methodCall.Arguments[0], entityParameter, methodCall);
+                    ValidateListIndex(indexValue, methodCall.Arguments[0]);
+                    segments.Add(indexValue);
                 }
                 current = methodCall.Object;
             }
             else if (current is IndexExpression indexExpr)
             {
                 // Handle IndexExpression (alternative representation of list indexer)
+                // Supports dynamic indices
                 if (indexExpr.Arguments.Count == 1)
                 {
-                    try
-                    {
-                        var indexValue = EvaluateConstantExpression<int>(indexExpr.Arguments[0]);
-                        if (indexValue < 0)
-                        {
-                            throw new UnsupportedExpressionException(
-                                $"List index must be non-negative. Got: {indexValue}",
-                                indexExpr);
-                        }
-                        segments.Add(indexValue);
-                    }
-                    catch (UnsupportedExpressionException)
-                    {
-                        throw;
-                    }
-                    catch
-                    {
-                        throw new UnsupportedExpressionException(
-                            "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
-                            indexExpr);
-                    }
+                    var indexValue = EvaluateIndexExpression(indexExpr.Arguments[0], entityParameter, indexExpr);
+                    ValidateListIndex(indexValue, indexExpr.Arguments[0]);
+                    segments.Add(indexValue);
                 }
                 current = indexExpr.Object;
             }
@@ -2013,6 +1980,8 @@ public class ExpressionTranslator
 
     /// <summary>
     /// Checks if an IndexExpression is a list index access pattern (e.g., x.Tags[0]).
+    /// Supports dynamic indices (variables, method calls, property access) as long as they
+    /// don't reference the entity parameter.
     /// </summary>
     /// <param name="node">The index expression to check.</param>
     /// <param name="entityParameter">The entity parameter.</param>
@@ -2030,29 +1999,69 @@ public class ExpressionTranslator
         if (node.Arguments.Count != 1)
             return false;
 
-        // The index must be a constant integer
+        // Evaluate the index expression (supports constants, variables, method calls, property access)
+        var indexValue = EvaluateIndexExpression(node.Arguments[0], entityParameter, node);
+        ValidateListIndex(indexValue, node.Arguments[0]);
+        index = indexValue;
+        return true;
+    }
+
+    /// <summary>
+    /// Evaluates an index expression to get the integer value.
+    /// Supports constants, variables, property access, and method calls.
+    /// Throws if the expression references the entity parameter.
+    /// </summary>
+    /// <param name="indexExpr">The index expression to evaluate.</param>
+    /// <param name="entityParameter">The entity parameter to check for references.</param>
+    /// <param name="sourceExpression">The source expression for error reporting.</param>
+    /// <returns>The evaluated integer index value.</returns>
+    private int EvaluateIndexExpression(Expression indexExpr, ParameterExpression entityParameter, Expression sourceExpression)
+    {
+        // Fast path: constant expression
+        if (indexExpr is ConstantExpression constant && constant.Value is int constIndex)
+        {
+            return constIndex;
+        }
+
+        // Check if expression references entity parameter
+        if (ParameterReferenceVisitor.ContainsReference(indexExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "List index cannot reference the entity parameter. " +
+                "Use a local variable, property, or method call that doesn't depend on the entity. " +
+                "Example: int idx = GetIndex(); .WithFilter(x => x.Tags[idx] == \"value\")",
+                sourceExpression);
+        }
+
+        // Evaluate the expression
         try
         {
-            var indexValue = EvaluateConstantExpression<int>(node.Arguments[0]);
-            if (indexValue < 0)
-            {
-                throw new UnsupportedExpressionException(
-                    $"List index must be non-negative. Got: {indexValue}",
-                    node);
-            }
-            index = indexValue;
-            return true;
+            var lambda = Expression.Lambda<Func<int>>(indexExpr);
+            var compiled = lambda.Compile();
+            return compiled();
         }
-        catch (UnsupportedExpressionException)
+        catch (Exception ex)
         {
-            throw;
-        }
-        catch
-        {
-            // Index is not a constant integer
             throw new UnsupportedExpressionException(
-                "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
-                node);
+                $"Failed to evaluate list index expression: {ex.Message}. " +
+                "Ensure the index is a constant, variable, property, or method call that can be evaluated at translation time.",
+                sourceExpression);
+        }
+    }
+
+    /// <summary>
+    /// Validates that a list index is non-negative.
+    /// </summary>
+    /// <param name="index">The index value to validate.</param>
+    /// <param name="sourceExpr">The source expression for error reporting.</param>
+    private void ValidateListIndex(int index, Expression sourceExpr)
+    {
+        if (index < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                "index",
+                index,
+                $"List index must be non-negative. Got: {index}");
         }
     }
 
@@ -2123,6 +2132,8 @@ public class ExpressionTranslator
     /// <summary>
     /// Checks if a MethodCallExpression is a list indexer access pattern (e.g., x.Tags[0] via get_Item).
     /// In C# expression trees, list[index] is represented as a MethodCallExpression with method name "get_Item".
+    /// Supports dynamic indices (variables, method calls, property access) as long as they
+    /// don't reference the entity parameter.
     /// </summary>
     /// <param name="node">The expression to check.</param>
     /// <param name="entityParameter">The entity parameter.</param>
@@ -2169,31 +2180,12 @@ public class ExpressionTranslator
         if (!isListType && !isArrayType)
             return false;
 
-        // The index must be a constant integer
-        try
-        {
-            var indexValue = EvaluateConstantExpression<int>(methodCall.Arguments[0]);
-            if (indexValue < 0)
-            {
-                throw new UnsupportedExpressionException(
-                    $"List index must be non-negative. Got: {indexValue}",
-                    node);
-            }
-            listExpression = methodCall.Object;
-            index = indexValue;
-            return true;
-        }
-        catch (UnsupportedExpressionException)
-        {
-            throw;
-        }
-        catch
-        {
-            // Index is not a constant integer
-            throw new UnsupportedExpressionException(
-                "List index must be a constant integer. Variable indices are not supported in DynamoDB expressions.",
-                node);
-        }
+        // Evaluate the index expression (supports constants, variables, method calls, property access)
+        var indexValue = EvaluateIndexExpression(methodCall.Arguments[0], entityParameter, node);
+        ValidateListIndex(indexValue, methodCall.Arguments[0]);
+        listExpression = methodCall.Object;
+        index = indexValue;
+        return true;
     }
 
     /// <summary>

@@ -477,23 +477,27 @@ await table.Products.Update(productId)
 // Generated: SET #tags = list_append(:v0, #tags)
 ```
 
-### Update Element by Index
+### Updating List Elements by Index
+
+Use the `SetAt` extension method to update an element at a specific index:
 
 ```csharp
 // Update element at specific index
 await table.Products.Update(productId)
-    .Set(x => x.Tags[0], "updated-first-tag")
+    .Set(x => x.Tags.SetAt(0, "updated-first-tag"))
     .UpdateAsync();
 
 // Generated: SET #tags[0] = :v0
 ```
 
-### Remove Element by Index
+### Removing List Elements by Index
+
+Use the `RemoveAt` extension method to remove an element at a specific index:
 
 ```csharp
 // Remove element at specific index
 await table.Products.Update(productId)
-    .Remove(x => x.Tags[2])
+    .Set(x => x.Tags.RemoveAt(2))
     .UpdateAsync();
 
 // Generated: REMOVE #tags[2]
@@ -510,9 +514,150 @@ await table.Products.Update(productId)
     .UpdateAsync();
 
 // Generated: SET #metadata.#keywords = list_append(#metadata.#keywords, :v0)
+
+// SetAt on nested list
+await table.Products.Update(productId)
+    .Set(x => x.Metadata.Keywords.SetAt(0, "updated"))
+    .UpdateAsync();
+
+// Generated: SET #metadata.#keywords[0] = :v0
+
+// RemoveAt on nested list
+await table.Products.Update(productId)
+    .Set(x => x.Metadata.Keywords.RemoveAt(1))
+    .UpdateAsync();
+
+// Generated: REMOVE #metadata.#keywords[1]
 ```
 
-### List Operations Reference
+### Dynamic Index Support
+
+List indices can be variables, method calls, or property accesses—not just constants. The index is evaluated at expression translation time.
+
+#### Variable Index
+
+```csharp
+int index = GetIndexToUpdate();
+await table.Products.Update(productId)
+    .Set(x => x.Tags.SetAt(index, "updated"))
+    .UpdateAsync();
+
+// Generated: SET #tags[N] = :v0 (where N is the evaluated index)
+```
+
+#### Method Call Index
+
+```csharp
+await table.Products.Update(productId)
+    .Set(x => x.Tags.SetAt(GetTargetIndex(), "updated"))
+    .UpdateAsync();
+
+// Generated: SET #tags[N] = :v0 (where N is the result of GetTargetIndex())
+```
+
+#### Property Access Index
+
+```csharp
+var config = GetConfig();
+await table.Products.Update(productId)
+    .Set(x => x.Tags.SetAt(config.TargetIndex, "updated"))
+    .UpdateAsync();
+
+// Generated: SET #tags[N] = :v0 (where N is config.TargetIndex)
+```
+
+#### Dynamic Index in Filter Expressions
+
+Dynamic indices also work in filter and condition expressions:
+
+```csharp
+int index = 0;
+var items = await table.Items.Query(x => x.Category == category)
+    .WithFilter(x => x.Tags[index] == "featured")
+    .ToListAsync();
+
+// Generated: #tags[0] = :v0
+
+// Method call index in filter
+var items = await table.Items.Query(x => x.Category == category)
+    .WithFilter(x => x.Tags[GetPrimaryTagIndex()] == "featured")
+    .ToListAsync();
+
+// Property access index in filter
+var config = GetConfig();
+var items = await table.Items.Query(x => x.Category == category)
+    .WithFilter(x => x.Tags[config.PrimaryIndex] == "featured")
+    .ToListAsync();
+```
+
+#### Entity Parameter Restriction
+
+> ⚠️ **Important**: The index expression **cannot reference the entity parameter**. The index must be evaluable without access to the entity being queried/updated.
+
+```csharp
+// ❌ NOT ALLOWED - index references entity parameter
+.WithFilter(x => x.Tags[x.PrimaryIndex] == "featured")
+// Throws UnsupportedExpressionException: "List index cannot reference the entity parameter"
+
+// ❌ NOT ALLOWED - index references entity parameter
+.Set(x => x.Tags.SetAt(x.LastIndex, "updated"))
+// Throws UnsupportedExpressionException
+
+// ✅ ALLOWED - index is a local variable
+int index = entity.PrimaryIndex;  // Capture value first
+.WithFilter(x => x.Tags[index] == "featured")
+```
+
+#### Index Validation
+
+Indices are validated at translation time:
+
+```csharp
+int index = -1;
+// Throws ArgumentOutOfRangeException: "List index must be non-negative. Got: -1"
+.Set(x => x.Tags.SetAt(index, "updated"))
+```
+
+### Chaining List Operations
+
+Multiple `SetAt` calls can be chained to update different indices in a single operation:
+
+```csharp
+// Update multiple indices in one operation
+await table.Products.Update(productId)
+    .Set(x => x.Tags.SetAt(0, "first").SetAt(1, "second").SetAt(2, "third"))
+    .UpdateAsync();
+
+// Generated: SET #tags[0] = :v0, #tags[1] = :v1, #tags[2] = :v2
+```
+
+#### DynamoDB Overlapping Path Limitation
+
+> ⚠️ **DynamoDB Limitation**: DynamoDB does NOT allow multiple operations on overlapping document paths in a single update expression.
+
+**Allowed chaining:**
+- Multiple `SetAt` calls with **different indices**: `x.Tags.SetAt(0, "a").SetAt(1, "b")` ✅
+
+**Disallowed chaining (throws `UnsupportedExpressionException`):**
+- `SetAt` + `Append`: overlapping paths
+- `SetAt` + `RemoveAt`: overlapping paths (SET + REMOVE on same attribute)
+- `Append` + `RemoveAt`: overlapping paths
+- Any combination mixing index operations with whole-list operations
+
+```csharp
+// ❌ NOT ALLOWED - SetAt + Append on same list
+.Set(x => x.Tags.SetAt(0, "a").Append("new"))
+// Throws UnsupportedExpressionException: overlapping document paths
+
+// ❌ NOT ALLOWED - SetAt + RemoveAt on same list
+.Set(x => x.Tags.SetAt(0, "a").RemoveAt(1))
+// Throws UnsupportedExpressionException: overlapping document paths
+
+// ✅ ALLOWED - Multiple SetAt with different indices
+.Set(x => x.Tags.SetAt(0, "a").SetAt(1, "b"))
+```
+
+### List Operations Quick Reference
 
 | Operation | Method | DynamoDB Expression |
 |-----------|--------|---------------------|
@@ -520,8 +665,9 @@ await table.Products.Update(productId)
 | Append multiple | `.AppendRange(items)` | `SET #attr = list_append(#attr, :val)` |
 | Prepend single | `.Prepend(item)` | `SET #attr = list_append(:val, #attr)` |
 | Prepend multiple | `.PrependRange(items)` | `SET #attr = list_append(:val, #attr)` |
-| Update by index | `.Set(x => x.List[i], value)` | `SET #attr[i] = :val` |
-| Remove by index | `.Remove(x => x.List[i])` | `REMOVE #attr[i]` |
+| Update by index | `.SetAt(index, value)` | `SET #attr[index] = :val` |
+| Remove by index | `.RemoveAt(index)` | `REMOVE #attr[index]` |
+| Chained SetAt | `.SetAt(0, a).SetAt(1, b)` | `SET #attr[0] = :v0, #attr[1] = :v1` |
 
 ---
 
@@ -786,19 +932,62 @@ public partial class Address
 .WithFilter(x => x.ShippingAddress.City == "Seattle")
 ```
 
-### Error: List Index Must Be Constant
+### Error: List Index Cannot Reference Entity Parameter
 
-**Problem**: `List index must be a constant integer`
+**Problem**: `List index cannot reference the entity parameter`
 
-**Solution**: Use a constant value, not a variable:
+**Solution**: The index expression cannot depend on the entity being queried/updated. Capture the value in a local variable first:
 
 ```csharp
-// ❌ Wrong - variable index
-int index = GetIndex();
+// ❌ Wrong - index references entity parameter
+.WithFilter(x => x.Tags[x.PrimaryIndex] == "value")
+
+// ✅ Correct - capture value in local variable
+int index = entity.PrimaryIndex;
 .WithFilter(x => x.Tags[index] == "value")
 
-// ✅ Correct - constant index
-.WithFilter(x => x.Tags[0] == "value")
+// ✅ Also correct - use constant, variable, method call, or property
+int idx = GetIndex();
+.WithFilter(x => x.Tags[idx] == "value")
+.WithFilter(x => x.Tags[config.Index] == "value")
+.WithFilter(x => x.Tags[GetTargetIndex()] == "value")
+```
+
+### Error: List Index Must Be Non-Negative
+
+**Problem**: `List index must be non-negative. Got: -1`
+
+**Solution**: Ensure the index value is zero or positive:
+
+```csharp
+// ❌ Wrong - negative index
+int index = -1;
+.Set(x => x.Tags.SetAt(index, "value"))
+
+// ✅ Correct - non-negative index
+int index = 0;
+.Set(x => x.Tags.SetAt(index, "value"))
+```
+
+### Error: Overlapping Document Paths
+
+**Problem**: `Two document paths overlap with each other` or `UnsupportedExpressionException` when chaining list operations
+
+**Solution**: DynamoDB doesn't allow multiple operations on overlapping paths. Only chain `SetAt` calls with different indices:
+
+```csharp
+// ❌ Wrong - SetAt + Append overlap
+.Set(x => x.Tags.SetAt(0, "a").Append("new"))
+
+// ❌ Wrong - SetAt + RemoveAt overlap
+.Set(x => x.Tags.SetAt(0, "a").RemoveAt(1))
+
+// ✅ Correct - multiple SetAt with different indices
+.Set(x => x.Tags.SetAt(0, "a").SetAt(1, "b"))
+
+// ✅ Correct - separate update calls
+await table.Products.Update(productId).Set(x => x.Tags.SetAt(0, "a")).UpdateAsync();
+await table.Products.Update(productId).Set(x => x.Tags.Append("new")).UpdateAsync();
 ```
 
 ### Error: Missing UpdateModel for Nested Type

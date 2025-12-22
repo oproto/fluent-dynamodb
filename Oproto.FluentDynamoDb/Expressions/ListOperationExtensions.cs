@@ -272,4 +272,177 @@ public static class ListOperationExtensions
     public static List<T> PrependRange<T>(this List<T> list, IEnumerable<T> items)
         => throw new InvalidOperationException(
             "This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Sets the value at a specific index in a list.
+    /// This method is only for use in update expressions and will be translated to DynamoDB syntax.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the list.</typeparam>
+    /// <param name="list">The list to update (typically an entity property).</param>
+    /// <param name="index">The zero-based index of the element to set.</param>
+    /// <param name="value">The value to set at the specified index.</param>
+    /// <returns>Always throws an exception if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>Translates to: SET #attr[index] = :val</para>
+    /// 
+    /// <para><strong>Dynamic Index Support:</strong></para>
+    /// <para>
+    /// The index can be a constant, variable, property access, or method call,
+    /// as long as it does not reference the entity parameter. The index expression
+    /// is evaluated at translation time to produce the integer value used in the
+    /// DynamoDB expression.
+    /// </para>
+    /// 
+    /// <para><strong>Use Cases:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Update a specific element in a list by position</description></item>
+    /// <item><description>Replace an item at a known index</description></item>
+    /// <item><description>Modify list elements without replacing the entire list</description></item>
+    /// </list>
+    /// 
+    /// <para><strong>Important Notes:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Index must be non-negative (validated at translation time)</description></item>
+    /// <item><description>If the index doesn't exist, DynamoDB will create it (sparse list behavior)</description></item>
+    /// <item><description>Works with nested lists via document paths</description></item>
+    /// <item><description>Cannot be used in filter or condition expressions</description></item>
+    /// <item><description>Multiple SetAt calls with different indices can be chained</description></item>
+    /// </list>
+    /// 
+    /// <para><strong>Chaining Support:</strong></para>
+    /// <para>
+    /// Multiple SetAt calls can be chained to update different indices in a single operation:
+    /// <c>x.Tags.SetAt(0, "a").SetAt(1, "b")</c> generates <c>SET #tags[0] = :v0, #tags[1] = :v1</c>
+    /// </para>
+    /// <para>
+    /// However, SetAt cannot be chained with Append, Prepend, or RemoveAt on the same list
+    /// due to DynamoDB's overlapping document path restriction.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Constant index
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.SetAt(0, "updated"))
+    ///     .UpdateAsync();
+    /// // Translates to: SET #tags[0] = :v0
+    /// 
+    /// // Variable index
+    /// int idx = GetIndex();
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.SetAt(idx, "updated"))
+    ///     .UpdateAsync();
+    /// // Translates to: SET #tags[N] = :v0 (where N is the evaluated value of idx)
+    /// 
+    /// // Method call index
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.SetAt(GetTargetIndex(), "updated"))
+    ///     .UpdateAsync();
+    /// 
+    /// // Property access index
+    /// var config = GetConfig();
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.SetAt(config.TargetIndex, "updated"))
+    ///     .UpdateAsync();
+    /// 
+    /// // Nested list
+    /// await table.Orders.Update(orderId)
+    ///     .Set(x => x.Metadata.Keywords.SetAt(0, "updated"))
+    ///     .UpdateAsync();
+    /// // Translates to: SET #metadata.#keywords[0] = :v0
+    /// 
+    /// // Chained SetAt (multiple indices)
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.SetAt(0, "first").SetAt(1, "second"))
+    ///     .UpdateAsync();
+    /// // Translates to: SET #tags[0] = :v0, #tags[1] = :v1
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> SetAt<T>(this List<T> list, int index, T value)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Removes the element at a specific index from a list.
+    /// This method is only for use in update expressions and will be translated to DynamoDB syntax.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the list.</typeparam>
+    /// <param name="list">The list to update (typically an entity property).</param>
+    /// <param name="index">The zero-based index of the element to remove.</param>
+    /// <returns>Always throws an exception if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>Translates to: REMOVE #attr[index]</para>
+    /// 
+    /// <para><strong>DynamoDB Behavior:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Removes the element at the specified index</description></item>
+    /// <item><description>Elements after the removed index shift down</description></item>
+    /// <item><description>If the index doesn't exist, the operation succeeds without error</description></item>
+    /// </list>
+    /// 
+    /// <para><strong>Dynamic Index Support:</strong></para>
+    /// <para>
+    /// The index can be a constant, variable, property access, or method call,
+    /// as long as it does not reference the entity parameter. The index expression
+    /// is evaluated at translation time to produce the integer value used in the
+    /// DynamoDB expression.
+    /// </para>
+    /// 
+    /// <para><strong>Use Cases:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Remove a specific element from a list by position</description></item>
+    /// <item><description>Delete an item at a known index</description></item>
+    /// <item><description>Remove list elements without replacing the entire list</description></item>
+    /// </list>
+    /// 
+    /// <para><strong>Important Notes:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Index must be non-negative (validated at translation time)</description></item>
+    /// <item><description>Works with nested lists via document paths</description></item>
+    /// <item><description>Cannot be used in filter or condition expressions</description></item>
+    /// <item><description>Cannot be chained with SetAt, Append, or Prepend on the same list due to DynamoDB's overlapping document path restriction</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Constant index
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.RemoveAt(2))
+    ///     .UpdateAsync();
+    /// // Translates to: REMOVE #tags[2]
+    /// 
+    /// // Variable index
+    /// int idx = GetIndexToRemove();
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.RemoveAt(idx))
+    ///     .UpdateAsync();
+    /// // Translates to: REMOVE #tags[N] (where N is the evaluated value of idx)
+    /// 
+    /// // Method call index
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.RemoveAt(GetTargetIndex()))
+    ///     .UpdateAsync();
+    /// 
+    /// // Property access index
+    /// var config = GetConfig();
+    /// await table.Items.Update(itemId)
+    ///     .Set(x => x.Tags.RemoveAt(config.TargetIndex))
+    ///     .UpdateAsync();
+    /// 
+    /// // Nested list
+    /// await table.Orders.Update(orderId)
+    ///     .Set(x => x.Metadata.Keywords.RemoveAt(1))
+    ///     .UpdateAsync();
+    /// // Translates to: REMOVE #metadata.#keywords[1]
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> RemoveAt<T>(this List<T> list, int index)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly.");
 }

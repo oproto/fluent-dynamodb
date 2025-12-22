@@ -9,6 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **List Index API Consistency and Dynamic Index Support** - Unified API for list index operations with dynamic index evaluation
+  - **New `SetAt` Extension Method**: Update list elements at specific indices using consistent extension method pattern
+    - `x.Tags.SetAt(0, "updated")` → `SET #tags[0] = :v0`
+    - Works with nested lists: `x.Metadata.Keywords.SetAt(0, "value")`
+    - Supports chaining multiple SetAt calls: `x.Tags.SetAt(0, "a").SetAt(1, "b")` → `SET #tags[0] = :v0, #tags[1] = :v1`
+  - **New `RemoveAt` Extension Method**: Remove list elements at specific indices using consistent extension method pattern
+    - `x.Tags.RemoveAt(2)` → `REMOVE #tags[2]`
+    - Works with nested lists: `x.Metadata.Keywords.RemoveAt(1)`
+  - **Dynamic Index Support**: Use variables, method calls, and property access as list indices (evaluated at translation time)
+    - Variable index: `int idx = GetIndex(); .Set(x => x.Tags.SetAt(idx, "value"))`
+    - Method call index: `.Set(x => x.Tags.SetAt(GetTargetIndex(), "value"))`
+    - Property access index: `.Set(x => x.Tags.SetAt(config.Index, "value"))`
+    - Works in filter expressions: `int i = 0; .WithFilter(x => x.Tags[i] == "featured")`
+    - Works in condition expressions: `.Where(x => x.Tags[index] == "expected")`
+  - **Index Validation**: Negative indices throw `ArgumentOutOfRangeException` at translation time
+  - **Entity Parameter Rejection**: Indices referencing the entity parameter throw `UnsupportedExpressionException`
+  - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.6_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.Expressions;
+  
+  // SetAt with constant index
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.SetAt(0, "updated"))
+      .UpdateAsync();
+  
+  // SetAt with dynamic index
+  int index = GetIndexToUpdate();
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.SetAt(index, "updated"))
+      .UpdateAsync();
+  
+  // Chained SetAt operations
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.SetAt(0, "first").SetAt(1, "second"))
+      .UpdateAsync();
+  
+  // RemoveAt
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.RemoveAt(2))
+      .UpdateAsync();
+  
+  // Dynamic index in filter
+  int idx = 0;
+  var items = await table.Items.Query(x => x.Category == category)
+      .WithFilter(x => x.Tags[idx] == "featured")
+      .ToListAsync();
+  ```
+
 - **Nested Map and List Lambda Expression Support** - Full lambda expression support for nested object properties, list indexing, and collection operations
   - **Nested Property Access in Filters/Conditions**: Query nested map properties using lambda expressions in `.WithFilter()` and `.Where()` on Put/Update/Delete operations
     - Single-level: `.WithFilter(x => x.Address.City == "Seattle")`

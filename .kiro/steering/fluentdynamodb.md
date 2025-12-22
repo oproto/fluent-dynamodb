@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-21
+# Updated 2025-12-22
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -501,19 +501,36 @@ await table.Customers.Update(customerId)
 // Filter on list element by index (works in .WithFilter() and .Where(), NOT key conditions)
 var items = await table.Items.Query(x => x.Category == "electronics")
     .WithFilter(x => x.Tags[0] == "featured").ToListAsync();
-// Also: x.Metadata.Keywords[0] (nested list), x.LineItems[0].ProductId (object in list)
+// Dynamic index: int idx = 0; .WithFilter(x => x.Tags[idx] == "featured")
 
 using Oproto.FluentDynamoDb.Expressions;
 
-// Append/Prepend - generates: SET #tags = list_append(#tags, :v0) or list_append(:v0, #tags)
+// Append/Prepend - SET #tags = list_append(#tags, :v0) or list_append(:v0, #tags)
 await table.Items.Update(itemId).Set(x => x.Tags.Append("new-tag")).UpdateAsync();
 await table.Items.Update(itemId).Set(x => x.Tags.Prepend("priority")).UpdateAsync();
 await table.Items.Update(itemId).Set(x => x.Tags.AppendRange(new[] { "tag1", "tag2" })).UpdateAsync();
 
-// Update/Remove by index - generates: SET #tags[0] = :v0 or REMOVE #tags[2]
-await table.Items.Update(itemId).Set(x => x.Tags[0], "updated").UpdateAsync();
-await table.Items.Update(itemId).Remove(x => x.Tags[2]).UpdateAsync();
+// SetAt/RemoveAt - SET #tags[0] = :v0 or REMOVE #tags[2]
+await table.Items.Update(itemId).Set(x => x.Tags.SetAt(0, "updated")).UpdateAsync();
+await table.Items.Update(itemId).Set(x => x.Tags.RemoveAt(2)).UpdateAsync();
+await table.Items.Update(itemId).Set(x => x.Metadata.Keywords.SetAt(0, "val")).UpdateAsync();  // Nested
+
+// Dynamic index - variable, method call, or property (NOT entity parameter)
+int index = GetIndex();
+await table.Items.Update(itemId).Set(x => x.Tags.SetAt(index, "updated")).UpdateAsync();
+
+// Chained SetAt - SET #tags[0] = :v0, #tags[1] = :v1
+await table.Items.Update(itemId).Set(x => x.Tags.SetAt(0, "a").SetAt(1, "b")).UpdateAsync();
 ```
+
+| Method | DynamoDB | Notes |
+|--------|----------|-------|
+| `.Append(item)` | `list_append(#attr, :v)` | Add to end |
+| `.Prepend(item)` | `list_append(:v, #attr)` | Add to beginning |
+| `.SetAt(idx, val)` | `SET #attr[idx] = :v` | Update at index |
+| `.RemoveAt(idx)` | `REMOVE #attr[idx]` | Remove at index |
+
+**DynamoDB Limitation:** Cannot chain SetAt with Append/Prepend/RemoveAt on same list (overlapping paths). Multiple SetAt with different indices is allowed.
 
 ## Set Operations
 
@@ -540,29 +557,14 @@ Use `||` and `&&` operators with local boolean conditions to conditionally inclu
 ```csharp
 // Optional filter based on parameter presence
 var orders = await table.Orders.Query(x => x.CustomerId == customerId)
-    .WithFilter(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
-    .ToListAsync();
+    .WithFilter(x => string.IsNullOrWhiteSpace(status) || x.Status == status).ToListAsync();
 
 // Feature flag controlled filter
 var items = await table.Items.Query(x => x.Key == key)
-    .WithFilter(x => enableDateFilter && x.Date > minDate)
-    .ToListAsync();
-
-// Multiple optional filters
-var results = await table.Orders.Query(x => x.CustomerId == customerId)
-    .WithFilter(x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.Date > minDate))
-    .ToListAsync();
-
-// Negated conditions
-var items = await table.Items.Query(x => x.Key == key)
-    .WithFilter(x => !excludeArchived || x.Archived == false)
-    .ToListAsync();
+    .WithFilter(x => enableDateFilter && x.Date > minDate).ToListAsync();
 ```
 
-**Rules:**
-- Local condition must not reference the entity parameter (evaluated at translation time)
-- OR between two entity conditions throws `UnsupportedExpressionException`
-- Works with method calls (`string.IsNullOrWhiteSpace()`), negations (`!flag`), and compound expressions
+**Rules:** Local condition must not reference entity parameter. OR between two entity conditions throws `UnsupportedExpressionException`.
 
 ## Common Patterns
 
@@ -579,8 +581,6 @@ await table.Users.Update(userId).Set(x => new UserUpdateModel { Count = x.Count 
 
 ## Projection Error Handling
 
-Common projection-related errors and diagnostics:
-
 | Diagnostic | Code | Description |
 |------------|------|-------------|
 | Source Entity Not Found | FDDB060 | Projection references non-existent source entity |
@@ -588,22 +588,9 @@ Common projection-related errors and diagnostics:
 | Projection Interface Violation | FDDB062 | Projection used in write operation context |
 
 ```csharp
-// Projections are read-only - write operations will fail at compile time
-// ❌ This won't compile - projections don't implement IDynamoDbEntity
-await table.Put(orderSummary).PutAsync();  // Compile error
-
-// ✅ Use the source entity for write operations
-await table.Put(order).PutAsync();
-
-// Projection mapping errors throw DynamoDbMappingException
-try
-{
-    var summaries = await table.gsi1.Query<OrderSummary>(x => x.Status == "pending").ToListAsync();
-}
-catch (DynamoDbMappingException ex)
-{
-    Console.WriteLine($"Mapping failed: {ex.Message}");
-}
+// Projections are read-only - write operations fail at compile time
+await table.Put(orderSummary).PutAsync();  // ❌ Compile error - use source entity
+await table.Put(order).PutAsync();          // ✅ Correct
 ```
 
 ## FluentResults API (Result Pattern)

@@ -1474,7 +1474,7 @@ public class UpdateExpressionTranslator
     private static bool IsListOperationExtensionMethodOnList(MethodCallExpression methodCall)
     {
         var methodName = methodCall.Method.Name;
-        if (methodName is not ("Append" or "Prepend" or "AppendRange" or "PrependRange"))
+        if (methodName is not ("Append" or "Prepend" or "AppendRange" or "PrependRange" or "SetAt" or "RemoveAt"))
             return false;
         
         // Check if the method is from ListOperationExtensions (declared on List<T>)
@@ -1490,7 +1490,110 @@ public class UpdateExpressionTranslator
     /// <returns>True if the method is a list operation extension method.</returns>
     private static bool IsListOperationExtensionMethod(string methodName)
     {
-        return methodName is "Append" or "Prepend" or "AppendRange" or "PrependRange";
+        return methodName is "Append" or "Prepend" or "AppendRange" or "PrependRange" or "SetAt" or "RemoveAt";
+    }
+
+    /// <summary>
+    /// Validates that a list operation is not chained with an incompatible operation.
+    /// DynamoDB does not allow multiple operations on overlapping document paths in a single update expression.
+    /// </summary>
+    /// <param name="listExpression">The expression representing the list (Arguments[0] of the method call).</param>
+    /// <param name="currentOperation">The name of the current operation being translated.</param>
+    /// <param name="sourceExpression">The source expression for error reporting.</param>
+    /// <exception cref="UnsupportedExpressionException">Thrown when overlapping operations are detected.</exception>
+    /// <remarks>
+    /// <para><strong>Allowed Chaining:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Multiple SetAt calls with different indices: x.Tags.SetAt(0, "a").SetAt(1, "b")</description></item>
+    /// </list>
+    /// <para><strong>Disallowed Chaining:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>SetAt + Append/Prepend: overlapping paths (index access + whole list)</description></item>
+    /// <item><description>SetAt + RemoveAt: overlapping paths (SET + REMOVE on same attribute)</description></item>
+    /// <item><description>Append/Prepend + RemoveAt: overlapping paths</description></item>
+    /// <item><description>Any combination that mixes index operations with whole-list operations</description></item>
+    /// </list>
+    /// </remarks>
+    private static void ValidateNoOverlappingListOperations(
+        Expression listExpression,
+        string currentOperation,
+        Expression sourceExpression)
+    {
+        // Check if the list expression is another list operation method call
+        if (listExpression is not MethodCallExpression chainedCall)
+            return;
+
+        // Check if it's a ListOperationExtensions method
+        if (chainedCall.Method.DeclaringType?.Name != nameof(ListOperationExtensions))
+            return;
+
+        var chainedMethodName = chainedCall.Method.Name;
+        
+        // SetAt can only be chained with other SetAt calls (handled separately in CollectChainedSetAtOperations)
+        // All other combinations are disallowed
+        
+        // Determine the type of the current operation
+        var isCurrentIndexOperation = currentOperation is "SetAt" or "RemoveAt";
+        var isCurrentWholeListOperation = currentOperation is "Append" or "Prepend" or "AppendRange" or "PrependRange";
+        
+        // Determine the type of the chained operation
+        var isChainedIndexOperation = chainedMethodName is "SetAt" or "RemoveAt";
+        var isChainedWholeListOperation = chainedMethodName is "Append" or "Prepend" or "AppendRange" or "PrependRange";
+        
+        // SetAt chained with SetAt is allowed (handled by CollectChainedSetAtOperations)
+        if (currentOperation == "SetAt" && chainedMethodName == "SetAt")
+            return;
+        
+        // All other combinations are disallowed due to DynamoDB's overlapping document path restriction
+        string errorMessage;
+        
+        if (isCurrentIndexOperation && isChainedWholeListOperation)
+        {
+            // e.g., x.Tags.Append("a").SetAt(0, "b") or x.Tags.Append("a").RemoveAt(0)
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           $"The {chainedMethodName}() operation modifies the entire list while {currentOperation}() targets a specific index. " +
+                           "Use separate update operations instead.";
+        }
+        else if (isCurrentWholeListOperation && isChainedIndexOperation)
+        {
+            // e.g., x.Tags.SetAt(0, "a").Append("b") or x.Tags.RemoveAt(0).Append("b")
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           $"The {currentOperation}() operation modifies the entire list while {chainedMethodName}() targets a specific index. " +
+                           "Use separate update operations instead.";
+        }
+        else if (isCurrentWholeListOperation && isChainedWholeListOperation)
+        {
+            // e.g., x.Tags.Append("a").Prepend("b")
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           "Both operations modify the entire list. " +
+                           "Use separate update operations instead.";
+        }
+        else if (currentOperation == "RemoveAt" && chainedMethodName == "SetAt")
+        {
+            // e.g., x.Tags.SetAt(0, "a").RemoveAt(1)
+            errorMessage = "Cannot chain RemoveAt() with SetAt() on the same list. " +
+                           "DynamoDB does not allow SET and REMOVE operations on overlapping document paths. " +
+                           "Use separate update operations instead.";
+        }
+        else if (currentOperation == "SetAt" && chainedMethodName == "RemoveAt")
+        {
+            // e.g., x.Tags.RemoveAt(0).SetAt(1, "a")
+            errorMessage = "Cannot chain SetAt() with RemoveAt() on the same list. " +
+                           "DynamoDB does not allow SET and REMOVE operations on overlapping document paths. " +
+                           "Use separate update operations instead.";
+        }
+        else
+        {
+            // Generic fallback for any other combination
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           "Use separate update operations instead.";
+        }
+        
+        throw new UnsupportedExpressionException(errorMessage, sourceExpression);
     }
 
     /// <summary>
@@ -1525,6 +1628,17 @@ public class UpdateExpressionTranslator
     {
         var methodName = methodCall.Method.Name;
         
+        // Handle SetAt and RemoveAt separately as they have different argument patterns
+        if (methodName == "SetAt")
+        {
+            return TranslateSetAtOperation(methodCall, parameter, context, pathPrefix);
+        }
+        
+        if (methodName == "RemoveAt")
+        {
+            return TranslateRemoveAtOperation(methodCall, parameter, context, pathPrefix);
+        }
+        
         // For extension methods, Arguments[0] is the 'this' parameter (the list property)
         // and Arguments[1] is the item(s) to append/prepend
         if (methodCall.Arguments.Count < 2)
@@ -1538,6 +1652,10 @@ public class UpdateExpressionTranslator
         
         // Extract the list property path from Arguments[0]
         var listExpression = methodCall.Arguments[0];
+        
+        // Validate no overlapping list operations (e.g., x.Tags.SetAt(0, "a").Append("b") is not allowed)
+        ValidateNoOverlappingListOperations(listExpression, methodName, methodCall);
+        
         var (listPath, listPropertyName) = ExtractListPropertyPath(listExpression, parameter, context);
         
         // Combine the path prefix with the extracted path
@@ -1582,6 +1700,310 @@ public class UpdateExpressionTranslator
             Type = OperationType.Set,
             Expression = expression
         };
+    }
+
+    /// <summary>
+    /// Translates a SetAt method call to a DynamoDB SET expression with list index.
+    /// Supports chained SetAt calls: x.Tags.SetAt(0, "a").SetAt(1, "b")
+    /// </summary>
+    /// <param name="methodCall">The SetAt method call expression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties.</param>
+    /// <returns>An operation representing the SET expression(s).</returns>
+    /// <remarks>
+    /// <para>
+    /// SetAt translates to: SET #attr[index] = :val
+    /// </para>
+    /// <para>
+    /// For extension methods:
+    /// - Arguments[0] is the 'this' parameter (the list property or another SetAt call)
+    /// - Arguments[1] is the index
+    /// - Arguments[2] is the value to set
+    /// </para>
+    /// <para>
+    /// Chained SetAt calls are supported:
+    /// x.Tags.SetAt(0, "a").SetAt(1, "b") generates: SET #tags[0] = :v0, #tags[1] = :v1
+    /// </para>
+    /// <para>
+    /// Duplicate indices in a chain will throw UnsupportedExpressionException.
+    /// </para>
+    /// </remarks>
+    private Operation TranslateSetAtOperation(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // SetAt has 3 arguments: list (this), index, value
+        if (methodCall.Arguments.Count < 3)
+        {
+            throw new UnsupportedExpressionException(
+                "SetAt() method requires an index and a value. " +
+                "Example: x.Tags.SetAt(0, \"updated\").",
+                "SetAt",
+                methodCall);
+        }
+        
+        // Collect all SetAt operations from the chain
+        var setAtOperations = CollectChainedSetAtOperations(methodCall, parameter, context);
+        
+        // Validate no duplicate indices
+        var indices = setAtOperations.Select(op => op.Index).ToList();
+        var duplicateIndices = indices.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+        if (duplicateIndices.Any())
+        {
+            throw new UnsupportedExpressionException(
+                $"Chained SetAt operations cannot have duplicate indices. " +
+                $"Duplicate index found: {duplicateIndices[0]}. " +
+                "Each SetAt in a chain must target a different index.",
+                methodCall);
+        }
+        
+        // Get the list property path from the base of the chain
+        var baseListExpression = setAtOperations[0].BaseListExpression;
+        var (listPath, listPropertyName) = ExtractListPropertyPath(baseListExpression, parameter, context);
+        
+        // Combine the path prefix with the extracted path
+        var fullPath = pathPrefix.Concat(listPath).ToArray();
+        
+        // Get the attribute name with the full path
+        var attributeName = GetAttributeNameWithPath(listPropertyName, context, fullPath, methodCall);
+        
+        // Build SET expressions for all operations in the chain
+        var expressions = new List<string>();
+        foreach (var op in setAtOperations)
+        {
+            // Capture the value
+            var valuePlaceholder = CaptureValue(op.Value, context, null);
+            
+            // Build SET expression: #attr[index] = :val
+            expressions.Add($"{attributeName}[{op.Index}] = {valuePlaceholder}");
+        }
+        
+        // Combine all expressions with comma separator
+        var combinedExpression = string.Join(", ", expressions);
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = combinedExpression
+        };
+    }
+
+    /// <summary>
+    /// Represents a single SetAt operation in a chain.
+    /// </summary>
+    private class SetAtOperationInfo
+    {
+        public int Index { get; set; }
+        public object? Value { get; set; }
+        public Expression BaseListExpression { get; set; } = null!;
+    }
+
+    /// <summary>
+    /// Collects all SetAt operations from a chained expression.
+    /// Walks the chain from outermost to innermost, collecting index/value pairs.
+    /// </summary>
+    /// <param name="methodCall">The outermost SetAt method call.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>A list of SetAt operations with the base list expression.</returns>
+    private List<SetAtOperationInfo> CollectChainedSetAtOperations(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context)
+    {
+        var operations = new List<SetAtOperationInfo>();
+        var current = methodCall;
+        Expression? baseListExpression = null;
+        
+        while (current != null)
+        {
+            // Validate SetAt has correct number of arguments
+            if (current.Arguments.Count < 3)
+            {
+                throw new UnsupportedExpressionException(
+                    "SetAt() method requires an index and a value. " +
+                    "Example: x.Tags.SetAt(0, \"updated\").",
+                    "SetAt",
+                    current);
+            }
+            
+            // Get the index argument and evaluate it
+            var indexArg = current.Arguments[1];
+            var index = EvaluateIndexExpression(indexArg, parameter, current);
+            
+            // Validate index is non-negative
+            ValidateListIndex(index, indexArg);
+            
+            // Get the value argument
+            var valueArg = current.Arguments[2];
+            var value = EvaluateExpression(valueArg);
+            
+            // Add this operation to the list
+            operations.Add(new SetAtOperationInfo
+            {
+                Index = index,
+                Value = value
+            });
+            
+            // Check if Arguments[0] is another SetAt call (chained)
+            var listExpression = current.Arguments[0];
+            if (listExpression is MethodCallExpression chainedCall && 
+                chainedCall.Method.Name == "SetAt" &&
+                chainedCall.Method.DeclaringType?.Name == nameof(ListOperationExtensions))
+            {
+                // Continue walking the chain
+                current = chainedCall;
+            }
+            else
+            {
+                // Validate no overlapping list operations before accepting as base expression
+                // This catches cases like x.Tags.Append("a").SetAt(0, "b")
+                ValidateNoOverlappingListOperations(listExpression, "SetAt", current);
+                
+                // This is the base list expression (e.g., x.Tags)
+                baseListExpression = listExpression;
+                current = null;
+            }
+        }
+        
+        // Set the base list expression on all operations
+        foreach (var op in operations)
+        {
+            op.BaseListExpression = baseListExpression!;
+        }
+        
+        // Reverse the list so operations are in the order they appear in the chain
+        // (innermost first, which is the natural order for DynamoDB)
+        operations.Reverse();
+        
+        return operations;
+    }
+
+    /// <summary>
+    /// Translates a RemoveAt method call to a DynamoDB REMOVE expression with list index.
+    /// </summary>
+    /// <param name="methodCall">The RemoveAt method call expression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties.</param>
+    /// <returns>An operation representing the REMOVE expression.</returns>
+    /// <remarks>
+    /// <para>
+    /// RemoveAt translates to: REMOVE #attr[index]
+    /// </para>
+    /// <para>
+    /// For extension methods:
+    /// - Arguments[0] is the 'this' parameter (the list property)
+    /// - Arguments[1] is the index
+    /// </para>
+    /// </remarks>
+    private Operation TranslateRemoveAtOperation(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // RemoveAt has 2 arguments: list (this), index
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                "RemoveAt() method requires an index. " +
+                "Example: x.Tags.RemoveAt(2).",
+                "RemoveAt",
+                methodCall);
+        }
+        
+        // Extract the list property path from Arguments[0]
+        var listExpression = methodCall.Arguments[0];
+        
+        // Validate no overlapping list operations (e.g., x.Tags.SetAt(0, "a").RemoveAt(1) is not allowed)
+        ValidateNoOverlappingListOperations(listExpression, "RemoveAt", methodCall);
+        
+        var (listPath, listPropertyName) = ExtractListPropertyPath(listExpression, parameter, context);
+        
+        // Combine the path prefix with the extracted path
+        var fullPath = pathPrefix.Concat(listPath).ToArray();
+        
+        // Get the attribute name with the full path
+        var attributeName = GetAttributeNameWithPath(listPropertyName, context, fullPath, methodCall);
+        
+        // Get the index argument and evaluate it
+        var indexArg = methodCall.Arguments[1];
+        var index = EvaluateIndexExpression(indexArg, parameter, methodCall);
+        
+        // Validate index is non-negative
+        ValidateListIndex(index, indexArg);
+        
+        // Build REMOVE expression: #attr[index]
+        var expression = $"{attributeName}[{index}]";
+        
+        return new Operation
+        {
+            Type = OperationType.Remove,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Evaluates an index expression to get the integer value.
+    /// Supports constants, variables, property access, and method calls.
+    /// Throws if the expression references the entity parameter.
+    /// </summary>
+    /// <param name="indexExpr">The index expression to evaluate.</param>
+    /// <param name="entityParameter">The entity parameter to check for references.</param>
+    /// <param name="sourceExpression">The source expression for error reporting.</param>
+    /// <returns>The evaluated integer index value.</returns>
+    private int EvaluateIndexExpression(Expression indexExpr, ParameterExpression entityParameter, Expression sourceExpression)
+    {
+        // Fast path: constant expression
+        if (indexExpr is ConstantExpression constant && constant.Value is int constIndex)
+        {
+            return constIndex;
+        }
+        
+        // Check if expression references entity parameter
+        if (ReferencesEntityParameter(indexExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "List index cannot reference the entity parameter. " +
+                "Use a local variable, property, or method call that doesn't depend on the entity. " +
+                "Example: int idx = GetIndex(); .Set(x => x.Tags.SetAt(idx, \"value\"))",
+                sourceExpression);
+        }
+        
+        // Evaluate the expression
+        try
+        {
+            var lambda = Expression.Lambda<Func<int>>(indexExpr);
+            var compiled = lambda.Compile();
+            return compiled();
+        }
+        catch (Exception ex)
+        {
+            throw new UnsupportedExpressionException(
+                $"Failed to evaluate list index expression: {ex.Message}. " +
+                "Ensure the index is a constant, variable, property, or method call that can be evaluated at translation time.",
+                sourceExpression);
+        }
+    }
+
+    /// <summary>
+    /// Validates that a list index is non-negative.
+    /// </summary>
+    /// <param name="index">The index value to validate.</param>
+    /// <param name="sourceExpr">The source expression for error reporting.</param>
+    private void ValidateListIndex(int index, Expression sourceExpr)
+    {
+        if (index < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                "index",
+                index,
+                $"List index must be non-negative. Got: {index}");
+        }
     }
 
     /// <summary>

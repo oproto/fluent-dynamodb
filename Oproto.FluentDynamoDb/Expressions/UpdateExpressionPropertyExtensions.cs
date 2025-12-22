@@ -712,6 +712,92 @@ public static class UpdateExpressionPropertyExtensions
 
     #endregion
 
+    #region List Index Operations
+
+    /// <summary>
+    /// Sets the value at a specific index in a list.
+    /// This method is only for use in update expressions and will be translated to DynamoDB syntax.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the list.</typeparam>
+    /// <param name="property">The list property to update.</param>
+    /// <param name="index">The zero-based index of the element to set.</param>
+    /// <param name="value">The value to set at the specified index.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>Translates to: SET #attr[index] = :val</para>
+    /// 
+    /// <para><strong>Dynamic Index Support:</strong></para>
+    /// <para>
+    /// The index can be a constant, variable, property access, or method call,
+    /// as long as it does not reference the entity parameter. The index expression
+    /// is evaluated at translation time to produce the integer value used in the
+    /// DynamoDB expression.
+    /// </para>
+    /// 
+    /// <para><strong>Chaining Support:</strong></para>
+    /// <para>
+    /// Multiple SetAt calls can be chained to update different indices in a single operation:
+    /// <c>x.Tags.SetAt(0, "a").SetAt(1, "b")</c> generates <c>SET #tags[0] = :v0, #tags[1] = :v1</c>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Constant index
+    /// .Set(x => x.Tags.SetAt(0, "updated"))
+    /// 
+    /// // Variable index
+    /// int idx = GetIndex();
+    /// .Set(x => x.Tags.SetAt(idx, "updated"))
+    /// 
+    /// // Chained SetAt (multiple indices)
+    /// .Set(x => x.Tags.SetAt(0, "first").SetAt(1, "second"))
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> SetAt<T>(this UpdateExpressionProperty<List<T>> property, int index, T value)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Removes the element at a specific index from a list.
+    /// This method is only for use in update expressions and will be translated to DynamoDB syntax.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the list.</typeparam>
+    /// <param name="property">The list property to update.</param>
+    /// <param name="index">The zero-based index of the element to remove.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>Translates to: REMOVE #attr[index]</para>
+    /// 
+    /// <para><strong>Dynamic Index Support:</strong></para>
+    /// <para>
+    /// The index can be a constant, variable, property access, or method call,
+    /// as long as it does not reference the entity parameter. The index expression
+    /// is evaluated at translation time to produce the integer value used in the
+    /// DynamoDB expression.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Constant index
+    /// .Set(x => x.Tags.RemoveAt(2))
+    /// 
+    /// // Variable index
+    /// int idx = GetIndexToRemove();
+    /// .Set(x => x.Tags.RemoveAt(idx))
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> RemoveAt<T>(this UpdateExpressionProperty<List<T>> property, int index)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly.");
+
+    #endregion
+
     #region Dynamic Field Operations
 
     /// <summary>
