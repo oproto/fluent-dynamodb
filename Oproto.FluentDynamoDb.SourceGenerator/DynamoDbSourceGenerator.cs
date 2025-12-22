@@ -137,6 +137,9 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         // Discover extension methods marked with [GenerateWrapper] once for all entities
         Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
 
+        // Track generated nested UpdateModel types to avoid duplicates across entities
+        var generatedNestedUpdateModels = new HashSet<string>();
+
         foreach (var (entity, diagnostics) in entities)
         {
             // Report diagnostics
@@ -176,6 +179,20 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
             var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity);
             context.AddSource($"{entity.ClassName}UpdateModel.g.cs", updateModelCode);
+
+            // Generate nested UpdateModel classes for properties with [DynamoDbMap] attribute
+            // where the property type has [DynamoDbEntity] attribute
+            var nestedUpdateModels = UpdateExpressionsGenerator.GenerateNestedUpdateModelClasses(entity, entity.SemanticModel);
+            foreach (var (typeName, typeNamespace, code) in nestedUpdateModels)
+            {
+                // Use fully qualified name to track duplicates
+                var fullTypeName = $"{typeNamespace}.{typeName}";
+                if (!generatedNestedUpdateModels.Contains(fullTypeName))
+                {
+                    generatedNestedUpdateModels.Add(fullTypeName);
+                    context.AddSource($"{typeName}.g.cs", code);
+                }
+            }
 
             // Discover extension methods for wrapper generation (do this once to avoid redundant work)
             if (extensionMethods == null && entity.SemanticModel != null)

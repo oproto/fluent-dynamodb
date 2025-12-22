@@ -585,6 +585,217 @@ public static class UpdateExpressionPropertyExtensions
     public static List<T> ListPrepend<T>(this UpdateExpressionProperty<List<T>> property, params T[] elements)
         => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
 
+    /// <summary>
+    /// Appends a single element to the end of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="item">The item to append to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(#attr, :val)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This is a convenience method that wraps a single item in a list for the list_append operation.
+    /// For appending multiple items at once, use <see cref="AppendRange{T}"/> instead.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Append single tag
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.Append("new-tag") })
+    /// 
+    /// // Append to nested list
+    /// .Set(x => new OrderUpdateModel { Metadata = new MetadataUpdateModel { Keywords = x.Metadata.Keywords.Append("sale") } })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> Append<T>(this UpdateExpressionProperty<List<T>> property, T item)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Prepends a single element to the beginning of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="item">The item to prepend to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(:val, #attr)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// This is a convenience method that wraps a single item in a list for the list_append operation.
+    /// For prepending multiple items at once, use <see cref="PrependRange{T}"/> instead.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Prepend single priority tag
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.Prepend("priority-tag") })
+    /// 
+    /// // Prepend to nested list
+    /// .Set(x => new OrderUpdateModel { Metadata = new MetadataUpdateModel { Keywords = x.Metadata.Keywords.Prepend("urgent") } })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> Prepend<T>(this UpdateExpressionProperty<List<T>> property, T item)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Appends multiple elements to the end of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="items">The items to append to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(#attr, :val)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// More efficient than multiple <see cref="Append{T}"/> calls for adding several items.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Append multiple tags
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.AppendRange(new[] { "tag1", "tag2", "tag3" }) })
+    /// 
+    /// // Append from variable
+    /// var newTags = new List&lt;string&gt; { "featured", "sale" };
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.AppendRange(newTags) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> AppendRange<T>(this UpdateExpressionProperty<List<T>> property, IEnumerable<T> items)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Prepends multiple elements to the beginning of a list using DynamoDB's list_append function.
+    /// </summary>
+    /// <typeparam name="T">The element type of the list.</typeparam>
+    /// <param name="property">The list property.</param>
+    /// <param name="items">The items to prepend to the list.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Translates to DynamoDB SET with list_append function: <c>SET #attr = list_append(:val, #attr)</c>
+    /// </para>
+    /// 
+    /// <para>
+    /// More efficient than multiple <see cref="Prepend{T}"/> calls for adding several items.
+    /// Items are added in the order provided (first item in the enumerable will be first in the list).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Prepend multiple priority tags
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.PrependRange(new[] { "urgent", "priority" }) })
+    /// 
+    /// // Prepend from variable
+    /// var priorityTags = new List&lt;string&gt; { "featured", "pinned" };
+    /// .Set(x => new ItemUpdateModel { Tags = x.Tags.PrependRange(priorityTags) })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> PrependRange<T>(this UpdateExpressionProperty<List<T>> property, IEnumerable<T> items)
+        => throw new InvalidOperationException("This method is only for use in update expressions and should not be called directly.");
+
+    #endregion
+
+    #region List Index Operations
+
+    /// <summary>
+    /// Sets the value at a specific index in a list.
+    /// This method is only for use in update expressions and will be translated to DynamoDB syntax.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the list.</typeparam>
+    /// <param name="property">The list property to update.</param>
+    /// <param name="index">The zero-based index of the element to set.</param>
+    /// <param name="value">The value to set at the specified index.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>Translates to: SET #attr[index] = :val</para>
+    /// 
+    /// <para><strong>Dynamic Index Support:</strong></para>
+    /// <para>
+    /// The index can be a constant, variable, property access, or method call,
+    /// as long as it does not reference the entity parameter. The index expression
+    /// is evaluated at translation time to produce the integer value used in the
+    /// DynamoDB expression.
+    /// </para>
+    /// 
+    /// <para><strong>Chaining Support:</strong></para>
+    /// <para>
+    /// Multiple SetAt calls can be chained to update different indices in a single operation:
+    /// <c>x.Tags.SetAt(0, "a").SetAt(1, "b")</c> generates <c>SET #tags[0] = :v0, #tags[1] = :v1</c>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Constant index
+    /// .Set(x => x.Tags.SetAt(0, "updated"))
+    /// 
+    /// // Variable index
+    /// int idx = GetIndex();
+    /// .Set(x => x.Tags.SetAt(idx, "updated"))
+    /// 
+    /// // Chained SetAt (multiple indices)
+    /// .Set(x => x.Tags.SetAt(0, "first").SetAt(1, "second"))
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> SetAt<T>(this UpdateExpressionProperty<List<T>> property, int index, T value)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly.");
+
+    /// <summary>
+    /// Removes the element at a specific index from a list.
+    /// This method is only for use in update expressions and will be translated to DynamoDB syntax.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the list.</typeparam>
+    /// <param name="property">The list property to update.</param>
+    /// <param name="index">The zero-based index of the element to remove.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>Translates to: REMOVE #attr[index]</para>
+    /// 
+    /// <para><strong>Dynamic Index Support:</strong></para>
+    /// <para>
+    /// The index can be a constant, variable, property access, or method call,
+    /// as long as it does not reference the entity parameter. The index expression
+    /// is evaluated at translation time to produce the integer value used in the
+    /// DynamoDB expression.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Constant index
+    /// .Set(x => x.Tags.RemoveAt(2))
+    /// 
+    /// // Variable index
+    /// int idx = GetIndexToRemove();
+    /// .Set(x => x.Tags.RemoveAt(idx))
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static List<T> RemoveAt<T>(this UpdateExpressionProperty<List<T>> property, int index)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly.");
+
     #endregion
 
     #region Dynamic Field Operations
