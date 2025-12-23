@@ -32,7 +32,6 @@ public partial class User
     [PartitionKey]
     [DynamoDbAttribute("pk")]
     public string UserId { get; set; } = string.Empty;
-    
     [DynamoDbAttribute("name")]
     public string Name { get; set; } = string.Empty;
 }
@@ -44,7 +43,6 @@ public partial class Order
     [PartitionKey(Prefix = "CUSTOMER")]
     [DynamoDbAttribute("pk")]
     public string CustomerId { get; set; } = string.Empty;
-    
     [SortKey(Prefix = "ORDER")]
     [DynamoDbAttribute("sk")]
     public string OrderId { get; set; } = string.Empty;
@@ -79,7 +77,7 @@ public partial class LogEntry { ... }
 
 ## Projection Definition
 
-Projections are read-only entity types that represent a subset of attributes from a source entity. They implement both `IReadOnlyEntity` and `IProjectionModel` interfaces.
+Projections are read-only entity types representing a subset of attributes. They implement `IReadOnlyEntity` and `IProjectionModel`.
 
 ```csharp
 // Define a projection for an entity
@@ -104,7 +102,7 @@ public partial class OrderSummary
 
 ## Composite Entity Definition (Multi-Item Entities)
 
-Composite entities span multiple DynamoDB items sharing the same partition key but different sort keys. Use `[RelatedEntity]` to define parent-child relationships that `ToCompositeEntityAsync()` automatically assembles.
+Composite entities span multiple DynamoDB items sharing the same partition key but different sort keys. Use `[RelatedEntity]` to define parent-child relationships.
 
 ```csharp
 // Parent entity with related child collection
@@ -162,24 +160,15 @@ public partial class InvoiceLine
 // Query with begins_with to fetch parent + all children in one call
 var invoice = await table.Invoices.Query()
     .Where(x => x.Pk == pk && x.Sk.StartsWith("INVOICE#INV-001"))
-    .ToCompositeEntityAsync<Invoice>();
-
-// invoice.Lines is automatically populated with matching InvoiceLine items
+    .ToCompositeEntityAsync<Invoice>();  // invoice.Lines auto-populated
 
 // For multiple composite entities
-var invoices = await table.Invoices.Query()
-    .Where(x => x.Pk == pk)
-    .ToCompositeEntityListAsync<Invoice>();
+var invoices = await table.Invoices.Query().Where(x => x.Pk == pk).ToCompositeEntityListAsync<Invoice>();
 ```
 
 ### Key Design Pattern
 
-Hierarchical sort keys enable single-query retrieval:
-- Invoice: `sk = "INVOICE#INV-001"`
-- Line 1: `sk = "INVOICE#INV-001#LINE#1"`
-- Line 2: `sk = "INVOICE#INV-001#LINE#2"`
-
-Query with `begins_with(sk, "INVOICE#INV-001")` returns all items, and `ToCompositeEntityAsync` assembles them into a single Invoice with populated Lines collection.
+Hierarchical sort keys enable single-query retrieval. Query with `begins_with(sk, "INVOICE#INV-001")` returns all items, `ToCompositeEntityAsync` assembles them.
 
 ## Get Operations
 
@@ -305,6 +294,30 @@ var recentOrders = await table.lsi1.Query<Order>(x => x.CustomerId == customerId
 // Index with projection type - non-generic Query() defaults to projection
 var projectedOrders = await table.StatusIndex.Query(x => x.Status == "active").ToListAsync();
 ```
+
+## Automatic Index Projections
+
+Single-entity tables automatically use the entity type as the default projection:
+
+```csharp
+// Single-entity: DynamoDbIndex<Order> StatusIndex generated automatically
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [DynamoDbAttribute("status")] public string Status { get; set; } = string.Empty;
+}
+var orders = await table.StatusIndex.Query(x => x.Status == "pending").ToListAsync();
+
+// Keys Only: auto-generates {IndexName}KeysProjection record
+[GlobalSecondaryIndex("gsi1", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+```
+
+| ProjectionType | Behavior |
+|----------------|----------|
+| `All` (default) | Single-entity: entity type; Multi-entity: `DynamoDbIndex` |
+| `KeysOnly` | Auto-generates `{IndexName}KeysProjection` record |
 
 ## Multi-Entity Index Consolidation
 

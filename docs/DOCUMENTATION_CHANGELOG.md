@@ -135,6 +135,53 @@ await table.Items.Update(itemId).Set(x => x.Tags.SetAt(0, "a").SetAt(1, "b")).Up
 
 ## [2025-12-22]
 
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added Automatic Index Projections section documenting the new feature.
+
+**Changes:**
+
+1. **Added "Automatic Index Projections" section** after Index Operations section:
+   - Documents automatic entity projection for single-entity tables
+   - Documents `ProjectionType` property on index attributes
+   - Documents Keys Only projection auto-generation
+   - Includes ProjectionType values table
+
+**Reason:** New feature added to support automatic projection types for GSI/LSI indexes.
+
+---
+
+### File: docs/advanced-topics/GlobalSecondaryIndexes.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added comprehensive documentation for ProjectionType, automatic entity projections, and Keys Only auto-generation.
+
+**Changes:**
+
+1. **Added "GSI with ProjectionType" subsection** under Multiple GSIs:
+   - Documents `ProjectionType` property on `[GlobalSecondaryIndex]`
+   - Explains ProjectionType values (All, KeysOnly, Include)
+   - Clarifies that ProjectionType is metadata only
+
+2. **Added "Automatic Entity Projections for Single-Entity Tables" subsection**:
+   - Documents automatic entity type usage for single-entity tables
+   - Includes behavior comparison table for single vs multi-entity tables
+
+3. **Added "Keys Only Projection Auto-Generation" subsection**:
+   - Documents auto-generated projection record structure
+   - Shows generated code example
+   - Includes usage pattern for batch-getting full entities
+   - Documents keys included for GSI vs LSI
+
+**Reason:** New feature added to support automatic projection types for GSI/LSI indexes.
+
+---
+
+## [2025-12-22]
+
 ### Fresh Start - External Sources Synchronized
 
 **Category:** Documentation Reset

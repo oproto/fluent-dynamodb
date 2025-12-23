@@ -1,4 +1,5 @@
 using System;
+using Oproto.FluentDynamoDb.Metadata;
 
 namespace Oproto.FluentDynamoDb.Attributes;
 
@@ -69,6 +70,30 @@ public class GlobalSecondaryIndexAttribute : Attribute
     /// Mutually exclusive with <see cref="DiscriminatorValue"/>.
     /// </summary>
     public string? DiscriminatorPattern { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DynamoDB projection type for this index.
+    /// Defaults to <see cref="Metadata.ProjectionType.All"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property is metadata only and reflects the actual DynamoDB index configuration.
+    /// It does not affect query behavior - use <c>[UseProjection]</c> or <c>WithProjection()</c>
+    /// to control what attributes are returned from queries.
+    /// </para>
+    /// <para>
+    /// When set to <see cref="Metadata.ProjectionType.KeysOnly"/>, a read-only projection record
+    /// is auto-generated containing the GSI keys and base table keys.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// [GlobalSecondaryIndex("status-index", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+    /// [DynamoDbAttribute("status")]
+    /// public string Status { get; set; }
+    /// </code>
+    /// </example>
+    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
 
     /// <summary>
     /// Initializes a new instance of the GlobalSecondaryIndexAttribute class.

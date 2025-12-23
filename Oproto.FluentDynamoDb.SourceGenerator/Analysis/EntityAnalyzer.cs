@@ -80,6 +80,9 @@ internal class EntityAnalyzer
         // Extract index information
         ExtractIndexes(entityModel);
 
+        // Validate index projection configurations
+        ValidateIndexProjectionConfiguration(entityModel);
+
         // Extract relationship information
         ExtractRelationships(typeDecl, semanticModel, entityModel);
 
@@ -711,6 +714,13 @@ internal class EntityAnalyzer
                         case "KeyFormat" when arg.Expression is LiteralExpressionSyntax keyFormatLiteral:
                             gsiModel.KeyFormat = keyFormatLiteral.Token.ValueText;
                             break;
+                        case "ProjectionType" when arg.Expression is MemberAccessExpressionSyntax projectionTypeExpr:
+                            var projectionTypeName = projectionTypeExpr.Name.Identifier.ValueText;
+                            if (Enum.TryParse<ProjectionType>(projectionTypeName, out var projectionType))
+                            {
+                                gsiModel.ProjectionType = projectionType;
+                            }
+                            break;
                     }
                 }
             }
@@ -752,6 +762,13 @@ internal class EntityAnalyzer
                     {
                         case "Name" when arg.Expression is LiteralExpressionSyntax nameLiteral:
                             lsiModel.CustomName = nameLiteral.Token.ValueText;
+                            break;
+                        case "ProjectionType" when arg.Expression is MemberAccessExpressionSyntax projectionTypeExpr:
+                            var projectionTypeName = projectionTypeExpr.Name.Identifier.ValueText;
+                            if (Enum.TryParse<ProjectionType>(projectionTypeName, out var projectionType))
+                            {
+                                lsiModel.ProjectionType = projectionType;
+                            }
                             break;
                     }
                 }
@@ -1015,7 +1032,8 @@ internal class EntityAnalyzer
                     indexModel = new IndexModel 
                     { 
                         IndexName = gsi.IndexName,
-                        IndexType = IndexType.GlobalSecondaryIndex
+                        IndexType = IndexType.GlobalSecondaryIndex,
+                        ProjectionType = gsi.ProjectionType
                     };
                     indexes[gsi.IndexName] = indexModel;
                 }
@@ -1025,6 +1043,12 @@ internal class EntityAnalyzer
                     indexModel.PartitionKeyProperty = property.PropertyName;
                     indexModel.PartitionKeyAttribute = property.AttributeName;
                     indexModel.PartitionKeyFormat = gsi.KeyFormat;
+                    
+                    // Propagate ProjectionType from partition key property (takes precedence)
+                    if (gsi.ProjectionType != ProjectionType.All)
+                    {
+                        indexModel.ProjectionType = gsi.ProjectionType;
+                    }
                 }
                 else if (gsi.IsSortKey)
                 {
@@ -1063,7 +1087,8 @@ internal class EntityAnalyzer
                         // LSIs inherit the partition key from the base table
                         PartitionKeyProperty = partitionKeyProperty?.PropertyName ?? string.Empty,
                         PartitionKeyAttribute = partitionKeyProperty?.AttributeName ?? string.Empty,
-                        PartitionKeyFormat = partitionKeyProperty?.KeyFormat?.Prefix
+                        PartitionKeyFormat = partitionKeyProperty?.KeyFormat?.Prefix,
+                        ProjectionType = lsi.ProjectionType
                     };
                     indexes[lsi.IndexName] = indexModel;
                 }
@@ -2343,6 +2368,89 @@ internal class EntityAnalyzer
     {
         return compilation.ReferencedAssemblyNames
             .Any(a => a.Name == "Oproto.FluentDynamoDb.Geospatial");
+    }
+
+    /// <summary>
+    /// Validates index configurations for projection type warnings.
+    /// </summary>
+    /// <param name="entityModel">The entity model containing indexes to validate.</param>
+    private void ValidateIndexProjectionConfiguration(EntityModel entityModel)
+    {
+        foreach (var index in entityModel.Indexes)
+        {
+            // Get the property that defines this index (for location reporting)
+            var indexProperty = GetIndexProperty(entityModel, index);
+            var location = indexProperty?.PropertyDeclaration?.Identifier.GetLocation();
+
+            // FDDB070: Include projection without properties
+            if (index.ProjectionType == ProjectionType.Include && 
+                (index.ProjectedProperties == null || index.ProjectedProperties.Length == 0))
+            {
+                ReportDiagnostic(
+                    DiagnosticDescriptors.IncludeProjectionWithoutProperties,
+                    location,
+                    index.IndexName,
+                    entityModel.ClassName);
+            }
+
+            // FDDB072: KeysOnly with UseProjection
+            if (index.ProjectionType == ProjectionType.KeysOnly)
+            {
+                // Check if UseProjection attribute is present on the index property
+                var hasUseProjection = DetectUseProjectionOnIndex(entityModel, index);
+                if (hasUseProjection)
+                {
+                    ReportDiagnostic(
+                        DiagnosticDescriptors.KeysOnlyWithUseProjection,
+                        location,
+                        index.IndexName,
+                        entityModel.ClassName);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the property that defines the partition key for an index.
+    /// </summary>
+    private static PropertyModel? GetIndexProperty(EntityModel entityModel, IndexModel index)
+    {
+        // For GSIs, find the property with the partition key for this index
+        if (index.IsGsi)
+        {
+            return entityModel.Properties.FirstOrDefault(p => 
+                p.GlobalSecondaryIndexes.Any(gsi => 
+                    gsi.IndexName == index.IndexName && gsi.IsPartitionKey));
+        }
+        
+        // For LSIs, find the property with the sort key for this index
+        return entityModel.Properties.FirstOrDefault(p => 
+            p.LocalSecondaryIndexes.Any(lsi => lsi.IndexName == index.IndexName));
+    }
+
+    /// <summary>
+    /// Detects if [UseProjection] attribute is present on the index property.
+    /// </summary>
+    private static bool DetectUseProjectionOnIndex(EntityModel entityModel, IndexModel index)
+    {
+        var indexProperty = GetIndexProperty(entityModel, index);
+        if (indexProperty?.PropertyDeclaration == null)
+            return false;
+
+        // Look for UseProjection attribute in the property's attribute lists
+        foreach (var attributeList in indexProperty.PropertyDeclaration.AttributeLists)
+        {
+            foreach (var attribute in attributeList.Attributes)
+            {
+                var attributeName = attribute.Name.ToString();
+                if (attributeName.Contains("UseProjection"))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

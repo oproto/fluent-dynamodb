@@ -170,6 +170,23 @@ internal static class TableGenerator
         // Generate nested entity accessor classes
         GenerateEntityAccessorClasses(sb, entities);
         
+        // Generate Keys Only projection records for indexes that require them (multi-entity tables)
+        if (IndexAggregator.HasNoConflicts(aggregatedIndexes))
+        {
+            foreach (var aggregatedIndex in aggregatedIndexes)
+            {
+                // Find the first entity with this index to get the index model
+                var entityWithIndex = aggregatedIndex.ReferencingEntities.FirstOrDefault();
+                var indexModel = entityWithIndex?.Indexes.FirstOrDefault(i => 
+                    string.Equals(i.IndexName, aggregatedIndex.DynamoDbIndexName, StringComparison.OrdinalIgnoreCase));
+                
+                if (indexModel != null && indexModel.RequiresKeysOnlyProjection && entityWithIndex != null)
+                {
+                    KeysOnlyProjectionGenerator.GenerateKeysOnlyProjectionRecord(sb, entityWithIndex, indexModel, tableClassName);
+                }
+            }
+        }
+        
         // Generate typed index classes for all consolidated indexes with projections (only if no conflicts)
         if (IndexAggregator.HasNoConflicts(aggregatedIndexes))
         {
@@ -303,17 +320,27 @@ internal static class TableGenerator
         // Scan methods if table is scannable
         GenerateScanMethods(sb, entity);
         
-        // Index properties
+        // Index properties (single-entity table)
         GenerateIndexProperties(sb, entity, className);
         
-        // Generate typed index classes as nested classes (only for indexes with projections)
+        // Generate Keys Only projection records for indexes that require them
         foreach (var index in entity.Indexes)
         {
-            var projectionType = GetProjectionTypeForIndex(entity, index);
+            if (index.RequiresKeysOnlyProjection)
+            {
+                KeysOnlyProjectionGenerator.GenerateKeysOnlyProjectionRecord(sb, entity, index, className);
+            }
+        }
+        
+        // Generate typed index classes as nested classes (only for indexes with projections)
+        // For single-entity tables, this includes indexes that use the entity as default projection
+        foreach (var index in entity.Indexes)
+        {
+            var projectionType = DetermineIndexProjectionType(entity, index, isSingleEntityTable: true);
             if (projectionType != null)
             {
                 sb.AppendLine();
-                GenerateTypedIndexClass(sb, entity, index, className);
+                GenerateTypedIndexClass(sb, entity, index, className, isSingleEntityTable: true);
             }
         }
         
@@ -2166,6 +2193,21 @@ internal static class TableGenerator
 
     private static void GenerateIndexProperties(StringBuilder sb, EntityModel entity, string tableClassName)
     {
+        // This method is called for single-entity tables only.
+        // For single-entity tables, we use the entity type as the default projection
+        // when no [UseProjection] attribute is present and ProjectionType != KeysOnly.
+        GenerateIndexPropertiesInternal(sb, entity, tableClassName, isSingleEntityTable: true);
+    }
+
+    /// <summary>
+    /// Internal method for generating index properties with single-entity table awareness.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append to.</param>
+    /// <param name="entity">The entity model.</param>
+    /// <param name="tableClassName">The table class name.</param>
+    /// <param name="isSingleEntityTable">Whether this is a single-entity table.</param>
+    private static void GenerateIndexPropertiesInternal(StringBuilder sb, EntityModel entity, string tableClassName, bool isSingleEntityTable)
+    {
         if (entity.Indexes.Length == 0)
         {
             return;
@@ -2193,8 +2235,8 @@ internal static class TableGenerator
             }
             sb.AppendLine($"    /// </summary>");
             
-            // Check if projection type exists for this index
-            var projectionType = GetProjectionTypeForIndex(entity, index);
+            // Determine the projection type for this index
+            var projectionType = DetermineIndexProjectionType(entity, index, isSingleEntityTable);
             
             if (projectionType != null)
             {
@@ -2208,6 +2250,42 @@ internal static class TableGenerator
             }
             sb.AppendLine();
         }
+    }
+
+    /// <summary>
+    /// Determines the projection type for an index based on the decision flow:
+    /// 1. Explicit [UseProjection] - highest priority
+    /// 2. KeysOnly - generates auto projection (handled separately)
+    /// 3. Single-entity table - use entity type
+    /// 4. Multi-entity table without projection - simple index (null)
+    /// </summary>
+    /// <param name="entity">The entity model.</param>
+    /// <param name="index">The index model.</param>
+    /// <param name="isSingleEntityTable">Whether this is a single-entity table.</param>
+    /// <returns>The projection type name if found, otherwise null.</returns>
+    private static string? DetermineIndexProjectionType(EntityModel entity, IndexModel index, bool isSingleEntityTable)
+    {
+        // 1. Check for explicit [UseProjection] - highest priority
+        var explicitProjection = GetProjectionTypeForIndex(entity, index);
+        if (explicitProjection != null && explicitProjection != "HasProjection")
+        {
+            return explicitProjection;
+        }
+        
+        // 2. Check for KeysOnly - generates auto projection (will be handled by KeysOnlyProjectionGenerator)
+        if (index.RequiresKeysOnlyProjection)
+        {
+            return $"{index.ResolvedPropertyName}KeysProjection";
+        }
+        
+        // 3. Single-entity table - use entity type as default projection
+        if (isSingleEntityTable)
+        {
+            return entity.ClassName;
+        }
+        
+        // 4. Multi-entity table without projection - simple index
+        return null;
     }
 
     /// <summary>
@@ -2529,14 +2607,21 @@ internal static class TableGenerator
         sb.AppendLine($"        }}");
     }
 
-    private static void GenerateTypedIndexClass(StringBuilder sb, EntityModel entity, IndexModel index, string tableClassName)
+    private static void GenerateTypedIndexClass(StringBuilder sb, EntityModel entity, IndexModel index, string tableClassName, bool isSingleEntityTable = false)
     {
         // Use ResolvedPropertyName which is either the custom Name or derived from IndexName
         var indexPropertyName = !string.IsNullOrEmpty(index.ResolvedPropertyName) 
             ? index.ResolvedPropertyName 
             : index.IndexName.Replace("-", "").Replace("_", "");
         var indexClassName = $"{indexPropertyName}Index";
-        var projectionExpression = BuildProjectionExpression(entity, index);
+        
+        // For Keys Only projections, use the generated projection's ProjectionExpression
+        // Otherwise, build the projection expression from entity properties
+        var projectionExpression = index.RequiresKeysOnlyProjection
+            ? string.Empty  // Will use static property reference instead
+            : BuildProjectionExpression(entity, index);
+        var keysOnlyProjectionName = $"{indexPropertyName}KeysProjection";
+        
         var indexType = index.IsGsi ? "Global Secondary Index" : "Local Secondary Index";
         
         sb.AppendLine($"    /// <summary>");
@@ -2601,7 +2686,12 @@ internal static class TableGenerator
         sb.AppendLine($"        /// Initializes a new instance of the {indexClassName}.");
         sb.AppendLine($"        /// </summary>");
         sb.AppendLine($"        /// <param name=\"table\">The parent table.</param>");
-        if (!string.IsNullOrEmpty(projectionExpression))
+        if (index.RequiresKeysOnlyProjection)
+        {
+            // For Keys Only projections, use the static property reference from the generated record
+            sb.AppendLine($"        public {indexClassName}({tableClassName} table) : base(table, \"{index.IndexName}\", {keysOnlyProjectionName}.ProjectionExpression)");
+        }
+        else if (!string.IsNullOrEmpty(projectionExpression))
         {
             sb.AppendLine($"        public {indexClassName}({tableClassName} table) : base(table, \"{index.IndexName}\", \"{projectionExpression}\")");
         }
@@ -2710,9 +2800,10 @@ internal static class TableGenerator
         sb.AppendLine($"            return Query<T>().Where(keyCondition).WithFilter(filterCondition);");
         sb.AppendLine($"        }}");
         
-        // Generate non-generic Query methods when a real projection type exists (not just "HasProjection" marker)
-        var projectionType = GetProjectionTypeForIndex(entity, index);
-        if (projectionType != null && projectionType != "HasProjection")
+        // Generate non-generic Query methods when a projection type exists
+        // Use DetermineIndexProjectionType to get the correct projection type based on single-entity table status
+        var projectionType = DetermineIndexProjectionType(entity, index, isSingleEntityTable);
+        if (projectionType != null)
         {
             GenerateNonGenericQueryMethods(sb, entity, index, indexPropertyName, projectionType);
         }

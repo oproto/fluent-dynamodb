@@ -3225,7 +3225,14 @@ internal static class MapperGenerator
             sb.AppendLine($"                        SortKeyProperty = \"{index.SortKeyProperty}\",");
         }
 
-        if (index.ProjectedProperties.Length > 0)
+        // For Keys Only projections, populate ProjectedProperties with all key attribute names
+        if (index.RequiresKeysOnlyProjection)
+        {
+            var keyAttributeNames = KeysOnlyProjectionGenerator.GetKeyAttributeNames(entity, index);
+            var projectedProps = string.Join(", ", keyAttributeNames.Select(p => $"\"{p}\""));
+            sb.AppendLine($"                        ProjectedProperties = new[] {{ {projectedProps} }},");
+        }
+        else if (index.ProjectedProperties.Length > 0)
         {
             var projectedProps = string.Join(", ", index.ProjectedProperties.Select(p => $"\"{p}\""));
             sb.AppendLine($"                        ProjectedProperties = new[] {{ {projectedProps} }},");
@@ -3254,11 +3261,18 @@ internal static class MapperGenerator
             sb.AppendLine($"                        SortKeyAttributeType = \"{GetDynamoDbAttributeType(sortKeyProperty.PropertyType)}\",");
         }
 
-        // Add projection type - default to All (use full namespace to avoid ambiguity with Amazon.DynamoDBv2.ProjectionType)
-        sb.AppendLine("                        ProjectionType = Oproto.FluentDynamoDb.Metadata.ProjectionType.All,");
+        // Add projection type from the index model (use full namespace to avoid ambiguity with Amazon.DynamoDBv2.ProjectionType)
+        var projectionTypeValue = index.ProjectionType switch
+        {
+            Models.ProjectionType.KeysOnly => "Oproto.FluentDynamoDb.Metadata.ProjectionType.KeysOnly",
+            Models.ProjectionType.Include => "Oproto.FluentDynamoDb.Metadata.ProjectionType.Include",
+            _ => "Oproto.FluentDynamoDb.Metadata.ProjectionType.All"
+        };
+        sb.AppendLine($"                        ProjectionType = {projectionTypeValue},");
         
-        // HasProjectionModel - for now, set to false (can be enhanced later with projection model detection)
-        sb.AppendLine("                        HasProjectionModel = false");
+        // HasProjectionModel - true for Keys Only projections (auto-generated), false otherwise
+        var hasProjectionModel = index.RequiresKeysOnlyProjection ? "true" : "false";
+        sb.AppendLine($"                        HasProjectionModel = {hasProjectionModel}");
 
         sb.AppendLine("                    },");
     }

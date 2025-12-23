@@ -85,6 +85,19 @@ internal class IndexModel
     public DiscriminatorConfig? GsiDiscriminator { get; set; }
 
     /// <summary>
+    /// Gets or sets the DynamoDB projection type for this index.
+    /// Defaults to <see cref="Metadata.ProjectionType.All"/>.
+    /// When set to <see cref="Metadata.ProjectionType.KeysOnly"/>, 
+    /// a read-only projection record is auto-generated.
+    /// </summary>
+    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
+
+    /// <summary>
+    /// Gets a value indicating whether this index requires a Keys Only projection record to be generated.
+    /// </summary>
+    public bool RequiresKeysOnlyProjection => ProjectionType == ProjectionType.KeysOnly;
+
+    /// <summary>
     /// Gets a value indicating whether this is a Global Secondary Index.
     /// </summary>
     public bool IsGsi => IndexType == IndexType.GlobalSecondaryIndex;
