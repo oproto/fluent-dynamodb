@@ -1040,4 +1040,30 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "When multiple entities define the same DynamoDB index, they must use the same index type (either all GSI or all LSI). An index cannot be both a Global Secondary Index and a Local Secondary Index.");
+
+    // Index Projection Diagnostics (FDDB070-FDDB072)
+
+    /// <summary>
+    /// Warning when ProjectionType = Include is specified but no ProjectedProperties are defined.
+    /// </summary>
+    public static readonly DiagnosticDescriptor IncludeProjectionWithoutProperties = new(
+        "FDDB070",
+        "Include projection without properties",
+        "Index '{0}' on entity '{1}' has ProjectionType = Include but no ProjectedProperties are defined. The index will project only the key attributes.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When using ProjectionType = Include, you should specify which non-key attributes to project. Without ProjectedProperties, only the key attributes will be included in the index projection.");
+
+    /// <summary>
+    /// Warning when ProjectionType = KeysOnly is combined with [UseProjection] attribute.
+    /// </summary>
+    public static readonly DiagnosticDescriptor KeysOnlyWithUseProjection = new(
+        "FDDB072",
+        "KeysOnly with UseProjection",
+        "Index '{0}' on entity '{1}' has both ProjectionType = KeysOnly and [UseProjection] attribute. The [UseProjection] attribute takes precedence and the auto-generated Keys Only projection will not be used.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When both ProjectionType = KeysOnly and [UseProjection] are specified, the [UseProjection] attribute takes precedence. The auto-generated Keys Only projection record will not be generated. Consider removing one of these configurations to avoid confusion.");
 }

@@ -45,4 +45,10 @@ internal class GlobalSecondaryIndexModel
     /// Gets or sets the GSI-specific discriminator configuration.
     /// </summary>
     public DiscriminatorConfig? Discriminator { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DynamoDB projection type for this index.
+    /// Defaults to <see cref="ProjectionType.All"/>.
+    /// </summary>
+    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
 }

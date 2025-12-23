@@ -17,5 +17,7 @@ FDDB055 | DynamoDb | Error | Conflicting index type (GSI vs LSI) across entities
 FDDB060 | DynamoDb | Error | Projection source entity not found
 FDDB061 | DynamoDb | Error | Projection metadata inheritance failure
 FDDB062 | DynamoDb | Error | Projection interface violation
+FDDB070 | DynamoDb | Warning | Include projection without properties
+FDDB072 | DynamoDb | Warning | KeysOnly with UseProjection
 DYNDB113 | DynamoDb | Warning | Deprecated [Queryable] attribute usage
 DYNDB115 | DynamoDb | Error | [BlobStorage] requires BlobData<T> property type

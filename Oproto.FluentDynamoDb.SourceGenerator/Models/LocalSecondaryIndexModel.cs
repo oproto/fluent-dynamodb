@@ -16,4 +16,10 @@ internal class LocalSecondaryIndexModel
     /// If not specified, this will be null.
     /// </summary>
     public string? CustomName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DynamoDB projection type for this index.
+    /// Defaults to <see cref="ProjectionType.All"/>.
+    /// </summary>
+    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
 }

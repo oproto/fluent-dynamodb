@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Automatic Index Projections** - Enhanced GSI/LSI generation with automatic projection type support
+  - **Automatic Entity Projections for Single-Entity Tables**: Indexes in single-entity tables automatically use the entity type as the default projection, enabling non-generic `Query()` methods
+    - Single-entity tables generate `DynamoDbIndex<TEntity>` instead of `DynamoDbIndex`
+    - Non-generic `Query()` methods return the entity type directly
+    - Multi-entity tables preserve existing behavior with `DynamoDbIndex`
+  - **ProjectionType Property on Index Attributes**: New `ProjectionType` property on `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` attributes
+    - `ProjectionType.All` (default): All attributes projected
+    - `ProjectionType.KeysOnly`: Auto-generates keys-only projection record
+    - `ProjectionType.Include`: Use with `[UseProjection]` for custom projection
+    - Metadata used by schema validation and table creation
+  - **Auto-Generated Keys Only Projection Records**: When `ProjectionType = KeysOnly` is specified, a read-only projection record is automatically generated
+    - Record named `{IndexPropertyName}KeysProjection`
+    - Contains GSI/LSI keys AND base table keys
+    - Implements `IReadOnlyEntity<TSelf>` interface
+    - Includes `FromDynamoDb` method and `ProjectionExpression` property
+    - `GetPartitionKey()`/`GetSortKey()` return base table keys for entity lookup
+  - **New Diagnostic Warnings**:
+    - `FDDB070`: Warning when `ProjectionType = Include` but no `ProjectedProperties` defined
+    - `FDDB072`: Warning when `ProjectionType = KeysOnly` combined with `[UseProjection]` (UseProjection takes precedence)
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.9, 4.1-4.5, 5.1-5.4, 6.1-6.3_
+  
+  **Usage:**
+  ```csharp
+  // Single-entity table: automatic entity projection
+  [DynamoDbTable("orders")]
+  public partial class Order
+  {
+      [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+      [SortKey] [DynamoDbAttribute("sk")] public string Sk { get; set; } = string.Empty;
+      
+      [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+      [DynamoDbAttribute("status")] public string Status { get; set; } = string.Empty;
+  }
+  
+  // Generated: DynamoDbIndex<Order> StatusIndex
+  var orders = await table.StatusIndex.Query(x => x.Status == "pending").ToListAsync();
+  
+  // Keys Only projection: auto-generates projection record
+  [GlobalSecondaryIndex("CategoryIndex", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+  [DynamoDbAttribute("category")] public string Category { get; set; } = string.Empty;
+  
+  // Query returns CategoryIndexKeysProjection, use to batch-get full entities
+  var keys = await table.CategoryIndex.Query(x => x.Category == "electronics").ToListAsync();
+  var orders = await DynamoDbBatch.Get.Add(keys.Select(k => table.Orders.Get(k.Pk, k.Sk))).ExecuteAsync();
+  ```
+
 - **List Index API Consistency and Dynamic Index Support** - Unified API for list index operations with dynamic index evaluation
   - **New `SetAt` Extension Method**: Update list elements at specific indices using consistent extension method pattern
     - `x.Tags.SetAt(0, "updated")` → `SET #tags[0] = :v0`
