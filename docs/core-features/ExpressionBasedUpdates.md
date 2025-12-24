@@ -681,11 +681,11 @@ await table.Update()
 
 ## Conditional Updates
 
-Conditional expressions (ternary operators) allow you to selectively update properties based on runtime conditions. This is useful when you want to skip certain updates based on flags or input validation.
+Conditional expressions (ternary operators) allow you to selectively update properties based on runtime conditions. Use `NoUpdate()` to skip updating a property when a condition is false.
 
-### Skip Update with Null False Branch
+### Skip Update with NoUpdate()
 
-When the false branch is `null`, the property update is skipped entirely (no SET or REMOVE operation):
+Use `x.Property.NoUpdate()` to skip updating a property based on a runtime condition:
 
 ```csharp
 var updateName = true;
@@ -698,10 +698,10 @@ await table.Update()
     .Set(x => new UserUpdateModel 
     {
         // Updated because updateName is true
-        Name = updateName ? newName : null,
+        Name = updateName ? newName : x.Name.NoUpdate(),
         
-        // Skipped because updateEmail is false (null branch)
-        Email = updateEmail ? newEmail : null
+        // Skipped because updateEmail is false
+        Email = updateEmail ? newEmail : x.Email.NoUpdate()
     })
     .UpdateAsync();
 
@@ -711,8 +711,48 @@ await table.Update()
 
 **Key Behavior:**
 - When condition is `true`: The value is set normally
-- When condition is `false` with `null` as false branch: The property is **skipped entirely**
-- No REMOVE operation is generated for skipped properties
+- When condition is `false` with `NoUpdate()`: The property is **skipped entirely**
+- No SET, ADD, or REMOVE operation is generated for skipped properties
+
+### Null Assignment Sets DynamoDB NULL
+
+Assigning `null` to a property sets it to DynamoDB's NULL type (not skip):
+
+```csharp
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        // Sets MiddleName to DynamoDB NULL type
+        MiddleName = null
+    })
+    .UpdateAsync();
+
+// Generated Expression:
+// SET #middle_name = :p0
+// Where :p0 = { NULL: true }
+```
+
+### Null vs NoUpdate() vs Remove()
+
+Understanding the difference between these three approaches is important:
+
+| Method | DynamoDB Result | Use Case |
+|--------|-----------------|----------|
+| `= null` | SET attr = NULL | Set attribute to DynamoDB NULL type |
+| `.NoUpdate()` | No operation | Skip updating this property conditionally |
+| `.Remove()` | REMOVE attr | Delete the attribute entirely |
+
+```csharp
+// null → SET NULL (attribute exists with NULL value)
+.Set(x => new UserUpdateModel { OptionalField = null })
+
+// NoUpdate() → Skip (attribute unchanged)
+.Set(x => new UserUpdateModel { Field = condition ? value : x.Field.NoUpdate() })
+
+// Remove() → REMOVE (attribute deleted)
+.Set(x => new UserUpdateModel { TempData = x.TempData.Remove() })
+```
 
 ### Conditional Value Selection
 
@@ -749,8 +789,8 @@ public async Task UpdateUser(string userId, string? newName, string? newEmail)
         .Set(x => new UserUpdateModel 
         {
             // Only update if new value provided
-            Name = newName != null ? newName : null,
-            Email = newEmail != null ? newEmail : null,
+            Name = newName != null ? newName : x.Name.NoUpdate(),
+            Email = newEmail != null ? newEmail : x.Email.NoUpdate(),
             UpdatedAt = DateTime.UtcNow  // Always update timestamp
         })
         .UpdateAsync();
@@ -772,7 +812,7 @@ await table.Update()
     .Set(x => new UserUpdateModel 
     {
         // Only update score if feature is enabled
-        Score = enableNewFeature ? x.Score.Add(10) : null,
+        Score = enableNewFeature ? x.Score.Add(10) : x.Score.NoUpdate(),
         
         // Always update login count
         LoginCount = x.LoginCount.Add(1)
@@ -792,9 +832,12 @@ await table.Update()
    Name = isAdmin ? "Admin" : "User"
    ```
 
-2. **Null false branch means skip (not remove)**
+2. **Use NoUpdate() to skip, null sets NULL**
    ```csharp
-   // Property is SKIPPED (not removed from DynamoDB)
+   // Property is SKIPPED (not updated)
+   Name = flag ? newName : x.Name.NoUpdate()
+   
+   // Property is SET to NULL
    Name = flag ? newName : null
    
    // To REMOVE a property, use Remove() explicitly
@@ -805,6 +848,15 @@ await table.Update()
    ```csharp
    // Valid: Different operations based on condition
    Score = isPremium ? x.Score.Add(100) : x.Score.Add(10)
+   ```
+
+4. **NoUpdate() throws if called directly**
+   ```csharp
+   // ✗ Invalid: Direct call throws InvalidOperationException
+   var result = x.Name.NoUpdate();
+   
+   // ✓ Valid: Only use within update expressions
+   Name = condition ? value : x.Name.NoUpdate()
    ```
 
 ---

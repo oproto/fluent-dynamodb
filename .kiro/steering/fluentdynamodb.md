@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-22
+# Updated 2025-12-23
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -228,6 +228,39 @@ await table.Users.Update(userId)
     .Set(x => new UserUpdateModel { Status = "active" })
     .Where(x => x.Status == "pending")
     .UpdateAsync();
+
+// Conditional update - skip property with NoUpdate()
+await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel 
+    { 
+        Name = shouldUpdate ? newName : x.Name.NoUpdate(),  // Skip if !shouldUpdate
+        Status = "active"  // Always update
+    })
+    .UpdateAsync();
+
+// Null assignment - sets DynamoDB NULL (not skip)
+await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { MiddleName = null })  // Sets attribute to NULL
+    .UpdateAsync();
+```
+
+### Null vs NoUpdate() vs Remove()
+
+| Method | DynamoDB Result | Use Case |
+|--------|-----------------|----------|
+| `= null` | SET attr = NULL | Set attribute to DynamoDB NULL type |
+| `.NoUpdate()` | No operation | Skip updating this property conditionally |
+| `.Remove()` | REMOVE attr | Delete the attribute entirely |
+
+```csharp
+// null → SET NULL (attribute exists with NULL value)
+.Set(x => new UserUpdateModel { OptionalField = null })
+
+// NoUpdate() → Skip (attribute unchanged)
+.Set(x => new UserUpdateModel { Field = condition ? value : x.Field.NoUpdate() })
+
+// Remove() → REMOVE (attribute deleted)
+.Set(x => new UserUpdateModel { TempData = x.TempData.Remove() })
 ```
 
 ## Delete Operations
@@ -578,6 +611,19 @@ var items = await table.Items.Query(x => x.Key == key)
 ```
 
 **Rules:** Local condition must not reference entity parameter. OR between two entity conditions throws `UnsupportedExpressionException`.
+
+**Empty Expression Handling:**
+When all conditional clauses evaluate to skip (e.g., all local conditions are `true` in OR patterns), the filter is gracefully omitted and the operation executes without filtering. This eliminates the need to wrap `.WithFilter()` in conditional checks.
+
+```csharp
+// Safe to use even when all conditions might skip
+var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+    .WithFilter(x => 
+        (string.IsNullOrWhiteSpace(status) || x.Status == status) &&
+        (string.IsNullOrWhiteSpace(category) || x.Category == category))
+    .ToListAsync();
+// If both status and category are null/empty, query executes without filter
+```
 
 ## Common Patterns
 

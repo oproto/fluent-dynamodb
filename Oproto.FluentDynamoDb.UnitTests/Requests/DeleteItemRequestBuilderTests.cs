@@ -188,6 +188,135 @@ public class DeleteItemRequestBuilderTests
 
     #endregion Condition Expression Tests
 
+    #region Empty Condition Expression Handling
+
+    [Fact]
+    public void SetConditionExpression_EmptyString_DoesNotSetConditionExpression()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetConditionExpression(string.Empty);
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().BeNull();
+    }
+
+    [Fact]
+    public void SetConditionExpression_WhitespaceOnly_DoesNotSetConditionExpression()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetConditionExpression("   ");
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().BeNull();
+    }
+
+    [Fact]
+    public void SetConditionExpression_Null_DoesNotSetConditionExpression()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetConditionExpression(null!);
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().BeNull();
+    }
+
+    [Fact]
+    public void SetConditionExpression_ValidExpression_SetsConditionExpression()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetConditionExpression("attribute_exists(pk)");
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().Be("attribute_exists(pk)");
+    }
+
+    [Fact]
+    public void SetConditionExpression_EmptyAfterValid_PreservesExistingCondition()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act - Set a valid condition first, then try to set an empty one
+        builder.SetConditionExpression("attribute_exists(pk)");
+        builder.SetConditionExpression(string.Empty);
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert - The original condition should be preserved
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().Be("attribute_exists(pk)");
+    }
+
+    [Fact]
+    public void SetConditionExpression_ValidAfterEmpty_SetsConditionExpression()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act - Try to set an empty condition first, then set a valid one
+        builder.SetConditionExpression(string.Empty);
+        builder.SetConditionExpression("attribute_exists(pk)");
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert - The valid condition should be set
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().Be("attribute_exists(pk)");
+    }
+
+    [Fact]
+    public void SetConditionExpression_MultipleValidExpressions_CombinesWithAnd()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetConditionExpression("attribute_exists(pk)");
+        builder.SetConditionExpression("#version = :version");
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().Be("(attribute_exists(pk)) AND (#version = :version)");
+    }
+
+    [Fact]
+    public void SetConditionExpression_ValidThenEmptyThenValid_CombinesOnlyValidExpressions()
+    {
+        // Arrange
+        var builder = new DeleteItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act - Set valid, then empty (should be skipped), then valid again
+        builder.SetConditionExpression("attribute_exists(pk)");
+        builder.SetConditionExpression("   "); // whitespace - should be skipped
+        builder.SetConditionExpression("#version = :version");
+        var req = builder.ToDeleteItemRequest();
+        
+        // Assert - Only the two valid expressions should be combined
+        req.Should().NotBeNull();
+        req.ConditionExpression.Should().Be("(attribute_exists(pk)) AND (#version = :version)");
+    }
+
+    #endregion Empty Condition Expression Handling
+
     #region Attribute Names Tests
 
     [Fact]

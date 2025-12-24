@@ -84,15 +84,16 @@ public class UpdateExpressionTranslatorConditionalTests
     }
 
 
-    #region Skip on Null False Branch Tests
+    #region Null Handling Tests (Consistent Null Semantics)
 
     /// <summary>
     /// Tests that when a conditional expression has null as the false branch and the condition is false,
-    /// the property update is skipped entirely (no SET or REMOVE operation).
-    /// Validates: Requirements 5.1, 5.3
+    /// the property is SET to DynamoDB NULL (consistent null handling).
+    /// This is a BREAKING CHANGE from previous behavior where null in false branch caused skip.
+    /// Validates: Requirements 1.3, 3.1
     /// </summary>
     [Fact]
-    public void TranslateUpdateExpression_ConditionalWithNullFalseBranch_WhenConditionFalse_ShouldSkipProperty()
+    public void TranslateUpdateExpression_ConditionalWithNullFalseBranch_WhenConditionFalse_ShouldSetNull()
     {
         // Arrange
         var translator = CreateTranslator();
@@ -106,16 +107,16 @@ public class UpdateExpressionTranslatorConditionalTests
         // Act
         var result = translator.TranslateUpdateExpression(expression, context);
 
-        // Assert
-        result.Should().BeEmpty("property should be skipped when condition is false and false branch is null");
-        context.AttributeValues.AttributeValues.Should().BeEmpty("no values should be captured for skipped property");
-        context.AttributeNames.AttributeNames.Should().BeEmpty("no attribute names should be captured for skipped property");
+        // Assert - Now generates SET NULL instead of skipping
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("name");
+        context.AttributeValues.AttributeValues[":p0"].NULL.Should().BeTrue("null in false branch should generate SET NULL");
     }
 
     /// <summary>
     /// Tests that when a conditional expression has null as the false branch and the condition is true,
     /// the property is updated with the true branch value.
-    /// Validates: Requirements 5.1, 5.2
+    /// Validates: Requirements 1.1, 1.2
     /// </summary>
     [Fact]
     public void TranslateUpdateExpression_ConditionalWithNullFalseBranch_WhenConditionTrue_ShouldSetValue()
@@ -139,11 +140,11 @@ public class UpdateExpressionTranslatorConditionalTests
     }
 
     /// <summary>
-    /// Tests that skipped properties don't generate REMOVE operations.
-    /// Validates: Requirements 5.3
+    /// Tests that null in conditional generates SET NULL, not REMOVE.
+    /// Validates: Requirements 1.3, 1.4
     /// </summary>
     [Fact]
-    public void TranslateUpdateExpression_ConditionalSkip_ShouldNotGenerateRemove()
+    public void TranslateUpdateExpression_ConditionalWithNull_ShouldGenerateSetNullNotRemove()
     {
         // Arrange
         var translator = CreateTranslator();
@@ -157,8 +158,184 @@ public class UpdateExpressionTranslatorConditionalTests
         var result = translator.TranslateUpdateExpression(expression, context);
 
         // Assert
-        result.Should().NotContain("REMOVE", "skipped properties should not generate REMOVE operations");
-        result.Should().BeEmpty();
+        result.Should().NotContain("REMOVE", "null should generate SET NULL, not REMOVE");
+        result.Should().Contain("SET", "null should generate SET operation");
+        context.AttributeValues.AttributeValues[":p0"].NULL.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Tests that direct null assignment generates SET NULL.
+    /// Validates: Requirements 1.1
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_DirectNullAssignment_ShouldSetNull()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = null };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("name");
+        context.AttributeValues.AttributeValues[":p0"].NULL.Should().BeTrue("direct null should generate SET NULL");
+    }
+
+    /// <summary>
+    /// Tests that null in conditional true branch generates SET NULL.
+    /// Validates: Requirements 1.2
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_ConditionalWithNullTrueBranch_WhenConditionTrue_ShouldSetNull()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        var flag = true;
+        var value = "test";
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = flag ? null : value };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("name");
+        context.AttributeValues.AttributeValues[":p0"].NULL.Should().BeTrue("null in true branch should generate SET NULL");
+    }
+
+    #endregion
+
+    #region NoUpdate() Tests
+
+    /// <summary>
+    /// Tests that NoUpdate() in false branch skips the property when condition is false.
+    /// Validates: Requirements 2.2, 2.3
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_NoUpdateInFalseBranch_WhenConditionFalse_ShouldSkipProperty()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        var flag = false;
+        var value = "test";
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = flag ? value : x.Name.NoUpdate() };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().BeEmpty("property should be skipped when NoUpdate() is selected");
+        context.AttributeValues.AttributeValues.Should().BeEmpty("no values should be captured for skipped property");
+        context.AttributeNames.AttributeNames.Should().BeEmpty("no attribute names should be captured for skipped property");
+    }
+
+    /// <summary>
+    /// Tests that NoUpdate() in false branch sets value when condition is true.
+    /// Validates: Requirements 2.3
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_NoUpdateInFalseBranch_WhenConditionTrue_ShouldSetValue()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        var flag = true;
+        var value = "test";
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = flag ? value : x.Name.NoUpdate() };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("name");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("test");
+    }
+
+    /// <summary>
+    /// Tests that NoUpdate() in true branch skips the property when condition is true.
+    /// Validates: Requirements 2.2, 2.4
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_NoUpdateInTrueBranch_WhenConditionTrue_ShouldSkipProperty()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        var flag = true;
+        var value = "test";
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = flag ? x.Name.NoUpdate() : value };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().BeEmpty("property should be skipped when NoUpdate() is selected");
+        context.AttributeValues.AttributeValues.Should().BeEmpty("no values should be captured for skipped property");
+        context.AttributeNames.AttributeNames.Should().BeEmpty("no attribute names should be captured for skipped property");
+    }
+
+    /// <summary>
+    /// Tests that NoUpdate() in true branch sets value when condition is false.
+    /// Validates: Requirements 2.4
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_NoUpdateInTrueBranch_WhenConditionFalse_ShouldSetValue()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        var flag = false;
+        var value = "test";
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = flag ? x.Name.NoUpdate() : value };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = :p0");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("name");
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("test");
+    }
+
+    /// <summary>
+    /// Tests that direct NoUpdate() assignment skips the property.
+    /// Validates: Requirements 2.2
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_DirectNoUpdate_ShouldSkipProperty()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel { Name = x.Name.NoUpdate() };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert
+        result.Should().BeEmpty("property should be skipped when NoUpdate() is used");
+        context.AttributeValues.AttributeValues.Should().BeEmpty();
+        context.AttributeNames.AttributeNames.Should().BeEmpty();
     }
 
     #endregion
@@ -246,10 +423,11 @@ public class UpdateExpressionTranslatorConditionalTests
 
     /// <summary>
     /// Tests that multiple properties with conditionals are handled correctly.
-    /// Validates: Requirements 5.1, 5.2, 5.3
+    /// With consistent null handling, both properties generate SET operations.
+    /// Validates: Requirements 1.3, 1.4, 2.2, 2.3
     /// </summary>
     [Fact]
-    public void TranslateUpdateExpression_MultiplePropertiesWithConditionals_ShouldHandleEachCorrectly()
+    public void TranslateUpdateExpression_MultiplePropertiesWithConditionals_BothSetNull_ShouldSetBoth()
     {
         // Arrange
         var translator = CreateTranslator();
@@ -269,7 +447,40 @@ public class UpdateExpressionTranslatorConditionalTests
         // Act
         var result = translator.TranslateUpdateExpression(expression, context);
 
-        // Assert
+        // Assert - Both properties should be updated (Name with value, Status with NULL)
+        result.Should().Be("SET #attr0 = :p0, #attr1 = :p1");
+        context.AttributeNames.AttributeNames.Should().HaveCount(2);
+        context.AttributeValues.AttributeValues.Should().HaveCount(2);
+        context.AttributeValues.AttributeValues[":p0"].S.Should().Be("John");
+        context.AttributeValues.AttributeValues[":p1"].NULL.Should().BeTrue("Status should be SET NULL when condition is false");
+    }
+
+    /// <summary>
+    /// Tests that multiple properties with NoUpdate() skip correctly.
+    /// Validates: Requirements 2.2, 2.3
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_MultiplePropertiesWithNoUpdate_ShouldSkipCorrectly()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        var updateName = true;
+        var updateStatus = false;
+        var name = "John";
+        var status = "Active";
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel 
+            { 
+                Name = updateName ? name : x.Name.NoUpdate(),
+                Status = updateStatus ? status : x.Status.NoUpdate()
+            };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert - Only Name should be updated (Status is skipped via NoUpdate)
         result.Should().Be("SET #attr0 = :p0", "only Name should be updated");
         context.AttributeNames.AttributeNames.Should().HaveCount(1);
         context.AttributeValues.AttributeValues.Should().HaveCount(1);
@@ -277,11 +488,11 @@ public class UpdateExpressionTranslatorConditionalTests
     }
 
     /// <summary>
-    /// Tests mixing conditional and non-conditional properties.
-    /// Validates: Requirements 5.1, 5.2
+    /// Tests mixing conditional null and non-conditional properties.
+    /// Validates: Requirements 1.3, 1.4
     /// </summary>
     [Fact]
-    public void TranslateUpdateExpression_MixedConditionalAndNonConditional_ShouldHandleCorrectly()
+    public void TranslateUpdateExpression_MixedConditionalNullAndNonConditional_ShouldSetBoth()
     {
         // Arrange
         var translator = CreateTranslator();
@@ -299,7 +510,38 @@ public class UpdateExpressionTranslatorConditionalTests
         // Act
         var result = translator.TranslateUpdateExpression(expression, context);
 
-        // Assert
+        // Assert - Both properties should be updated (Name with NULL, Count with value)
+        result.Should().Be("SET #attr0 = :p0, #attr1 = :p1");
+        context.AttributeNames.AttributeNames.Should().HaveCount(2);
+        context.AttributeValues.AttributeValues.Should().HaveCount(2);
+        context.AttributeValues.AttributeValues[":p0"].NULL.Should().BeTrue("Name should be SET NULL when condition is false");
+        context.AttributeValues.AttributeValues[":p1"].N.Should().Be("42");
+    }
+
+    /// <summary>
+    /// Tests mixing NoUpdate and non-conditional properties.
+    /// Validates: Requirements 2.2, 2.3
+    /// </summary>
+    [Fact]
+    public void TranslateUpdateExpression_MixedNoUpdateAndNonConditional_ShouldHandleCorrectly()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext();
+        var updateName = false;
+        var name = "John";
+        
+        Expression<Func<TestUpdateExpressions, TestUpdateModel>> expression =
+            x => new TestUpdateModel 
+            { 
+                Name = updateName ? name : x.Name.NoUpdate(),
+                Count = 42
+            };
+
+        // Act
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert - Only Count should be updated (Name is skipped via NoUpdate)
         result.Should().Be("SET #attr0 = :p0", "only Count should be updated");
         context.AttributeNames.AttributeNames["#attr0"].Should().Be("count");
         context.AttributeValues.AttributeValues[":p0"].N.Should().Be("42");
