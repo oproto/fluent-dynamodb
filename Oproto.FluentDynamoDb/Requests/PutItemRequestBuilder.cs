@@ -125,11 +125,19 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
+    /// If the expression is empty or whitespace (e.g., all conditional clauses evaluated to skip),
+    /// the method returns without setting the condition, allowing the operation to proceed unconditionally.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public PutItemRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
+        // Skip setting if expression is empty (all conditionals evaluated to skip)
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return this;
+        }
+        
         if (string.IsNullOrEmpty(_req.ConditionExpression))
         {
             _req.ConditionExpression = expression;

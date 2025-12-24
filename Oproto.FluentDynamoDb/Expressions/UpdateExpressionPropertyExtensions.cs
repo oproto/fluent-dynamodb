@@ -798,6 +798,67 @@ public static class UpdateExpressionPropertyExtensions
 
     #endregion
 
+    #region Skip Operations
+
+    /// <summary>
+    /// Signals that this property should not be updated.
+    /// </summary>
+    /// <typeparam name="T">The property type.</typeparam>
+    /// <param name="property">The property to skip.</param>
+    /// <returns>Never returns - this method throws if called directly.</returns>
+    /// <exception cref="InvalidOperationException">Always thrown - this method is only for use in expressions.</exception>
+    /// <remarks>
+    /// <para>
+    /// Use this method in conditional expressions to skip updating a property based on runtime conditions.
+    /// When the translator encounters <c>NoUpdate()</c>, it generates no operation for that property,
+    /// leaving the existing value unchanged in DynamoDB.
+    /// </para>
+    /// 
+    /// <para><strong>Important:</strong></para>
+    /// <para>
+    /// This is different from setting a property to <c>null</c>, which sets the DynamoDB attribute
+    /// to the NULL type. Use <c>NoUpdate()</c> when you want to conditionally skip updating a property
+    /// entirely, preserving its current value.
+    /// </para>
+    /// 
+    /// <para><strong>Comparison:</strong></para>
+    /// <list type="bullet">
+    /// <item><description><c>null</c> - Sets the attribute to DynamoDB NULL type</description></item>
+    /// <item><description><c>NoUpdate()</c> - Skips the property, leaving existing value unchanged</description></item>
+    /// <item><description><c>Remove()</c> - Removes the attribute entirely from the item</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Only update Name if shouldUpdate is true, otherwise skip
+    /// .Set(x => new UserUpdateModel 
+    /// { 
+    ///     Name = shouldUpdate ? newName : x.Name.NoUpdate() 
+    /// })
+    /// 
+    /// // Conditionally update multiple properties
+    /// .Set(x => new UserUpdateModel 
+    /// { 
+    ///     Name = updateName ? newName : x.Name.NoUpdate(),
+    ///     Email = updateEmail ? newEmail : x.Email.NoUpdate(),
+    ///     Status = "active" // Always update status
+    /// })
+    /// 
+    /// // Skip update when value is null
+    /// .Set(x => new UserUpdateModel 
+    /// { 
+    ///     Description = newDescription ?? x.Description.NoUpdate() 
+    /// })
+    /// </code>
+    /// </example>
+    [ExpressionOnly]
+    public static T NoUpdate<T>(this UpdateExpressionProperty<T> property)
+        => throw new InvalidOperationException(
+            "This method is only for use in update expressions and should not be called directly. " +
+            "Use it within a Set() lambda to skip updating a property conditionally.");
+
+    #endregion
+
     #region Dynamic Field Operations
 
     /// <summary>

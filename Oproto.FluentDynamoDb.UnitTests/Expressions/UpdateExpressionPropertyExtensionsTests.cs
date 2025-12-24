@@ -759,6 +759,174 @@ public class UpdateExpressionPropertyExtensionsTests
 
     #endregion
 
+    #region NoUpdate() Method Tests
+
+    [Fact]
+    public void NoUpdate_String_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<string>();
+
+        // Act
+        Action act = () => property.NoUpdate();
+        
+        // Assert
+        var exception = act.Should().Throw<InvalidOperationException>().Which;
+        exception.Message.Should().Contain("only for use in update expressions");
+        exception.Message.Should().Contain("should not be called directly");
+    }
+
+    [Fact]
+    public void NoUpdate_Int_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<int>();
+
+        // Act
+        Action act = () => property.NoUpdate();
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    [Fact]
+    public void NoUpdate_NullableInt_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<int?>();
+
+        // Act
+        Action act = () => property.NoUpdate();
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    [Fact]
+    public void NoUpdate_HashSet_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<HashSet<string>>();
+
+        // Act
+        Action act = () => property.NoUpdate();
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    [Fact]
+    public void NoUpdate_List_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<List<string>>();
+
+        // Act
+        Action act = () => property.NoUpdate();
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    [Fact]
+    public void NoUpdate_CustomType_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<TestCustomType>();
+
+        // Act
+        Action act = () => property.NoUpdate();
+        
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only for use in update expressions*");
+    }
+
+    [Fact]
+    public void NoUpdate_ErrorMessage_ContainsSetLambdaGuidance()
+    {
+        // Arrange
+        var property = new UpdateExpressionProperty<string>();
+
+        // Act
+        Action act = () => property.NoUpdate();
+        
+        // Assert
+        var exception = act.Should().Throw<InvalidOperationException>().Which;
+        exception.Message.Should().Contain("Set()");
+        exception.Message.Should().Contain("lambda");
+        exception.Message.Should().Contain("conditionally");
+    }
+
+    [Fact]
+    public void NoUpdate_MethodExists_ViaReflection()
+    {
+        // Arrange & Act
+        var method = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.NoUpdate))
+            .Where(m => m.IsGenericMethod)
+            .SingleOrDefault();
+        
+        // Assert
+        method.Should().NotBeNull("NoUpdate<T>() method should exist on UpdateExpressionPropertyExtensions");
+        method!.GetGenericArguments().Should().HaveCount(1, "NoUpdate should have one generic type parameter");
+        method.GetParameters().Should().HaveCount(1, "NoUpdate should have one parameter (the extension method 'this' parameter)");
+    }
+
+    [Fact]
+    public void NoUpdate_HasExpressionOnlyAttribute()
+    {
+        // Arrange & Act
+        var method = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.NoUpdate))
+            .Where(m => m.IsGenericMethod)
+            .Single();
+        
+        var attribute = method.GetCustomAttributes(typeof(ExpressionOnlyAttribute), false);
+        
+        // Assert
+        attribute.Should().HaveCount(1, "NoUpdate should have [ExpressionOnly] attribute");
+    }
+
+    /// <summary>
+    /// This test verifies that NoUpdate() is available on all types at compile time.
+    /// The fact that this code compiles proves the extension method is available.
+    /// </summary>
+    [Fact]
+    public void NoUpdate_IsAvailableOnAllTypes_CompilationTest()
+    {
+        // These should all compile successfully
+        var stringProperty = new UpdateExpressionProperty<string>();
+        var intProperty = new UpdateExpressionProperty<int>();
+        var nullableIntProperty = new UpdateExpressionProperty<int?>();
+        var listProperty = new UpdateExpressionProperty<List<string>>();
+        var setProperty = new UpdateExpressionProperty<HashSet<string>>();
+        var customProperty = new UpdateExpressionProperty<TestCustomType>();
+
+        // Verify the methods exist and throw when called
+        Action actString = () => stringProperty.NoUpdate();
+        Action actInt = () => intProperty.NoUpdate();
+        Action actNullableInt = () => nullableIntProperty.NoUpdate();
+        Action actList = () => listProperty.NoUpdate();
+        Action actSet = () => setProperty.NoUpdate();
+        Action actCustom = () => customProperty.NoUpdate();
+        
+        actString.Should().Throw<InvalidOperationException>();
+        actInt.Should().Throw<InvalidOperationException>();
+        actNullableInt.Should().Throw<InvalidOperationException>();
+        actList.Should().Throw<InvalidOperationException>();
+        actSet.Should().Throw<InvalidOperationException>();
+        actCustom.Should().Throw<InvalidOperationException>();
+    }
+
+    #endregion
+
 
 
     #region Nullable Type Safety Compilation Tests

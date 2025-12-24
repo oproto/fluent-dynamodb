@@ -57,6 +57,103 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-23]
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added "Empty Expression Handling" subsection under Conditional Filter Patterns to document the new graceful handling of all-skip conditional expressions.
+
+**Changes:**
+
+1. **Added "Empty Expression Handling" subsection** after the Conditional Filter Patterns truth table:
+   - Documents that when all conditional clauses evaluate to skip, the filter is gracefully omitted
+   - Includes code example showing safe usage with multiple optional filters
+   - Explains that this eliminates the need to wrap `.WithFilter()` in conditional checks
+
+**Reason:** New feature added to gracefully handle conditional filter expressions that resolve to empty strings, preventing DynamoDB "Invalid FilterExpression: The expression can not be empty" errors.
+
+---
+
+### File: docs/BREAKING_CHANGES_v1.0.md
+
+**Category:** Breaking Change Documentation
+
+**Summary:** Added "Empty Conditional Expression Handling" as a breaking change (section 3) with migration guidance.
+
+**Changes:**
+
+1. **Updated Overview** to list three breaking changes instead of two
+2. **Added new section 3** documenting the behavior change:
+   - Previous behavior: DynamoDB error when all conditionals skip
+   - New behavior: Operation executes without filter/condition
+   - Impact explanation (low impact, but breaking for error-dependent code)
+   - Migration guidance for code that relied on catching the error
+   - Code examples showing before/after behavior
+3. **Updated Summary table** to include the new breaking change
+
+**Reason:** While typically a quality-of-life improvement, this is technically a breaking change for code that relied on the DynamoDB error being thrown (e.g., in catch blocks for validation).
+
+---
+
+## [2025-12-23]
+
+### File: docs/core-features/ExpressionBasedUpdates.md
+
+**Category:** Breaking Change Documentation
+
+**Summary:** Updated Conditional Updates section to document the new `NoUpdate()` method and the change in null handling behavior.
+
+**Changes:**
+
+1. **Renamed "Skip Update with Null False Branch" to "Skip Update with NoUpdate()"**
+   - Before: `Name = updateName ? newName : null` (skipped update)
+   - After: `Name = updateName ? newName : x.Name.NoUpdate()` (skipped update)
+
+2. **Added "Null Assignment Sets DynamoDB NULL" subsection**
+   - Documents that `= null` now sets the attribute to DynamoDB NULL type
+   - Previously, `null` in conditional false branch would skip the update
+
+3. **Added "Null vs NoUpdate() vs Remove()" comparison table**
+   - `= null` → SET attr = NULL (attribute exists with NULL value)
+   - `.NoUpdate()` → No operation (attribute unchanged)
+   - `.Remove()` → REMOVE attr (attribute deleted)
+
+4. **Updated all code examples** to use `x.Property.NoUpdate()` instead of `null` for skip behavior
+
+5. **Updated "Important Rules for Conditional Updates"**
+   - Changed rule 2 from "Null false branch means skip" to "Use NoUpdate() to skip, null sets NULL"
+   - Added rule 4 documenting that `NoUpdate()` throws if called directly
+
+**Reason:** Breaking change in v1.0 - `null` in conditional expressions now consistently sets DynamoDB NULL instead of skipping the update. Use `x.Property.NoUpdate()` for skip behavior.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** Breaking Change Documentation
+
+**Summary:** Added NoUpdate() documentation and null behavior change to the Update Operations section.
+
+**Changes:**
+
+1. **Added conditional update example with NoUpdate()**
+   ```csharp
+   Name = shouldUpdate ? newName : x.Name.NoUpdate()
+   ```
+
+2. **Added null assignment example**
+   ```csharp
+   MiddleName = null  // Sets attribute to NULL
+   ```
+
+3. **Added "Null vs NoUpdate() vs Remove()" comparison table**
+
+**Reason:** Breaking change in v1.0 - documenting the new NoUpdate() method and consistent null handling.
+
+---
+
 ## [2025-12-22]
 
 ### File: docs/core-features/MapsAndLists.md

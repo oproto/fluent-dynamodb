@@ -135,11 +135,19 @@ public class QueryRequestBuilder<TEntity> :
     /// <summary>
     /// Sets the filter expression on the builder.
     /// If a filter expression already exists, combines them with AND logic.
+    /// If the expression is empty or whitespace (e.g., all conditional clauses evaluated to skip),
+    /// the method returns without setting the filter, allowing the operation to proceed without filtering.
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public QueryRequestBuilder<TEntity> SetFilterExpression(string expression)
     {
+        // Skip setting if expression is empty (all conditionals evaluated to skip)
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return this;
+        }
+        
         if (string.IsNullOrEmpty(_req.FilterExpression))
         {
             _req.FilterExpression = expression;

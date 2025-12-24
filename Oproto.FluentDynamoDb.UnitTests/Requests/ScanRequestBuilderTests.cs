@@ -102,6 +102,135 @@ public class ScanRequestBuilderTests
         req.FilterExpression.Should().Be("#status = :status AND #price > :minPrice");
     }
 
+    #region Empty Filter Expression Handling
+
+    [Fact]
+    public void SetFilterExpression_EmptyString_DoesNotSetFilterExpression()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetFilterExpression(string.Empty);
+        var req = builder.ToScanRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().BeNull();
+    }
+
+    [Fact]
+    public void SetFilterExpression_WhitespaceOnly_DoesNotSetFilterExpression()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetFilterExpression("   ");
+        var req = builder.ToScanRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().BeNull();
+    }
+
+    [Fact]
+    public void SetFilterExpression_Null_DoesNotSetFilterExpression()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetFilterExpression(null!);
+        var req = builder.ToScanRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().BeNull();
+    }
+
+    [Fact]
+    public void SetFilterExpression_ValidExpression_SetsFilterExpression()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetFilterExpression("#status = :status");
+        var req = builder.ToScanRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().Be("#status = :status");
+    }
+
+    [Fact]
+    public void SetFilterExpression_EmptyAfterValid_PreservesExistingFilter()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act - Set a valid filter first, then try to set an empty one
+        builder.SetFilterExpression("#status = :status");
+        builder.SetFilterExpression(string.Empty);
+        var req = builder.ToScanRequest();
+        
+        // Assert - The original filter should be preserved
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().Be("#status = :status");
+    }
+
+    [Fact]
+    public void SetFilterExpression_ValidAfterEmpty_SetsFilterExpression()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act - Try to set an empty filter first, then set a valid one
+        builder.SetFilterExpression(string.Empty);
+        builder.SetFilterExpression("#status = :status");
+        var req = builder.ToScanRequest();
+        
+        // Assert - The valid filter should be set
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().Be("#status = :status");
+    }
+
+    [Fact]
+    public void SetFilterExpression_MultipleValidExpressions_CombinesWithAnd()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act
+        builder.SetFilterExpression("#status = :status");
+        builder.SetFilterExpression("#type = :type");
+        var req = builder.ToScanRequest();
+        
+        // Assert
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().Be("(#status = :status) AND (#type = :type)");
+    }
+
+    [Fact]
+    public void SetFilterExpression_ValidThenEmptyThenValid_CombinesOnlyValidExpressions()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        
+        // Act - Set valid, then empty (should be skipped), then valid again
+        builder.SetFilterExpression("#status = :status");
+        builder.SetFilterExpression("   "); // whitespace - should be skipped
+        builder.SetFilterExpression("#type = :type");
+        var req = builder.ToScanRequest();
+        
+        // Assert - Only the two valid expressions should be combined
+        req.Should().NotBeNull();
+        req.FilterExpression.Should().Be("(#status = :status) AND (#type = :type)");
+    }
+
+    #endregion Empty Filter Expression Handling
+
     #endregion Filter Expression Tests
 
     #region Projection Expression Tests

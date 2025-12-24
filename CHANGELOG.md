@@ -369,6 +369,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Empty Conditional Expression Handling** - Conditional filter/condition expressions that resolve to all-skip conditions now gracefully execute without a filter instead of throwing "Invalid FilterExpression: The expression can not be empty" error
+  - When all conditional clauses evaluate to skip (e.g., `x => true || x.Status == status`), the operation executes without a filter/condition
+  - Applies to `SetFilterExpression` on `QueryRequestBuilder` and `ScanRequestBuilder`
+  - Applies to `SetConditionExpression` on `PutItemRequestBuilder`, `UpdateItemRequestBuilder`, and `DeleteItemRequestBuilder`
+  - Eliminates the need to wrap `.WithFilter()` calls in conditional checks when using conditional filter patterns
+  - _Requirements: 1.1-1.4, 2.1-2.3, 3.1-3.3, 4.1-4.4_
+  
+  **Usage:**
+  ```csharp
+  // Safe to use even when all conditions might skip
+  var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+      .WithFilter(x => 
+          (string.IsNullOrWhiteSpace(status) || x.Status == status) &&
+          (string.IsNullOrWhiteSpace(category) || x.Category == category))
+      .ToListAsync();
+  // If both status and category are null/empty, query executes without filter
+  ```
+
+- **Consistent Null Handling in Update Expressions** - **BREAKING CHANGE**: `null` in conditional expressions now consistently sets DynamoDB NULL instead of skipping the update
+  - **Before**: `flag ? value : null` would skip the property update when `flag` was false
+  - **After**: `flag ? value : null` sets the property to DynamoDB NULL type when `flag` is false
+  - **New `NoUpdate()` Method**: Use `x.Property.NoUpdate()` to explicitly skip updating a property
+  - **Migration**: Replace `flag ? value : null` with `flag ? value : x.Property.NoUpdate()` for skip behavior
+  - _Requirements: 1.1-1.4, 2.1-2.6, 3.1-3.3, 4.1-4.2_
+  
+  **Migration Example:**
+  ```csharp
+  // Before (v0.x): null in false branch skipped the update
+  .Set(x => new UserUpdateModel 
+  { 
+      Name = shouldUpdate ? newName : null  // Skipped when !shouldUpdate
+  })
+  
+  // After (v1.0): null sets DynamoDB NULL, use NoUpdate() to skip
+  .Set(x => new UserUpdateModel 
+  { 
+      Name = shouldUpdate ? newName : x.Name.NoUpdate()  // Skipped when !shouldUpdate
+  })
+  
+  // Setting to NULL (new explicit behavior)
+  .Set(x => new UserUpdateModel 
+  { 
+      MiddleName = null  // Sets attribute to DynamoDB NULL type
+  })
+  ```
+  
+  **Null vs NoUpdate() vs Remove():**
+  | Method | DynamoDB Result | Use Case |
+  |--------|-----------------|----------|
+  | `= null` | SET attr = NULL | Set attribute to DynamoDB NULL type |
+  | `.NoUpdate()` | No operation | Skip updating this property conditionally |
+  | `.Remove()` | REMOVE attr | Delete the attribute entirely |
+
 - **PaginationExtensions.GetEncodedPaginationToken()** - Updated to support `QueryOperationResponse` and `ScanOperationResponse` types
   - New overload for `QueryOperationResponse` - use via `builder.Response?.GetEncodedPaginationToken()`
   - New overload for `ScanOperationResponse` - use via `builder.Response?.GetEncodedPaginationToken()`

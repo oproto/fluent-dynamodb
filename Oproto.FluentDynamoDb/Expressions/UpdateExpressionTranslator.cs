@@ -421,9 +421,19 @@ public class UpdateExpressionTranslator
             return TranslateNestedMemberInit(nestedInit, parameter, propertyName, context, pathPrefix);
         }
 
-        // Check for method calls (Add, Remove, Delete, IfNotExists, etc.)
+        // Check for method calls (Add, Remove, Delete, IfNotExists, NoUpdate, etc.)
         if (unwrapped is MethodCallExpression methodCall)
         {
+            // Check for NoUpdate() first - this signals the property should be skipped
+            if (IsNoUpdateMethodCall(methodCall))
+            {
+                return new Operation
+                {
+                    Type = OperationType.Skip,
+                    Expression = string.Empty
+                };
+            }
+            
             return TranslateMethodCallWithPath(methodCall, parameter, propertyName, context, pathPrefix);
         }
 
@@ -444,19 +454,19 @@ public class UpdateExpressionTranslator
     /// <param name="parameter">The update expressions parameter.</param>
     /// <param name="propertyName">The property being updated.</param>
     /// <param name="context">The expression context.</param>
-    /// <returns>An operation representing the update, or Skip if the property should be skipped.</returns>
+    /// <returns>An operation representing the update, or Skip if the property should be skipped via NoUpdate().</returns>
     /// <remarks>
     /// <para>
     /// This method handles patterns like:
     /// </para>
     /// <list type="bullet">
-    /// <item><description><c>Property = flag ? value : null</c> - Skip property when flag is false</description></item>
+    /// <item><description><c>Property = flag ? value : null</c> - SET NULL when flag is false (consistent null handling)</description></item>
+    /// <item><description><c>Property = flag ? value : x.Property.NoUpdate()</c> - Skip property when flag is false</description></item>
     /// <item><description><c>Property = flag ? valueA : valueB</c> - Use appropriate value based on flag</description></item>
     /// </list>
     /// <para>
     /// The condition must not reference the entity parameter - it must be evaluable at translation time.
-    /// When the condition is false and the false branch is null, the property update is skipped entirely
-    /// (no SET or REMOVE operation is generated).
+    /// Null values in either branch will generate SET NULL operations. Use NoUpdate() to skip updates.
     /// </para>
     /// </remarks>
     private Operation HandleConditionalUpdate(
@@ -503,27 +513,10 @@ public class UpdateExpressionTranslator
                 conditional);
         }
 
-        if (testResult)
-        {
-            // Condition is true - process the true branch
-            return ClassifyOperationWithPath(conditional.IfTrue, parameter, propertyName, context, pathPrefix);
-        }
-        else
-        {
-            // Condition is false - check if false branch is null (skip property)
-            if (IsNullExpression(conditional.IfFalse))
-            {
-                // Return Skip operation - property should not be updated
-                return new Operation
-                {
-                    Type = OperationType.Skip,
-                    Expression = string.Empty
-                };
-            }
-
-            // Process the false branch
-            return ClassifyOperationWithPath(conditional.IfFalse, parameter, propertyName, context, pathPrefix);
-        }
+        // Process the appropriate branch based on the condition result
+        // Note: null values in either branch will generate SET NULL operations (consistent null handling)
+        var branchToProcess = testResult ? conditional.IfTrue : conditional.IfFalse;
+        return ClassifyOperationWithPath(branchToProcess, parameter, propertyName, context, pathPrefix);
     }
 
     /// <summary>
@@ -622,32 +615,21 @@ public class UpdateExpressionTranslator
     }
 
     /// <summary>
-    /// Checks if an expression represents a null value.
+    /// Checks if a method call expression is a call to the NoUpdate() extension method.
     /// </summary>
-    /// <param name="expression">The expression to check.</param>
-    /// <returns>True if the expression is null, false otherwise.</returns>
-    private bool IsNullExpression(Expression expression)
+    /// <param name="methodCall">The method call expression to check.</param>
+    /// <returns>True if the method call is NoUpdate(), false otherwise.</returns>
+    /// <remarks>
+    /// <para>
+    /// The NoUpdate() method is an extension method on UpdateExpressionProperty&lt;T&gt; that signals
+    /// the property should not be updated. When detected, the translator returns a Skip operation,
+    /// leaving the existing value unchanged in DynamoDB.
+    /// </para>
+    /// </remarks>
+    private bool IsNoUpdateMethodCall(MethodCallExpression methodCall)
     {
-        // Handle direct null constant
-        if (expression is ConstantExpression constant && constant.Value == null)
-        {
-            return true;
-        }
-
-        // Handle default(T) expressions
-        if (expression is DefaultExpression)
-        {
-            return true;
-        }
-
-        // Handle Convert(null) expressions
-        if (expression is UnaryExpression unary && 
-            (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
-        {
-            return IsNullExpression(unary.Operand);
-        }
-
-        return false;
+        return methodCall.Method.Name == "NoUpdate" &&
+               methodCall.Method.DeclaringType == typeof(UpdateExpressionPropertyExtensions);
     }
 
     /// <summary>
