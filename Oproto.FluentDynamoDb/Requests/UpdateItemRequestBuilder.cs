@@ -80,6 +80,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     private Expressions.ExpressionContext? _expressionContext;
     private IFieldEncryptor? _fieldEncryptor;
     private List<BlobPropertyContext>? _blobPropertyContexts;
+    private KeyCondition _keyCondition = KeyCondition.None;
 
     /// <summary>
     /// Gets the response metadata from the most recent UpdateItem execution.
@@ -170,6 +171,112 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// Gets the builder instance for method chaining.
     /// </summary>
     public UpdateItemRequestBuilder<TEntity> Self => this;
+
+    /// <summary>
+    /// Adds a condition that the item must already exist (all key attributes must exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustExist)</c>.
+    /// Use this to prevent upsert behavior - the update will fail if the item doesn't exist.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_exists(pk) AND attribute_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Update existing only (prevent upsert)
+    /// await table.Users.Update(userId)
+    ///     .IfExists()
+    ///     .Set(x => new UserUpdateModel { Name = "New Name" })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> IfExists()
+    {
+        _keyCondition = KeyCondition.MustExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a condition that the item must not already exist (key attributes must not exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustNotExist)</c>.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_not_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_not_exists(pk) AND attribute_not_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Create only via update (fail if exists)
+    /// await table.Users.Update(userId)
+    ///     .IfNotExists()
+    ///     .Set(x => new UserUpdateModel { Name = "New User" })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> IfNotExists()
+    {
+        _keyCondition = KeyCondition.MustNotExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the key condition for this operation.
+    /// </summary>
+    /// <param name="condition">The key condition to apply.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Using enum directly
+    /// await table.Users.Update(userId)
+    ///     .WithKeyCondition(KeyCondition.MustExist)
+    ///     .Set(x => new UserUpdateModel { Name = "New Name" })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> WithKeyCondition(KeyCondition condition)
+    {
+        _keyCondition = condition;
+        return this;
+    }
+
+    /// <summary>
+    /// Applies the key condition to the request's condition expression.
+    /// Called internally during request building.
+    /// </summary>
+    private void ApplyKeyCondition()
+    {
+        if (_keyCondition == KeyCondition.None) return;
+
+        var metadata = TEntity.GetEntityMetadata();
+        var pkAttrName = metadata.PartitionKeyAttributeName;
+        var skAttrName = metadata.SortKeyAttributeName;
+
+        string condition;
+        if (_keyCondition == KeyCondition.MustExist)
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_exists({pkAttrName})"
+                : $"attribute_exists({pkAttrName}) AND attribute_exists({skAttrName})";
+        }
+        else // MustNotExist
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_not_exists({pkAttrName})"
+                : $"attribute_not_exists({pkAttrName}) AND attribute_not_exists({skAttrName})";
+        }
+
+        // Combine with existing condition if present
+        if (string.IsNullOrEmpty(_req.ConditionExpression))
+        {
+            _req.ConditionExpression = condition;
+        }
+        else
+        {
+            _req.ConditionExpression = $"({condition}) AND ({_req.ConditionExpression})";
+        }
+    }
 
     /// <summary>
     /// Sets the expression context for this builder.
@@ -359,6 +466,9 @@ public class UpdateItemRequestBuilder<TEntity> :
 
     public UpdateItemRequest ToUpdateItemRequest()
     {
+        // Apply key condition before building the request
+        ApplyKeyCondition();
+        
         if (_attrN.AttributeNames.Count > 0)
         {
             _req.ExpressionAttributeNames = _attrN.AttributeNames;
@@ -478,7 +588,13 @@ public class UpdateItemRequestBuilder<TEntity> :
     string ITransactableUpdateBuilder.GetTableName() => _req.TableName;
     Dictionary<string, AttributeValue> ITransactableUpdateBuilder.GetKey() => _req.Key;
     string ITransactableUpdateBuilder.GetUpdateExpression() => _req.UpdateExpression;
-    string? ITransactableUpdateBuilder.GetConditionExpression() => _req.ConditionExpression;
+    string? ITransactableUpdateBuilder.GetConditionExpression()
+    {
+        // Apply key condition before returning the condition expression
+        // This ensures key conditions are included when the builder is used in transactions
+        ApplyKeyCondition();
+        return _req.ConditionExpression;
+    }
     Dictionary<string, string>? ITransactableUpdateBuilder.GetExpressionAttributeNames() => 
         _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
     Dictionary<string, AttributeValue>? ITransactableUpdateBuilder.GetExpressionAttributeValues() => 

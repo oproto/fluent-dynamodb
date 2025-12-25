@@ -57,6 +57,66 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-24]
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added Key Condition Shortcuts documentation to Put, Update, and Delete Operations sections, plus a new dedicated section.
+
+**Changes:**
+
+1. **Updated Put Operations section** - Added key condition examples:
+   - `.IfNotExists()` builder method for create-only operations
+   - `.IfExists()` builder method for update-only operations
+   - `KeyCondition.MustNotExist` and `KeyCondition.MustExist` convenience parameters
+
+2. **Updated Update Operations section** - Added key condition examples:
+   - `KeyCondition.MustExist` parameter to prevent upserts
+   - `.IfExists()` builder method
+
+3. **Updated Delete Operations section** - Added key condition examples:
+   - `.IfExists()` builder method
+   - `KeyCondition.MustExist` convenience parameter
+   - Composite key examples
+
+4. **Added new "Key Condition Shortcuts" section** after Common Patterns:
+   - Method/Enum/Generated Condition reference table
+   - Usage examples for all three operations
+   - KeyCondition enum values documentation
+
+**Reason:** New feature added to simplify common conditional patterns for Put, Update, and Delete operations.
+
+---
+
+### File: docs/core-features/BasicOperations.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added Key Condition Shortcuts documentation to Put, Update, and Delete Operations sections.
+
+**Changes:**
+
+1. **Added "Key Condition Shortcuts" subsection** under Put Operations:
+   - Documents `IfNotExists()`, `IfExists()`, and `WithKeyCondition()` methods
+   - KeyCondition enum values table
+   - Combining with other conditions example
+
+2. **Added "Key Condition Shortcuts for Updates" subsection** under Update Operations:
+   - Documents preventing upserts with `KeyCondition.MustExist`
+   - Builder method and convenience parameter examples
+   - Composite key examples
+
+3. **Added "Key Condition Shortcuts for Deletes" subsection** under Delete Operations:
+   - Documents ensuring item exists before delete
+   - Builder method and convenience parameter examples
+   - Composite key examples
+
+**Reason:** New feature added to simplify common conditional patterns for Put, Update, and Delete operations.
+
+---
+
 ## [2025-12-23]
 
 ### File: .kiro/steering/fluentdynamodb.md

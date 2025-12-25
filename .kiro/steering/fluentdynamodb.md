@@ -202,6 +202,14 @@ await table.Users.Put(user).Where("attribute_not_exists(pk)").PutAsync();
 
 // With condition - Manual
 await table.Users.Put(user).Where("version = :v").WithValue(":v", expectedVersion).PutAsync();
+
+// With key condition - create only (fail if exists)
+await table.Users.Put(user).IfNotExists().PutAsync();
+await table.Users.PutAsync(user, KeyCondition.MustNotExist);  // Convenience parameter
+
+// With key condition - update only (fail if not exists)
+await table.Users.Put(user).IfExists().PutAsync();
+await table.Users.PutAsync(user, KeyCondition.MustExist);  // Convenience parameter
 ```
 
 ## Update Operations
@@ -227,6 +235,17 @@ await table.Users.Update(userId)
 await table.Users.Update(userId)
     .Set(x => new UserUpdateModel { Status = "active" })
     .Where(x => x.Status == "pending")
+    .UpdateAsync();
+
+// With key condition - prevent upsert (fail if not exists)
+await table.Users.Update(userId, KeyCondition.MustExist)
+    .Set(x => new UserUpdateModel { Name = "New" })
+    .UpdateAsync();
+
+// With key condition - builder method
+await table.Users.Update(userId)
+    .IfExists()
+    .Set(x => new UserUpdateModel { Name = "New" })
     .UpdateAsync();
 
 // Conditional update - skip property with NoUpdate()
@@ -272,6 +291,14 @@ await table.Users.DeleteAsync(userId);  // Convenience
 
 // With condition
 await table.Users.Delete(userId).Where(x => x.Status == "inactive").DeleteAsync();
+
+// With key condition - fail if not exists
+await table.Users.Delete(userId).IfExists().DeleteAsync();
+await table.Users.DeleteAsync(userId, KeyCondition.MustExist);  // Convenience parameter
+
+// Composite key with key condition
+await table.Orders.Delete(customerId, orderId).IfExists().DeleteAsync();
+await table.Orders.DeleteAsync(customerId, orderId, KeyCondition.MustExist);
 ```
 
 ## Query Operations
@@ -646,6 +673,41 @@ await table.Users.Put(user).Where(x => x.UserId.AttributeNotExists()).PutAsync()
 // Increment counter
 await table.Users.Update(userId).Set(x => new UserUpdateModel { Count = x.Count + 1 }).UpdateAsync();
 ```
+
+## Key Condition Shortcuts
+
+Simplify common conditional patterns with `KeyCondition` enum and builder methods:
+
+| Method | Enum | Generated Condition |
+|--------|------|---------------------|
+| `.IfExists()` | `KeyCondition.MustExist` | `attribute_exists(pk) [AND attribute_exists(sk)]` |
+| `.IfNotExists()` | `KeyCondition.MustNotExist` | `attribute_not_exists(pk) [AND attribute_not_exists(sk)]` |
+
+```csharp
+// Create only (fail if exists)
+await table.Users.Put(user).IfNotExists().PutAsync();
+await table.Users.PutAsync(user, KeyCondition.MustNotExist);
+
+// Update existing only (prevent upsert)
+await table.Users.Update(pk, sk, KeyCondition.MustExist).Set(...).UpdateAsync();
+await table.Users.Update(pk, sk).IfExists().Set(...).UpdateAsync();
+
+// Delete only if exists
+await table.Users.Delete(pk).IfExists().DeleteAsync();
+await table.Users.DeleteAsync(pk, KeyCondition.MustExist);
+
+// Combine with additional conditions
+await table.Users.Update(pk, sk)
+    .IfExists()
+    .Set(x => new UserUpdateModel { Status = "active" })
+    .Where(x => x.Status == "pending")
+    .UpdateAsync();
+```
+
+**KeyCondition Enum Values:**
+- `KeyCondition.None` - No automatic condition (default)
+- `KeyCondition.MustExist` - Item must exist (all key attributes must exist)
+- `KeyCondition.MustNotExist` - Item must not exist (key attributes must not exist)
 
 ## Projection Error Handling
 

@@ -740,6 +740,7 @@ internal static class TableGenerator
         // PutAsync express-route method for entity (conditionally generated)
         if (generateTraditionalAsync)
         {
+            // Overload with just cancellation token (delegates to full version)
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Puts a {entity.ClassName} entity into DynamoDB and executes the request.");
             sb.AppendLine($"        /// This is an express-route method that combines Put() and PutAsync().");
@@ -747,9 +748,25 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <param name=\"entity\">The entity to put into DynamoDB.</param>");
             sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
             sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
-            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task PutAsync({entity.ClassName} entity, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {modifier} System.Threading.Tasks.Task PutAsync({entity.ClassName} entity, System.Threading.CancellationToken cancellationToken) =>");
+            sb.AppendLine($"            PutAsync(entity, KeyCondition.None, cancellationToken);");
+            sb.AppendLine();
+            
+            // Full version with KeyCondition parameter (with default values for backward compatibility)
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Puts a {entity.ClassName} entity into DynamoDB and executes the request.");
+            sb.AppendLine($"        /// This is an express-route method that combines Put() and PutAsync().");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"entity\">The entity to put into DynamoDB.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task PutAsync({entity.ClassName} entity, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
             sb.AppendLine($"        {{");
-            sb.AppendLine($"            await Put(entity).PutAsync(cancellationToken);");
+            sb.AppendLine($"            var builder = Put(entity);");
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+            sb.AppendLine($"            await builder.PutAsync(cancellationToken);");
             sb.AppendLine($"        }}");
             sb.AppendLine();
             
@@ -771,6 +788,7 @@ internal static class TableGenerator
         // PutAsyncResult FluentResults method (when UseFluentResults is enabled)
         if (entity.UseFluentResults)
         {
+            // Overload with just cancellation token (delegates to full version)
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Puts a {entity.ClassName} entity into DynamoDB and returns a Result.");
             sb.AppendLine($"        /// This method returns a Result instead of throwing exceptions.");
@@ -778,8 +796,26 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <param name=\"entity\">The entity to put into DynamoDB.</param>");
             sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
             sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
-            sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> PutAsyncResult({entity.ClassName} entity, System.Threading.CancellationToken cancellationToken = default) =>");
-            sb.AppendLine($"            Put(entity).PutAsyncResult(cancellationToken);");
+            sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> PutAsyncResult({entity.ClassName} entity, System.Threading.CancellationToken cancellationToken) =>");
+            sb.AppendLine($"            PutAsyncResult(entity, KeyCondition.None, cancellationToken);");
+            sb.AppendLine();
+            
+            // Full version with KeyCondition parameter (with default values for backward compatibility)
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Puts a {entity.ClassName} entity into DynamoDB and returns a Result.");
+            sb.AppendLine($"        /// This method returns a Result instead of throwing exceptions.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"entity\">The entity to put into DynamoDB.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
+            sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> PutAsyncResult({entity.ClassName} entity, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = Put(entity);");
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+            sb.AppendLine($"            return builder.PutAsyncResult(cancellationToken);");
+            sb.AppendLine($"        }}");
             sb.AppendLine();
         }
     }
@@ -930,12 +966,15 @@ internal static class TableGenerator
             sb.AppendLine($"        /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"        /// </summary>");
             sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
-            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {paramName})");
+            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None)");
             sb.AppendLine($"        {{");
             sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
             sb.AppendLine($"            builder.ForTable(_table.Name);");
             sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {paramName});");
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
             sb.AppendLine($"            return builder;");
             sb.AppendLine($"        }}");
             sb.AppendLine();
@@ -971,12 +1010,15 @@ internal static class TableGenerator
             sb.AppendLine($"        /// </summary>");
             sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the composite key.</returns>");
-            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName})");
+            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None)");
             sb.AppendLine($"        {{");
             sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
             sb.AppendLine($"            builder.ForTable(_table.Name);");
             sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
             sb.AppendLine($"            return builder;");
             sb.AppendLine($"        }}");
             sb.AppendLine();
@@ -1037,7 +1079,7 @@ internal static class TableGenerator
             // DeleteAsync express-route method (conditionally generated)
             if (generateTraditionalAsync)
             {
-                // Note: Transaction validation is handled in DeleteItemRequestBuilder.ToDynamoDbResponseAsync()
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"        /// <summary>");
                 sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
                 sb.AppendLine($"        /// This is an express-route method that combines Delete() and DeleteAsync().");
@@ -1045,9 +1087,26 @@ internal static class TableGenerator
                 sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
                 sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
-                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken) =>");
+                sb.AppendLine($"            DeleteAsync({paramName}, KeyCondition.None, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                // Note: Transaction validation is handled in DeleteItemRequestBuilder.ToDynamoDbResponseAsync()
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
+                sb.AppendLine($"        /// This is an express-route method that combines Delete() and DeleteAsync().");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
                 sb.AppendLine($"        {{");
-                sb.AppendLine($"            await Delete({paramName}).DeleteAsync(cancellationToken);");
+                sb.AppendLine($"            var builder = Delete({paramName});");
+                sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+                sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+                sb.AppendLine($"            await builder.DeleteAsync(cancellationToken);");
                 sb.AppendLine($"        }}");
                 sb.AppendLine();
             }
@@ -1055,6 +1114,7 @@ internal static class TableGenerator
             // DeleteAsyncResult FluentResults method (when UseFluentResults is enabled)
             if (entity.UseFluentResults)
             {
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"        /// <summary>");
                 sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and returns a Result.");
                 sb.AppendLine($"        /// This method returns a Result instead of throwing exceptions.");
@@ -1062,8 +1122,26 @@ internal static class TableGenerator
                 sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
                 sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
-                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
-                sb.AppendLine($"            Delete({paramName}).DeleteAsyncResult(cancellationToken);");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken) =>");
+                sb.AppendLine($"            DeleteAsyncResult({paramName}, KeyCondition.None, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and returns a Result.");
+                sb.AppendLine($"        /// This method returns a Result instead of throwing exceptions.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete({paramName});");
+                sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+                sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+                sb.AppendLine($"            return builder.DeleteAsyncResult(cancellationToken);");
+                sb.AppendLine($"        }}");
                 sb.AppendLine();
             }
         }
@@ -1088,6 +1166,7 @@ internal static class TableGenerator
             // DeleteAsync express-route method (conditionally generated)
             if (generateTraditionalAsync)
             {
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"        /// <summary>");
                 sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
                 sb.AppendLine($"        /// This is an express-route method that combines Delete() and DeleteAsync().");
@@ -1096,9 +1175,26 @@ internal static class TableGenerator
                 sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
                 sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
-                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken) =>");
+                sb.AppendLine($"            DeleteAsync({pkParamName}, {skParamName}, KeyCondition.None, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
+                sb.AppendLine($"        /// This is an express-route method that combines Delete() and DeleteAsync().");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+                sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
                 sb.AppendLine($"        {{");
-                sb.AppendLine($"            await Delete({pkParamName}, {skParamName}).DeleteAsync(cancellationToken);");
+                sb.AppendLine($"            var builder = Delete({pkParamName}, {skParamName});");
+                sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+                sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+                sb.AppendLine($"            await builder.DeleteAsync(cancellationToken);");
                 sb.AppendLine($"        }}");
                 sb.AppendLine();
             }
@@ -1106,6 +1202,7 @@ internal static class TableGenerator
             // DeleteAsyncResult FluentResults method (when UseFluentResults is enabled)
             if (entity.UseFluentResults)
             {
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"        /// <summary>");
                 sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and returns a Result.");
                 sb.AppendLine($"        /// This method returns a Result instead of throwing exceptions.");
@@ -1114,8 +1211,27 @@ internal static class TableGenerator
                 sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
                 sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
-                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken = default) =>");
-                sb.AppendLine($"            Delete({pkParamName}, {skParamName}).DeleteAsyncResult(cancellationToken);");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken) =>");
+                sb.AppendLine($"            DeleteAsyncResult({pkParamName}, {skParamName}, KeyCondition.None, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and returns a Result.");
+                sb.AppendLine($"        /// This method returns a Result instead of throwing exceptions.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+                sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete({pkParamName}, {skParamName});");
+                sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+                sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+                sb.AppendLine($"            return builder.DeleteAsyncResult(cancellationToken);");
+                sb.AppendLine($"        }}");
                 sb.AppendLine();
             }
         }
@@ -1401,6 +1517,7 @@ internal static class TableGenerator
         // PutAsyncResult FluentResults method (when UseFluentResults is enabled)
         if (entity.UseFluentResults)
         {
+            // Overload with just cancellation token (delegates to full version)
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Puts a {entity.ClassName} entity into DynamoDB and returns a Result.");
             sb.AppendLine($"    /// This method returns a Result instead of throwing exceptions.");
@@ -1408,8 +1525,21 @@ internal static class TableGenerator
             sb.AppendLine($"    /// <param name=\"entity\">The entity to put into DynamoDB.</param>");
             sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
             sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
-            sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> PutAsyncResult({entity.ClassName} entity, System.Threading.CancellationToken cancellationToken = default) =>");
+            sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> PutAsyncResult({entity.ClassName} entity, System.Threading.CancellationToken cancellationToken) =>");
             sb.AppendLine($"        {entityPropertyName}.PutAsyncResult(entity, cancellationToken);");
+            sb.AppendLine();
+            
+            // Full version with KeyCondition parameter
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Puts a {entity.ClassName} entity into DynamoDB and returns a Result.");
+            sb.AppendLine($"    /// This method returns a Result instead of throwing exceptions.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"entity\">The entity to put into DynamoDB.</param>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
+            sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> PutAsyncResult({entity.ClassName} entity, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+            sb.AppendLine($"        {entityPropertyName}.PutAsyncResult(entity, keyCondition, cancellationToken);");
             sb.AppendLine();
         }
     }
@@ -1556,9 +1686,10 @@ internal static class TableGenerator
             sb.AppendLine($"    /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"    /// </summary>");
             sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
-            sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {paramName}) =>");
-            sb.AppendLine($"        {entityPropertyName}.Update({paramName});");
+            sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None) =>");
+            sb.AppendLine($"        {entityPropertyName}.Update({paramName}, keyCondition);");
             sb.AppendLine();
         }
         else
@@ -1575,9 +1706,10 @@ internal static class TableGenerator
             sb.AppendLine($"    /// </summary>");
             sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the composite key.</returns>");
-            sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-            sb.AppendLine($"        {entityPropertyName}.Update({pkParamName}, {skParamName});");
+            sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None) =>");
+            sb.AppendLine($"        {entityPropertyName}.Update({pkParamName}, {skParamName}, keyCondition);");
             sb.AppendLine();
         }
     }
@@ -1618,6 +1750,7 @@ internal static class TableGenerator
             // DeleteAsync express-route method (conditionally generated)
             if (generateTraditionalAsync)
             {
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"    /// <summary>");
                 sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
                 sb.AppendLine($"    /// This is an express-route method that combines Delete() and DeleteAsync().");
@@ -1625,14 +1758,28 @@ internal static class TableGenerator
                 sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
                 sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"    /// <returns>A task representing the async operation.</returns>");
-                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken) =>");
                 sb.AppendLine($"        {entityPropertyName}.DeleteAsync({paramName}, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request.");
+                sb.AppendLine($"    /// This is an express-route method that combines Delete() and DeleteAsync().");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>A task representing the async operation.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsync({paramName}, keyCondition, cancellationToken);");
                 sb.AppendLine();
             }
             
             // DeleteAsyncResult FluentResults method (when UseFluentResults is enabled)
             if (entity.UseFluentResults)
             {
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"    /// <summary>");
                 sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and returns a Result.");
                 sb.AppendLine($"    /// This method returns a Result instead of throwing exceptions.");
@@ -1640,8 +1787,21 @@ internal static class TableGenerator
                 sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
                 sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
-                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken) =>");
                 sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult({paramName}, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and returns a Result.");
+                sb.AppendLine($"    /// This method returns a Result instead of throwing exceptions.");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult({paramName}, keyCondition, cancellationToken);");
                 sb.AppendLine();
             }
         }
@@ -1666,6 +1826,7 @@ internal static class TableGenerator
             // DeleteAsync express-route method (conditionally generated)
             if (generateTraditionalAsync)
             {
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"    /// <summary>");
                 sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
                 sb.AppendLine($"    /// This is an express-route method that combines Delete() and DeleteAsync().");
@@ -1674,14 +1835,29 @@ internal static class TableGenerator
                 sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
                 sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"    /// <returns>A task representing the async operation.</returns>");
-                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken) =>");
                 sb.AppendLine($"        {entityPropertyName}.DeleteAsync({pkParamName}, {skParamName}, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and executes the request.");
+                sb.AppendLine($"    /// This is an express-route method that combines Delete() and DeleteAsync().");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+                sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>A task representing the async operation.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsync({pkParamName}, {skParamName}, keyCondition, cancellationToken);");
                 sb.AppendLine();
             }
             
             // DeleteAsyncResult FluentResults method (when UseFluentResults is enabled)
             if (entity.UseFluentResults)
             {
+                // Overload with just cancellation token (delegates to full version)
                 sb.AppendLine($"    /// <summary>");
                 sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and returns a Result.");
                 sb.AppendLine($"    /// This method returns a Result instead of throwing exceptions.");
@@ -1690,8 +1866,22 @@ internal static class TableGenerator
                 sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
                 sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
                 sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
-                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, System.Threading.CancellationToken cancellationToken) =>");
                 sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult({pkParamName}, {skParamName}, cancellationToken);");
+                sb.AppendLine();
+                
+                // Full version with KeyCondition parameter
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key) and returns a Result.");
+                sb.AppendLine($"    /// This method returns a Result instead of throwing exceptions.");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+                sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult({pkParamName}, {skParamName}, keyCondition, cancellationToken);");
                 sb.AppendLine();
             }
         }
