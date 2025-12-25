@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-23
+# Updated 2025-12-24
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -623,6 +623,15 @@ var orders = await table.Orders.Query(x => x.CustomerId == customerId)
         (string.IsNullOrWhiteSpace(category) || x.Category == category))
     .ToListAsync();
 // If both status and category are null/empty, query executes without filter
+
+// Complex nested OR patterns with mutually exclusive conditions
+var items = await table.Items.Query(x => x.Key == key)
+    .WithFilter(x => 
+        skipAllFilters ||
+        (hasValue && x.OptionalField.AttributeExists()) ||
+        (!hasValue && x.OptionalField.AttributeNotExists()))
+    .ToListAsync();
+// When skipAllFilters is true, entire filter is skipped correctly
 ```
 
 ## Common Patterns

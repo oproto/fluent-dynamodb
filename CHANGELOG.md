@@ -166,6 +166,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Complex Conditional OR Pattern in Filter Expressions** - Fixed an issue where complex nested OR patterns with multiple conditional clauses would incorrectly apply filters when they should be skipped
+  - Pattern like `skipFlag || (condA && filter1) || (condB && filter2)` now correctly skips all filters when `skipFlag` is true
+  - Previously, when combining OR patterns with AND patterns (e.g., `skipAll || (hasValue && x.Attr.AttributeExists()) || (!hasValue && x.Attr.AttributeNotExists())`), one of the entity filters would incorrectly be applied even when `skipAll` was true
+  - Root cause: Empty string was used to represent "skip" for both OR and AND patterns, but these have different semantics when combined in complex expressions
+  - Fix introduces distinct sentinel values for OR-skip vs AND-skip that are handled correctly when combining expressions
+
 - **Nullable Property NULL Handling** - Fixed an issue where nullable properties (e.g., `DateTime?`, `int?`, `decimal?`) would throw a conversion error when reading back records where `null` was stored
   - DynamoDB represents null values as `{ NULL: true }` which is a valid attribute
   - Previously, the generated `FromDynamoDb` code would find the attribute but fail when trying to parse the non-existent value
