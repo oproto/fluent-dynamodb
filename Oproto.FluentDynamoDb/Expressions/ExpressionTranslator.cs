@@ -127,6 +127,18 @@ public class ExpressionTranslator
     private readonly IDynamoDbLogger? _logger;
     private readonly Func<string, bool>? _isSensitiveField;
     private readonly FluentDynamoDbOptions? _options;
+    
+    /// <summary>
+    /// Sentinel value indicating "skip due to true in OR pattern".
+    /// This is absorbing for OR (true OR x = true) but identity for AND (true AND x = x).
+    /// </summary>
+    private const string SkipDueToTrueInOr = "\0SKIP_TRUE_OR\0";
+    
+    /// <summary>
+    /// Sentinel value indicating "skip due to false in AND pattern".
+    /// This is identity for OR (false OR x = x) but absorbing for AND (false AND x = false).
+    /// </summary>
+    private const string SkipDueToFalseInAnd = "\0SKIP_FALSE_AND\0";
 
     /// <summary>
     /// Gets the global expression cache instance.
@@ -185,7 +197,15 @@ public class ExpressionTranslator
         var entityParameter = expression.Parameters[0];
 
         // Visit the body of the lambda expression
-        return Visit(expression.Body, entityParameter, context);
+        var result = Visit(expression.Body, entityParameter, context);
+        
+        // Convert sentinel values to empty string for the final result
+        if (result == SkipDueToTrueInOr || result == SkipDueToFalseInAnd)
+        {
+            return string.Empty;
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -311,16 +331,56 @@ public class ExpressionTranslator
             var right = Visit(node.Right, entityParameter, context);
             var op = node.NodeType == ExpressionType.AndAlso ? "AND" : "OR";
             
-            // Handle empty strings from conditional expressions that should be omitted
-            // For AND: if either side is empty, return the other side
-            // For OR: if either side is empty, return the other side (empty means "true" which is identity for OR)
-            if (string.IsNullOrEmpty(left))
+            // Handle sentinel values from conditional expressions
+            // SkipDueToTrueInOr: came from (true || entityFilter) - means "skip this clause"
+            // SkipDueToFalseInAnd: came from (false && entityFilter) - means "skip this clause"
+            // Both sentinels mean "this clause doesn't contribute to the filter"
+            // For AND: skip clause is identity (x AND skip = x)
+            // For OR: SkipDueToTrueInOr is absorbing (true OR x = true), SkipDueToFalseInAnd is identity (false OR x = x)
+            
+            bool leftIsSkip = left == SkipDueToTrueInOr || left == SkipDueToFalseInAnd || string.IsNullOrEmpty(left);
+            bool rightIsSkip = right == SkipDueToTrueInOr || right == SkipDueToFalseInAnd || string.IsNullOrEmpty(right);
+            
+            if (node.NodeType == ExpressionType.AndAlso)
             {
-                return right;
+                // For AND: skip is identity (x AND skip = x)
+                if (leftIsSkip && rightIsSkip)
+                {
+                    return string.Empty;
+                }
+                if (leftIsSkip)
+                {
+                    return right;
+                }
+                if (rightIsSkip)
+                {
+                    return left;
+                }
             }
-            if (string.IsNullOrEmpty(right))
+            else // OrElse
             {
-                return left;
+                // For OR: 
+                // - SkipDueToTrueInOr is absorbing (true OR x = true)
+                // - SkipDueToFalseInAnd is identity (false OR x = x)
+                // - empty string is treated as identity for backward compatibility
+                if (left == SkipDueToTrueInOr || right == SkipDueToTrueInOr)
+                {
+                    // true OR x = true, return empty to skip the filter
+                    return string.Empty;
+                }
+                // SkipDueToFalseInAnd and empty are identity for OR
+                if (left == SkipDueToFalseInAnd || string.IsNullOrEmpty(left))
+                {
+                    if (right == SkipDueToFalseInAnd || string.IsNullOrEmpty(right))
+                    {
+                        return string.Empty;
+                    }
+                    return right;
+                }
+                if (right == SkipDueToFalseInAnd || string.IsNullOrEmpty(right))
+                {
+                    return left;
+                }
             }
             
             // Use StringBuilder to minimize allocations
@@ -955,11 +1015,11 @@ public class ExpressionTranslator
         if (node.NodeType == ExpressionType.OrElse)
         {
             // OR pattern: (localCondition || entityFilter)
-            // If local is true → skip filter (return empty)
+            // If local is true → skip filter (return sentinel for "true in OR")
             // If local is false → apply entity filter
             if (localValue)
             {
-                return string.Empty;
+                return SkipDueToTrueInOr;
             }
             return Visit(entityOperand, entityParameter, context);
         }
@@ -967,12 +1027,12 @@ public class ExpressionTranslator
         {
             // AND pattern: (localCondition && entityFilter)
             // If local is true → apply entity filter
-            // If local is false → skip filter (return empty)
+            // If local is false → skip filter (return sentinel for "false in AND")
             if (localValue)
             {
                 return Visit(entityOperand, entityParameter, context);
             }
-            return string.Empty;
+            return SkipDueToFalseInAnd;
         }
     }
 
@@ -985,14 +1045,14 @@ public class ExpressionTranslator
     /// the entire expression can be evaluated at translation time.
     /// </para>
     /// <para>
-    /// If the expression evaluates to true, an empty string is returned to omit the filter.
+    /// If the expression evaluates to true, a sentinel is returned to indicate the skip reason.
     /// If the expression evaluates to false, an exception is thrown because a constant false
     /// filter would return no results.
     /// </para>
     /// </remarks>
     /// <param name="node">The binary expression node.</param>
     /// <param name="context">The expression context.</param>
-    /// <returns>Empty string if the expression evaluates to true.</returns>
+    /// <returns>Sentinel value if the expression evaluates to true.</returns>
     /// <exception cref="UnsupportedExpressionException">Thrown when the expression evaluates to constant false.</exception>
     /// <exception cref="ExpressionTranslationException">Thrown when the expression cannot be evaluated.</exception>
     private string EvaluateAndHandleLocalBooleanExpression(
@@ -1014,8 +1074,10 @@ public class ExpressionTranslator
 
         if (result)
         {
-            // Expression evaluates to true - return empty to omit
-            return string.Empty;
+            // Expression evaluates to true - return sentinel based on operator
+            // For OR: true is absorbing (true OR x = true)
+            // For AND: true is identity (true AND x = x)
+            return node.NodeType == ExpressionType.OrElse ? SkipDueToTrueInOr : SkipDueToTrueInOr;
         }
         else
         {
