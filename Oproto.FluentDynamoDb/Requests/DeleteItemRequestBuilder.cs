@@ -75,6 +75,7 @@ public class DeleteItemRequestBuilder<TEntity> :
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     private List<string>? _blobReferenceKeys;
+    private KeyCondition _keyCondition = KeyCondition.None;
 
     /// <summary>
     /// Gets the response metadata from the most recent DeleteItem execution.
@@ -165,6 +166,98 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// Gets the builder instance for method chaining.
     /// </summary>
     public DeleteItemRequestBuilder<TEntity> Self => this;
+
+    /// <summary>
+    /// Adds a condition that the item must already exist (all key attributes must exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustExist)</c>.
+    /// Use this to ensure you're deleting an existing item.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_exists(pk) AND attribute_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Delete only if exists (fail if not exists)
+    /// await table.Users.Delete(userId).IfExists().DeleteAsync();
+    /// </code>
+    /// </example>
+    public DeleteItemRequestBuilder<TEntity> IfExists()
+    {
+        _keyCondition = KeyCondition.MustExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a condition that the item must not already exist (key attributes must not exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustNotExist)</c>.
+    /// Note: This is rarely useful for delete operations but provided for API consistency.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_not_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_not_exists(pk) AND attribute_not_exists(sk)</c></para>
+    /// </remarks>
+    public DeleteItemRequestBuilder<TEntity> IfNotExists()
+    {
+        _keyCondition = KeyCondition.MustNotExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the key condition for this operation.
+    /// </summary>
+    /// <param name="condition">The key condition to apply.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Using enum directly
+    /// await table.Users.Delete(userId).WithKeyCondition(KeyCondition.MustExist).DeleteAsync();
+    /// </code>
+    /// </example>
+    public DeleteItemRequestBuilder<TEntity> WithKeyCondition(KeyCondition condition)
+    {
+        _keyCondition = condition;
+        return this;
+    }
+
+    /// <summary>
+    /// Applies the key condition to the request's condition expression.
+    /// Called internally during request building.
+    /// </summary>
+    private void ApplyKeyCondition()
+    {
+        if (_keyCondition == KeyCondition.None) return;
+
+        var metadata = TEntity.GetEntityMetadata();
+        var pkAttrName = metadata.PartitionKeyAttributeName;
+        var skAttrName = metadata.SortKeyAttributeName;
+
+        string condition;
+        if (_keyCondition == KeyCondition.MustExist)
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_exists({pkAttrName})"
+                : $"attribute_exists({pkAttrName}) AND attribute_exists({skAttrName})";
+        }
+        else // MustNotExist
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_not_exists({pkAttrName})"
+                : $"attribute_not_exists({pkAttrName}) AND attribute_not_exists({skAttrName})";
+        }
+
+        // Combine with existing condition if present
+        if (string.IsNullOrEmpty(_req.ConditionExpression))
+        {
+            _req.ConditionExpression = condition;
+        }
+        else
+        {
+            _req.ConditionExpression = $"({condition}) AND ({_req.ConditionExpression})";
+        }
+    }
 
     /// <summary>
     /// Sets the blob reference keys for cleanup after delete.
@@ -305,6 +398,9 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// <returns>A configured DeleteItemRequest ready for execution.</returns>
     public DeleteItemRequest ToDeleteItemRequest()
     {
+        // Apply key condition before building the request
+        ApplyKeyCondition();
+        
         if (_attrN.AttributeNames.Count > 0)
         {
             _req.ExpressionAttributeNames = _attrN.AttributeNames;
@@ -314,17 +410,21 @@ public class DeleteItemRequestBuilder<TEntity> :
         {
             _req.ExpressionAttributeValues = _attrV.AttributeValues;
         }
-        else if (_req.ExpressionAttributeValues == null)
-        {
-            _req.ExpressionAttributeValues = new Dictionary<string, AttributeValue>();
-        }
+        // Note: Do NOT set an empty ExpressionAttributeValues dictionary
+        // DynamoDB will reject requests with empty ExpressionAttributeValues
         return _req;
     }
 
     // ITransactableDeleteBuilder implementation
     string ITransactableDeleteBuilder.GetTableName() => _req.TableName;
     Dictionary<string, AttributeValue> ITransactableDeleteBuilder.GetKey() => _req.Key;
-    string? ITransactableDeleteBuilder.GetConditionExpression() => _req.ConditionExpression;
+    string? ITransactableDeleteBuilder.GetConditionExpression()
+    {
+        // Apply key condition before returning the condition expression
+        // This ensures key conditions are included when the builder is used in transactions
+        ApplyKeyCondition();
+        return _req.ConditionExpression;
+    }
     Dictionary<string, string>? ITransactableDeleteBuilder.GetExpressionAttributeNames() => 
         _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
     Dictionary<string, AttributeValue>? ITransactableDeleteBuilder.GetExpressionAttributeValues() => 

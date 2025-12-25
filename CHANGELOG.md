@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Key Condition Shortcuts** - Simplified conditional patterns for Put, Update, and Delete operations
+  - New `KeyCondition` enum with `None`, `MustExist`, and `MustNotExist` values
+  - New `IfExists()` and `IfNotExists()` builder methods on `PutItemRequestBuilder`, `UpdateItemRequestBuilder`, and `DeleteItemRequestBuilder`
+  - New `WithKeyCondition(KeyCondition)` builder method for explicit enum-based configuration
+  - Automatically generates `attribute_exists()` or `attribute_not_exists()` conditions for key attributes
+  - Supports both simple (PK only) and composite (PK + SK) key entities
+  - Combines with existing `Where()` clauses using AND
+  - Optional `KeyCondition` parameter on generated convenience methods (`PutAsync`, `Update`, `DeleteAsync`)
+  - Works within transactions and batch operations
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.3, 4.1-4.3, 5.1-5.4, 6.1-6.4, 7.1-7.4, 8.1-8.4, 9.1-9.3, 10.1-10.3_
+  
+  **Usage:**
+  ```csharp
+  // Create only (fail if exists)
+  await table.Users.Put(user).IfNotExists().PutAsync();
+  await table.Users.PutAsync(user, KeyCondition.MustNotExist);
+  
+  // Update existing only (prevent upsert)
+  await table.Users.Update(pk, sk, KeyCondition.MustExist)
+      .Set(x => new UserUpdateModel { Name = newName })
+      .UpdateAsync();
+  
+  // Delete only if exists
+  await table.Users.Delete(pk).IfExists().DeleteAsync();
+  await table.Users.DeleteAsync(pk, KeyCondition.MustExist);
+  
+  // Combine with additional conditions
+  await table.Users.Update(pk, sk)
+      .IfExists()
+      .Set(x => new UserUpdateModel { Status = "active" })
+      .Where(x => x.Status == "pending")
+      .UpdateAsync();
+  ```
+
 - **Automatic Index Projections** - Enhanced GSI/LSI generation with automatic projection type support
   - **Automatic Entity Projections for Single-Entity Tables**: Indexes in single-entity tables automatically use the entity type as the default projection, enabling non-generic `Query()` methods
     - Single-entity tables generate `DynamoDbIndex<TEntity>` instead of `DynamoDbIndex`

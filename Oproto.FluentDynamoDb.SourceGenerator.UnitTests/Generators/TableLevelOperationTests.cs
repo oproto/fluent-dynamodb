@@ -66,7 +66,7 @@ namespace TestNamespace
             "should generate table-level Put operation when default entity exists");
         tableCode.Should().Contain("Delete(string pk)",
             "should generate table-level Delete operation when default entity exists");
-        tableCode.Should().Contain("Update(string pk)",
+        tableCode.Should().Contain("Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate table-level Update operation when default entity exists");
     }
 
@@ -120,7 +120,7 @@ namespace TestNamespace
             "table-level Put should use default entity type Order");
         tableCode.Should().Contain("DeleteItemRequestBuilder<Order> Delete(string pk)",
             "table-level Delete should use default entity type Order");
-        tableCode.Should().Contain("OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "table-level Update should use entity-specific update builder");
         
         // Verify table-level operations section uses Order, not OrderLine
@@ -192,7 +192,7 @@ namespace TestNamespace
             "table-level Put should delegate to Orders accessor");
         tableCode.Should().Contain("Orders.Delete(pk)",
             "table-level Delete should delegate to Orders accessor");
-        tableCode.Should().Contain("Orders.Update(pk)",
+        tableCode.Should().Contain("Orders.Update(pk, keyCondition)",
             "table-level Update should delegate to Orders accessor");
     }
 
@@ -301,7 +301,7 @@ namespace TestNamespace
             "should generate table-level Put for single entity table");
         tableCode.Should().Contain("DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate table-level Delete for single entity table");
-        tableCode.Should().Contain("OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate table-level Update with entity-specific builder for single entity table");
     }
 
@@ -347,7 +347,7 @@ namespace TestNamespace
             "table-level Put should delegate to Orders accessor");
         tableCode.Should().Contain("Orders.Delete(pk)",
             "table-level Delete should delegate to Orders accessor");
-        tableCode.Should().Contain("Orders.Update(pk)",
+        tableCode.Should().Contain("Orders.Update(pk, keyCondition)",
             "table-level Update should delegate to Orders accessor");
     }
 
@@ -402,7 +402,7 @@ namespace TestNamespace
             "table-level Put should delegate to custom accessor name AllOrders");
         tableCode.Should().Contain("AllOrders.Delete(pk)",
             "table-level Delete should delegate to custom accessor name AllOrders");
-        tableCode.Should().Contain("AllOrders.Update(pk)",
+        tableCode.Should().Contain("AllOrders.Update(pk, keyCondition)",
             "table-level Update should delegate to custom accessor name AllOrders");
         
         // Verify table-level operations section doesn't use default name
@@ -545,7 +545,7 @@ namespace TestNamespace
             "table-level Put should be public");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "table-level Delete should be public");
-        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "table-level Update should be public and return entity-specific builder");
     }
 
@@ -639,9 +639,9 @@ namespace TestNamespace
         tableCode.Should().Contain("Orders.Delete(pk)",
             "table-level Delete should pass pk to accessor");
         
-        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "table-level Update should accept pk parameter and return entity-specific builder");
-        tableCode.Should().Contain("Orders.Update(pk)",
+        tableCode.Should().Contain("Orders.Update(pk, keyCondition)",
             "table-level Update should pass pk to accessor");
     }
 
