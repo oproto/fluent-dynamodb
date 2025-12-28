@@ -76,6 +76,80 @@ var events = await table.Query
     .ToListAsync();
 ```
 
+### DateOnly Format Specifiers
+
+`DateOnly` is a .NET 6+ type representing a date without a time component. It serializes to a DynamoDB string attribute.
+
+| Specifier | Description | Example Input | Example Output |
+|-----------|-------------|---------------|----------------|
+| `o` or `O` | Round-trip (ISO 8601) | `new DateOnly(2024, 12, 28)` | `"2024-12-28"` |
+| `d` | Short date | `new DateOnly(2024, 12, 28)` | `"12/28/2024"` |
+| `D` | Long date | `new DateOnly(2024, 12, 28)` | `"Saturday, December 28, 2024"` |
+| `yyyy-MM-dd` | Custom format | `new DateOnly(2024, 12, 28)` | `"2024-12-28"` |
+| `MM/dd/yyyy` | US format | `new DateOnly(2024, 12, 28)` | `"12/28/2024"` |
+
+#### DateOnly Examples
+
+```csharp
+// Default ISO 8601 format (recommended)
+[DynamoDbAttribute("eventDate")]
+public DateOnly EventDate { get; set; }
+// Serializes to: "2024-12-28"
+
+// Custom format
+[DynamoDbAttribute("displayDate", Format = "MM/dd/yyyy")]
+public DateOnly DisplayDate { get; set; }
+// Serializes to: "12/28/2024"
+
+// In format string expressions
+var events = await table.Query
+    .WithKey(EventFields.EventId, EventKeys.Pk("event123"))
+    .Where($"{EventFields.EventDate} > {{0:o}}", new DateOnly(2024, 1, 1))
+    .ToListAsync();
+
+// In lambda expressions (format applied automatically if defined on attribute)
+var events = await table.Query<Event>()
+    .Where(x => x.EventId == eventId && x.EventDate > new DateOnly(2024, 1, 1))
+    .ToListAsync();
+```
+
+### TimeOnly Format Specifiers
+
+`TimeOnly` is a .NET 6+ type representing a time of day without a date component. It serializes to a DynamoDB string attribute.
+
+| Specifier | Description | Example Input | Example Output |
+|-----------|-------------|---------------|----------------|
+| `o` or `O` | Round-trip (ISO 8601) | `new TimeOnly(14, 30, 45)` | `"14:30:45.0000000"` |
+| `t` | Short time | `new TimeOnly(14, 30, 0)` | `"2:30 PM"` |
+| `T` | Long time | `new TimeOnly(14, 30, 45)` | `"2:30:45 PM"` |
+| `HH:mm:ss` | 24-hour format | `new TimeOnly(14, 30, 45)` | `"14:30:45"` |
+| `h:mm tt` | 12-hour format | `new TimeOnly(14, 30, 0)` | `"2:30 PM"` |
+
+#### TimeOnly Examples
+
+```csharp
+// Default ISO 8601 format (recommended)
+[DynamoDbAttribute("startTime")]
+public TimeOnly StartTime { get; set; }
+// Serializes to: "14:30:45.0000000"
+
+// Custom format
+[DynamoDbAttribute("displayTime", Format = "h:mm tt")]
+public TimeOnly DisplayTime { get; set; }
+// Serializes to: "2:30 PM"
+
+// In format string expressions
+var schedules = await table.Query
+    .WithKey(ScheduleFields.ScheduleId, ScheduleKeys.Pk("sched123"))
+    .Where($"{ScheduleFields.StartTime} > {{0:o}}", new TimeOnly(9, 0, 0))
+    .ToListAsync();
+
+// In lambda expressions
+var schedules = await table.Query<Schedule>()
+    .Where(x => x.ScheduleId == scheduleId && x.StartTime > new TimeOnly(9, 0, 0))
+    .ToListAsync();
+```
+
 
 ### Numeric Format Specifiers
 

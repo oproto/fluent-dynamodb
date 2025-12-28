@@ -57,6 +57,74 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2025-12-28]
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added DateOnly and TimeOnly type examples to Entity Definition section.
+
+**Changes:**
+
+1. **Updated "Entity Definition" section** with DateOnly and TimeOnly examples:
+   - Added example entity showing DateOnly with default ISO 8601 format
+   - Added example showing DateOnly with custom format (`MM/dd/yyyy`)
+   - Added example showing TimeOnly with default ISO 8601 format
+   - Added example showing TimeOnly with custom format (`h:mm tt`)
+   - Added example showing `List<DateOnly>` collection support
+
+2. **Updated document date** from 2025-12-24 to 2025-12-28
+
+**Reason:** New feature added to support native serialization of .NET 6+ `DateOnly` and `TimeOnly` types.
+
+---
+
+### File: docs/reference/FormatSpecifiers.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added DateOnly and TimeOnly format specifiers documentation.
+
+**Changes:**
+
+1. **Added "DateOnly Format Specifiers" section** after DateTime Format Specifiers:
+   - Documents ISO 8601 round-trip format (`o` or `O`) as default
+   - Documents short date (`d`), long date (`D`), and custom formats
+   - Includes example table with specifiers, descriptions, and outputs
+   - Provides code examples for entity definition and query usage
+
+2. **Added "TimeOnly Format Specifiers" section** after DateOnly:
+   - Documents ISO 8601 round-trip format (`o` or `O`) as default
+   - Documents short time (`t`), long time (`T`), and custom formats
+   - Includes example table with specifiers, descriptions, and outputs
+   - Provides code examples for entity definition and query usage
+
+**Reason:** New feature added to support native serialization of .NET 6+ `DateOnly` and `TimeOnly` types.
+
+---
+
+### File: CHANGELOG.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added DateOnly and TimeOnly Serialization feature to Unreleased section.
+
+**Changes:**
+
+1. **Added "DateOnly and TimeOnly Serialization" entry** to the Added section:
+   - Documents DateOnly serialization to ISO 8601 date format
+   - Documents TimeOnly serialization to ISO 8601 time format
+   - Documents UpdateExpressionTranslator support
+   - Documents collection support (`List<DateOnly>`, `List<TimeOnly>`)
+   - Documents custom format string support via `[DynamoDbAttribute(Format = "...")]`
+   - Documents nullable support
+   - Includes comprehensive usage examples
+
+**Reason:** New feature added to support native serialization of .NET 6+ `DateOnly` and `TimeOnly` types.
+
+---
+
 ## [2025-12-24]
 
 ### File: .kiro/steering/fluentdynamodb.md

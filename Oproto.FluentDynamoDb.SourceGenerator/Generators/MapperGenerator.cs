@@ -1367,6 +1367,8 @@ internal static class MapperGenerator
             "bool" or "System.Boolean" => "new AttributeValue { BOOL = x }",
             "DateTime" or "System.DateTime" => "new AttributeValue { S = x.ToString(\"O\") }",
             "DateTimeOffset" or "System.DateTimeOffset" => "new AttributeValue { S = x.ToString(\"O\") }",
+            "DateOnly" or "System.DateOnly" => "new AttributeValue { S = x.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }",
+            "TimeOnly" or "System.TimeOnly" => "new AttributeValue { S = x.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }",
             "Guid" or "System.Guid" => "new AttributeValue { S = x.ToString() }",
             "Ulid" or "System.Ulid" => "new AttributeValue { S = x.ToString() }",
             "byte[]" or "System.Byte[]" => "new AttributeValue { B = new MemoryStream(x) }",
@@ -1407,6 +1409,8 @@ internal static class MapperGenerator
             "bool" or "System.Boolean" => $"new AttributeValue {{ BOOL = {actualValue} }}",
             "DateTime" or "System.DateTime" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\") }}",
             "DateTimeOffset" or "System.DateTimeOffset" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\") }}",
+            "DateOnly" or "System.DateOnly" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
+            "TimeOnly" or "System.TimeOnly" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
             "Guid" or "System.Guid" => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             "Ulid" or "System.Ulid" => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             "byte[]" or "System.Byte[]" => $"new AttributeValue {{ B = new System.IO.MemoryStream({valueExpression}) }}",
@@ -1451,6 +1455,18 @@ internal static class MapperGenerator
 
         // For DateTimeOffset with format
         if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+        }
+
+        // For DateOnly with format
+        if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+        }
+
+        // For TimeOnly with format
+        if (baseType is "TimeOnly" or "System.TimeOnly")
         {
             return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
         }
@@ -1505,6 +1521,16 @@ internal static class MapperGenerator
         }
         // Handle DateTimeOffset
         else if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+        }
+        // Handle DateOnly
+        else if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+        }
+        // Handle TimeOnly
+        else if (baseType is "TimeOnly" or "System.TimeOnly")
         {
             sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
         }
@@ -1667,6 +1693,36 @@ internal static class MapperGenerator
             sb.AppendLine($"                            $\"Failed to parse DateTimeOffset value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
             sb.AppendLine($"                            $\"Ensure the stored value matches the format string. \" +");
             sb.AppendLine($"                            $\"Common DateTimeOffset formats: 'o' (ISO 8601), 'yyyy-MM-dd HH:mm:ss zzz' (with timezone).\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle DateOnly
+        else if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            sb.AppendLine($"                    if (DateOnly.TryParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse DateOnly value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"                            $\"Common DateOnly formats: 'o' (ISO 8601), 'yyyy-MM-dd' (ISO date), 'MM/dd/yyyy' (US format).\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle TimeOnly
+        else if (baseType is "TimeOnly" or "System.TimeOnly")
+        {
+            sb.AppendLine($"                    if (TimeOnly.TryParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse TimeOnly value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"                            $\"Common TimeOnly formats: 'o' (ISO 8601), 'HH:mm:ss' (24-hour), 'h:mm tt' (12-hour with AM/PM).\");");
             sb.AppendLine("                    }");
         }
 
@@ -2510,6 +2566,8 @@ internal static class MapperGenerator
             "bool" or "System.Boolean" => "x => x.BOOL ?? false",
             "DateTime" or "System.DateTime" => "x => DateTime.Parse(x.S)",
             "DateTimeOffset" or "System.DateTimeOffset" => "x => DateTimeOffset.Parse(x.S)",
+            "DateOnly" or "System.DateOnly" => "x => DateOnly.ParseExact(x.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
+            "TimeOnly" or "System.TimeOnly" => "x => TimeOnly.ParseExact(x.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
             "Guid" or "System.Guid" => "x => Guid.Parse(x.S)",
             "Ulid" or "System.Ulid" => "x => Ulid.Parse(x.S)",
             "byte[]" or "System.Byte[]" => "x => x.B.ToArray()",
@@ -2545,6 +2603,8 @@ internal static class MapperGenerator
             "bool" or "System.Boolean" => property.IsNullable ? $"{valueExpression}.BOOL" : $"{valueExpression}.BOOL ?? false",
             "DateTime" or "System.DateTime" => $"DateTime.SpecifyKind(DateTime.Parse({valueExpression}.S, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeKind.Unspecified)",
             "DateTimeOffset" or "System.DateTimeOffset" => $"DateTimeOffset.Parse({valueExpression}.S)",
+            "DateOnly" or "System.DateOnly" => $"DateOnly.ParseExact({valueExpression}.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
+            "TimeOnly" or "System.TimeOnly" => $"TimeOnly.ParseExact({valueExpression}.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
             "Guid" or "System.Guid" => $"Guid.Parse({valueExpression}.S)",
             "Ulid" or "System.Ulid" => $"Ulid.Parse({valueExpression}.S)",
             "byte[]" or "System.Byte[]" => $"{valueExpression}.B.ToArray()",
@@ -2626,6 +2686,18 @@ internal static class MapperGenerator
         if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
         {
             return $"DateTimeOffset.ParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None)";
+        }
+
+        // For DateOnly with format
+        if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            return $"DateOnly.ParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // For TimeOnly with format
+        if (baseType is "TimeOnly" or "System.TimeOnly")
+        {
+            return $"TimeOnly.ParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture)";
         }
 
         // Default: parse as string
@@ -3448,7 +3520,8 @@ internal static class MapperGenerator
             "string", "int", "long", "double", "float", "decimal", "bool", "DateTime", "DateTimeOffset",
             "Guid", "byte[]", "System.String", "System.Int32", "System.Int64", "System.Double",
             "System.Single", "System.Decimal", "System.Boolean", "System.DateTime", "System.DateTimeOffset",
-            "System.Guid", "System.Byte[]", "Ulid", "System.Ulid"
+            "System.Guid", "System.Byte[]", "Ulid", "System.Ulid",
+            "DateOnly", "TimeOnly", "System.DateOnly", "System.TimeOnly"
         };
 
         return !knownPrimitives.Contains(baseType) &&
@@ -3589,6 +3662,8 @@ internal static class MapperGenerator
             "bool" or "System.Boolean" => $"new AttributeValue {{ BOOL = {valueExpression} }}",
             "DateTime" or "System.DateTime" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\") }}",
             "DateTimeOffset" or "System.DateTimeOffset" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\") }}",
+            "DateOnly" or "System.DateOnly" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
+            "TimeOnly" or "System.TimeOnly" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
             "Guid" or "System.Guid" => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
             "Ulid" or "System.Ulid" => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
             _ when IsEnumType(elementType) => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
@@ -4377,6 +4452,8 @@ internal static class MapperGenerator
         {
             "DateTime" or "System.DateTime" => "'o' (ISO 8601), 'yyyy-MM-dd' (date only), 'yyyy-MM-dd HH:mm:ss' (date and time)",
             "DateTimeOffset" or "System.DateTimeOffset" => "'o' (ISO 8601), 'yyyy-MM-dd HH:mm:ss zzz' (with timezone)",
+            "DateOnly" or "System.DateOnly" => "'o' (ISO 8601), 'yyyy-MM-dd' (ISO date), 'MM/dd/yyyy' (US format), 'd' (short date)",
+            "TimeOnly" or "System.TimeOnly" => "'o' (ISO 8601), 'HH:mm:ss' (24-hour), 'h:mm tt' (12-hour with AM/PM), 't' (short time)",
             "decimal" or "System.Decimal" => "'F2' (2 decimal places), 'F4' (4 decimal places), 'N2' (with thousand separators)",
             "double" or "System.Double" or "float" or "System.Single" => "'F2' (2 decimal places), 'E' (scientific notation), 'G' (general)",
             "int" or "System.Int32" or "long" or "System.Int64" => "'D5' (zero-padded to 5 digits), 'N0' (with thousand separators), 'X' (hexadecimal)",
