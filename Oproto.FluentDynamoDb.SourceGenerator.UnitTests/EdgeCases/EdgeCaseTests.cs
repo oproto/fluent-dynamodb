@@ -563,9 +563,10 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // May generate warnings about overly broad patterns and performance issues
+        // May generate warnings about overly broad patterns and unsupported types
+        // RelatedEntity properties should NOT emit DYNDB023 performance warnings
         result.Diagnostics.Should().NotBeEmpty();
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warnings for collections
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023"); // RelatedEntity suppresses performance warnings
         result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "ComplexPatternsEntity.g.cs");

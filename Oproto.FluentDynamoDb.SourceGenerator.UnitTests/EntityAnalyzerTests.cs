@@ -242,8 +242,9 @@ namespace TestNamespace
         // Should report unsupported type error for Summary
         analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB009");
 
-        // Should report performance warning for complex collection type
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB023");
+        // RelatedEntity properties should NOT emit DYNDB023 performance warnings
+        // This is intentional - RelatedEntity collections are designed for composite entity patterns
+        analyzer.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023");
     }
 
     [Fact]
@@ -331,8 +332,12 @@ namespace TestNamespace
         analyzer.Diagnostics.Should().NotBeEmpty();
         analyzer.Diagnostics.Should().OnlyContain(d => d.Severity == DiagnosticSeverity.Warning);
 
-        // Should report performance warning for complex collection type
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB023");
+        // RelatedEntity properties should NOT emit DYNDB023 performance warnings
+        // This is intentional - RelatedEntity collections are designed for composite entity patterns
+        analyzer.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023");
+        
+        // Should report DYNDB016 warning for missing sort key
+        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB016");
     }
 
     [Fact]
@@ -380,8 +385,9 @@ namespace TestNamespace
         // So we expect the diagnostics that are actually generated
         analyzer.Diagnostics.Should().NotBeEmpty();
 
-        // Should report performance warning for complex collection type
-        analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB023");
+        // RelatedEntity properties should NOT emit DYNDB023 performance warnings
+        // This is intentional - RelatedEntity collections are designed for composite entity patterns
+        analyzer.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023");
 
         // Should report unsupported type error for AuditSummary
         analyzer.Diagnostics.Should().Contain(d => d.Id == "DYNDB009");

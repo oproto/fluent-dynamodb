@@ -837,8 +837,8 @@ public class UpdateExpressionTranslator
     {
         var methodName = methodCall.Method.Name;
         
-        // Check if this is a list operation extension method from ListOperationExtensions (on List<T>)
-        // These methods are called on the list property itself, so we need to extract the path from Arguments[0]
+        // Check if this is a list operation extension method from UpdateExpressionPropertyExtensions
+        // These methods are called on the UpdateExpressionProperty<List<T>>, so we need to extract the path from Arguments[0]
         if (IsListOperationExtensionMethodOnList(methodCall))
         {
             return TranslateListOperationExtensionMethod(methodCall, parameter, context, pathPrefix, propertyName);
@@ -1449,20 +1449,27 @@ public class UpdateExpressionTranslator
     }
 
     /// <summary>
-    /// Checks if a method call is a list operation extension method from ListOperationExtensions (on List&lt;T&gt;).
+    /// Checks if a method call is a list operation extension method.
     /// </summary>
     /// <param name="methodCall">The method call expression to check.</param>
-    /// <returns>True if the method is from ListOperationExtensions on List&lt;T&gt;.</returns>
+    /// <returns>True if the method is from UpdateExpressionPropertyExtensions or ListOperationExtensions.</returns>
+    /// <remarks>
+    /// <para>
+    /// The first operation in a chain uses UpdateExpressionPropertyExtensions (on UpdateExpressionProperty&lt;List&lt;T&gt;&gt;).
+    /// Subsequent chained operations use ListOperationExtensions (on List&lt;T&gt;, the return type).
+    /// </para>
+    /// </remarks>
     private static bool IsListOperationExtensionMethodOnList(MethodCallExpression methodCall)
     {
         var methodName = methodCall.Method.Name;
         if (methodName is not ("Append" or "Prepend" or "AppendRange" or "PrependRange" or "SetAt" or "RemoveAt"))
             return false;
         
-        // Check if the method is from ListOperationExtensions (declared on List<T>)
-        // For extension methods, the declaring type is the static class containing the method
+        // Check if the method is from UpdateExpressionPropertyExtensions (first operation in chain)
+        // or ListOperationExtensions (subsequent chained operations on List<T>)
         var declaringType = methodCall.Method.DeclaringType;
-        return declaringType?.Name == nameof(ListOperationExtensions);
+        return declaringType?.Name == nameof(UpdateExpressionPropertyExtensions) ||
+               declaringType?.Name == nameof(ListOperationExtensions);
     }
 
     /// <summary>
@@ -1505,8 +1512,10 @@ public class UpdateExpressionTranslator
         if (listExpression is not MethodCallExpression chainedCall)
             return;
 
-        // Check if it's a ListOperationExtensions method
-        if (chainedCall.Method.DeclaringType?.Name != nameof(ListOperationExtensions))
+        // Check if it's a list operation extension method (from either class)
+        var declaringType = chainedCall.Method.DeclaringType;
+        if (declaringType?.Name != nameof(ListOperationExtensions) &&
+            declaringType?.Name != nameof(UpdateExpressionPropertyExtensions))
             return;
 
         var chainedMethodName = chainedCall.Method.Name;
@@ -1834,7 +1843,8 @@ public class UpdateExpressionTranslator
             var listExpression = current.Arguments[0];
             if (listExpression is MethodCallExpression chainedCall && 
                 chainedCall.Method.Name == "SetAt" &&
-                chainedCall.Method.DeclaringType?.Name == nameof(ListOperationExtensions))
+                (chainedCall.Method.DeclaringType?.Name == nameof(ListOperationExtensions) ||
+                 chainedCall.Method.DeclaringType?.Name == nameof(UpdateExpressionPropertyExtensions)))
             {
                 // Continue walking the chain
                 current = chainedCall;

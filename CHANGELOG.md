@@ -200,6 +200,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DynamoDbMap Multi-Item Deserialization** - Fixed source generator to correctly deserialize `[DynamoDbMap]` properties in composite entity (multi-item) scenarios
+  - Previously, the `GeneratePrimaryEntityIdentification` method in the source generator was missing the `ComplexType.IsMap` check, causing incorrect deserialization of nested map types
+  - The generated multi-item `FromDynamoDb` code now correctly uses the nested type's `FromDynamoDb` method instead of attempting to use `Enum.Parse`
+  - Affects entities with `[DynamoDbMap]` properties that also use `[RelatedEntity]` for composite entity patterns
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+- **RelatedEntity Collection Warning Suppression** - Fixed false DYNDB023 performance warnings for `[RelatedEntity]` collections
+  - Properties marked with `[RelatedEntity]` attribute no longer trigger DYNDB023 performance warnings
+  - Added `IsRelatedEntity` flag to `PropertyModel` to track RelatedEntity properties
+  - The `EntityAnalyzer.CheckPropertyPerformance` method now skips performance checks for RelatedEntity properties
+  - DYNDB023 warnings continue to be reported for complex collection types without `[RelatedEntity]` attribute
+  - _Requirements: 4.1, 4.3, 4.4_
+
+- **Central Package Management** - Implemented NuGet Central Package Management for easier version management
+  - All package versions are now defined in `Directory.Packages.props`
+  - Individual `.csproj` files no longer specify version attributes on `PackageReference` elements
+  - Updated package version ranges to support .NET 10.x:
+    - `System.Text.Json`: `[8.0.0,11.0.0)`
+    - `Microsoft.Extensions.Logging.Abstractions`: `[8.0.0,11.0.0)`
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.1, 5.2, 5.4, 5.5_
+
 - **Complex Conditional OR Pattern in Filter Expressions** - Fixed an issue where complex nested OR patterns with multiple conditional clauses would incorrectly apply filters when they should be skipped
   - Pattern like `skipFlag || (condA && filter1) || (condB && filter2)` now correctly skips all filters when `skipFlag` is true
   - Previously, when combining OR patterns with AND patterns (e.g., `skipAll || (hasValue && x.Attr.AttributeExists()) || (!hasValue && x.Attr.AttributeNotExists())`), one of the entity filters would incorrectly be applied even when `skipAll` was true

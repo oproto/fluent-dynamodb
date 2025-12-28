@@ -2,6 +2,9 @@
   <PropertyGroup>
     <!-- MSBuildProjectDirectory is needed for relative path calculation -->
     <IconPath>$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'Directory.Build.props'))\docs\assets\icon.png</IconPath>
+    
+    <!-- Enable Central Package Management -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   
   <PropertyGroup>

@@ -76,7 +76,8 @@ namespace TestNamespace
         // This entity has some legitimate warnings but should still generate code
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word "status"
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warnings for collections
+        // RelatedEntity properties should NOT emit DYNDB023 performance warnings
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023"); // RelatedEntity suppresses performance warnings
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB009"); // Unsupported type for Summary
         result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
@@ -232,7 +233,8 @@ namespace TestNamespace
         // Should generate warnings for various issues, but NOT DYNDB016 since entity has sort key
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB021"); // Reserved word usage
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for collections
+        // RelatedEntity properties should NOT emit DYNDB023 performance warnings
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023"); // RelatedEntity suppresses performance warnings
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB009"); // Unsupported property type
         result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB016"); // Should NOT have this since entity has sort key
         result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
@@ -453,10 +455,11 @@ namespace TestNamespace
         var result = GenerateCode(source);
 
         // Assert
-        // Should generate multiple warnings including the expected DYNDB016
+        // Should generate DYNDB016 warning for missing sort key
+        // RelatedEntity properties should NOT emit DYNDB023 performance warnings
         result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().Contain(d => d.Id == "DYNDB016"); // Related entities require sort key
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB023"); // Performance warning for collections
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023"); // RelatedEntity suppresses performance warnings
 
         // Verify the specific DYNDB016 diagnostic
         var relatedEntityWarning = result.Diagnostics.First(d => d.Id == "DYNDB016");

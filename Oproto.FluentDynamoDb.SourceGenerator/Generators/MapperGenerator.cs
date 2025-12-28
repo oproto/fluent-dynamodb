@@ -2810,6 +2810,67 @@ internal static class MapperGenerator
                 sb.AppendLine("                }");
                 sb.AppendLine("            }");
             }
+            // Check if property is a DynamoDbMap - requires nested FromDynamoDb call
+            else if (property.ComplexType?.IsMap == true)
+            {
+                var propertyType = property.PropertyType;
+                sb.AppendLine($"            // Deserialize DynamoDbMap property {property.PropertyName}");
+                sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}) && {varName}.M != null)");
+                sb.AppendLine("            {");
+                sb.AppendLine("                try");
+                sb.AppendLine("                {");
+                
+                // Check if it's Dictionary<string, string>
+                if (propertyType.Contains("Dictionary<string, string>") || 
+                    propertyType.Contains("Dictionary<System.String, System.String>"))
+                {
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = {varName}.M.ToDictionary(");
+                    sb.AppendLine("                        kvp => kvp.Key,");
+                    sb.AppendLine("                        kvp => kvp.Value.S);");
+                }
+                // Check if it's Dictionary<string, object>
+                else if (propertyType.Contains("Dictionary<string, object>") ||
+                         propertyType.Contains("Dictionary<System.String, System.Object>"))
+                {
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = {varName}.M.ToDictionary(");
+                    sb.AppendLine("                        kvp => kvp.Key,");
+                    sb.AppendLine("                        kvp => (object)kvp.Value);");
+                }
+                // Check if it's Dictionary<string, AttributeValue>
+                else if (propertyType.Contains("Dictionary<string, AttributeValue>") ||
+                         propertyType.Contains("Dictionary<System.String, Amazon.DynamoDBv2.Model.AttributeValue>"))
+                {
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = {varName}.M;");
+                }
+                else
+                {
+                    // Custom object with [DynamoDbMap] - use nested FromDynamoDb call
+                    var simpleTypeName = GetSimpleTypeName(propertyType);
+                    sb.AppendLine($"                    entity.{escapedPropertyName} = {simpleTypeName}.FromDynamoDb<{simpleTypeName}>({varName}.M, options);");
+                }
+                
+                sb.AppendLine("                }");
+                sb.AppendLine("                catch (Exception ex)");
+                sb.AppendLine("                {");
+                sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+                sb.AppendLine($"                        typeof({entity.ClassName}),");
+                sb.AppendLine($"                        \"{property.PropertyName}\",");
+                sb.AppendLine($"                        {varName},");
+                sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+                sb.AppendLine("                        ex)");
+                sb.AppendLine($"                        .WithContext(\"PropertyType\", \"{property.PropertyType}\")");
+                sb.AppendLine($"                        .WithContext(\"Operation\", \"MapDeserialization\");");
+                sb.AppendLine("                }");
+                sb.AppendLine("            }");
+                // Handle nullable map properties when the attribute exists but M is null
+                if (property.IsNullable)
+                {
+                    sb.AppendLine($"            else if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}Null) && {varName}Null.NULL == true)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                entity.{escapedPropertyName} = null;");
+                    sb.AppendLine("            }");
+                }
+            }
             else
             {
                 sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");

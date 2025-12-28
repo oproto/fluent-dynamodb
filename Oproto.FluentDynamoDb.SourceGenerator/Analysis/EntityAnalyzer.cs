@@ -626,6 +626,10 @@ internal class EntityAnalyzer
         // Extract coordinate storage attributes
         ExtractCoordinateStorageAttributes(propertyDecl, semanticModel, propertyModel);
 
+        // Check for RelatedEntity attribute (used to suppress DYNDB023 performance warnings)
+        var relatedEntityAttr = GetAttribute(propertyDecl, semanticModel, "RelatedEntityAttribute");
+        propertyModel.IsRelatedEntity = relatedEntityAttr != null;
+
         // Analyze complex type information
         var complexTypeAnalyzer = new ComplexTypeAnalyzer();
         propertyModel.ComplexType = complexTypeAnalyzer.AnalyzeProperty(propertyModel, semanticModel);
@@ -1457,6 +1461,13 @@ internal class EntityAnalyzer
 
     private void ValidatePropertyPerformance(PropertyModel propertyModel)
     {
+        // Skip performance warnings for RelatedEntity properties - these are intentionally
+        // designed for composite entity patterns and should not trigger DYNDB023 warnings
+        if (propertyModel.IsRelatedEntity)
+        {
+            return;
+        }
+
         // Warn about potentially large string properties
         if (propertyModel.PropertyType == "string" && !propertyModel.IsCollection)
         {
