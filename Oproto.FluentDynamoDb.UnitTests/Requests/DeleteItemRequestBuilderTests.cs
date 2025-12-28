@@ -418,8 +418,9 @@ public class DeleteItemRequestBuilderTests
         builder.WithValue(":pk", (string?)null);
         var req = builder.ToDeleteItemRequest();
         req.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().HaveCount(0); // null string values are not added when conditionalUse is true
+        // When only null string values are added with conditionalUse (default true), 
+        // ExpressionAttributeValues is not set because DynamoDB rejects empty dictionaries
+        req.ExpressionAttributeValues.Should().BeNull();
     }
 
     [Fact]
@@ -512,8 +513,9 @@ public class DeleteItemRequestBuilderTests
         builder.WithValue(":pk", "test-value", conditionalUse: false);
         var req = builder.ToDeleteItemRequest();
         req.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().HaveCount(0); // conditionalUse: false means nothing is added
+        // When conditionalUse is false, no values are added, so ExpressionAttributeValues is not set
+        // because DynamoDB rejects requests with empty ExpressionAttributeValues dictionaries
+        req.ExpressionAttributeValues.Should().BeNull();
     }
 
     [Fact]

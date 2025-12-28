@@ -285,7 +285,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Update element at index 1 using SetAt extension method
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(1, "updated-second"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(1, "updated-second")
+            })
             .UpdateAsync();
 
         // Assert
@@ -307,7 +310,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Update first element (index 0) using SetAt extension method
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(0, "new-first"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(0, "new-first")
+            })
             .UpdateAsync();
 
         // Assert
@@ -327,7 +333,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Update last element (index 2) using SetAt extension method
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(2, "new-last"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(2, "new-last")
+            })
             .UpdateAsync();
 
         // Assert
@@ -347,7 +356,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
         // Act - Update element using variable index
         int index = 1;
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(index, "variable-updated"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(index, "variable-updated")
+            })
             .UpdateAsync();
 
         // Assert
@@ -369,7 +381,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Update element using method call index
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(GetTargetIndex(), "method-updated"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(GetTargetIndex(), "method-updated")
+            })
             .UpdateAsync();
 
         // Assert
@@ -389,7 +404,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
         // Act - Update element using property access index
         var config = new IndexConfig { TargetIndex = 0 };
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(config.TargetIndex, "property-updated"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(config.TargetIndex, "property-updated")
+            })
             .UpdateAsync();
 
         // Assert
@@ -408,7 +426,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Update multiple elements using chained SetAt
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(0, "updated-first").SetAt(2, "updated-third"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(0, "updated-first").SetAt(2, "updated-third")
+            })
             .UpdateAsync();
 
         // Assert
@@ -432,7 +453,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
         int firstIndex = 1;
         int secondIndex = 3;
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.SetAt(firstIndex, "updated-b").SetAt(secondIndex, "updated-d"))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.SetAt(firstIndex, "updated-b").SetAt(secondIndex, "updated-d")
+            })
             .UpdateAsync();
 
         // Assert
@@ -459,7 +483,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Remove element at index 1 using RemoveAt extension method
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.RemoveAt(1))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.RemoveAt(1)
+            })
             .UpdateAsync();
 
         // Assert
@@ -480,7 +507,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Remove first element (index 0) using RemoveAt extension method
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.RemoveAt(0))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.RemoveAt(0)
+            })
             .UpdateAsync();
 
         // Assert
@@ -501,7 +531,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Remove last element (index 2) using RemoveAt extension method
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.RemoveAt(2))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.RemoveAt(2)
+            })
             .UpdateAsync();
 
         // Assert
@@ -523,7 +556,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
         // Act - Remove element using variable index
         int index = 1;
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.RemoveAt(index))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.RemoveAt(index)
+            })
             .UpdateAsync();
 
         // Assert
@@ -544,7 +580,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
 
         // Act - Remove element using method call index
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.RemoveAt(GetTargetIndex()))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.RemoveAt(GetTargetIndex())
+            })
             .UpdateAsync();
 
         // Assert
@@ -566,7 +605,10 @@ public class ListOperationIntegrationTests : IntegrationTestBase
         // Act - Remove element using property access index
         var config = new IndexConfig { TargetIndex = 0 };
         await _table.Update(entity.Id, entity.Type)
-            .Set(x => x.Tags.RemoveAt(config.TargetIndex))
+            .Set(x => new NestedPropertyTestEntityUpdateModel
+            {
+                Tags = x.Tags.RemoveAt(config.TargetIndex)
+            })
             .UpdateAsync();
 
         // Assert
