@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using NSubstitute;
 using Oproto.FluentDynamoDb.ApiConsistencyTests.Entities;
+using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.ApiConsistencyTests.SingleEntityTables;
@@ -29,6 +30,16 @@ public class UpdateApiSurface
         await table.Update("1234")
             .Set(x => new BasicPkEntityUpdateModel { Age = 32 })
             .Where(x => x.Name == "Test")
+            .UpdateAsync();
+        
+        // Lambda expression update with IfNotExists and arithmetic (counter with non-zero default)
+        await table.Update("1234")
+            .Set(x => new BasicPkEntityUpdateModel { Age = x.Age.IfNotExists(0) + 1 })
+            .UpdateAsync();
+        
+        // Lambda expression update with IfNotExists and subtraction
+        await table.Update("1234")
+            .Set(x => new BasicPkEntityUpdateModel { Age = x.Age.IfNotExists(100) - 5 })
             .UpdateAsync();
         
         // === Format String Style ===

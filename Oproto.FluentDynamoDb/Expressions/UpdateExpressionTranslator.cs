@@ -739,13 +739,21 @@ public class UpdateExpressionTranslator
                 binary);
         }
 
+        // Check if left side is an IfNotExists method call - common pattern for counters with non-zero defaults
+        // e.g., x.Count.IfNotExists(100) + 1 => SET #count = if_not_exists(#count, :default) + :increment
+        if (IsIfNotExistsMethodCall(binary.Left, parameter))
+        {
+            return TranslateIfNotExistsWithArithmetic(binary, parameter, propertyName, context);
+        }
+
         // Check if left side is UpdateExpressionProperty access
         if (!IsUpdateExpressionPropertyAccess(binary.Left, parameter))
         {
             throw new UnsupportedExpressionException(
-                $"Left side of arithmetic operation must be an UpdateExpressionProperty access (e.g., x.PropertyName). " +
+                $"Left side of arithmetic operation must be an UpdateExpressionProperty access (e.g., x.PropertyName) " +
+                $"or an IfNotExists call (e.g., x.PropertyName.IfNotExists(0)). " +
                 $"Found: {binary.Left.NodeType}. " +
-                $"Example: x.Count + 5 (where x is the UpdateExpressions parameter).",
+                $"Examples: x.Count + 5, x.Count.IfNotExists(0) + 1",
                 binary);
         }
 
@@ -789,6 +797,154 @@ public class UpdateExpressionTranslator
         // Build SET expression with arithmetic
         var op = binary.NodeType == ExpressionType.Add ? "+" : "-";
         var expression = $"{attributeName} = {attributeName} {op} {valuePlaceholder}";
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Checks if an expression is an IfNotExists method call on an UpdateExpressionProperty.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <returns>True if the expression is x.Property.IfNotExists(defaultValue); otherwise, false.</returns>
+    private bool IsIfNotExistsMethodCall(Expression expression, ParameterExpression parameter)
+    {
+        // Unwrap Convert expressions
+        var unwrapped = expression;
+        while (unwrapped is UnaryExpression unary && 
+               (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            unwrapped = unary.Operand;
+        }
+
+        if (unwrapped is not MethodCallExpression methodCall)
+            return false;
+
+        if (methodCall.Method.Name != "IfNotExists")
+            return false;
+
+        // For extension methods, Arguments[0] is the 'this' parameter (the property itself)
+        if (methodCall.Arguments.Count < 1)
+            return false;
+
+        // Check that the 'this' argument is a property access on the parameter
+        return IsUpdateExpressionPropertyAccess(methodCall.Arguments[0], parameter);
+    }
+
+    /// <summary>
+    /// Translates an IfNotExists call combined with arithmetic to DynamoDB syntax.
+    /// </summary>
+    /// <param name="binary">The binary expression (e.g., x.Count.IfNotExists(0) + 1).</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="propertyName">The property name being updated.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>An operation representing SET #attr = if_not_exists(#attr, :default) +/- :value.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method handles the common counter pattern where you want to initialize a counter
+    /// to a non-zero default value if it doesn't exist, then perform arithmetic on it.
+    /// </para>
+    /// <para>
+    /// Example: <c>x.Count.IfNotExists(100) + 1</c> generates:
+    /// <c>SET #count = if_not_exists(#count, :p0) + :p1</c>
+    /// where :p0 = 100 (default) and :p1 = 1 (increment)
+    /// </para>
+    /// <para>
+    /// For simple zero-default counters, consider using <c>x.Count.Add(1)</c> instead,
+    /// which generates a DynamoDB ADD operation that automatically initializes to 0.
+    /// </para>
+    /// </remarks>
+    private Operation TranslateIfNotExistsWithArithmetic(
+        BinaryExpression binary,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        // Unwrap Convert expressions from the left side
+        var leftUnwrapped = binary.Left;
+        while (leftUnwrapped is UnaryExpression unary && 
+               (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            leftUnwrapped = unary.Operand;
+        }
+
+        var methodCall = (MethodCallExpression)leftUnwrapped;
+
+        // Get property metadata
+        var propertyMetadata = GetPropertyMetadata(propertyName, context);
+        
+        // Validate property type is numeric
+        if (propertyMetadata != null && !IsNumericType(propertyMetadata.PropertyType))
+        {
+            throw new UnsupportedExpressionException(
+                $"Arithmetic operations are only supported on numeric properties. " +
+                $"Property '{propertyName}' (DynamoDB attribute: '{propertyMetadata.AttributeName}') has type '{propertyMetadata.PropertyType.Name}'. " +
+                $"Supported numeric types: byte, short, int, long, float, double, decimal and their nullable variants.",
+                binary);
+        }
+        
+        // Get attribute name
+        var attributeName = GetAttributeName(propertyName, context, binary);
+        
+        // Get the default value from IfNotExists (Arguments[1] is the default value)
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                $"IfNotExists() method requires a default value argument. " +
+                $"Example: x.Count.IfNotExists(0) + 1",
+                "IfNotExists",
+                methodCall);
+        }
+        
+        var defaultValueArg = methodCall.Arguments[1];
+        var defaultValue = EvaluateExpression(defaultValueArg);
+        
+        // Validate the default value is numeric
+        if (defaultValue != null && !IsNumericType(defaultValue.GetType()))
+        {
+            throw new UnsupportedExpressionException(
+                $"Default value in IfNotExists() must be numeric when used with arithmetic. " +
+                $"Found type: {defaultValue.GetType().Name}.",
+                binary);
+        }
+        
+        // Apply format if specified
+        if (propertyMetadata?.Format != null && defaultValue != null)
+        {
+            defaultValue = ApplyFormat(defaultValue, propertyMetadata.Format, propertyName);
+        }
+        
+        // Capture the default value
+        var defaultPlaceholder = CaptureValue(defaultValue, context, propertyMetadata);
+        
+        // Evaluate the right side value (the arithmetic operand)
+        var incrementValue = EvaluateExpression(binary.Right);
+        
+        // Validate the increment value is numeric
+        if (incrementValue != null && !IsNumericType(incrementValue.GetType()))
+        {
+            throw new UnsupportedExpressionException(
+                $"Right side of arithmetic operation must evaluate to a numeric value. " +
+                $"Found type: {incrementValue.GetType().Name}.",
+                binary);
+        }
+        
+        // Apply format if specified
+        if (propertyMetadata?.Format != null && incrementValue != null)
+        {
+            incrementValue = ApplyFormat(incrementValue, propertyMetadata.Format, propertyName);
+        }
+        
+        // Capture the increment value
+        var incrementPlaceholder = CaptureValue(incrementValue, context, propertyMetadata);
+        
+        // Build SET expression: #attr = if_not_exists(#attr, :default) +/- :increment
+        var op = binary.NodeType == ExpressionType.Add ? "+" : "-";
+        var expression = $"{attributeName} = if_not_exists({attributeName}, {defaultPlaceholder}) {op} {incrementPlaceholder}";
         
         return new Operation
         {
@@ -2934,6 +3090,8 @@ public class UpdateExpressionTranslator
             decimal dec => new AttributeValue { N = dec.ToString(CultureInfo.InvariantCulture) },
             DateTime dt => new AttributeValue { S = dt.ToString("o", CultureInfo.InvariantCulture) },
             DateTimeOffset dto => new AttributeValue { S = dto.ToString("o", CultureInfo.InvariantCulture) },
+            DateOnly d => new AttributeValue { S = d.ToString("O", CultureInfo.InvariantCulture) },
+            TimeOnly t => new AttributeValue { S = t.ToString("O", CultureInfo.InvariantCulture) },
             Guid g => new AttributeValue { S = g.ToString() },
             Enum e => new AttributeValue { S = e.ToString() },
             _ => ConvertComplexType(value)

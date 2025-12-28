@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-24
+# Updated 2025-12-28
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -73,6 +73,35 @@ public partial class MyCustomTable { }
 [DynamoDbTable("Logs")]
 [Scannable]
 public partial class LogEntry { ... }
+
+// DateOnly and TimeOnly types (.NET 6+)
+[DynamoDbTable("Events")]
+public partial class Event
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+    
+    // Default ISO 8601 format: "2024-12-28"
+    [DynamoDbAttribute("eventDate")]
+    public DateOnly EventDate { get; set; }
+    
+    // Custom format: "12/28/2024"
+    [DynamoDbAttribute("displayDate", Format = "MM/dd/yyyy")]
+    public DateOnly DisplayDate { get; set; }
+    
+    // Default ISO 8601 format: "14:30:45.0000000"
+    [DynamoDbAttribute("startTime")]
+    public TimeOnly StartTime { get; set; }
+    
+    // Custom format: "2:30 PM"
+    [DynamoDbAttribute("displayTime", Format = "h:mm tt")]
+    public TimeOnly DisplayTime { get; set; }
+    
+    // Collections supported
+    [DynamoDbAttribute("availableDates")]
+    public List<DateOnly> AvailableDates { get; set; } = new();
+}
 ```
 
 ## Projection Definition
@@ -169,6 +198,137 @@ var invoices = await table.Invoices.Query().Where(x => x.Pk == pk).ToCompositeEn
 ### Key Design Pattern
 
 Hierarchical sort keys enable single-query retrieval. Query with `begins_with(sk, "INVOICE#INV-001")` returns all items, `ToCompositeEntityAsync` assembles them.
+
+## Key Handling & Prefixes
+
+### Understanding Key Prefixes
+
+When you define a key with a prefix, the source generator creates helper methods but does NOT automatically apply prefixes in CRUD operations:
+
+```csharp
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "ORDER")]  // Generates keys like "ORDER#12345"
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+}
+```
+
+### Generated Keys Class
+
+The source generator creates a nested `Keys` class with builder methods:
+
+```csharp
+// Generated methods:
+Order.Keys.Pk("12345")           // Returns "ORDER#12345"
+Order.Keys.Sk("abc")             // Returns "META#abc" (if SK has prefix)
+Order.Keys.Key("12345", "abc")   // Returns ("ORDER#12345", "META#abc")
+
+// Extraction helpers (for composite keys):
+Order.Keys.ExtractPkComponents("ORDER#12345")  // Returns "12345"
+```
+
+### CRITICAL: Get/Update/Delete Take RAW Values
+
+The generated convenience methods pass values directly to DynamoDB - they do NOT prepend prefixes:
+
+```csharp
+// ❌ WRONG - This looks for pk="12345", not "ORDER#12345"
+var order = await table.Orders.Get("12345").GetItemAsync();
+
+// ✅ CORRECT - Use Keys.Pk() to build the prefixed key
+var order = await table.Orders.Get(Order.Keys.Pk("12345")).GetItemAsync();
+
+// ✅ CORRECT - Or use the full prefixed value directly
+var order = await table.Orders.Get("ORDER#12345").GetItemAsync();
+```
+
+### When Reading Back: Full Prefixed Value
+
+When you read an entity from DynamoDB, the key properties contain the FULL prefixed value:
+
+```csharp
+var order = await table.Orders.Get(Order.Keys.Pk("12345")).GetItemAsync();
+Console.WriteLine(order.Pk);  // Prints "ORDER#12345", NOT "12345"
+
+// To extract the raw value, manually strip the prefix:
+var rawId = order.Pk.Replace("ORDER#", "");  // Returns "12345"
+
+// Or use Split for more complex keys:
+var parts = order.Pk.Split('#');  // ["ORDER", "12345"]
+var rawId = parts[1];
+```
+
+### Computed/Concatenated Keys (Advanced)
+
+For keys that combine multiple values into a single DynamoDB attribute, use `[Computed]` and `[Extracted]` attributes:
+
+```csharp
+[DynamoDbTable("Events")]
+public partial class Event
+{
+    // Computed key: combines Year + Month + Day into single attribute
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    [Computed("Year", "Month", "Day", Separator = "#")]
+    public string Pk { get; set; } = string.Empty;
+    
+    // Source properties - values extracted from Pk when reading from DynamoDB
+    [Extracted("Pk", 0)]
+    public int Year { get; set; }
+    
+    [Extracted("Pk", 1)]
+    public int Month { get; set; }
+    
+    [Extracted("Pk", 2)]
+    public int Day { get; set; }
+}
+
+// Generated methods:
+Event.Keys.BuildPk(2024, 12, 25)              // Returns "2024#12#25"
+Event.Keys.ExtractPkComponents("2024#12#25")  // Returns (Year: 2024, Month: 12, Day: 25)
+
+// When reading, extracted properties are auto-populated:
+var evt = await table.Events.Get(Event.Keys.BuildPk(2024, 12, 25)).GetItemAsync();
+Console.WriteLine(evt.Year);   // 2024
+Console.WriteLine(evt.Month);  // 12
+Console.WriteLine(evt.Day);    // 25
+```
+
+### Key Handling Summary
+
+| Operation | What You Pass | What's Stored in DynamoDB |
+|-----------|---------------|---------------------------|
+| `Get(value)` | Raw value OR prefixed value | N/A (read operation) |
+| `Put(entity)` | Entity with `Pk` set | Whatever is in `entity.Pk` |
+| `entity.Pk` after read | N/A | Full prefixed value |
+| `Keys.Pk(value)` | Raw value | Returns prefixed value |
+| `Keys.ExtractPkComponents(pk)` | Full prefixed value | Returns raw value(s) |
+
+### Best Practice: Always Use Keys Class
+
+```csharp
+// Building keys for operations - ALWAYS use Keys.Pk() for prefixed keys
+var pk = Order.Keys.Pk(orderId);                    // "ORDER#12345"
+var (pk, sk) = Order.Keys.Key(orderId, lineId);     // ("ORDER#12345", "LINE#abc")
+
+// CRUD operations with prefixed keys
+var order = await table.Orders.Get(Order.Keys.Pk(orderId)).GetItemAsync();
+await table.Orders.Delete(Order.Keys.Pk(orderId), Order.Keys.Sk(lineId)).DeleteAsync();
+
+// Creating new entities - set the prefixed key value
+var newOrder = new Order 
+{ 
+    Pk = Order.Keys.Pk(newOrderId),  // "ORDER#newId"
+    Sk = Order.Keys.Sk(lineId),      // "LINE#lineId"
+    // ... other properties
+};
+await table.Orders.Put(newOrder).PutAsync();
+
+// Extracting raw values from prefixed keys (manual)
+var rawOrderId = order.Pk.Split('#')[1];  // "12345" from "ORDER#12345"
+```
 
 ## Get Operations
 
@@ -281,6 +441,37 @@ await table.Users.Update(userId)
 // Remove() → REMOVE (attribute deleted)
 .Set(x => new UserUpdateModel { TempData = x.TempData.Remove() })
 ```
+
+### Counter Patterns
+
+```csharp
+// Atomic increment - ADD creates attribute if missing (initializes to 0)
+await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Count = x.Count.Add(1) })
+    .UpdateAsync();
+// Generates: ADD #count :p0
+
+// Arithmetic on existing value - fails if attribute doesn't exist
+await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Count = x.Count + 1 })
+    .UpdateAsync();
+// Generates: SET #count = #count + :p0
+
+// IfNotExists with arithmetic - initialize to non-zero default then increment
+await table.Users.Update(userId)
+    .Set(x => new UserUpdateModel { Count = x.Count.IfNotExists(100) + 1 })
+    .UpdateAsync();
+// Generates: SET #count = if_not_exists(#count, :p0) + :p1
+// If Count doesn't exist: sets to 101 (100 + 1)
+// If Count exists: increments existing value by 1
+```
+
+| Pattern | Use Case | Behavior if Missing |
+|---------|----------|---------------------|
+| `x.Count.Add(1)` | Simple counter | Creates with value 1 |
+| `x.Count + 1` | Increment existing | Fails |
+| `x.Count.IfNotExists(0) + 1` | Counter with explicit zero default | Creates with value 1 |
+| `x.Count.IfNotExists(100) + 1` | Counter with non-zero default | Creates with value 101 |
 
 ## Delete Operations
 

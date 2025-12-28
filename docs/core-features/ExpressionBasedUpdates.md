@@ -459,6 +459,48 @@ public int? ViewCount { get; set; }  // Nullable
 ViewCount = x.ViewCount.IfNotExists(0)
 ```
 
+### if_not_exists with Arithmetic
+
+Combines `IfNotExists()` with arithmetic for counter patterns with non-zero defaults:
+
+```csharp
+// Initialize to 100 if missing, then increment by 1
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        Count = x.Count.IfNotExists(100) + 1
+    })
+    .UpdateAsync();
+```
+
+**Generated Expression:**
+```
+SET #count = if_not_exists(#count, :p0) + :p1
+```
+Where `:p0` = 100 (default) and `:p1` = 1 (increment).
+
+**Behavior:**
+- If `Count` doesn't exist: sets to 101 (100 + 1)
+- If `Count` exists with value 50: sets to 51 (50 + 1)
+
+**Subtraction is also supported:**
+```csharp
+// Initialize balance to 1000 if missing, then deduct 50
+Balance = x.Balance.IfNotExists(1000m) - 50m
+```
+
+**Counter Pattern Comparison:**
+
+| Pattern | Use Case | Behavior if Missing |
+|---------|----------|---------------------|
+| `x.Count.Add(1)` | Simple counter | Creates with value 1 (ADD operation) |
+| `x.Count + 1` | Increment existing | Fails (attribute must exist) |
+| `x.Count.IfNotExists(0) + 1` | Counter with explicit zero default | Creates with value 1 |
+| `x.Count.IfNotExists(100) + 1` | Counter with non-zero default | Creates with value 101 |
+
+> **Tip:** For simple counters starting at zero, use `x.Count.Add(1)` which generates a DynamoDB `ADD` operation that automatically initializes missing attributes to 0.
+
 ### list_append
 
 Appends elements to the end of a list:

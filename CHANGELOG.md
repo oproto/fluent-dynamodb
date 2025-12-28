@@ -9,6 +9,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **DateOnly and TimeOnly Serialization** - Native serialization support for .NET 6+ `DateOnly` and `TimeOnly` types
+  - **DateOnly Serialization**: Automatically serializes to ISO 8601 date format (`yyyy-MM-dd`) as DynamoDB string attribute
+  - **TimeOnly Serialization**: Automatically serializes to ISO 8601 time format (`HH:mm:ss.fffffff`) as DynamoDB string attribute
+  - **UpdateExpressionTranslator Support**: Both types work in lambda-based update and filter expressions
+  - **Collection Support**: `List<DateOnly>` and `List<TimeOnly>` are fully supported
+  - **Custom Format Strings**: Use `[DynamoDbAttribute(Format = "...")]` to specify custom formats
+  - **Nullable Support**: `DateOnly?` and `TimeOnly?` handle null values correctly
+  - **Round-Trip Consistency**: Serializing then deserializing produces equivalent values
+  - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.2, 4.1-4.4, 5.1-5.4_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("Events")]
+  public partial class Event
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string Pk { get; set; } = string.Empty;
+      
+      // Default ISO 8601 format: "2024-12-28"
+      [DynamoDbAttribute("eventDate")]
+      public DateOnly EventDate { get; set; }
+      
+      // Custom format: "12/28/2024"
+      [DynamoDbAttribute("displayDate", Format = "MM/dd/yyyy")]
+      public DateOnly DisplayDate { get; set; }
+      
+      // Default ISO 8601 format: "14:30:45.1234567"
+      [DynamoDbAttribute("startTime")]
+      public TimeOnly StartTime { get; set; }
+      
+      // Custom format: "2:30 PM"
+      [DynamoDbAttribute("displayTime", Format = "h:mm tt")]
+      public TimeOnly DisplayTime { get; set; }
+      
+      // Collections are supported
+      [DynamoDbAttribute("availableDates")]
+      public List<DateOnly> AvailableDates { get; set; } = new();
+  }
+  
+  // Use in update expressions
+  await table.Events.Update(eventId)
+      .Set(x => new EventUpdateModel { EventDate = new DateOnly(2024, 12, 31) })
+      .UpdateAsync();
+  
+  // Use in filter expressions
+  var events = await table.Events.Query(x => x.Pk == pk)
+      .WithFilter(x => x.EventDate > new DateOnly(2024, 1, 1))
+      .ToListAsync();
+  ```
+
+- **IfNotExists with Arithmetic** - Support for combining `IfNotExists()` with arithmetic operations in update expressions
+  - Enables counter patterns with non-zero default values: `x.Count.IfNotExists(100) + 1`
+  - Generates DynamoDB expression: `SET #count = if_not_exists(#count, :default) + :increment`
+  - Supports both addition and subtraction operators
+  - Works with all numeric types (int, long, decimal, etc.)
+  
+  **Usage:**
+  ```csharp
+  // Initialize counter to 100 if missing, then increment
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Count = x.Count.IfNotExists(100) + 1 })
+      .UpdateAsync();
+  
+  // Decrement with default
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Balance = x.Balance.IfNotExists(1000m) - 50m })
+      .UpdateAsync();
+  ```
+
 - **Key Condition Shortcuts** - Simplified conditional patterns for Put, Update, and Delete operations
   - New `KeyCondition` enum with `None`, `MustExist`, and `MustNotExist` values
   - New `IfExists()` and `IfNotExists()` builder methods on `PutItemRequestBuilder`, `UpdateItemRequestBuilder`, and `DeleteItemRequestBuilder`

@@ -1685,6 +1685,8 @@ public class ExpressionTranslator
             decimal dec => new AttributeValue { N = dec.ToString(CultureInfo.InvariantCulture) },
             DateTime dt => new AttributeValue { S = dt.ToString("o", CultureInfo.InvariantCulture) },
             DateTimeOffset dto => new AttributeValue { S = dto.ToString("o", CultureInfo.InvariantCulture) },
+            DateOnly d => new AttributeValue { S = d.ToString("O", CultureInfo.InvariantCulture) },
+            TimeOnly t => new AttributeValue { S = t.ToString("O", CultureInfo.InvariantCulture) },
             Guid g => new AttributeValue { S = g.ToString() },
             Enum e => new AttributeValue { S = e.ToString() },
             _ => new AttributeValue { S = value.ToString() ?? string.Empty }
