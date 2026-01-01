@@ -1439,6 +1439,19 @@ internal class EntityAnalyzer
 
         var nestedTypeSymbol = propertySymbol.Type;
         
+        // Handle List<T> types - extract the element type
+        if (nestedTypeSymbol is INamedTypeSymbol namedType && 
+            namedType.IsGenericType &&
+            (namedType.Name == "List" || namedType.Name == "IList" || 
+             namedType.Name == "ICollection" || namedType.Name == "IEnumerable"))
+        {
+            // Get the element type (T in List<T>)
+            if (namedType.TypeArguments.Length > 0)
+            {
+                nestedTypeSymbol = namedType.TypeArguments[0];
+            }
+        }
+        
         // Check if the nested type has [DynamoDbEntity] or [DynamoDbTable] attribute
         var hasEntityAttribute = nestedTypeSymbol.GetAttributes().Any(attr =>
         {
@@ -1618,7 +1631,11 @@ internal class EntityAnalyzer
             "string", "int", "long", "double", "float", "decimal", "bool", "DateTime", "DateTimeOffset",
             "Guid", "byte[]", "System.String", "System.Int32", "System.Int64", "System.Double",
             "System.Single", "System.Decimal", "System.Boolean", "System.DateTime", "System.DateTimeOffset",
-            "System.Guid", "System.Byte[]", "Ulid", "System.Ulid"
+            "System.Guid", "System.Byte[]", "Ulid", "System.Ulid",
+            // .NET 6+ date/time types
+            "DateOnly", "TimeOnly", "System.DateOnly", "System.TimeOnly",
+            // Common enum types
+            "DayOfWeek", "System.DayOfWeek"
         };
 
         // Remove nullable annotations for checking

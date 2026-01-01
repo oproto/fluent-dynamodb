@@ -132,6 +132,73 @@ namespace TestNamespace
     }
 
     [Fact]
+    public void Generator_WithListOfDynamoDbMapEntities_GeneratesListOfMapsConversion()
+    {
+        // Arrange
+        var source = @"
+using System;
+using System.Collections.Generic;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class Schedule
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""periods"")]
+        [DynamoDbMap]
+        public List<TimePeriod>? Periods { get; set; }
+    }
+
+    [DynamoDbEntity]
+    public partial class TimePeriod
+    {
+        [DynamoDbAttribute(""start"")]
+        public string? Start { get; set; }
+        
+        [DynamoDbAttribute(""end"")]
+        public string? End { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var entityCode = GetGeneratedSource(result, "Schedule.g.cs");
+        var nestedEntityCode = GetGeneratedSource(result, "TimePeriod.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source, nestedEntityCode);
+        
+        // Check ToDynamoDb generates list of maps conversion
+        entityCode.Should().Contain("if (typedEntity.Periods != null && typedEntity.Periods.Count > 0)",
+            "should check for null and empty before processing list of nested entities");
+        entityCode.Should().Contain("foreach (var element in typedEntity.Periods)",
+            "should iterate through list elements");
+        entityCode.Should().Contain("TimePeriod.ToDynamoDb(element)",
+            "should call nested type's ToDynamoDb method for each element");
+        entityCode.Should().Contain("{ M = elementMap }",
+            "should wrap each element as a Map (M) attribute");
+        entityCode.Should().Contain("{ L = periodsList }",
+            "should use List (L) attribute type for the collection");
+        
+        // Check FromDynamoDb reconstructs list of nested entities
+        entityCode.Should().Contain("if (item.TryGetValue(\"periods\", out var periodsValue) && periodsValue.L != null)",
+            "should check for attribute existence and List type");
+        entityCode.Should().Contain("foreach (var elementValue in periodsValue.L)",
+            "should iterate through list elements during deserialization");
+        entityCode.Should().Contain("TimePeriod.FromDynamoDb<TimePeriod>(elementValue.M, options)",
+            "should call nested type's FromDynamoDb method for each element");
+    }
+
+    [Fact]
     public void Generator_WithEmptyDictionary_OmitsAttribute()
     {
         // Arrange
@@ -1424,6 +1491,373 @@ namespace TestNamespace
             diagnostic.GetMessage().Should().Contain("collection");
             diagnostic.GetMessage().Should().Contain("unsupported");
         }
+    }
+
+    #endregion
+
+    #region End-to-End Type Support Tests
+
+    /// <summary>
+    /// Verifies that DateOnly properties in [DynamoDbTable] entities are correctly supported
+    /// through the full source generator pipeline (EntityAnalyzer -> MapperGenerator).
+    /// This test ensures DYNDB009 is NOT produced for DateOnly types.
+    /// </summary>
+    [Fact]
+    public void Generator_WithDateOnlyProperty_DoesNotProduceDYNDB009()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class EventEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""event_date"")]
+        public DateOnly EventDate { get; set; }
+        
+        [DynamoDbAttribute(""optional_date"")]
+        public DateOnly? OptionalDate { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - No DYNDB009 (UnsupportedPropertyType) should be produced
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB009",
+            "DateOnly should be a supported property type and not trigger DYNDB009");
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "No errors should be produced for DateOnly properties");
+        
+        var entityCode = GetGeneratedSource(result, "EventEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        // Verify DateOnly serialization is generated
+        entityCode.Should().Contain("DateOnly.ParseExact",
+            "should generate DateOnly deserialization code");
+    }
+
+    /// <summary>
+    /// Verifies that TimeOnly properties in [DynamoDbTable] entities are correctly supported
+    /// through the full source generator pipeline (EntityAnalyzer -> MapperGenerator).
+    /// This test ensures DYNDB009 is NOT produced for TimeOnly types.
+    /// </summary>
+    [Fact]
+    public void Generator_WithTimeOnlyProperty_DoesNotProduceDYNDB009()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class ScheduleEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""start_time"")]
+        public TimeOnly StartTime { get; set; }
+        
+        [DynamoDbAttribute(""end_time"")]
+        public TimeOnly? EndTime { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - No DYNDB009 (UnsupportedPropertyType) should be produced
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB009",
+            "TimeOnly should be a supported property type and not trigger DYNDB009");
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "No errors should be produced for TimeOnly properties");
+        
+        var entityCode = GetGeneratedSource(result, "ScheduleEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        // Verify TimeOnly serialization is generated
+        entityCode.Should().Contain("TimeOnly.ParseExact",
+            "should generate TimeOnly deserialization code");
+    }
+
+    /// <summary>
+    /// Verifies that DayOfWeek properties in [DynamoDbTable] entities are correctly supported
+    /// through the full source generator pipeline (EntityAnalyzer -> MapperGenerator).
+    /// This test ensures DYNDB009 is NOT produced for DayOfWeek types.
+    /// </summary>
+    [Fact]
+    public void Generator_WithDayOfWeekProperty_DoesNotProduceDYNDB009()
+    {
+        // Arrange
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class RecurringEventEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""day_of_week"")]
+        public DayOfWeek DayOfWeek { get; set; }
+        
+        [DynamoDbAttribute(""optional_day"")]
+        public DayOfWeek? OptionalDay { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - No DYNDB009 (UnsupportedPropertyType) should be produced
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB009",
+            "DayOfWeek should be a supported property type and not trigger DYNDB009");
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "No errors should be produced for DayOfWeek properties");
+        
+        var entityCode = GetGeneratedSource(result, "RecurringEventEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        // Verify DayOfWeek serialization is generated (stored as string)
+        entityCode.Should().Contain("DayOfWeek",
+            "should generate DayOfWeek handling code");
+    }
+
+    /// <summary>
+    /// Verifies that List&lt;T&gt; with [DynamoDbMap] where T has [DynamoDbEntity] is correctly supported
+    /// through the full source generator pipeline.
+    /// This test ensures DYNDB107 is NOT produced when the element type has [DynamoDbEntity].
+    /// </summary>
+    [Fact]
+    public void Generator_WithListOfDynamoDbMapEntities_DoesNotProduceDYNDB107()
+    {
+        // Arrange
+        var source = @"
+using System;
+using System.Collections.Generic;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class ScheduleEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""periods"")]
+        [DynamoDbMap]
+        public List<TimePeriod>? Periods { get; set; }
+    }
+
+    [DynamoDbEntity]
+    public partial class TimePeriod
+    {
+        [DynamoDbAttribute(""start"")]
+        public string? Start { get; set; }
+        
+        [DynamoDbAttribute(""end"")]
+        public string? End { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - No DYNDB107 (NestedMapTypeMissingAttribute) should be produced
+        result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB107",
+            "List<T> with [DynamoDbMap] where T has [DynamoDbEntity] should not trigger DYNDB107");
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "No errors should be produced for List<T> with [DynamoDbMap] where T has [DynamoDbEntity]");
+        
+        var entityCode = GetGeneratedSource(result, "ScheduleEntity.g.cs");
+        var nestedEntityCode = GetGeneratedSource(result, "TimePeriod.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source, nestedEntityCode);
+        
+        // Verify list of maps serialization is generated
+        entityCode.Should().Contain("TimePeriod.ToDynamoDb",
+            "should call nested type's ToDynamoDb method for each element");
+        entityCode.Should().Contain("{ L = ",
+            "should use List (L) attribute type for the collection");
+    }
+
+    /// <summary>
+    /// Verifies that combining DateOnly, TimeOnly, and List&lt;T&gt; with [DynamoDbMap] in a single entity
+    /// works correctly through the full source generator pipeline.
+    /// </summary>
+    [Fact]
+    public void Generator_WithCombinedDateTimeAndListOfMaps_GeneratesCorrectCode()
+    {
+        // Arrange
+        var source = @"
+using System;
+using System.Collections.Generic;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class ComplexScheduleEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""event_date"")]
+        public DateOnly EventDate { get; set; }
+        
+        [DynamoDbAttribute(""start_time"")]
+        public TimeOnly StartTime { get; set; }
+        
+        [DynamoDbAttribute(""day_of_week"")]
+        public DayOfWeek DayOfWeek { get; set; }
+        
+        [DynamoDbAttribute(""periods"")]
+        [DynamoDbMap]
+        public List<TimePeriod>? Periods { get; set; }
+    }
+
+    [DynamoDbEntity]
+    public partial class TimePeriod
+    {
+        [DynamoDbAttribute(""start"")]
+        public TimeOnly Start { get; set; }
+        
+        [DynamoDbAttribute(""end"")]
+        public TimeOnly End { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - No errors should be produced
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "No errors should be produced for combined DateOnly, TimeOnly, DayOfWeek, and List<T> with [DynamoDbMap]");
+        
+        var entityCode = GetGeneratedSource(result, "ComplexScheduleEntity.g.cs");
+        var nestedEntityCode = GetGeneratedSource(result, "TimePeriod.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source, nestedEntityCode);
+        
+        // Verify all types are handled
+        entityCode.Should().Contain("DateOnly.ParseExact",
+            "should generate DateOnly deserialization code");
+        entityCode.Should().Contain("TimeOnly.ParseExact",
+            "should generate TimeOnly deserialization code");
+        entityCode.Should().Contain("TimePeriod.ToDynamoDb",
+            "should call nested type's ToDynamoDb method");
+    }
+
+    /// <summary>
+    /// Verifies that List&lt;DateOnly&gt; is correctly supported through the full source generator pipeline.
+    /// </summary>
+    [Fact]
+    public void Generator_WithListOfDateOnly_GeneratesCorrectCode()
+    {
+        // Arrange
+        var source = @"
+using System;
+using System.Collections.Generic;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class EventEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""available_dates"")]
+        public List<DateOnly>? AvailableDates { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - No errors should be produced
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "No errors should be produced for List<DateOnly>");
+        
+        var entityCode = GetGeneratedSource(result, "EventEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        // Verify list serialization is generated
+        entityCode.Should().Contain("{ L = ",
+            "should use List (L) attribute type for List<DateOnly>");
+    }
+
+    /// <summary>
+    /// Verifies that List&lt;TimeOnly&gt; is correctly supported through the full source generator pipeline.
+    /// </summary>
+    [Fact]
+    public void Generator_WithListOfTimeOnly_GeneratesCorrectCode()
+    {
+        // Arrange
+        var source = @"
+using System;
+using System.Collections.Generic;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""test-table"")]
+    public partial class ScheduleEntity
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Id { get; set; } = string.Empty;
+        
+        [DynamoDbAttribute(""break_times"")]
+        public List<TimeOnly>? BreakTimes { get; set; }
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert - No errors should be produced
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "No errors should be produced for List<TimeOnly>");
+        
+        var entityCode = GetGeneratedSource(result, "ScheduleEntity.g.cs");
+        
+        // Verify compilation
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        
+        // Verify list serialization is generated
+        entityCode.Should().Contain("{ L = ",
+            "should use List (L) attribute type for List<TimeOnly>");
     }
 
     #endregion

@@ -178,6 +178,19 @@ internal class ComplexTypeValidator
 
         var nestedTypeSymbol = propertySymbol.Type;
         
+        // Handle List<T> types - extract the element type
+        if (nestedTypeSymbol is INamedTypeSymbol namedType && 
+            namedType.IsGenericType &&
+            (namedType.Name == "List" || namedType.Name == "IList" || 
+             namedType.Name == "ICollection" || namedType.Name == "IEnumerable"))
+        {
+            // Get the element type (T in List<T>)
+            if (namedType.TypeArguments.Length > 0)
+            {
+                nestedTypeSymbol = namedType.TypeArguments[0];
+            }
+        }
+        
         // Check if the nested type has [DynamoDbEntity] or [DynamoDbTable] attribute
         var hasEntityAttribute = nestedTypeSymbol.GetAttributes().Any(attr =>
         {
