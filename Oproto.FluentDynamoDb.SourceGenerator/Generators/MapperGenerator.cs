@@ -483,6 +483,13 @@ internal static class MapperGenerator
             return;
         }
 
+        // Handle List<T> with [DynamoDbMap] - lists of nested entities
+        if (property.ComplexType?.IsListOfMaps == true)
+        {
+            GenerateListOfMapsPropertyToAttributeValue(sb, property, entity);
+            return;
+        }
+
         // Handle collection properties differently for single-item entities
         if (property.IsCollection)
         {
@@ -585,6 +592,13 @@ internal static class MapperGenerator
         if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyToAttributeValue(sb, property, entity);
+            return;
+        }
+
+        // Handle List<T> with [DynamoDbMap] - lists of nested entities
+        if (property.ComplexType?.IsListOfMaps == true)
+        {
+            GenerateListOfMapsPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
@@ -1241,6 +1255,46 @@ internal static class MapperGenerator
             sb.AppendLine("                }");
             sb.AppendLine("            }");
         }
+    }
+
+    /// <summary>
+    /// Generates code for serializing a List&lt;T&gt; property with [DynamoDbMap] attribute.
+    /// Each element in the list is serialized as a DynamoDB Map using the element type's ToDynamoDb method.
+    /// </summary>
+    private static void GenerateListOfMapsPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var elementType = property.ComplexType?.ElementType ?? GetCollectionElementType(property.PropertyType);
+        var simpleElementType = GetSimpleTypeName(elementType);
+
+        sb.AppendLine($"            // Convert List<{simpleElementType}> with [DynamoDbMap] to DynamoDB List of Maps");
+        sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null && typedEntity.{escapedPropertyName}.Count > 0)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    var {propertyName.ToLowerInvariant()}List = new List<AttributeValue>();");
+        sb.AppendLine($"                    foreach (var element in typedEntity.{escapedPropertyName})");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        var elementMap = {simpleElementType}.ToDynamoDb(element);");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}List.Add(new AttributeValue {{ M = elementMap }});");
+        sb.AppendLine("                    }");
+        sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ L = {propertyName.ToLowerInvariant()}List }};");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        new AttributeValue {{ L = new List<AttributeValue>() }},");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                        ex)");
+        sb.AppendLine($"                        .WithContext(\"CollectionType\", \"ListOfMaps\")");
+        sb.AppendLine($"                        .WithContext(\"ElementType\", \"{elementType}\")");
+        sb.AppendLine($"                        .WithContext(\"Operation\", \"ToDynamoDb\");");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
     }
 
     private static void GenerateCollectionPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
@@ -2011,6 +2065,13 @@ internal static class MapperGenerator
             return;
         }
 
+        // Handle List<T> with [DynamoDbMap] - lists of nested entities
+        if (property.ComplexType?.IsListOfMaps == true)
+        {
+            GenerateListOfMapsPropertyFromAttributeValue(sb, property, entity);
+            return;
+        }
+
         if (property.IsCollection)
         {
             GenerateCollectionPropertyFromAttributeValue(sb, property, entity);
@@ -2113,6 +2174,13 @@ internal static class MapperGenerator
         if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyFromAttributeValue(sb, property, entity);
+            return;
+        }
+
+        // Handle List<T> with [DynamoDbMap] - lists of nested entities
+        if (property.ComplexType?.IsListOfMaps == true)
+        {
+            GenerateListOfMapsPropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
@@ -2419,6 +2487,49 @@ internal static class MapperGenerator
         sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
         sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
         sb.AppendLine("                        ex);");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+    }
+
+    /// <summary>
+    /// Generates code for deserializing a List&lt;T&gt; property with [DynamoDbMap] attribute.
+    /// Each element in the DynamoDB List is deserialized as a Map using the element type's FromDynamoDb method.
+    /// </summary>
+    private static void GenerateListOfMapsPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var elementType = property.ComplexType?.ElementType ?? GetCollectionElementType(property.PropertyType);
+        var simpleElementType = GetSimpleTypeName(elementType);
+        var nonNullableElementType = elementType.TrimEnd('?');
+
+        sb.AppendLine($"            // Convert DynamoDB List of Maps to List<{simpleElementType}> with [DynamoDbMap]");
+        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value) && {propertyName.ToLowerInvariant()}Value.L != null)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    entity.{escapedPropertyName} = new List<{nonNullableElementType}>();");
+        sb.AppendLine($"                    foreach (var elementValue in {propertyName.ToLowerInvariant()}Value.L)");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        if (elementValue.M != null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine($"                            var element = {simpleElementType}.FromDynamoDb<{simpleElementType}>(elementValue.M, options);");
+        sb.AppendLine($"                            entity.{escapedPropertyName}.Add(element);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                        ex)");
+        sb.AppendLine($"                        .WithContext(\"CollectionType\", \"ListOfMaps\")");
+        sb.AppendLine($"                        .WithContext(\"ElementType\", \"{elementType}\")");
+        sb.AppendLine($"                        .WithContext(\"Operation\", \"FromDynamoDb\");");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
     }
@@ -2942,6 +3053,43 @@ internal static class MapperGenerator
                     sb.AppendLine($"                entity.{escapedPropertyName} = null;");
                     sb.AppendLine("            }");
                 }
+            }
+            // Check if property is a List<T> with [DynamoDbMap] - requires nested FromDynamoDb calls for each element
+            else if (property.ComplexType?.IsListOfMaps == true)
+            {
+                var propertyType = property.PropertyType;
+                var elementType = property.ComplexType?.ElementType ?? GetCollectionElementType(propertyType);
+                var simpleElementType = GetSimpleTypeName(elementType);
+                var nonNullableElementType = elementType.TrimEnd('?');
+                
+                sb.AppendLine($"            // Deserialize List<{simpleElementType}> with [DynamoDbMap] property {property.PropertyName}");
+                sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}) && {varName}.L != null)");
+                sb.AppendLine("            {");
+                sb.AppendLine("                try");
+                sb.AppendLine("                {");
+                sb.AppendLine($"                    entity.{escapedPropertyName} = new List<{nonNullableElementType}>();");
+                sb.AppendLine($"                    foreach (var elementValue in {varName}.L)");
+                sb.AppendLine("                    {");
+                sb.AppendLine($"                        if (elementValue.M != null)");
+                sb.AppendLine("                        {");
+                sb.AppendLine($"                            var element = {simpleElementType}.FromDynamoDb<{simpleElementType}>(elementValue.M, options);");
+                sb.AppendLine($"                            entity.{escapedPropertyName}.Add(element);");
+                sb.AppendLine("                        }");
+                sb.AppendLine("                    }");
+                sb.AppendLine("                }");
+                sb.AppendLine("                catch (Exception ex)");
+                sb.AppendLine("                {");
+                sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+                sb.AppendLine($"                        typeof({entity.ClassName}),");
+                sb.AppendLine($"                        \"{property.PropertyName}\",");
+                sb.AppendLine($"                        {varName},");
+                sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+                sb.AppendLine("                        ex)");
+                sb.AppendLine($"                        .WithContext(\"CollectionType\", \"ListOfMaps\")");
+                sb.AppendLine($"                        .WithContext(\"ElementType\", \"{elementType}\")");
+                sb.AppendLine($"                        .WithContext(\"Operation\", \"FromDynamoDb\");");
+                sb.AppendLine("                }");
+                sb.AppendLine("            }");
             }
             else
             {

@@ -26,6 +26,12 @@ internal class ComplexTypeInfo
     public bool IsList { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether this property is a List of nested entities
+    /// that should be serialized as maps (i.e., List&lt;T&gt; with [DynamoDbMap] attribute).
+    /// </summary>
+    public bool IsListOfMaps { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether this property is marked with [TimeToLive].
     /// </summary>
     public bool IsTtl { get; set; }
@@ -70,5 +76,5 @@ internal class ComplexTypeInfo
     /// <summary>
     /// Gets a value indicating whether this property uses any complex type features.
     /// </summary>
-    public bool HasComplexType => IsMap || IsSet || IsList || IsTtl || IsJsonBlob || IsBlobStorage;
+    public bool HasComplexType => IsMap || IsSet || IsList || IsListOfMaps || IsTtl || IsJsonBlob || IsBlobStorage;
 }
