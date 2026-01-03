@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2025-12-28
+# Updated 2026-01-03
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -1006,3 +1006,176 @@ using Oproto.FluentDynamoDb.Provisioning;
 var result = await UsersTable.CreateTableAsync(client, "test-users-table");
 var result = await UsersTable.CreateTableAsync(client, "test-users-table", new TableCreationOptions { EnableTtl = true });
 ```
+
+## Dynamic Fields
+
+Capture and work with DynamoDB attributes not explicitly defined on your entity class. Enable with `[EnableDynamicFields]`.
+
+```csharp
+[DynamoDbTable("Nodes")]
+[EnableDynamicFields]
+public partial class Node
+{
+    [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+    [SortKey] [DynamoDbAttribute("sk")] public string Sk { get; set; } = string.Empty;
+    [DynamoDbAttribute("v")] public int Version { get; set; }
+    // Dynamic fields captured automatically in DynamicFields property
+}
+```
+
+### Basic Operations
+
+```csharp
+var node = await table.Nodes.Get(pk, sk).GetItemAsync();
+
+// Read/write individual fields
+var value = node.DynamicFields.GetString("customField");
+node.DynamicFields.SetString("customField", "newValue");
+node.DynamicFields.SetInt("counter", 42);
+node.DynamicFields.Remove("obsoleteField");
+
+// Change tracking for incremental updates
+await table.Nodes.Update(pk, sk)
+    .Set(x => new NodeUpdateModel { DynamicFields = node.DynamicFields.ChangesOnly() })
+    .UpdateAsync();
+```
+
+### Prefix-Based Operations
+
+For sparse attribute patterns using naming conventions (e.g., `c_{id}` for children, `t_{id}` for transactions):
+
+```csharp
+// Discover field names by prefix
+var childFieldNames = node.DynamicFields.GetFieldNamesByPrefix("c_");  // ["c_ABC", "c_DEF", ...]
+
+// Get all fields matching prefix as raw AttributeValues
+var childFields = node.DynamicFields.GetByPrefix("c_");  // Keys: "c_ABC", "c_DEF"
+var childFieldsStripped = node.DynamicFields.GetByPrefixWithStrippedKeys("c_");  // Keys: "ABC", "DEF"
+
+// Remove all fields matching prefix
+int removedCount = node.DynamicFields.RemoveByPrefix("c_");  // Returns count removed
+```
+
+### Typed Map Operations
+
+Store and retrieve nested `[DynamoDbEntity]` types as Map attributes:
+
+```csharp
+// Define nested entity type
+[DynamoDbEntity]
+public partial class ChildRef
+{
+    [DynamoDbAttribute("amt")] public decimal Amount { get; set; }
+    [DynamoDbAttribute("status")] public string Status { get; set; } = string.Empty;
+}
+
+// Get typed entity from Map field
+var child = node.DynamicFields.GetMap<ChildRef>("c_ABC123");  // Returns null if missing
+if (node.DynamicFields.TryGetMap<ChildRef>("c_ABC123", out var childRef))
+    Console.WriteLine(childRef.Amount);
+
+// Set typed entity as Map field
+node.DynamicFields.SetMap("c_ABC123", new ChildRef { Amount = 100m, Status = "active" });
+node.DynamicFields.SetMap<ChildRef>("c_ABC123", null);  // Removes field
+
+// Get all Map fields matching prefix as typed entities
+var children = node.DynamicFields.GetMapsByPrefix<ChildRef>("c_");  // Keys: "c_ABC", "c_DEF"
+var childrenStripped = node.DynamicFields.GetMapsByPrefixWithStrippedKeys<ChildRef>("c_");  // Keys: "ABC", "DEF"
+```
+
+### Bulk Operations
+
+Efficiently add/remove multiple fields:
+
+```csharp
+// Set multiple raw AttributeValues
+node.DynamicFields.SetMany(new Dictionary<string, AttributeValue>
+{
+    ["field1"] = new AttributeValue { S = "value1" },
+    ["field2"] = new AttributeValue { N = "42" }
+});
+
+// Set multiple fields with prefix prepended to keys
+node.DynamicFields.SetManyWithPrefix("t_", new Dictionary<string, AttributeValue>
+{
+    ["TXN001"] = new AttributeValue { S = "pending" },  // Stored as "t_TXN001"
+    ["TXN002"] = new AttributeValue { S = "complete" }  // Stored as "t_TXN002"
+});
+
+// Set multiple typed entities with prefix
+node.DynamicFields.SetMapsWithPrefix("c_", new Dictionary<string, ChildRef>
+{
+    ["ABC"] = new ChildRef { Amount = 100m },  // Stored as "c_ABC"
+    ["DEF"] = new ChildRef { Amount = 200m }   // Stored as "c_DEF"
+});
+
+// Remove multiple fields by name
+int removed = node.DynamicFields.RemoveMany(new[] { "c_ABC", "c_DEF", "t_TXN001" });
+```
+
+### Sparse Attribute Pattern Example
+
+Complete example for tree nodes with dynamic children:
+
+```csharp
+[DynamoDbTable("BalanceTree")]
+[EnableDynamicFields]
+public partial class TreeNode
+{
+    [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+    [SortKey] [DynamoDbAttribute("sk")] public string Sk { get; set; } = string.Empty;
+    [DynamoDbAttribute("v")] public int Version { get; set; }
+}
+
+[DynamoDbEntity]
+public partial class ChildReference
+{
+    [DynamoDbAttribute("subtotal")] public decimal Subtotal { get; set; }
+}
+
+// Load and modify
+var node = await table.TreeNodes.Get(pk, sk).GetItemAsync();
+
+// Read all children
+var children = node.DynamicFields.GetMapsByPrefixWithStrippedKeys<ChildReference>("c_");
+foreach (var (childId, child) in children)
+    Console.WriteLine($"Child {childId}: {child.Subtotal}");
+
+// Add new children
+node.DynamicFields.SetMapsWithPrefix("c_", new Dictionary<string, ChildReference>
+{
+    ["newChild1"] = new ChildReference { Subtotal = 500m },
+    ["newChild2"] = new ChildReference { Subtotal = 300m }
+});
+
+// Remove old children
+node.DynamicFields.RemoveByPrefix("old_");
+
+// Save with optimistic locking
+await table.TreeNodes.Update(pk, sk)
+    .Set(x => new TreeNodeUpdateModel
+    {
+        Version = x.Version + 1,
+        DynamicFields = node.DynamicFields.ChangesOnly()
+    })
+    .Where(x => x.Version == node.Version)
+    .UpdateAsync();
+```
+
+### Method Reference
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `GetFieldNamesByPrefix(prefix)` | `IEnumerable<string>` | Field names matching prefix |
+| `GetByPrefix(prefix)` | `Dictionary<string, AttributeValue>` | Fields with full keys |
+| `GetByPrefixWithStrippedKeys(prefix)` | `Dictionary<string, AttributeValue>` | Fields with prefix stripped |
+| `RemoveByPrefix(prefix)` | `int` | Remove all matching, return count |
+| `GetMap<T>(fieldName)` | `T?` | Get Map as typed entity |
+| `TryGetMap<T>(fieldName, out T?)` | `bool` | Try get Map as typed entity |
+| `SetMap<T>(fieldName, entity)` | `void` | Set typed entity as Map |
+| `GetMapsByPrefix<T>(prefix)` | `Dictionary<string, T>` | Get all Maps as typed entities |
+| `GetMapsByPrefixWithStrippedKeys<T>(prefix)` | `Dictionary<string, T>` | Same with stripped keys |
+| `SetMany(fields)` | `void` | Set multiple AttributeValues |
+| `SetManyWithPrefix(prefix, fields)` | `void` | Set multiple with prefix |
+| `SetMapsWithPrefix<T>(prefix, entities)` | `void` | Set multiple typed entities |
+| `RemoveMany(fieldNames)` | `int` | Remove multiple, return count |

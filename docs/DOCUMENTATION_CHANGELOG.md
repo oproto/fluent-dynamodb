@@ -57,6 +57,65 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-01-03]
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added comprehensive Dynamic Fields Enhancements documentation to the Dynamic Fields section.
+
+**Changes:**
+
+1. **Updated "Dynamic Fields" section** with prefix-based operations:
+   - Added `GetFieldNamesByPrefix(prefix)` method documentation
+   - Added `GetByPrefix(prefix)` and `GetByPrefixWithStrippedKeys(prefix)` methods
+   - Added `RemoveByPrefix(prefix)` method documentation
+
+2. **Added "Typed Map Operations" subsection**:
+   - Documents `GetMap<T>(fieldName)` for retrieving nested `[DynamoDbEntity]` types
+   - Documents `TryGetMap<T>(fieldName, out T?)` for safe retrieval
+   - Documents `SetMap<T>(fieldName, entity)` for storing typed entities as Map attributes
+   - Documents `GetMapsByPrefix<T>(prefix)` and `GetMapsByPrefixWithStrippedKeys<T>(prefix)`
+
+3. **Added "Bulk Operations" subsection**:
+   - Documents `SetMany(fields)` for setting multiple AttributeValues
+   - Documents `SetManyWithPrefix(prefix, fields)` for prefixed bulk sets
+   - Documents `SetMapsWithPrefix<T>(prefix, entities)` for typed bulk sets
+   - Documents `RemoveMany(fieldNames)` for bulk removal
+
+4. **Added "Sparse Attribute Pattern Example"** showing complete BalanceTreeNode-style usage:
+   - Tree node entity with dynamic children
+   - ChildReference nested entity definition
+   - Reading, modifying, and saving with optimistic locking
+
+5. **Added "Method Reference" table** with all new methods:
+   - Lists return types and descriptions for all 12 new methods
+
+6. **Updated document date** from 2025-12-28 to 2026-01-03
+
+**Reason:** New feature added to enhance `DynamicFieldCollection` with prefix-based accessors, typed Map operations using entity interfaces, and bulk Set/Remove operations for efficient handling of sparse attribute patterns.
+
+---
+
+### File: CHANGELOG.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added Dynamic Fields Enhancements feature to Unreleased section.
+
+**Changes:**
+
+1. **Added "Dynamic Fields Enhancements" entry** to the Added section:
+   - Documents prefix-based accessor methods (`GetFieldNamesByPrefix`, `GetByPrefix`, `GetByPrefixWithStrippedKeys`, `RemoveByPrefix`)
+   - Documents typed Map getter/setter using `[DynamoDbEntity]` interfaces (`GetMap<T>`, `TryGetMap<T>`, `SetMap<T>`, `GetMapsByPrefix<T>`, `GetMapsByPrefixWithStrippedKeys<T>`)
+   - Documents bulk Set/Remove operations (`SetMany`, `SetManyWithPrefix`, `SetMapsWithPrefix<T>`, `RemoveMany`)
+   - Includes usage example for sparse attribute patterns (BalanceTreeNode-style)
+
+**Reason:** New feature added to enhance `DynamicFieldCollection` for efficient handling of sparse attribute patterns like tree nodes with dynamic children.
+
+---
+
 ## [2025-12-28]
 
 ### File: .kiro/steering/fluentdynamodb.md

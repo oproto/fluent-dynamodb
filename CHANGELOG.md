@@ -543,6 +543,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   // ✅ await table.Put(order).PutAsync();         // Use source entity
   ```
 
+- **Dynamic Fields Enhancements** - Extended `DynamicFieldCollection` with prefix-based accessors, typed Map operations, and bulk Set/Remove operations for efficient handling of sparse attribute patterns
+  - **Prefix-Based Field Discovery**: `GetFieldNamesByPrefix(prefix)` returns all field names matching a prefix pattern (e.g., `"c_"` for children)
+  - **Prefix-Based Field Retrieval**: 
+    - `GetByPrefix(prefix)` returns `Dictionary<string, AttributeValue>` with full keys
+    - `GetByPrefixWithStrippedKeys(prefix)` returns dictionary with prefix stripped from keys
+  - **Prefix-Based Field Removal**: `RemoveByPrefix(prefix)` removes all matching fields and returns count removed
+  - **Typed Map Getter**: `GetMap<T>(fieldName)` deserializes Map fields to `[DynamoDbEntity]` types using `IReadOnlyEntity.FromDynamoDb<T>()`
+  - **Typed Map Setter**: `SetMap<T>(fieldName, entity)` serializes `[DynamoDbEntity]` types to Map fields using `IDynamoDbEntity.ToDynamoDb()`
+  - **Prefix-Based Typed Map Retrieval**:
+    - `GetMapsByPrefix<T>(prefix)` returns `Dictionary<string, T>` of typed entities with full keys
+    - `GetMapsByPrefixWithStrippedKeys<T>(prefix)` returns dictionary with prefix stripped from keys
+  - **Bulk Set Operations**:
+    - `SetMany(fields)` sets multiple `AttributeValue` fields at once
+    - `SetManyWithPrefix(prefix, fields)` prepends prefix to each key before setting
+    - `SetMapsWithPrefix<T>(prefix, entities)` serializes and sets multiple typed entities with prefix
+  - **Bulk Remove Operations**: `RemoveMany(fieldNames)` removes multiple fields and returns count removed
+  - **Change Tracking Integration**: All operations integrate with existing change tracking for update expression support
+  - **AOT Compatible**: Uses static abstract interface methods, no reflection
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.5, 5.1-5.5, 6.1-6.6, 7.1-7.4, 8.1-8.5, 9.1-9.4, 10.1-10.4_
+  
+  **Usage - Sparse Attribute Pattern (BalanceTreeNode):**
+  ```csharp
+  // Entity with dynamic fields for children (c_{id}) and transactions (t_{id})
+  [DynamoDbTable("BalanceTree")]
+  [EnableDynamicFields]
+  public partial class TreeNode
+  {
+      [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+      [SortKey] [DynamoDbAttribute("sk")] public string Sk { get; set; } = string.Empty;
+      [DynamoDbAttribute("v")] public int Version { get; set; }
+  }
+  
+  // Nested entity for child references
+  [DynamoDbEntity]
+  public partial class ChildReference
+  {
+      [DynamoDbAttribute("subtotal")] public decimal Subtotal { get; set; }
+  }
+  
+  // Read all children as typed entities
+  var node = await table.TreeNodes.Get(pk, sk).GetItemAsync();
+  var children = node.DynamicFields.GetMapsByPrefixWithStrippedKeys<ChildReference>("c_");
+  foreach (var (childId, child) in children)
+      Console.WriteLine($"Child {childId}: {child.Subtotal}");
+  
+  // Add multiple children at once
+  node.DynamicFields.SetMapsWithPrefix("c_", new Dictionary<string, ChildReference>
+  {
+      ["child1"] = new ChildReference { Subtotal = 500m },
+      ["child2"] = new ChildReference { Subtotal = 300m }
+  });
+  
+  // Remove all old children
+  node.DynamicFields.RemoveByPrefix("old_");
+  
+  // Save with optimistic locking
+  await table.TreeNodes.Update(pk, sk)
+      .Set(x => new TreeNodeUpdateModel
+      {
+          Version = x.Version + 1,
+          DynamicFields = node.DynamicFields.ChangesOnly()
+      })
+      .Where(x => x.Version == node.Version)
+      .UpdateAsync();
+  ```
+
 ### Changed
 
 - **Empty Conditional Expression Handling** - Conditional filter/condition expressions that resolve to all-skip conditions now gracefully execute without a filter instead of throwing "Invalid FilterExpression: The expression can not be empty" error
