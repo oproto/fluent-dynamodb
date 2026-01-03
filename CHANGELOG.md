@@ -270,6 +270,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hydration Architecture Consolidation** - Fixed composite entity assembly bug where `[RelatedEntity]` collections fail to populate when child entities have `[DynamoDbMap]` properties
+  - **Root Cause Fix**: Removed `MatchesEntity()` check from `GenerateRelatedEntityCollectionMapping` - related entity mapping now relies solely on sort key pattern matching
+  - **Consolidated Hydration Paths**: Extracted shared property deserialization logic into `GeneratePropertyDeserialization` helper method, ensuring consistent behavior across single-item, multi-item, and async hydration paths
+  - **Recursive Composite Entity Assembly**: Child entities with their own `[RelatedEntity]` properties are now recursively assembled, supporting arbitrary nesting depth
+  - **Graceful Error Handling**: Related entity deserialization failures are logged as warnings and skipped rather than throwing exceptions
+  - **New Log Event IDs**: Added `RelatedEntityDeserializationFailed` (1001) and `NoPrimaryEntityFound` (1002) for improved diagnostics
+  - **Backward Compatible**: Existing patterns with `[JsonBlob]`, entities without `[DynamoDbMap]`, and existing `[RelatedEntity]` configurations continue to work unchanged
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.2, 5.1-5.4, 6.1-6.4, 7.1-7.5, 8.1-8.4_
+  
+  **Before (broken):**
+  ```csharp
+  // Child entity with DynamoDbMap property
+  [DynamoDbTable("invoices")]
+  public partial class InvoiceLine
+  {
+      [DynamoDbMap]
+      [DynamoDbAttribute("metadata")]
+      public LineMetadata Metadata { get; set; } = new();
+  }
+  
+  // Parent with RelatedEntity collection
+  [DynamoDbTable("invoices", IsDefault = true)]
+  public partial class Invoice
+  {
+      [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+      public List<InvoiceLine> Lines { get; set; } = new();
+  }
+  
+  // ToCompositeEntityAsync would return empty Lines collection
+  var invoice = await table.Invoices.Query()
+      .Where(x => x.Pk == pk)
+      .ToCompositeEntityAsync<Invoice>();
+  // invoice.Lines was empty!
+  ```
+  
+  **After (fixed):**
+  ```csharp
+  // Same entity definitions now work correctly
+  var invoice = await table.Invoices.Query()
+      .Where(x => x.Pk == pk)
+      .ToCompositeEntityAsync<Invoice>();
+  // invoice.Lines is correctly populated with all matching child entities
+  // Each InvoiceLine.Metadata is properly deserialized
+  ```
+
 - **DynamoDbMap Multi-Item Deserialization** - Fixed source generator to correctly deserialize `[DynamoDbMap]` properties in composite entity (multi-item) scenarios
   - Previously, the `GeneratePrimaryEntityIdentification` method in the source generator was missing the `ComplexType.IsMap` check, causing incorrect deserialization of nested map types
   - The generated multi-item `FromDynamoDb` code now correctly uses the nested type's `FromDynamoDb` method instead of attempting to use `Enum.Parse`

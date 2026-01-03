@@ -45,6 +45,21 @@ public static class LogEventIds
     /// </summary>
     public const int MappingPropertySkipped = 1022;
     
+    /// <summary>
+    /// Event ID for when a related entity fails to deserialize during composite entity assembly.
+    /// </summary>
+    public const int RelatedEntityMappingFailed = 1030;
+    
+    /// <summary>
+    /// Event ID for when no primary entity item is found during composite entity assembly.
+    /// </summary>
+    public const int NoPrimaryEntityFound = 1031;
+    
+    /// <summary>
+    /// Event ID for when a DynamoDbMap property fails to deserialize.
+    /// </summary>
+    public const int DynamoDbMapDeserializationFailed = 1032;
+    
     // ========================================
     // Type Conversions (2000-2999)
     // ========================================
