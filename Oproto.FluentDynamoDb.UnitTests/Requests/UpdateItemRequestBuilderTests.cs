@@ -4,6 +4,7 @@ using Amazon.Runtime;
 using AwesomeAssertions;
 using NSubstitute;
 
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Mapping;
@@ -1101,5 +1102,130 @@ public class UpdateItemRequestBuilderTests
     }
 
     #endregion Empty Condition Expression Handling
+
+    #region Where Lambda Expression Validation Mode Tests
+
+    /// <summary>
+    /// Verifies that Update().Where() with a lambda expression allows non-key properties.
+    /// This test ensures the fix for the issue where the generated wrapper was calling
+    /// the generic Where<T, TEntity> method (which uses KeysOnly validation) instead of
+    /// the specific Where<TEntity>(UpdateItemRequestBuilder<TEntity>) method (which uses None validation).
+    /// </summary>
+    [Fact]
+    public void Where_WithLambdaExpression_AllowsNonKeyProperties()
+    {
+        // Arrange
+        var builder = new UpdateItemRequestBuilder<TestEntityWithMetadata>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("TestTable");
+        builder.WithKey("pk", "test-id");
+        
+        // Act - This should NOT throw InvalidKeyExpressionException
+        // because Update().Where() should use ExpressionValidationMode.None
+        var act = () => builder.Where(x => x.Status == "pending");
+        
+        // Assert
+        act.Should().NotThrow<Oproto.FluentDynamoDb.Expressions.InvalidKeyExpressionException>(
+            "Update().Where() should allow non-key properties in condition expressions");
+    }
+
+    /// <summary>
+    /// Verifies that Update().Where() with a lambda expression correctly sets the condition expression.
+    /// </summary>
+    [Fact]
+    public void Where_WithLambdaExpression_SetsConditionExpression()
+    {
+        // Arrange
+        var builder = new UpdateItemRequestBuilder<TestEntityWithMetadata>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("TestTable");
+        builder.WithKey("pk", "test-id");
+        
+        // Act
+        builder.Where(x => x.Status == "pending");
+        var req = builder.ToUpdateItemRequest();
+        
+        // Assert
+        req.ConditionExpression.Should().NotBeNullOrEmpty();
+        req.ConditionExpression.Should().Contain("="); // Should contain equality comparison
+    }
+
+    /// <summary>
+    /// Test entity with proper metadata for validation mode testing.
+    /// </summary>
+    private class TestEntityWithMetadata : IDynamoDbEntity, IEntityMetadataProvider
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+        {
+            var testEntity = entity as TestEntityWithMetadata;
+            return new Dictionary<string, AttributeValue>
+            {
+                ["pk"] = new AttributeValue { S = testEntity?.Id ?? string.Empty },
+                ["status"] = new AttributeValue { S = testEntity?.Status ?? string.Empty }
+            };
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
+        {
+            var entity = new TestEntityWithMetadata
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty,
+                Status = item.TryGetValue("status", out var status) ? status.S : string.Empty
+            };
+            return (TSelf)(object)entity;
+        }
+
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+        {
+            return FromDynamoDb<TSelf>(items.First(), options);
+        }
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)
+        {
+            return item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+        }
+
+        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+        {
+            return item.ContainsKey("pk");
+        }
+
+        public static EntityMetadata GetEntityMetadata()
+        {
+            return new EntityMetadata
+            {
+                TableName = "test-table",
+                PartitionKeyAttributeName = "pk",
+                Properties = new[]
+                {
+                    new PropertyMetadata
+                    {
+                        PropertyName = "Id",
+                        AttributeName = "pk",
+                        PropertyType = typeof(string),
+                        IsPartitionKey = true,
+                        IsSortKey = false,
+                        SupportedOperations = new[] { DynamoDbOperation.Equals }
+                    },
+                    new PropertyMetadata
+                    {
+                        PropertyName = "Status",
+                        AttributeName = "status",
+                        PropertyType = typeof(string),
+                        IsPartitionKey = false,
+                        IsSortKey = false,
+                        SupportedOperations = new[] { DynamoDbOperation.Equals, DynamoDbOperation.Contains }
+                    }
+                },
+                Indexes = Array.Empty<IndexMetadata>(),
+                Relationships = Array.Empty<RelationshipMetadata>()
+            };
+        }
+
+        public static bool RequiresWriteTransaction => false;
+    }
+
+    #endregion Where Lambda Expression Validation Mode Tests
 
 }

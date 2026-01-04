@@ -397,9 +397,12 @@ public class ExpressionTranslator
             return TranslateGeoLocationComparison(node, geoLocationExpr!, valueExpr!, isLeftSide, entityParameter, context);
         }
 
-        // Special handling for string.CompareOrdinal(x.Property, value) >= 0 pattern
-        // This allows string comparison operators in expressions
-        // Example: string.CompareOrdinal(x.Type, "value") >= 0 translates to: #attr0 >= :p0
+        // Special handling for string comparison patterns:
+        // 1. string.CompareOrdinal(x.Property, value) >= 0 (static method)
+        // 2. x.Property.CompareTo(value) >= 0 (instance method - more intuitive)
+        // Both translate to: #attr0 >= :p0
+        
+        // Pattern 1: string.CompareOrdinal(x.Property, value) >= 0
         if (node.Left is MethodCallExpression methodCall &&
             methodCall.Method.Name == "CompareOrdinal" &&
             methodCall.Method.DeclaringType == typeof(string) &&
@@ -423,6 +426,41 @@ public class ExpressionTranslator
                 ExpressionType.GreaterThanOrEqual => ">=", // CompareOrdinal(...) >= 0 -> attr >= value
                 _ => throw new UnsupportedExpressionException(
                     $"Binary operator '{node.NodeType}' is not supported with string.CompareOrdinal.",
+                    node)
+            };
+            
+            // Use StringBuilder to minimize allocations
+            var compareBuilder = new StringBuilder(attributeName.Length + compareValue.Length + compareOperator.Length + 2);
+            compareBuilder.Append(attributeName).Append(' ').Append(compareOperator).Append(' ').Append(compareValue);
+            return compareBuilder.ToString();
+        }
+        
+        // Pattern 2: x.Property.CompareTo(value) >= 0 (instance method)
+        // More intuitive syntax: x.SortKey.CompareTo("2024-01-01") >= 0
+        if (node.Left is MethodCallExpression compareToCall &&
+            compareToCall.Method.Name == "CompareTo" &&
+            compareToCall.Method.DeclaringType == typeof(string) &&
+            compareToCall.Arguments.Count == 1 &&
+            compareToCall.Object != null &&
+            IsEntityPropertyAccess(compareToCall.Object, entityParameter))
+        {
+            // Extract the property (x.SortKey) and value ("2024-01-01") from CompareTo
+            var comparePropertyMetadata = GetPropertyMetadata(compareToCall.Object, entityParameter, context);
+            var attributeName = Visit(compareToCall.Object, entityParameter, context);
+            var compareValue = VisitWithPropertyMetadata(compareToCall.Arguments[0], entityParameter, context, comparePropertyMetadata);
+            
+            // The right side should be 0 (the comparison result)
+            // Map the comparison operator: CompareTo(...) >= 0 means attr >= value
+            var compareOperator = node.NodeType switch
+            {
+                ExpressionType.Equal => "=",           // CompareTo(...) == 0 -> attr = value
+                ExpressionType.NotEqual => "<>",       // CompareTo(...) != 0 -> attr <> value
+                ExpressionType.LessThan => "<",        // CompareTo(...) < 0 -> attr < value
+                ExpressionType.LessThanOrEqual => "<=", // CompareTo(...) <= 0 -> attr <= value
+                ExpressionType.GreaterThan => ">",     // CompareTo(...) > 0 -> attr > value
+                ExpressionType.GreaterThanOrEqual => ">=", // CompareTo(...) >= 0 -> attr >= value
+                _ => throw new UnsupportedExpressionException(
+                    $"Binary operator '{node.NodeType}' is not supported with string.CompareTo.",
                     node)
             };
             
@@ -1201,9 +1239,9 @@ public class ExpressionTranslator
             }
         }
 
-        // string.CompareOrdinal(str1, str2) - used for string comparisons in expressions
-        // This is NOT a DynamoDB function - it's handled specially in VisitBinary
-        // We don't handle it here
+        // string.CompareOrdinal(str1, str2) and string.CompareTo(str) - used for string comparisons
+        // These are NOT DynamoDB functions - they're handled specially in VisitBinary
+        // to translate patterns like x.SortKey.CompareTo("value") >= 0 to: #attr >= :p0
 
         // Between(low, high) -> attr BETWEEN low AND high
         if (node.Method.Name == "Between" && 

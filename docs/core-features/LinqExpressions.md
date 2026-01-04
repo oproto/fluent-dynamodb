@@ -75,6 +75,52 @@ table.Query().WithFilter<User>(x => x.Score >= 50);
 // Translates to: #attr0 >= :p0
 ```
 
+### String Comparison Operators
+
+C# doesn't support `<`, `>`, `<=`, `>=` operators on strings directly. Use `CompareTo()` for string range comparisons:
+
+```csharp
+// String greater than
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-01-01") > 0);
+// Translates to: #attr0 = :p0 AND #attr1 > :p1
+
+// String greater than or equal
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-01-01") >= 0);
+// Translates to: #attr0 = :p0 AND #attr1 >= :p1
+
+// String less than
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-12-31") < 0);
+// Translates to: #attr0 = :p0 AND #attr1 < :p1
+
+// String less than or equal
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-12-31") <= 0);
+// Translates to: #attr0 = :p0 AND #attr1 <= :p1
+
+// String range query (alternative to Between for strings)
+table.Query().Where<Order>(x => 
+    x.CustomerId == customerId && 
+    x.OrderDate.CompareTo("2024-01-01") >= 0 && 
+    x.OrderDate.CompareTo("2024-12-31") <= 0);
+// Translates to: #attr0 = :p0 AND #attr1 >= :p1 AND #attr2 <= :p2
+```
+
+**CompareTo Pattern Reference:**
+
+| Pattern | DynamoDB | Notes |
+|---------|----------|-------|
+| `.CompareTo(val) > 0` | `attr > val` | Greater than |
+| `.CompareTo(val) >= 0` | `attr >= val` | Greater than or equal |
+| `.CompareTo(val) < 0` | `attr < val` | Less than |
+| `.CompareTo(val) <= 0` | `attr <= val` | Less than or equal |
+| `.CompareTo(val) == 0` | `attr = val` | Equal (prefer `==` directly) |
+| `.CompareTo(val) != 0` | `attr <> val` | Not equal (prefer `!=` directly) |
+
+**Tip:** For inclusive string ranges, consider using the `Between()` extension method instead:
+```csharp
+// Equivalent to CompareTo >= and <= combined
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.Between("2024-01-01", "2024-12-31"));
+```
+
 ### Logical Operators
 
 Combine conditions with logical operators:

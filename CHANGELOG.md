@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **String CompareTo Support in Lambda Expressions** - Added support for `string.CompareTo()` method in lambda expressions for string range comparisons
+  - Enables intuitive string comparison syntax: `x => x.SortKey.CompareTo("2024-01-01") >= 0`
+  - Translates to DynamoDB comparison operators: `#attr >= :p0`
+  - Supports all comparison operators: `>`, `>=`, `<`, `<=`, `==`, `!=`
+  - Works in both key conditions and filter expressions
+  
+  **Usage:**
+  ```csharp
+  // String range query on sort key
+  var orders = await table.Orders.Query()
+      .Where(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-01-01") >= 0)
+      .ToListAsync();
+  
+  // Combined range (alternative to Between)
+  var orders = await table.Orders.Query()
+      .Where(x => x.CustomerId == customerId && 
+             x.OrderDate.CompareTo("2024-01-01") >= 0 && 
+             x.OrderDate.CompareTo("2024-12-31") <= 0)
+      .ToListAsync();
+  ```
+
 - **DateOnly and TimeOnly Serialization** - Native serialization support for .NET 6+ `DateOnly` and `TimeOnly` types
   - **DateOnly Serialization**: Automatically serializes to ISO 8601 date format (`yyyy-MM-dd`) as DynamoDB string attribute
   - **TimeOnly Serialization**: Automatically serializes to ISO 8601 time format (`HH:mm:ss.fffffff`) as DynamoDB string attribute
@@ -269,6 +290,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 ### Fixed
+
+- **Local Method Evaluation in Update Expressions** - Fixed `UnsupportedExpressionException` when using local method calls like `.ToString()`, `.ToUpper()`, `.Trim()` in update expressions
+  - Previously, method calls that don't reference the entity parameter (e.g., `TransactionStatus.Active.ToString()`, `myVar.Trim().ToUpper()`) would throw an exception
+  - Now correctly evaluates these method calls at translation time and treats them as simple value assignments
+  - Supports enum `.ToString()`, numeric `.ToString()`, `Guid.ToString()`, and chained string methods
+  - Consistent with existing behavior in filter/query expressions (`ExpressionTranslator`)
+  - _Requirements: US-1, US-2, US-3, US-4, US-5_
+  
+  **Before (broken):**
+  ```csharp
+  // This would throw UnsupportedExpressionException
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Status = TransactionStatus.Active.ToString() })
+      .UpdateAsync();
+  ```
+  
+  **After (fixed):**
+  ```csharp
+  // Now works correctly - generates SET #status = :p0 where :p0 = "Active"
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Status = TransactionStatus.Active.ToString() })
+      .UpdateAsync();
+  
+  // Also works with captured variables and chained methods
+  var name = "  John Doe  ";
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Name = name.Trim().ToUpper() })
+      .UpdateAsync();
+  // Generates SET #name = :p0 where :p0 = "JOHN DOE"
+  ```
 
 - **Hydration Architecture Consolidation** - Fixed composite entity assembly bug where `[RelatedEntity]` collections fail to populate when child entities have `[DynamoDbMap]` properties
   - **Root Cause Fix**: Removed `MatchesEntity()` check from `GenerateRelatedEntityCollectionMapping` - related entity mapping now relies solely on sort key pattern matching
