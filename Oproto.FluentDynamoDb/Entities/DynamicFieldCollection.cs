@@ -270,6 +270,596 @@ public sealed class DynamicFieldCollection : IEnumerable<KeyValuePair<string, At
     #endregion
 
 
+    #region Prefix-Based Operations
+
+    /// <summary>
+    /// Gets all field names that start with the specified prefix.
+    /// </summary>
+    /// <param name="prefix">The prefix to match (e.g., "c_" for children, "t_" for transactions).</param>
+    /// <returns>An enumerable of field names matching the prefix.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses ordinal string comparison for prefix matching, which is case-sensitive
+    /// and culture-independent.
+    /// </para>
+    /// <para>
+    /// The returned field names include the prefix. Use this method to discover all dynamic
+    /// fields following a naming convention.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Get all child node field names
+    /// var childFieldNames = node.DynamicFields.GetFieldNamesByPrefix("c_");
+    /// // Returns: ["c_ABC123", "c_DEF456", "c_GHI789"]
+    /// 
+    /// // Extract just the IDs by stripping the prefix
+    /// var childIds = childFieldNames.Select(name => name.Substring(2)).ToList();
+    /// // Returns: ["ABC123", "DEF456", "GHI789"]
+    /// </code>
+    /// </example>
+    public IEnumerable<string> GetFieldNamesByPrefix(string prefix)
+    {
+        return _fields.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Gets all fields whose names start with the specified prefix.
+    /// </summary>
+    /// <param name="prefix">The prefix to match (e.g., "c_" for children, "t_" for transactions).</param>
+    /// <returns>A dictionary of matching fields with full attribute names as keys.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses ordinal string comparison for prefix matching, which is case-sensitive
+    /// and culture-independent.
+    /// </para>
+    /// <para>
+    /// The returned dictionary keys are the full attribute names including the prefix.
+    /// Use <see cref="GetByPrefixWithStrippedKeys"/> if you need keys without the prefix.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Get all child fields with full keys
+    /// var children = node.DynamicFields.GetByPrefix("c_");
+    /// // Returns: { "c_ABC123": AttributeValue, "c_DEF456": AttributeValue }
+    /// </code>
+    /// </example>
+    public Dictionary<string, AttributeValue> GetByPrefix(string prefix)
+    {
+        return _fields
+            .Where(kvp => kvp.Key.StartsWith(prefix, StringComparison.Ordinal))
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Gets all fields whose names start with the specified prefix, with the prefix stripped from keys.
+    /// </summary>
+    /// <param name="prefix">The prefix to match and strip (e.g., "c_" for children).</param>
+    /// <returns>A dictionary of matching fields with prefix-stripped keys.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses ordinal string comparison for prefix matching, which is case-sensitive
+    /// and culture-independent.
+    /// </para>
+    /// <para>
+    /// The returned dictionary keys have the prefix removed. For example, if the prefix is "c_"
+    /// and a field is named "c_ABC123", the returned key will be "ABC123".
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Get all child fields with stripped keys (just the IDs)
+    /// var children = node.DynamicFields.GetByPrefixWithStrippedKeys("c_");
+    /// // Returns: { "ABC123": AttributeValue, "DEF456": AttributeValue }
+    /// </code>
+    /// </example>
+    public Dictionary<string, AttributeValue> GetByPrefixWithStrippedKeys(string prefix)
+    {
+        return _fields
+            .Where(kvp => kvp.Key.StartsWith(prefix, StringComparison.Ordinal))
+            .ToDictionary(kvp => kvp.Key.Substring(prefix.Length), kvp => kvp.Value, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Removes all fields whose names start with the specified prefix.
+    /// </summary>
+    /// <param name="prefix">The prefix to match (e.g., "c_" for children).</param>
+    /// <returns>The number of fields removed.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses ordinal string comparison for prefix matching, which is case-sensitive
+    /// and culture-independent.
+    /// </para>
+    /// <para>
+    /// When change tracking is enabled, all removed fields are tracked and will be included
+    /// in the <see cref="RemovedFields"/> set. This enables proper REMOVE clause generation
+    /// when using <see cref="ChangesOnly"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Remove all child fields
+    /// var removedCount = node.DynamicFields.RemoveByPrefix("c_");
+    /// Console.WriteLine($"Removed {removedCount} children");
+    /// 
+    /// // Update with changes - generates REMOVE clauses for all removed fields
+    /// await table.Update(pk, sk)
+    ///     .Set(x => new NodeUpdateModel { DynamicFields = node.DynamicFields.ChangesOnly() })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public int RemoveByPrefix(string prefix)
+    {
+        var keysToRemove = _fields.Keys
+            .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+            .ToList();
+
+        foreach (var key in keysToRemove)
+        {
+            Remove(key); // Uses existing Remove which handles change tracking
+        }
+
+        return keysToRemove.Count;
+    }
+
+    #endregion
+
+
+    #region Typed Map Operations
+
+    /// <summary>
+    /// Gets a Map field as a typed entity using the entity's FromDynamoDb method.
+    /// </summary>
+    /// <typeparam name="T">The entity type implementing <see cref="IReadOnlyEntity"/>.</typeparam>
+    /// <param name="fieldName">The name of the field.</param>
+    /// <param name="options">Optional FluentDynamoDb options for deserialization.</param>
+    /// <returns>The deserialized entity, or <c>null</c> if the field does not exist.</returns>
+    /// <exception cref="DynamicFieldTypeException">Thrown when the field exists but is not a Map type.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method uses the static abstract <c>FromDynamoDb</c> method from the <see cref="IReadOnlyEntity"/>
+    /// interface to deserialize the Map attribute. This ensures AOT compatibility by avoiding reflection.
+    /// </para>
+    /// <para>
+    /// The entity type must be decorated with <c>[DynamoDbEntity]</c> attribute to have the required
+    /// interface methods generated by the source generator.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Define a nested entity
+    /// [DynamoDbEntity]
+    /// public partial class ChildReference
+    /// {
+    ///     [DynamoDbAttribute("amount")]
+    ///     public decimal Amount { get; set; }
+    /// }
+    /// 
+    /// // Get a specific child as a typed entity
+    /// var child = node.DynamicFields.GetMap&lt;ChildReference&gt;("c_ABC123");
+    /// if (child != null)
+    /// {
+    ///     Console.WriteLine($"Amount: {child.Amount}");
+    /// }
+    /// </code>
+    /// </example>
+    public T? GetMap<T>(string fieldName, FluentDynamoDbOptions? options = null)
+        where T : IReadOnlyEntity
+    {
+        if (!_fields.TryGetValue(fieldName, out var value))
+            return default;
+
+        if (value.NULL == true)
+            return default;
+
+        if (!value.IsMSet)
+            throw new DynamicFieldTypeException(fieldName, typeof(T), GetDynamoDbTypeName(value));
+
+        return T.FromDynamoDb<T>(value.M, options);
+    }
+
+    /// <summary>
+    /// Tries to get a Map field as a typed entity.
+    /// </summary>
+    /// <typeparam name="T">The entity type implementing <see cref="IReadOnlyEntity"/>.</typeparam>
+    /// <param name="fieldName">The name of the field.</param>
+    /// <param name="value">When this method returns, contains the deserialized entity if successful; otherwise, <c>default</c>.</param>
+    /// <param name="options">Optional FluentDynamoDb options for deserialization.</param>
+    /// <returns><c>true</c> if the field exists and is a valid Map type; otherwise, <c>false</c>.</returns>
+    /// <remarks>
+    /// <para>
+    /// Unlike <see cref="GetMap{T}"/>, this method does not throw an exception when the field
+    /// is not a Map type. Instead, it returns <c>false</c>.
+    /// </para>
+    /// <para>
+    /// Returns <c>true</c> with <c>default</c> value when the field exists but contains NULL.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// if (node.DynamicFields.TryGetMap&lt;ChildReference&gt;("c_ABC123", out var child))
+    /// {
+    ///     Console.WriteLine($"Found child with amount: {child?.Amount}");
+    /// }
+    /// else
+    /// {
+    ///     Console.WriteLine("Field not found or not a Map type");
+    /// }
+    /// </code>
+    /// </example>
+    public bool TryGetMap<T>(string fieldName, out T? value, FluentDynamoDbOptions? options = null)
+        where T : IReadOnlyEntity
+    {
+        value = default;
+
+        if (!_fields.TryGetValue(fieldName, out var av))
+            return false;
+
+        if (av.NULL == true)
+            return true;
+
+        if (!av.IsMSet)
+            return false;
+
+        value = T.FromDynamoDb<T>(av.M, options);
+        return true;
+    }
+
+    /// <summary>
+    /// Sets a Map field from a typed entity using the entity's ToDynamoDb method.
+    /// </summary>
+    /// <typeparam name="T">The entity type implementing <see cref="IDynamoDbEntity"/>.</typeparam>
+    /// <param name="fieldName">The name of the field.</param>
+    /// <param name="entity">The entity to serialize, or <c>null</c> to remove the field.</param>
+    /// <param name="options">Optional FluentDynamoDb options for serialization.</param>
+    /// <remarks>
+    /// <para>
+    /// This method uses the static abstract <c>ToDynamoDb</c> method from the <see cref="IDynamoDbEntity"/>
+    /// interface to serialize the entity. This ensures AOT compatibility by avoiding reflection.
+    /// </para>
+    /// <para>
+    /// When <paramref name="entity"/> is <c>null</c>, the field is removed from the collection.
+    /// When change tracking is enabled, the modification is tracked for update expression generation.
+    /// </para>
+    /// <para>
+    /// The entity type must be decorated with <c>[DynamoDbEntity]</c> attribute to have the required
+    /// interface methods generated by the source generator.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Define a nested entity
+    /// [DynamoDbEntity]
+    /// public partial class ChildReference
+    /// {
+    ///     [DynamoDbAttribute("amount")]
+    ///     public decimal Amount { get; set; }
+    /// }
+    /// 
+    /// // Set a child reference
+    /// node.DynamicFields.SetMap("c_ABC123", new ChildReference { Amount = 1000m });
+    /// 
+    /// // Remove a child reference by setting null
+    /// node.DynamicFields.SetMap&lt;ChildReference&gt;("c_ABC123", null);
+    /// </code>
+    /// </example>
+    public void SetMap<T>(string fieldName, T? entity, FluentDynamoDbOptions? options = null)
+        where T : IDynamoDbEntity
+    {
+        if (entity == null)
+        {
+            Remove(fieldName);
+            return;
+        }
+
+        var attributes = T.ToDynamoDb(entity, options);
+        _fields[fieldName] = new AttributeValue { M = attributes };
+        TrackModification(fieldName);
+    }
+
+    /// <summary>
+    /// Gets all Map fields matching a prefix as typed entities.
+    /// </summary>
+    /// <typeparam name="T">The entity type implementing <see cref="IReadOnlyEntity"/>.</typeparam>
+    /// <param name="prefix">The prefix to match (e.g., "c_" for children).</param>
+    /// <param name="options">Optional FluentDynamoDb options for deserialization.</param>
+    /// <returns>A dictionary of entities with full attribute names as keys.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses ordinal string comparison for prefix matching, which is case-sensitive
+    /// and culture-independent.
+    /// </para>
+    /// <para>
+    /// Fields that match the prefix but are not Map types are silently skipped. This allows
+    /// mixed-type prefix patterns where some fields may be Maps and others may be strings or numbers.
+    /// </para>
+    /// <para>
+    /// The entity type must be decorated with <c>[DynamoDbEntity]</c> attribute to have the required
+    /// interface methods generated by the source generator.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Get all children as typed entities with full keys
+    /// var children = node.DynamicFields.GetMapsByPrefix&lt;ChildReference&gt;("c_");
+    /// // Returns: { "c_ABC123": ChildReference, "c_DEF456": ChildReference }
+    /// 
+    /// foreach (var (key, child) in children)
+    /// {
+    ///     Console.WriteLine($"{key}: Amount = {child.Amount}");
+    /// }
+    /// </code>
+    /// </example>
+    public Dictionary<string, T> GetMapsByPrefix<T>(string prefix, FluentDynamoDbOptions? options = null)
+        where T : IReadOnlyEntity
+    {
+        var result = new Dictionary<string, T>(StringComparer.Ordinal);
+
+        foreach (var kvp in _fields)
+        {
+            if (!kvp.Key.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            if (!kvp.Value.IsMSet)
+                continue; // Skip non-Map fields
+
+            var entity = T.FromDynamoDb<T>(kvp.Value.M, options);
+            result[kvp.Key] = entity;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets all Map fields matching a prefix as typed entities, with the prefix stripped from keys.
+    /// </summary>
+    /// <typeparam name="T">The entity type implementing <see cref="IReadOnlyEntity"/>.</typeparam>
+    /// <param name="prefix">The prefix to match and strip (e.g., "c_" for children).</param>
+    /// <param name="options">Optional FluentDynamoDb options for deserialization.</param>
+    /// <returns>A dictionary of entities with prefix-stripped keys.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses ordinal string comparison for prefix matching, which is case-sensitive
+    /// and culture-independent.
+    /// </para>
+    /// <para>
+    /// The returned dictionary keys have the prefix removed. For example, if the prefix is "c_"
+    /// and a field is named "c_ABC123", the returned key will be "ABC123".
+    /// </para>
+    /// <para>
+    /// Fields that match the prefix but are not Map types are silently skipped. This allows
+    /// mixed-type prefix patterns where some fields may be Maps and others may be strings or numbers.
+    /// </para>
+    /// <para>
+    /// The entity type must be decorated with <c>[DynamoDbEntity]</c> attribute to have the required
+    /// interface methods generated by the source generator.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Get all children as typed entities with stripped keys (just the IDs)
+    /// var children = node.DynamicFields.GetMapsByPrefixWithStrippedKeys&lt;ChildReference&gt;("c_");
+    /// // Returns: { "ABC123": ChildReference, "DEF456": ChildReference }
+    /// 
+    /// foreach (var (nodeId, child) in children)
+    /// {
+    ///     Console.WriteLine($"Child {nodeId}: Amount = {child.Amount}");
+    /// }
+    /// </code>
+    /// </example>
+    public Dictionary<string, T> GetMapsByPrefixWithStrippedKeys<T>(string prefix, FluentDynamoDbOptions? options = null)
+        where T : IReadOnlyEntity
+    {
+        var result = new Dictionary<string, T>(StringComparer.Ordinal);
+
+        foreach (var kvp in _fields)
+        {
+            if (!kvp.Key.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            if (!kvp.Value.IsMSet)
+                continue; // Skip non-Map fields
+
+            var entity = T.FromDynamoDb<T>(kvp.Value.M, options);
+            result[kvp.Key.Substring(prefix.Length)] = entity;
+        }
+
+        return result;
+    }
+
+    #endregion
+
+
+    #region Bulk Set Operations
+
+    /// <summary>
+    /// Sets multiple fields from a dictionary of AttributeValues.
+    /// </summary>
+    /// <param name="fields">The fields to set. If <c>null</c> or empty, no operation is performed.</param>
+    /// <remarks>
+    /// <para>
+    /// This method adds or updates all fields in the provided dictionary. Each field is tracked
+    /// as modified when change tracking is enabled.
+    /// </para>
+    /// <para>
+    /// Use this method for efficient batch updates when you have multiple fields to set at once.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Set multiple transaction fields at once
+    /// var txnValues = new Dictionary&lt;string, AttributeValue&gt;
+    /// {
+    ///     ["t_TXN001"] = new AttributeValue { S = "C1000.0000" },
+    ///     ["t_TXN002"] = new AttributeValue { S = "D500.0000" },
+    ///     ["t_TXN003"] = new AttributeValue { S = "C250.0000" }
+    /// };
+    /// node.DynamicFields.SetMany(txnValues);
+    /// </code>
+    /// </example>
+    public void SetMany(Dictionary<string, AttributeValue>? fields)
+    {
+        if (fields == null || fields.Count == 0)
+            return;
+
+        foreach (var kvp in fields)
+        {
+            _fields[kvp.Key] = kvp.Value;
+            TrackModification(kvp.Key);
+        }
+    }
+
+    /// <summary>
+    /// Sets multiple fields with a prefix prepended to each key.
+    /// </summary>
+    /// <param name="prefix">The prefix to prepend to each key (e.g., "c_" for children, "t_" for transactions).</param>
+    /// <param name="fields">The fields to set (keys without prefix). If <c>null</c> or empty, no operation is performed.</param>
+    /// <remarks>
+    /// <para>
+    /// This method prepends the specified prefix to each key before adding the field to the collection.
+    /// For example, if the prefix is "t_" and a key is "TXN001", the stored field name will be "t_TXN001".
+    /// </para>
+    /// <para>
+    /// Each field is tracked as modified when change tracking is enabled.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Set multiple transaction fields with prefix
+    /// var txnValues = new Dictionary&lt;string, AttributeValue&gt;
+    /// {
+    ///     ["TXN001"] = new AttributeValue { S = "C1000.0000" },
+    ///     ["TXN002"] = new AttributeValue { S = "D500.0000" }
+    /// };
+    /// node.DynamicFields.SetManyWithPrefix("t_", txnValues);
+    /// // Stores: { "t_TXN001": ..., "t_TXN002": ... }
+    /// </code>
+    /// </example>
+    public void SetManyWithPrefix(string prefix, Dictionary<string, AttributeValue>? fields)
+    {
+        if (fields == null || fields.Count == 0)
+            return;
+
+        foreach (var kvp in fields)
+        {
+            var fullKey = prefix + kvp.Key;
+            _fields[fullKey] = kvp.Value;
+            TrackModification(fullKey);
+        }
+    }
+
+    /// <summary>
+    /// Sets multiple Map fields from typed entities with a prefix prepended to each key.
+    /// </summary>
+    /// <typeparam name="T">The entity type implementing <see cref="IDynamoDbEntity"/>.</typeparam>
+    /// <param name="prefix">The prefix to prepend to each key (e.g., "c_" for children).</param>
+    /// <param name="entities">The entities to set (keys without prefix). If <c>null</c> or empty, no operation is performed.</param>
+    /// <param name="options">Optional FluentDynamoDb options for serialization.</param>
+    /// <remarks>
+    /// <para>
+    /// This method serializes each entity using the static abstract <c>ToDynamoDb</c> method from the
+    /// <see cref="IDynamoDbEntity"/> interface, ensuring AOT compatibility.
+    /// </para>
+    /// <para>
+    /// The prefix is prepended to each key before storing. For example, if the prefix is "c_" and
+    /// a key is "ABC123", the stored field name will be "c_ABC123".
+    /// </para>
+    /// <para>
+    /// Each field is tracked as modified when change tracking is enabled.
+    /// </para>
+    /// <para>
+    /// The entity type must be decorated with <c>[DynamoDbEntity]</c> attribute to have the required
+    /// interface methods generated by the source generator.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Define a nested entity
+    /// [DynamoDbEntity]
+    /// public partial class ChildReference
+    /// {
+    ///     [DynamoDbAttribute("amount")]
+    ///     public decimal Amount { get; set; }
+    /// }
+    /// 
+    /// // Set multiple children at once
+    /// var children = new Dictionary&lt;string, ChildReference&gt;
+    /// {
+    ///     ["ABC123"] = new ChildReference { Amount = 1000m },
+    ///     ["DEF456"] = new ChildReference { Amount = 2000m },
+    ///     ["GHI789"] = new ChildReference { Amount = 500m }
+    /// };
+    /// node.DynamicFields.SetMapsWithPrefix("c_", children);
+    /// // Stores: { "c_ABC123": Map, "c_DEF456": Map, "c_GHI789": Map }
+    /// </code>
+    /// </example>
+    public void SetMapsWithPrefix<T>(string prefix, Dictionary<string, T>? entities, FluentDynamoDbOptions? options = null)
+        where T : IDynamoDbEntity
+    {
+        if (entities == null || entities.Count == 0)
+            return;
+
+        foreach (var kvp in entities)
+        {
+            var fullKey = prefix + kvp.Key;
+            var attributes = T.ToDynamoDb(kvp.Value, options);
+            _fields[fullKey] = new AttributeValue { M = attributes };
+            TrackModification(fullKey);
+        }
+    }
+
+    #endregion
+
+
+    #region Bulk Remove Operations
+
+    /// <summary>
+    /// Removes multiple fields by name.
+    /// </summary>
+    /// <param name="fieldNames">The names of the fields to remove. If <c>null</c>, no operation is performed.</param>
+    /// <returns>The number of fields actually removed.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method removes all specified fields from the collection. Field names that do not exist
+    /// in the collection are silently ignored and not counted in the return value.
+    /// </para>
+    /// <para>
+    /// When change tracking is enabled, all removed fields are tracked and will be included
+    /// in the <see cref="RemovedFields"/> set. This enables proper REMOVE clause generation
+    /// when using <see cref="ChangesOnly"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Remove specific child fields
+    /// var fieldsToRemove = new[] { "c_ABC123", "c_DEF456", "c_GHI789" };
+    /// var removedCount = node.DynamicFields.RemoveMany(fieldsToRemove);
+    /// Console.WriteLine($"Removed {removedCount} children");
+    /// 
+    /// // Update with changes - generates REMOVE clauses for all removed fields
+    /// await table.Update(pk, sk)
+    ///     .Set(x => new NodeUpdateModel { DynamicFields = node.DynamicFields.ChangesOnly() })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public int RemoveMany(IEnumerable<string>? fieldNames)
+    {
+        if (fieldNames == null)
+            return 0;
+
+        var count = 0;
+        foreach (var fieldName in fieldNames)
+        {
+            if (Remove(fieldName)) // Uses existing Remove which handles change tracking
+                count++;
+        }
+        return count;
+    }
+
+    #endregion
+
+
     #region Typed Getters
 
     /// <summary>

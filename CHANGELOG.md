@@ -270,6 +270,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hydration Architecture Consolidation** - Fixed composite entity assembly bug where `[RelatedEntity]` collections fail to populate when child entities have `[DynamoDbMap]` properties
+  - **Root Cause Fix**: Removed `MatchesEntity()` check from `GenerateRelatedEntityCollectionMapping` - related entity mapping now relies solely on sort key pattern matching
+  - **Consolidated Hydration Paths**: Extracted shared property deserialization logic into `GeneratePropertyDeserialization` helper method, ensuring consistent behavior across single-item, multi-item, and async hydration paths
+  - **Recursive Composite Entity Assembly**: Child entities with their own `[RelatedEntity]` properties are now recursively assembled, supporting arbitrary nesting depth
+  - **Graceful Error Handling**: Related entity deserialization failures are logged as warnings and skipped rather than throwing exceptions
+  - **New Log Event IDs**: Added `RelatedEntityDeserializationFailed` (1001) and `NoPrimaryEntityFound` (1002) for improved diagnostics
+  - **Backward Compatible**: Existing patterns with `[JsonBlob]`, entities without `[DynamoDbMap]`, and existing `[RelatedEntity]` configurations continue to work unchanged
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.2, 5.1-5.4, 6.1-6.4, 7.1-7.5, 8.1-8.4_
+  
+  **Before (broken):**
+  ```csharp
+  // Child entity with DynamoDbMap property
+  [DynamoDbTable("invoices")]
+  public partial class InvoiceLine
+  {
+      [DynamoDbMap]
+      [DynamoDbAttribute("metadata")]
+      public LineMetadata Metadata { get; set; } = new();
+  }
+  
+  // Parent with RelatedEntity collection
+  [DynamoDbTable("invoices", IsDefault = true)]
+  public partial class Invoice
+  {
+      [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+      public List<InvoiceLine> Lines { get; set; } = new();
+  }
+  
+  // ToCompositeEntityAsync would return empty Lines collection
+  var invoice = await table.Invoices.Query()
+      .Where(x => x.Pk == pk)
+      .ToCompositeEntityAsync<Invoice>();
+  // invoice.Lines was empty!
+  ```
+  
+  **After (fixed):**
+  ```csharp
+  // Same entity definitions now work correctly
+  var invoice = await table.Invoices.Query()
+      .Where(x => x.Pk == pk)
+      .ToCompositeEntityAsync<Invoice>();
+  // invoice.Lines is correctly populated with all matching child entities
+  // Each InvoiceLine.Metadata is properly deserialized
+  ```
+
 - **DynamoDbMap Multi-Item Deserialization** - Fixed source generator to correctly deserialize `[DynamoDbMap]` properties in composite entity (multi-item) scenarios
   - Previously, the `GeneratePrimaryEntityIdentification` method in the source generator was missing the `ComplexType.IsMap` check, causing incorrect deserialization of nested map types
   - The generated multi-item `FromDynamoDb` code now correctly uses the nested type's `FromDynamoDb` method instead of attempting to use `Enum.Parse`
@@ -496,6 +541,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   // Projections are read-only - write operations fail at compile time
   // ❌ await table.Put(orderSummary).PutAsync();  // Won't compile
   // ✅ await table.Put(order).PutAsync();         // Use source entity
+  ```
+
+- **Dynamic Fields Enhancements** - Extended `DynamicFieldCollection` with prefix-based accessors, typed Map operations, and bulk Set/Remove operations for efficient handling of sparse attribute patterns
+  - **Prefix-Based Field Discovery**: `GetFieldNamesByPrefix(prefix)` returns all field names matching a prefix pattern (e.g., `"c_"` for children)
+  - **Prefix-Based Field Retrieval**: 
+    - `GetByPrefix(prefix)` returns `Dictionary<string, AttributeValue>` with full keys
+    - `GetByPrefixWithStrippedKeys(prefix)` returns dictionary with prefix stripped from keys
+  - **Prefix-Based Field Removal**: `RemoveByPrefix(prefix)` removes all matching fields and returns count removed
+  - **Typed Map Getter**: `GetMap<T>(fieldName)` deserializes Map fields to `[DynamoDbEntity]` types using `IReadOnlyEntity.FromDynamoDb<T>()`
+  - **Typed Map Setter**: `SetMap<T>(fieldName, entity)` serializes `[DynamoDbEntity]` types to Map fields using `IDynamoDbEntity.ToDynamoDb()`
+  - **Prefix-Based Typed Map Retrieval**:
+    - `GetMapsByPrefix<T>(prefix)` returns `Dictionary<string, T>` of typed entities with full keys
+    - `GetMapsByPrefixWithStrippedKeys<T>(prefix)` returns dictionary with prefix stripped from keys
+  - **Bulk Set Operations**:
+    - `SetMany(fields)` sets multiple `AttributeValue` fields at once
+    - `SetManyWithPrefix(prefix, fields)` prepends prefix to each key before setting
+    - `SetMapsWithPrefix<T>(prefix, entities)` serializes and sets multiple typed entities with prefix
+  - **Bulk Remove Operations**: `RemoveMany(fieldNames)` removes multiple fields and returns count removed
+  - **Change Tracking Integration**: All operations integrate with existing change tracking for update expression support
+  - **AOT Compatible**: Uses static abstract interface methods, no reflection
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.5, 5.1-5.5, 6.1-6.6, 7.1-7.4, 8.1-8.5, 9.1-9.4, 10.1-10.4_
+  
+  **Usage - Sparse Attribute Pattern (BalanceTreeNode):**
+  ```csharp
+  // Entity with dynamic fields for children (c_{id}) and transactions (t_{id})
+  [DynamoDbTable("BalanceTree")]
+  [EnableDynamicFields]
+  public partial class TreeNode
+  {
+      [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+      [SortKey] [DynamoDbAttribute("sk")] public string Sk { get; set; } = string.Empty;
+      [DynamoDbAttribute("v")] public int Version { get; set; }
+  }
+  
+  // Nested entity for child references
+  [DynamoDbEntity]
+  public partial class ChildReference
+  {
+      [DynamoDbAttribute("subtotal")] public decimal Subtotal { get; set; }
+  }
+  
+  // Read all children as typed entities
+  var node = await table.TreeNodes.Get(pk, sk).GetItemAsync();
+  var children = node.DynamicFields.GetMapsByPrefixWithStrippedKeys<ChildReference>("c_");
+  foreach (var (childId, child) in children)
+      Console.WriteLine($"Child {childId}: {child.Subtotal}");
+  
+  // Add multiple children at once
+  node.DynamicFields.SetMapsWithPrefix("c_", new Dictionary<string, ChildReference>
+  {
+      ["child1"] = new ChildReference { Subtotal = 500m },
+      ["child2"] = new ChildReference { Subtotal = 300m }
+  });
+  
+  // Remove all old children
+  node.DynamicFields.RemoveByPrefix("old_");
+  
+  // Save with optimistic locking
+  await table.TreeNodes.Update(pk, sk)
+      .Set(x => new TreeNodeUpdateModel
+      {
+          Version = x.Version + 1,
+          DynamicFields = node.DynamicFields.ChangesOnly()
+      })
+      .Where(x => x.Version == node.Version)
+      .UpdateAsync();
   ```
 
 ### Changed

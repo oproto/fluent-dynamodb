@@ -168,6 +168,17 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Reference: [Attribute Reference](reference/AttributeReference.md#dynamodbtable-attribute)
 - Usage: [Entity Definition](core-features/EntityDefinition.md#dynamodbtable-attribute)
 
+**Dynamic Fields**
+- Complete guide: [Dynamic Fields](core-features/DynamicFields.md)
+- Enabling: [Dynamic Fields](core-features/DynamicFields.md#enabling-dynamic-fields)
+- Reading fields: [Dynamic Fields](core-features/DynamicFields.md#reading-dynamic-fields)
+- Writing fields: [Dynamic Fields](core-features/DynamicFields.md#writing-dynamic-fields)
+- Change tracking: [Dynamic Fields](core-features/DynamicFields.md#change-tracking)
+- Prefix operations: [Dynamic Fields](core-features/DynamicFields.md#prefix-based-operations)
+- Typed Map operations: [Dynamic Fields](core-features/DynamicFields.md#typed-map-operations)
+- Bulk operations: [Dynamic Fields](core-features/DynamicFields.md#bulk-operations)
+- Sparse attribute pattern: [Dynamic Fields](core-features/DynamicFields.md#sparse-attribute-pattern-example)
+
 ## E
 
 **Entity Definition**

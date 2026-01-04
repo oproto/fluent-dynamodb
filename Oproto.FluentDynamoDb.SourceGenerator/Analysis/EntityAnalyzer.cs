@@ -1154,12 +1154,72 @@ internal class EntityAnalyzer
             if (entityTypeArg?.Expression is TypeOfExpressionSyntax typeOfExpr)
             {
                 relationshipModel.EntityType = typeOfExpr.Type.ToString();
+                
+                // Check if the child entity type has its own [RelatedEntity] relationships
+                var childEntityTypeInfo = semanticModel.GetTypeInfo(typeOfExpr.Type);
+                if (childEntityTypeInfo.Type is INamedTypeSymbol childTypeSymbol)
+                {
+                    var childRelationships = ExtractChildEntityRelationships(childTypeSymbol, semanticModel);
+                    relationshipModel.ChildEntityHasRelationships = childRelationships.Length > 0;
+                    relationshipModel.ChildEntityRelationships = childRelationships;
+                }
             }
 
             relationships.Add(relationshipModel);
         }
 
         entityModel.Relationships = relationships.ToArray();
+    }
+
+    /// <summary>
+    /// Extracts [RelatedEntity] relationships from a child entity type symbol.
+    /// Used for recursive composite entity assembly detection.
+    /// </summary>
+    private RelationshipModel[] ExtractChildEntityRelationships(INamedTypeSymbol childTypeSymbol, SemanticModel semanticModel)
+    {
+        var relationships = new List<RelationshipModel>();
+
+        foreach (var member in childTypeSymbol.GetMembers().OfType<IPropertySymbol>())
+        {
+            // Check if the property has [RelatedEntity] attribute
+            var relatedEntityAttr = member.GetAttributes()
+                .FirstOrDefault(a => a.AttributeClass?.Name == "RelatedEntityAttribute");
+            
+            if (relatedEntityAttr == null)
+                continue;
+
+            var relationshipModel = new RelationshipModel
+            {
+                PropertyName = member.Name,
+                PropertyType = member.Type.ToDisplayString(),
+                IsCollection = IsCollectionType(member.Type)
+            };
+
+            // Extract sort key pattern from constructor argument
+            if (relatedEntityAttr.ConstructorArguments.Length > 0 && 
+                relatedEntityAttr.ConstructorArguments[0].Value is string pattern)
+            {
+                relationshipModel.SortKeyPattern = pattern;
+            }
+
+            // Extract entity type from named argument
+            var entityTypeArg = relatedEntityAttr.NamedArguments
+                .FirstOrDefault(na => na.Key == "EntityType");
+            
+            if (entityTypeArg.Value.Value is INamedTypeSymbol entityTypeSymbol)
+            {
+                relationshipModel.EntityType = entityTypeSymbol.ToDisplayString();
+                
+                // Recursively check if this grandchild entity also has relationships
+                var grandchildRelationships = ExtractChildEntityRelationships(entityTypeSymbol, semanticModel);
+                relationshipModel.ChildEntityHasRelationships = grandchildRelationships.Length > 0;
+                relationshipModel.ChildEntityRelationships = grandchildRelationships;
+            }
+
+            relationships.Add(relationshipModel);
+        }
+
+        return relationships.ToArray();
     }
 
     private void ValidateEntityModel(EntityModel entityModel)
@@ -1635,7 +1695,10 @@ internal class EntityAnalyzer
             // .NET 6+ date/time types
             "DateOnly", "TimeOnly", "System.DateOnly", "System.TimeOnly",
             // Common enum types
-            "DayOfWeek", "System.DayOfWeek"
+            "DayOfWeek", "System.DayOfWeek",
+            // Unsigned integer types and short
+            "ulong", "uint", "ushort", "byte", "sbyte", "short",
+            "System.UInt64", "System.UInt32", "System.UInt16", "System.Byte", "System.SByte", "System.Int16"
         };
 
         // Remove nullable annotations for checking
