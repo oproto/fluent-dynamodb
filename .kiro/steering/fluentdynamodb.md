@@ -728,6 +728,34 @@ await DynamoDbTransactions.WriteAsync(client, transactWriteRequest);
 | `.AttributeExists()` | `attribute_exists()` | `x => x.Field.AttributeExists()` |
 | `.AttributeNotExists()` | `attribute_not_exists()` | `x => x.Id.AttributeNotExists()` |
 | `.Size()` | `size()` | `x => x.Items.Size() > 5` |
+| `.CompareTo(value)` | `<`, `>`, `<=`, `>=` | `x => x.SortKey.CompareTo("2024-01-01") >= 0` |
+
+### String Comparison Operators
+
+C# doesn't support `<`, `>`, `<=`, `>=` operators on strings directly. Use `CompareTo()` for string range comparisons:
+
+```csharp
+// String greater than or equal
+.Where(x => x.SortKey.CompareTo("2024-01-01") >= 0)   // sk >= "2024-01-01"
+
+// String less than
+.Where(x => x.SortKey.CompareTo("2024-12-31") < 0)    // sk < "2024-12-31"
+
+// Range query on sort key
+.Where(x => x.Pk == pk && x.Sk.CompareTo("2024-01-01") >= 0 && x.Sk.CompareTo("2024-12-31") <= 0)
+
+// Alternative: Use Between for inclusive ranges
+.Where(x => x.Pk == pk && x.Sk.Between("2024-01-01", "2024-12-31"))
+```
+
+| Pattern | DynamoDB | Notes |
+|---------|----------|-------|
+| `.CompareTo(val) > 0` | `attr > val` | Greater than |
+| `.CompareTo(val) >= 0` | `attr >= val` | Greater than or equal |
+| `.CompareTo(val) < 0` | `attr < val` | Less than |
+| `.CompareTo(val) <= 0` | `attr <= val` | Less than or equal |
+| `.CompareTo(val) == 0` | `attr = val` | Equal (prefer `==` directly) |
+| `.CompareTo(val) != 0` | `attr <> val` | Not equal (prefer `!=` directly) |
 
 ## Nested Map (Object) Expressions
 

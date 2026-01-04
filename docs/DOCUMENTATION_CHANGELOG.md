@@ -57,6 +57,66 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-01-04]
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added String Comparison Operators documentation using `CompareTo()` method.
+
+**Changes:**
+
+1. **Updated "Lambda Expression Functions" table** - Added `CompareTo()` method:
+   - Added row: `| \`.CompareTo(value)\` | \`<\`, \`>\`, \`<=\`, \`>=\` | \`x => x.SortKey.CompareTo("2024-01-01") >= 0\` |`
+
+2. **Added "String Comparison Operators" subsection** after the functions table:
+   - Explains that C# doesn't support `<`, `>`, `<=`, `>=` on strings directly
+   - Shows `CompareTo()` usage examples for all comparison operators
+   - Includes range query example combining two `CompareTo()` calls
+   - Provides pattern reference table mapping `CompareTo()` patterns to DynamoDB operators
+   - Notes that `Between()` is preferred for inclusive ranges
+
+**Reason:** New feature added to support `string.CompareTo()` instance method in lambda expressions for intuitive string range comparisons.
+
+---
+
+### File: docs/core-features/LinqExpressions.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added String Comparison Operators section to the Supported Operators documentation.
+
+**Changes:**
+
+1. **Added "String Comparison Operators" subsection** after Comparison Operators:
+   - Documents that C# doesn't support `<`, `>`, `<=`, `>=` on strings
+   - Shows `CompareTo()` usage for string greater than, greater than or equal, less than, less than or equal
+   - Includes string range query example
+   - Provides CompareTo Pattern Reference table
+   - Includes tip about using `Between()` for inclusive ranges
+
+**Reason:** New feature added to support `string.CompareTo()` instance method in lambda expressions for intuitive string range comparisons.
+
+---
+
+### File: CHANGELOG.md
+
+**Category:** New Feature Documentation
+
+**Summary:** Added String CompareTo Support entry to Unreleased section.
+
+**Changes:**
+
+1. **Added "String CompareTo Support in Lambda Expressions" entry** to the Added section:
+   - Documents the new `string.CompareTo()` support
+   - Lists supported comparison operators
+   - Includes usage examples for range queries
+
+**Reason:** New feature added to support `string.CompareTo()` instance method in lambda expressions.
+
+---
+
 ## [2026-01-03]
 
 ### File: .kiro/steering/fluentdynamodb.md

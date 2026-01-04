@@ -1000,6 +1000,15 @@ public class UpdateExpressionTranslator
             return TranslateListOperationExtensionMethod(methodCall, parameter, context, pathPrefix, propertyName);
         }
         
+        // Check if the method call references the entity parameter
+        // If it doesn't, it's a local method call that can be evaluated at translation time
+        // Examples: TransactionStatus.Active.ToString(), myVar.Trim().ToUpper(), guid.ToString()
+        if (!ReferencesEntityParameter(methodCall, parameter))
+        {
+            // Evaluate the method call and treat it as a simple value assignment
+            return TranslateSimpleSetWithPath(methodCall, parameter, propertyName, context, pathPrefix);
+        }
+        
         // For nested properties, only certain methods are supported
         if (pathPrefix.Length > 0)
         {
