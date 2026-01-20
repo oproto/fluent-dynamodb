@@ -33,7 +33,7 @@ public class PaginationExtensionsTests
         var request = builder.ToQueryRequest();
 
         request.Limit.Should().Be(10);
-        request.ExclusiveStartKey.Should().BeEmpty();
+        request.ExclusiveStartKey.Should().BeNullOrEmpty();
     }
 
     [Fact]

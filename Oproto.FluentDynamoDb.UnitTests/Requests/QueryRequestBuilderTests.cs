@@ -398,6 +398,25 @@ public class QueryRequestBuilderTests
         req.ExclusiveStartKey["pk"].S.Should().Be("1");
     }
 
+    /// <summary>
+    /// Regression test: ExclusiveStartKey must be null by default, not an empty dictionary.
+    /// DynamoDB interprets an empty dictionary as "start from this key" which causes
+    /// "the provided starting key is invalid" error when no pagination is intended.
+    /// </summary>
+    [Fact]
+    public void ExclusiveStartKey_ShouldBeNull_WhenNoPaginationConfigured()
+    {
+        var builder = new QueryRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("TestTable").Where("pk = :pk").WithValue(":pk", "test");
+        
+        var req = builder.ToQueryRequest();
+        
+        // ExclusiveStartKey must be null (not empty dictionary) when no pagination is configured
+        // An empty dictionary causes DynamoDB to return "the provided starting key is invalid"
+        req.ExclusiveStartKey.Should().BeNull(
+            "DynamoDB interprets an empty dictionary as a pagination key, causing 'the provided starting key is invalid' error");
+    }
+
     [Fact]
     public void TakeSuccess()
     {
