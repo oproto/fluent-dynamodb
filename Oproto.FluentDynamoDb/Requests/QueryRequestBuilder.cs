@@ -60,7 +60,7 @@ public class QueryRequestBuilder<TEntity> :
         }
     }
 
-    private QueryRequest _req = new QueryRequest() { ExclusiveStartKey = new Dictionary<string, AttributeValue>() };
+    private QueryRequest _req = new QueryRequest();
     private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
     private readonly FluentDynamoDbOptions _options;
