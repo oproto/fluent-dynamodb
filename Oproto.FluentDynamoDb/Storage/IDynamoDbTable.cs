@@ -21,4 +21,9 @@ public interface IDynamoDbTable
     /// </summary>
     string Name { get; }
 
+    /// <summary>
+    /// Gets the configuration options for this table.
+    /// Used by DynamoDbIndex to pass options to query builders.
+    /// </summary>
+    FluentDynamoDbOptions? GetOptions() => null;
 }

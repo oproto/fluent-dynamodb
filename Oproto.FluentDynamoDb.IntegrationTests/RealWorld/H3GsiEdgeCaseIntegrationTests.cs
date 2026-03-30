@@ -33,7 +33,7 @@ public class H3GsiEdgeCaseIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Table wrapper for GSI-based spatial queries with low precision.
     /// </summary>
-    private class H3StoreGsiTable : DynamoDbTableBase
+    private class H3StoreGsiTable : GenericTable
     {
         public DynamoDbIndex LocationIndex { get; }
         

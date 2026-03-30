@@ -276,13 +276,13 @@ The encryption context is passed at runtime, not hardcoded in attributes:
 
 ```csharp
 // Option 1: Per-operation context (recommended - most explicit)
-await customerTable.PutItem(customerData)
+await customerTable.Put(customerData)
     .WithEncryptionContext("tenant-123")
-    .ExecuteAsync();
+    .PutAsync();
 
 // Option 2: Ambient context (for middleware scenarios)
 EncryptionContext.Current = "tenant-123";
-await customerTable.PutItem(customerData).ExecuteAsync();
+await customerTable.Put(customerData).PutAsync();
 ```
 
 ### Manual Encryption in Queries
@@ -382,7 +382,7 @@ EncryptionContext.Current = "tenant-123";
 
 // All encryption operations in this async flow use the context
 var encryptedValue = table.Encrypt(value, fieldName);
-await table.PutItem(entity).ExecuteAsync();
+await table.Put(entity).PutAsync();
 await table.Query<User>()
     .WithFilter<User>(x => x.EncryptedField == table.Encrypt(value, "EncryptedField"))
     .ToListAsync();
@@ -494,8 +494,8 @@ For middleware scenarios, use the ambient context:
 EncryptionContext.Current = httpContext.GetTenantId();
 
 // All operations in this async flow use the context
-await customerTable.PutItem(data).ExecuteAsync();
-await customerTable.GetItem("key").ExecuteAsync();
+await customerTable.Put(data).PutAsync();
+await customerTable.Get("key").GetItemAsync();
 
 // Context automatically cleared when request completes
 ```
@@ -798,9 +798,9 @@ All encryption errors throw `FieldEncryptionException`:
 ```csharp
 try
 {
-    await table.PutItem(data)
+    await table.Put(data)
         .WithEncryptionContext("tenant-123")
-        .ExecuteAsync();
+        .PutAsync();
 }
 catch (FieldEncryptionException ex)
 {

@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -10,8 +11,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// Query operations efficiently retrieve items using the primary key and optional sort key conditions.
 /// This is the preferred method for retrieving multiple items when you know the primary key.
 /// Query operations are much more efficient than Scan operations and should be used whenever possible.
+/// Now supports both full entities and projections through IReadOnlyEntity constraint.
 /// </summary>
-/// <typeparam name="TEntity">The entity type being queried.</typeparam>
+/// <typeparam name="TEntity">The entity or projection type being queried. Must implement IReadOnlyEntity&lt;TEntity&gt;.</typeparam>
 /// <example>
 /// <code>
 /// // Query items with a specific primary key
@@ -34,7 +36,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </example>
 public class QueryRequestBuilder<TEntity> :
     IWithAttributeNames<QueryRequestBuilder<TEntity>>, IWithConditionExpression<QueryRequestBuilder<TEntity>>, IWithAttributeValues<QueryRequestBuilder<TEntity>>, IWithFilterExpression<QueryRequestBuilder<TEntity>>, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IReadOnlyEntity
 {
     /// <summary>
     /// Initializes a new instance of the QueryRequestBuilder.
@@ -58,29 +60,19 @@ public class QueryRequestBuilder<TEntity> :
         }
     }
 
-    private QueryRequest _req = new QueryRequest() { ExclusiveStartKey = new Dictionary<string, AttributeValue>() };
+    private QueryRequest _req = new QueryRequest();
     private IAmazonDynamoDB _dynamoDbClient;
     private readonly IDynamoDbLogger _logger;
     private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
 
-    // === Response Metadata (populated after execution) ===
-    
     /// <summary>
-    /// Gets the last evaluated key from the most recent query execution.
-    /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
-    /// Use this for pagination to continue from where the previous query left off.
-    /// Null if there are no more pages or if the query hasn't been executed yet.
-    /// </summary>
-    public Dictionary<string, AttributeValue>? LastEvaluatedKey { get; internal set; }
-
-    /// <summary>
-    /// Gets the number of items evaluated (before filtering) from the most recent query execution.
+    /// Gets the response metadata from the most recent query execution.
     /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
     /// Null if the query hasn't been executed yet.
     /// </summary>
-    public int? ScannedCount { get; internal set; }
+    public QueryOperationResponse? Response { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -143,11 +135,19 @@ public class QueryRequestBuilder<TEntity> :
     /// <summary>
     /// Sets the filter expression on the builder.
     /// If a filter expression already exists, combines them with AND logic.
+    /// If the expression is empty or whitespace (e.g., all conditional clauses evaluated to skip),
+    /// the method returns without setting the filter, allowing the operation to proceed without filtering.
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public QueryRequestBuilder<TEntity> SetFilterExpression(string expression)
     {
+        // Skip setting if expression is empty (all conditionals evaluated to skip)
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return this;
+        }
+        
         if (string.IsNullOrEmpty(_req.FilterExpression))
         {
             _req.FilterExpression = expression;
@@ -172,6 +172,41 @@ public class QueryRequestBuilder<TEntity> :
     public QueryRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built QueryRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's entity hydration capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built QueryRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new QueryRequest
+    /// {
+    ///     TableName = "Orders",
+    ///     KeyConditionExpression = "pk = :pk",
+    ///     ExpressionAttributeValues = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         [":pk"] = new AttributeValue { S = "USER#123" }
+    ///     }
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Query&lt;Order&gt;().WithRequest(sdkRequest);
+    /// var orders = await builder.ToListAsync();
+    /// var scannedCount = builder.ScannedCount;
+    /// var lastKey = builder.LastEvaluatedKey;
+    /// </code>
+    /// </example>
+    public QueryRequestBuilder<TEntity> WithRequest(QueryRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 

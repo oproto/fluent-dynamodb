@@ -61,7 +61,7 @@ public class FluentResultsExtensionsTests
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
-        result.Errors[0].Message.Should().Contain("Failed to execute GetItem operation for TestEntity");
+        result.Errors[0].Should().BeAssignableTo<DynamoDbError>();
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class FluentResultsExtensionsTests
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
-        result.Errors[0].Message.Should().Contain("Failed to execute Query operation for TestEntity");
+        result.Errors[0].Should().BeAssignableTo<DynamoDbError>();
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class FluentResultsExtensionsTests
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
-        result.Errors[0].Message.Should().Contain("Failed to execute Scan operation for TestEntity");
+        result.Errors[0].Should().BeAssignableTo<DynamoDbError>();
     }
 
 
@@ -198,7 +198,7 @@ public class FluentResultsExtensionsTests
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors.Should().HaveCountGreaterThanOrEqualTo(1);
-        result.Errors[0].Message.Should().Contain("Failed to execute PutItem operation");
+        result.Errors[0].Should().BeAssignableTo<DynamoDbError>();
     }
 
     // Test removed - GetDynamoDbItemsResult method was removed in Task 41
@@ -236,7 +236,7 @@ public partial class TestEntity : IDynamoDbEntity
         };
     }
 
-    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+    public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {
         var entity = new TestEntity
         {

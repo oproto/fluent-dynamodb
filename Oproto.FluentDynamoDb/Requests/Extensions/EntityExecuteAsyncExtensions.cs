@@ -34,6 +34,13 @@ public static class EntityExecuteAsyncExtensions
             var request = builder.ToGetItemRequest();
             var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken);
 
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new GetItemOperationResponse
+            {
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata
+            };
+
             // Populate context with GetItemResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
             {
@@ -62,6 +69,7 @@ public static class EntityExecuteAsyncExtensions
     /// Executes a GetItem operation and returns a strongly-typed entity with blob reference support (Primary API).
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
+    /// It also populates builder.Response with response metadata for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The GetItemRequestBuilder instance.</param>
@@ -84,6 +92,13 @@ public static class EntityExecuteAsyncExtensions
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToGetItemRequest();
             var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken);
+
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new GetItemOperationResponse
+            {
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Populate context with GetItemResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -125,7 +140,7 @@ public static class EntityExecuteAsyncExtensions
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Use this method when you want to work with individual items as separate entities.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// It also populates LastEvaluatedKey and ScannedCount on the builder instance for direct access.
+    /// It also populates builder.Response with response metadata for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -144,9 +159,15 @@ public static class EntityExecuteAsyncExtensions
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
-            // Populate builder with response metadata for direct access (avoids AsyncLocal issues)
-            builder.LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null;
-            builder.ScannedCount = response.ScannedCount;
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new QueryOperationResponse
+            {
+                LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null,
+                ScannedCount = response.ScannedCount,
+                ResultCount = response.Count,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -184,7 +205,7 @@ public static class EntityExecuteAsyncExtensions
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// It also populates LastEvaluatedKey and ScannedCount on the builder instance for direct access.
+    /// It also populates builder.Response with response metadata for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
@@ -209,9 +230,15 @@ public static class EntityExecuteAsyncExtensions
             var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
-            // Populate builder with response metadata for direct access (avoids AsyncLocal issues)
-            builder.LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null;
-            builder.ScannedCount = response.ScannedCount;
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new QueryOperationResponse
+            {
+                LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null,
+                ScannedCount = response.ScannedCount,
+                ResultCount = response.Count,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Populate context with QueryResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -260,6 +287,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this method when you want to work with composite entities that span multiple DynamoDB items.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for each composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entities span more items than can fit in a single response, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// <para>
+    /// Each page of results is processed independently - composite entities are assembled only from items
+    /// within the same response page.
+    /// </para>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
@@ -319,6 +362,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for each composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entities span more items than can fit in a single response, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, IBlobStorageProvider, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// <para>
+    /// Each page of results is processed independently - composite entities are assembled only from items
+    /// within the same response page.
+    /// </para>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
@@ -406,6 +465,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this method when you expect to get a single composite entity from the query.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for the composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entity spans more items than can fit in a single response, the related entity collections
+    /// will be incomplete.
+    /// </para>
+    /// <para>
+    /// For composite entities that may exceed the 1MB response limit, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
@@ -461,6 +536,22 @@ public static class EntityExecuteAsyncExtensions
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
+    /// handle pagination. All items for the composite entity must be returned in a single response (up to 1MB).
+    /// If your composite entity spans more items than can fit in a single response, the related entity collections
+    /// will be incomplete.
+    /// </para>
+    /// <para>
+    /// For composite entities that may exceed the 1MB response limit, consider:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
+    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
+    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, IBlobStorageProvider, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
+    /// </list>
+    /// </remarks>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The QueryRequestBuilder instance.</param>
     /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
@@ -608,6 +699,7 @@ public static class EntityExecuteAsyncExtensions
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
+    /// It also populates builder.Response with response metadata for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The ScanRequestBuilder instance.</param>
@@ -625,6 +717,16 @@ public static class EntityExecuteAsyncExtensions
             var request = builder.ToScanRequest();
             var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
+
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new ScanOperationResponse
+            {
+                LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null,
+                ScannedCount = response.ScannedCount,
+                ResultCount = response.Count,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Populate context with ScanResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -663,6 +765,7 @@ public static class EntityExecuteAsyncExtensions
     /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// This method populates DynamoDbOperationContext.Current with operation metadata.
+    /// It also populates builder.Response with response metadata for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The ScanRequestBuilder instance.</param>
@@ -686,6 +789,16 @@ public static class EntityExecuteAsyncExtensions
             var request = builder.ToScanRequest();
             var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
+
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new ScanOperationResponse
+            {
+                LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null,
+                ScannedCount = response.ScannedCount,
+                ResultCount = response.Count,
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata
+            };
 
             // Populate context with ScanResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
@@ -893,6 +1006,14 @@ public static class EntityExecuteAsyncExtensions
             var request = builder.ToPutItemRequest();
             var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken);
 
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new PutItemOperationResponse
+            {
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata,
+                ItemCollectionMetrics = response.ItemCollectionMetrics
+            };
+
             // Populate context with PutItemResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
             {
@@ -915,6 +1036,7 @@ public static class EntityExecuteAsyncExtensions
     /// <summary>
     /// Executes a PutItem operation with blob reference support and stores the entity in DynamoDB (Primary API).
     /// This method populates DynamoDbOperationContext.Current with operation metadata including PreOperationValues.
+    /// It also populates builder.Response with response metadata for direct access.
     /// Use this overload when the entity has properties marked with [BlobReference] attribute.
     /// </summary>
     /// <typeparam name="T">The entity type.</typeparam>
@@ -939,6 +1061,14 @@ public static class EntityExecuteAsyncExtensions
             var request = builder.ToPutItemRequest();
             var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken);
 
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new PutItemOperationResponse
+            {
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata,
+                ItemCollectionMetrics = response.ItemCollectionMetrics
+            };
+
             // Populate context with PutItemResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData
             {
@@ -961,6 +1091,7 @@ public static class EntityExecuteAsyncExtensions
     /// <summary>
     /// Executes an UpdateItem operation and modifies the entity in DynamoDB (Primary API).
     /// This method populates DynamoDbOperationContext.Current with operation metadata including Pre/PostOperationValues.
+    /// It also populates builder.Response with response metadata for direct access.
     /// UpdateItem modifies existing items or creates them if they don't exist (upsert behavior).
     /// </summary>
     /// <typeparam name="T">The entity type.</typeparam>
@@ -980,6 +1111,14 @@ public static class EntityExecuteAsyncExtensions
             
             // Get the request after encryption to check ReturnValues setting
             var request = builder.ToUpdateItemRequest();
+
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new UpdateItemOperationResponse
+            {
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata,
+                ItemCollectionMetrics = response.ItemCollectionMetrics
+            };
 
             // Populate context with UpdateItemResponse metadata
             // Note: Attributes contains either pre-operation values (ALL_OLD/UPDATED_OLD) or post-operation values (ALL_NEW/UPDATED_NEW)
@@ -1009,6 +1148,7 @@ public static class EntityExecuteAsyncExtensions
     /// <summary>
     /// Executes a DeleteItem operation and removes the entity from DynamoDB (Primary API).
     /// This method populates DynamoDbOperationContext.Current with operation metadata including PreOperationValues.
+    /// It also populates builder.Response with response metadata for direct access.
     /// </summary>
     /// <typeparam name="T">The entity type.</typeparam>
     /// <param name="builder">The DeleteItemRequestBuilder instance.</param>
@@ -1025,6 +1165,14 @@ public static class EntityExecuteAsyncExtensions
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToDeleteItemRequest();
             var response = await builder.GetDynamoDbClient().DeleteItemAsync(request, cancellationToken);
+
+            // Populate builder.Response with response metadata for direct access
+            builder.Response = new DeleteItemOperationResponse
+            {
+                ConsumedCapacity = response.ConsumedCapacity,
+                ResponseMetadata = response.ResponseMetadata,
+                ItemCollectionMetrics = response.ItemCollectionMetrics
+            };
 
             // Populate context with DeleteItemResponse metadata
             DynamoDbOperationContext.Current = new OperationContextData

@@ -75,6 +75,52 @@ table.Query().WithFilter<User>(x => x.Score >= 50);
 // Translates to: #attr0 >= :p0
 ```
 
+### String Comparison Operators
+
+C# doesn't support `<`, `>`, `<=`, `>=` operators on strings directly. Use `CompareTo()` for string range comparisons:
+
+```csharp
+// String greater than
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-01-01") > 0);
+// Translates to: #attr0 = :p0 AND #attr1 > :p1
+
+// String greater than or equal
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-01-01") >= 0);
+// Translates to: #attr0 = :p0 AND #attr1 >= :p1
+
+// String less than
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-12-31") < 0);
+// Translates to: #attr0 = :p0 AND #attr1 < :p1
+
+// String less than or equal
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-12-31") <= 0);
+// Translates to: #attr0 = :p0 AND #attr1 <= :p1
+
+// String range query (alternative to Between for strings)
+table.Query().Where<Order>(x => 
+    x.CustomerId == customerId && 
+    x.OrderDate.CompareTo("2024-01-01") >= 0 && 
+    x.OrderDate.CompareTo("2024-12-31") <= 0);
+// Translates to: #attr0 = :p0 AND #attr1 >= :p1 AND #attr2 <= :p2
+```
+
+**CompareTo Pattern Reference:**
+
+| Pattern | DynamoDB | Notes |
+|---------|----------|-------|
+| `.CompareTo(val) > 0` | `attr > val` | Greater than |
+| `.CompareTo(val) >= 0` | `attr >= val` | Greater than or equal |
+| `.CompareTo(val) < 0` | `attr < val` | Less than |
+| `.CompareTo(val) <= 0` | `attr <= val` | Less than or equal |
+| `.CompareTo(val) == 0` | `attr = val` | Equal (prefer `==` directly) |
+| `.CompareTo(val) != 0` | `attr <> val` | Not equal (prefer `!=` directly) |
+
+**Tip:** For inclusive string ranges, consider using the `Between()` extension method instead:
+```csharp
+// Equivalent to CompareTo >= and <= combined
+table.Query().Where<Order>(x => x.CustomerId == customerId && x.OrderDate.Between("2024-01-01", "2024-12-31"));
+```
+
 ### Logical Operators
 
 Combine conditions with logical operators:
@@ -448,6 +494,335 @@ table.Query()
 - No need to migrate if string-based code is working
 - Focus migration efforts on new code
 
+## Conditional Expressions
+
+Conditional expressions (ternary operators) allow you to dynamically include or exclude filter conditions based on runtime flags. This is useful when building queries with optional filters.
+
+### Basic Conditional Filter
+
+Use a ternary expression to conditionally apply a filter:
+
+```csharp
+var includeStatusFilter = true;
+var status = "ACTIVE";
+
+// When includeStatusFilter is true, applies the status filter
+// When false, the filter is omitted entirely
+await table.Query()
+    .Where<User>(x => x.PartitionKey == userId)
+    .WithFilter<User>(x => includeStatusFilter ? x.Status == status : true)
+    .ExecuteAsync();
+```
+
+**How It Works:**
+- The condition (`includeStatusFilter`) is evaluated at translation time
+- When `true`: The true branch (`x.Status == status`) is included in the filter
+- When `false` with `true` as the false branch: The filter is omitted entirely
+
+### Partial Filter Inclusion
+
+Combine conditional expressions with other conditions:
+
+```csharp
+var filterByAge = false;
+var minAge = 18;
+
+await table.Query()
+    .Where<User>(x => x.PartitionKey == tenantId)
+    .WithFilter<User>(x => 
+        x.Active && 
+        (filterByAge ? x.Age >= minAge : true))
+    .ExecuteAsync();
+
+// When filterByAge is false:
+// Filter: #active
+// (The age condition is omitted)
+
+// When filterByAge is true:
+// Filter: #active AND #age >= :p0
+```
+
+### Multiple Conditional Filters
+
+Chain multiple conditional filters:
+
+```csharp
+var filterByStatus = true;
+var filterByRegion = false;
+var status = "ACTIVE";
+var region = "US-WEST";
+
+await table.Query()
+    .Where<User>(x => x.PartitionKey == tenantId)
+    .WithFilter<User>(x => 
+        (filterByStatus ? x.Status == status : true) &&
+        (filterByRegion ? x.Region == region : true))
+    .ExecuteAsync();
+
+// Only the status filter is applied (filterByRegion is false)
+// Filter: #status = :p0
+```
+
+### Important Rules for Conditional Expressions
+
+1. **Condition must not reference entity properties**
+   ```csharp
+   // ✗ Invalid: Condition references entity property
+   x => x.IsAdmin ? x.Status == "ACTIVE" : true
+   
+   // ✓ Valid: Condition uses captured variable
+   var isAdmin = GetCurrentUserIsAdmin();
+   x => isAdmin ? x.Status == "ACTIVE" : true
+   ```
+
+2. **Use `true` as the false branch to omit the filter**
+   ```csharp
+   // ✓ Correct: Filter omitted when flag is false
+   x => flag ? x.Field == value : true
+   ```
+
+3. **Constant `false` throws an exception**
+   ```csharp
+   // ✗ Throws UnsupportedExpressionException
+   x => false ? x.Field == value : false
+   // Error: "Filter expression evaluates to constant false, 
+   //         which would return no results."
+   ```
+
+## Conditional Filter Patterns (OR/AND with Local Conditions)
+
+In addition to ternary expressions, you can use natural `||` and `&&` operators with local boolean conditions to conditionally include or skip filter clauses. This provides a more intuitive syntax for optional filters.
+
+### Pattern Overview
+
+| Pattern | Local Value | Behavior |
+|---------|-------------|----------|
+| `localCondition \|\| x.Prop == val` | `true` | Skip filter (return all) |
+| `localCondition \|\| x.Prop == val` | `false` | Apply filter |
+| `localCondition && x.Prop == val` | `true` | Apply filter |
+| `localCondition && x.Prop == val` | `false` | Skip filter (return all) |
+
+### OR Pattern - Skip Filter When Condition is True
+
+Use `||` when you want to skip a filter when a local condition is true:
+
+```csharp
+var status = "ACTIVE";
+
+// When status is null/empty, skip the filter entirely
+// When status has a value, apply the filter
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
+    .ToListAsync();
+
+// If status is empty: No filter applied (returns all orders for customer)
+// If status is "ACTIVE": Filter: #status = :p0
+```
+
+### AND Pattern - Include Filter When Condition is True
+
+Use `&&` when you want to include a filter only when a local condition is true:
+
+```csharp
+var enableDateFilter = true;
+var minDate = DateTime.UtcNow.AddDays(-30);
+
+// Only apply date filter when enableDateFilter is true
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => enableDateFilter && x.OrderDate > minDate)
+    .ToListAsync();
+
+// If enableDateFilter is false: No filter applied
+// If enableDateFilter is true: Filter: #orderDate > :p0
+```
+
+### Multiple Optional Filters
+
+Combine multiple conditional filters in a single expression:
+
+```csharp
+var skipStatusFilter = false;
+var skipDateFilter = true;
+var status = "SHIPPED";
+var minDate = DateTime.UtcNow.AddDays(-7);
+
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => 
+        (skipStatusFilter || x.Status == status) && 
+        (skipDateFilter || x.OrderDate > minDate))
+    .ToListAsync();
+
+// skipStatusFilter=false, skipDateFilter=true:
+// Filter: #status = :p0
+// (Only status filter applied, date filter skipped)
+```
+
+### Negated Conditions
+
+Use negation for more readable expressions:
+
+```csharp
+var excludeArchived = true;
+
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => !excludeArchived || x.Archived == false)
+    .ToListAsync();
+
+// If excludeArchived is true: Filter: #archived = :p0 (false)
+// If excludeArchived is false: No filter applied
+```
+
+### Method Calls in Local Conditions
+
+Local conditions can include method calls that don't reference the entity:
+
+```csharp
+var searchTerm = "   ";  // Whitespace only
+
+await table.Query()
+    .Where<Product>(x => x.CategoryId == categoryId)
+    .WithFilter<Product>(x => string.IsNullOrWhiteSpace(searchTerm) || x.Name.Contains(searchTerm.Trim()))
+    .ToListAsync();
+
+// string.IsNullOrWhiteSpace("   ") returns true
+// Filter is skipped entirely
+```
+
+### Compound Local Conditions
+
+Local conditions can be compound boolean expressions:
+
+```csharp
+var hasStatusFilter = true;
+var hasDateFilter = false;
+var status = "ACTIVE";
+var minDate = DateTime.UtcNow.AddDays(-30);
+
+// Compound condition: both flags must be true to apply both filters
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => 
+        ((hasStatusFilter && hasDateFilter) && (x.Status == status && x.OrderDate > minDate)) ||
+        (hasStatusFilter && !hasDateFilter && x.Status == status) ||
+        (!hasStatusFilter && hasDateFilter && x.OrderDate > minDate) ||
+        (!hasStatusFilter && !hasDateFilter))
+    .ToListAsync();
+
+// Simpler approach - use separate conditional patterns:
+await table.Query()
+    .Where<Order>(x => x.CustomerId == customerId)
+    .WithFilter<Order>(x => 
+        (!hasStatusFilter || x.Status == status) && 
+        (!hasDateFilter || x.OrderDate > minDate))
+    .ToListAsync();
+```
+
+### Important Rules for Conditional Filter Patterns
+
+1. **Local condition must not reference the entity parameter**
+   ```csharp
+   // ✗ Invalid: Condition references entity property
+   x => x.IsActive || x.Status == "PENDING"
+   
+   // ✓ Valid: Condition uses captured variable
+   var skipFilter = true;
+   x => skipFilter || x.Status == "PENDING"
+   ```
+
+2. **OR between two entity conditions throws an exception**
+   ```csharp
+   // ✗ Throws UnsupportedExpressionException
+   x => x.Status == "ACTIVE" || x.Status == "PENDING"
+   // Error: "OR operator between two entity property conditions 
+   //         is not supported in DynamoDB expressions."
+   
+   // ✓ Use IN operator or separate queries instead
+   ```
+
+3. **Local conditions are evaluated at translation time**
+   - The condition is evaluated once when the expression is translated
+   - The result determines whether the filter is included or omitted
+   - No runtime evaluation occurs in DynamoDB
+
+### Comparison: Ternary vs OR/AND Patterns
+
+Both approaches achieve the same result. Choose based on readability:
+
+```csharp
+// Ternary pattern (existing)
+x => hasFilter ? x.Status == status : true
+
+// OR pattern (new) - more natural for "skip when true"
+x => !hasFilter || x.Status == status
+
+// AND pattern (new) - more natural for "include when true"
+x => hasFilter && x.Status == status
+```
+
+**When to use each:**
+- **Ternary**: When you need different filters for true/false cases
+- **OR pattern**: When you want to skip a filter when a condition is true
+- **AND pattern**: When you want to include a filter only when a condition is true
+
+## Local Function Evaluation
+
+Local functions that don't reference the entity parameter are evaluated at translation time:
+
+```csharp
+// Local function that computes a value
+int GetMinScore() => DateTime.Now.Hour > 12 ? 100 : 50;
+
+await table.Query()
+    .Where<User>(x => x.PartitionKey == tenantId)
+    .WithFilter<User>(x => x.Score > GetMinScore())
+    .ExecuteAsync();
+
+// GetMinScore() is called once at translation time
+// The result is captured as a constant value
+```
+
+### Valid Local Function Patterns
+
+```csharp
+// ✓ Valid: Function doesn't reference entity
+string GetPrefix() => "USER#";
+x => x.SortKey.StartsWith(GetPrefix())
+
+// ✓ Valid: Function with parameters from captured scope
+int ComputeThreshold(int base) => base * 2;
+var baseValue = 50;
+x => x.Score > ComputeThreshold(baseValue)
+
+// ✓ Valid: Method on captured object
+var config = GetConfiguration();
+x => x.Total > config.GetMinimumOrder()
+```
+
+### Invalid Local Function Patterns
+
+```csharp
+// ✗ Invalid: Function references entity parameter
+bool IsHighValue(User u) => u.Total > 1000;
+x => IsHighValue(x)
+// Error: "Method 'IsHighValue' cannot reference the entity parameter"
+
+// ✗ Invalid: Lambda referencing entity
+Func<User, bool> filter = u => u.Active;
+x => filter(x)
+// Error: Cannot invoke delegates with entity parameter
+```
+
+### AOT Safety Note
+
+Local function evaluation is AOT-safe because:
+- Functions are evaluated at translation time, not at runtime
+- Results are captured as constant values in the expression
+- No dynamic code generation or reflection is used
+
 ## Valid vs Invalid Patterns
 
 ### ✓ Valid Patterns
@@ -670,9 +1045,9 @@ var newUser = new User
     Name = "John Doe" 
 };
 
-await table.PutItem(newUser)
+await table.Put(newUser)
     .WithCondition<User>(x => x.Id.AttributeNotExists())
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 ### Scan with Complex Filter
@@ -842,7 +1217,7 @@ EncryptionContext.Current = "tenant-123";
 
 // All encryption operations in this async flow use the context
 var encryptedValue = table.Encrypt(value, fieldName);
-await table.PutItem(entity).ExecuteAsync();
+await table.Put(entity).PutAsync();
 await table.Query<User>()
     .WithFilter<User>(x => x.EncryptedField == table.Encrypt(value, "EncryptedField"))
     .ToListAsync();

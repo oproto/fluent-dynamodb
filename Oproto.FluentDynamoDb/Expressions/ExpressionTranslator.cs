@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq.Expressions;
 using System.Text;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Attributes;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Metadata;
 
@@ -126,6 +127,18 @@ public class ExpressionTranslator
     private readonly IDynamoDbLogger? _logger;
     private readonly Func<string, bool>? _isSensitiveField;
     private readonly FluentDynamoDbOptions? _options;
+    
+    /// <summary>
+    /// Sentinel value indicating "skip due to true in OR pattern".
+    /// This is absorbing for OR (true OR x = true) but identity for AND (true AND x = x).
+    /// </summary>
+    private const string SkipDueToTrueInOr = "\0SKIP_TRUE_OR\0";
+    
+    /// <summary>
+    /// Sentinel value indicating "skip due to false in AND pattern".
+    /// This is identity for OR (false OR x = x) but absorbing for AND (false AND x = false).
+    /// </summary>
+    private const string SkipDueToFalseInAnd = "\0SKIP_FALSE_AND\0";
 
     /// <summary>
     /// Gets the global expression cache instance.
@@ -184,7 +197,15 @@ public class ExpressionTranslator
         var entityParameter = expression.Parameters[0];
 
         // Visit the body of the lambda expression
-        return Visit(expression.Body, entityParameter, context);
+        var result = Visit(expression.Body, entityParameter, context);
+        
+        // Convert sentinel values to empty string for the final result
+        if (result == SkipDueToTrueInOr || result == SkipDueToFalseInAnd)
+        {
+            return string.Empty;
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -231,6 +252,12 @@ public class ExpressionTranslator
             return TranslateDynamicFieldAccess(dynamicFieldName!, context);
         }
 
+        // Check for list indexer access via MethodCallExpression: x.Tags[0] or x.Metadata.Keywords[0]
+        if (IsListIndexerMethodCall(node, entityParameter, out var listExpr, out var listIndex))
+        {
+            return BuildListIndexPath(listExpr!, listIndex!.Value, entityParameter, context);
+        }
+
         return node switch
         {
             BinaryExpression binary => VisitBinary(binary, entityParameter, context),
@@ -239,9 +266,10 @@ public class ExpressionTranslator
             UnaryExpression unary => VisitUnary(unary, entityParameter, context),
             MethodCallExpression methodCall => VisitMethodCall(methodCall, entityParameter, context),
             IndexExpression index => VisitIndex(index, entityParameter, context),
+            ConditionalExpression conditional => VisitConditional(conditional, entityParameter, context),
             _ => throw new UnsupportedExpressionException(
                 $"Expression type '{node.NodeType}' is not supported in DynamoDB expressions. " +
-                $"Supported types: Binary, Member, Constant, Unary, MethodCall, Index.",
+                $"Supported types: Binary, Member, Constant, Unary, MethodCall, Index, Conditional.",
                 node)
         };
     }
@@ -254,9 +282,106 @@ public class ExpressionTranslator
         // Handle logical operators (&&, ||)
         if (node.NodeType == ExpressionType.AndAlso || node.NodeType == ExpressionType.OrElse)
         {
+            var leftReferencesEntity = ReferencesEntityParameter(node.Left, entityParameter);
+            var rightReferencesEntity = ReferencesEntityParameter(node.Right, entityParameter);
+            
+            // Case 1: Neither side references entity - evaluate entire expression
+            if (!leftReferencesEntity && !rightReferencesEntity)
+            {
+                return EvaluateAndHandleLocalBooleanExpression(node, context);
+            }
+            
+            // Case 2: Only one side references entity - conditional filter pattern
+            // But NOT if the non-entity side is a ConditionalExpression (ternary) - those should be visited normally
+            // because they may contain entity references in their branches
+            if (leftReferencesEntity != rightReferencesEntity)
+            {
+                var localOperand = leftReferencesEntity ? node.Right : node.Left;
+                
+                // If the local operand is a ConditionalExpression (ternary), let normal flow handle it
+                // The ternary may have entity references in its branches that need to be processed
+                if (localOperand is not ConditionalExpression)
+                {
+                    return HandleConditionalFilterPattern(node, entityParameter, context, 
+                        leftReferencesEntity, rightReferencesEntity);
+                }
+            }
+            
+            // Case 3: Both sides reference entity (or one side is a ternary that references entity)
+            // Only throw for key expressions (KeysOnly mode) - filter expressions support OR between entity conditions
+            if (node.NodeType == ExpressionType.OrElse && context.ValidationMode == ExpressionValidationMode.KeysOnly)
+            {
+                // Check if this is actually a valid OR pattern (one side is a ternary that will evaluate to empty)
+                // If both sides truly reference entity properties directly, throw
+                var leftIsDirectEntityRef = IsDirectEntityPropertyComparison(node.Left, entityParameter);
+                var rightIsDirectEntityRef = IsDirectEntityPropertyComparison(node.Right, entityParameter);
+                
+                if (leftIsDirectEntityRef && rightIsDirectEntityRef)
+                {
+                    // OR between two entity conditions is not supported in DynamoDB key expressions
+                    throw new UnsupportedExpressionException(
+                        "OR operator between two entity property conditions is not supported in DynamoDB key expressions. " +
+                        "Use separate queries or restructure your data model.",
+                        node);
+                }
+            }
+            
+            // AND/OR between entity conditions or with ternary expressions - visit both sides
             var left = Visit(node.Left, entityParameter, context);
             var right = Visit(node.Right, entityParameter, context);
             var op = node.NodeType == ExpressionType.AndAlso ? "AND" : "OR";
+            
+            // Handle sentinel values from conditional expressions
+            // SkipDueToTrueInOr: came from (true || entityFilter) - means "skip this clause"
+            // SkipDueToFalseInAnd: came from (false && entityFilter) - means "skip this clause"
+            // Both sentinels mean "this clause doesn't contribute to the filter"
+            // For AND: skip clause is identity (x AND skip = x)
+            // For OR: SkipDueToTrueInOr is absorbing (true OR x = true), SkipDueToFalseInAnd is identity (false OR x = x)
+            
+            bool leftIsSkip = left == SkipDueToTrueInOr || left == SkipDueToFalseInAnd || string.IsNullOrEmpty(left);
+            bool rightIsSkip = right == SkipDueToTrueInOr || right == SkipDueToFalseInAnd || string.IsNullOrEmpty(right);
+            
+            if (node.NodeType == ExpressionType.AndAlso)
+            {
+                // For AND: skip is identity (x AND skip = x)
+                if (leftIsSkip && rightIsSkip)
+                {
+                    return string.Empty;
+                }
+                if (leftIsSkip)
+                {
+                    return right;
+                }
+                if (rightIsSkip)
+                {
+                    return left;
+                }
+            }
+            else // OrElse
+            {
+                // For OR: 
+                // - SkipDueToTrueInOr is absorbing (true OR x = true)
+                // - SkipDueToFalseInAnd is identity (false OR x = x)
+                // - empty string is treated as identity for backward compatibility
+                if (left == SkipDueToTrueInOr || right == SkipDueToTrueInOr)
+                {
+                    // true OR x = true, return empty to skip the filter
+                    return string.Empty;
+                }
+                // SkipDueToFalseInAnd and empty are identity for OR
+                if (left == SkipDueToFalseInAnd || string.IsNullOrEmpty(left))
+                {
+                    if (right == SkipDueToFalseInAnd || string.IsNullOrEmpty(right))
+                    {
+                        return string.Empty;
+                    }
+                    return right;
+                }
+                if (right == SkipDueToFalseInAnd || string.IsNullOrEmpty(right))
+                {
+                    return left;
+                }
+            }
             
             // Use StringBuilder to minimize allocations
             var sb = new StringBuilder(left.Length + right.Length + op.Length + 6);
@@ -272,9 +397,12 @@ public class ExpressionTranslator
             return TranslateGeoLocationComparison(node, geoLocationExpr!, valueExpr!, isLeftSide, entityParameter, context);
         }
 
-        // Special handling for string.CompareOrdinal(x.Property, value) >= 0 pattern
-        // This allows string comparison operators in expressions
-        // Example: string.CompareOrdinal(x.Type, "value") >= 0 translates to: #attr0 >= :p0
+        // Special handling for string comparison patterns:
+        // 1. string.CompareOrdinal(x.Property, value) >= 0 (static method)
+        // 2. x.Property.CompareTo(value) >= 0 (instance method - more intuitive)
+        // Both translate to: #attr0 >= :p0
+        
+        // Pattern 1: string.CompareOrdinal(x.Property, value) >= 0
         if (node.Left is MethodCallExpression methodCall &&
             methodCall.Method.Name == "CompareOrdinal" &&
             methodCall.Method.DeclaringType == typeof(string) &&
@@ -298,6 +426,41 @@ public class ExpressionTranslator
                 ExpressionType.GreaterThanOrEqual => ">=", // CompareOrdinal(...) >= 0 -> attr >= value
                 _ => throw new UnsupportedExpressionException(
                     $"Binary operator '{node.NodeType}' is not supported with string.CompareOrdinal.",
+                    node)
+            };
+            
+            // Use StringBuilder to minimize allocations
+            var compareBuilder = new StringBuilder(attributeName.Length + compareValue.Length + compareOperator.Length + 2);
+            compareBuilder.Append(attributeName).Append(' ').Append(compareOperator).Append(' ').Append(compareValue);
+            return compareBuilder.ToString();
+        }
+        
+        // Pattern 2: x.Property.CompareTo(value) >= 0 (instance method)
+        // More intuitive syntax: x.SortKey.CompareTo("2024-01-01") >= 0
+        if (node.Left is MethodCallExpression compareToCall &&
+            compareToCall.Method.Name == "CompareTo" &&
+            compareToCall.Method.DeclaringType == typeof(string) &&
+            compareToCall.Arguments.Count == 1 &&
+            compareToCall.Object != null &&
+            IsEntityPropertyAccess(compareToCall.Object, entityParameter))
+        {
+            // Extract the property (x.SortKey) and value ("2024-01-01") from CompareTo
+            var comparePropertyMetadata = GetPropertyMetadata(compareToCall.Object, entityParameter, context);
+            var attributeName = Visit(compareToCall.Object, entityParameter, context);
+            var compareValue = VisitWithPropertyMetadata(compareToCall.Arguments[0], entityParameter, context, comparePropertyMetadata);
+            
+            // The right side should be 0 (the comparison result)
+            // Map the comparison operator: CompareTo(...) >= 0 means attr >= value
+            var compareOperator = node.NodeType switch
+            {
+                ExpressionType.Equal => "=",           // CompareTo(...) == 0 -> attr = value
+                ExpressionType.NotEqual => "<>",       // CompareTo(...) != 0 -> attr <> value
+                ExpressionType.LessThan => "<",        // CompareTo(...) < 0 -> attr < value
+                ExpressionType.LessThanOrEqual => "<=", // CompareTo(...) <= 0 -> attr <= value
+                ExpressionType.GreaterThan => ">",     // CompareTo(...) > 0 -> attr > value
+                ExpressionType.GreaterThanOrEqual => ">=", // CompareTo(...) >= 0 -> attr >= value
+                _ => throw new UnsupportedExpressionException(
+                    $"Binary operator '{node.NodeType}' is not supported with string.CompareTo.",
                     node)
             };
             
@@ -554,13 +717,32 @@ public class ExpressionTranslator
     }
 
     /// <summary>
-    /// Visits a member expression node (property access like x.PropertyName).
+    /// Visits a member expression node (property access like x.PropertyName or x.Address.City).
     /// </summary>
     private string VisitMember(MemberExpression node, ParameterExpression entityParameter, ExpressionContext context)
     {
-        // Check if this is entity property access (x.PropertyName)
+        // Check if this is entity property access (x.PropertyName or x.Address.City)
         if (IsEntityPropertyAccess(node, entityParameter))
         {
+            // Check if this is nested property access (x.Address.City)
+            if (IsNestedPropertyAccess(node, entityParameter))
+            {
+                // Nested property access is only valid in filter expressions and condition expressions
+                // Not valid in key condition expressions (KeysOnly mode)
+                if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
+                {
+                    throw new InvalidKeyExpressionException(
+                        $"Nested property access '{GetNestedPropertyPath(node)}' is not supported in key condition expressions. " +
+                        "DynamoDB key conditions only support partition key and sort key attributes. " +
+                        "Use nested property access in filter expressions (.WithFilter()) or condition expressions (.Where() on Put/Update/Delete) instead.",
+                        node);
+                }
+
+                // Build document path for nested access
+                return BuildDocumentPathFromMemberChain(node, entityParameter, context);
+            }
+
+            // Direct property access (x.PropertyName)
             var propertyName = node.Member.Name;
 
             // Validate property against entity metadata if available
@@ -588,7 +770,10 @@ public class ExpressionTranslator
                 }
 
                 // Validate key-only mode for Query().Where()
-                if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
+                // Skip key validation for DynamicEntity - it uses DynamicFields indexer for key access
+                // and doesn't have typed key properties to validate against
+                if (context.ValidationMode == ExpressionValidationMode.KeysOnly && 
+                    context.EntityMetadata?.IsDynamicEntity != true)
                 {
                     var isKey = IsKeyProperty(propertyName, propertyMetadata, context);
                     if (!isKey)
@@ -615,6 +800,24 @@ public class ExpressionTranslator
         // Evaluate the member expression to get its value
         var value = EvaluateExpression(node);
         return CaptureValue(value, context, propertyMetadata: null);
+    }
+
+    /// <summary>
+    /// Gets a human-readable path string for a nested property access (for error messages).
+    /// </summary>
+    /// <param name="node">The member expression.</param>
+    /// <returns>A string like "Address.City".</returns>
+    private string GetNestedPropertyPath(MemberExpression node)
+    {
+        var parts = new List<string>();
+        Expression? current = node;
+        while (current is MemberExpression member)
+        {
+            parts.Add(member.Member.Name);
+            current = member.Expression;
+        }
+        parts.Reverse();
+        return string.Join(".", parts);
     }
 
     /// <summary>
@@ -680,6 +883,248 @@ public class ExpressionTranslator
             $"Unary operator '{node.NodeType}' is not supported in DynamoDB expressions. " +
             $"Supported operators: ! (NOT).",
             node);
+    }
+
+    /// <summary>
+    /// Visits a conditional expression node (ternary operator: condition ? trueValue : falseValue).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Conditional expressions allow dynamic filter inclusion based on runtime flags.
+    /// The condition is evaluated at translation time (not in DynamoDB), so it must not
+    /// reference the entity parameter.
+    /// </para>
+    /// <para><strong>Supported Patterns:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>x => flag ? x.Field == value : true - omits filter when flag is false</description></item>
+    /// <item><description>x => flag ? x.FieldA == valueA : x.FieldB == valueB - selects branch based on flag</description></item>
+    /// </list>
+    /// <para><strong>Unsupported Patterns:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>x => x.SomeProperty ? trueExpr : falseExpr - condition references entity</description></item>
+    /// </list>
+    /// </remarks>
+    /// <param name="node">The conditional expression node.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The translated DynamoDB expression string, or empty string if the filter should be omitted.</returns>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the condition references the entity parameter or evaluates to constant false.</exception>
+    private string VisitConditional(ConditionalExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // The condition must not reference the entity parameter - it must be evaluable at translation time
+        if (ReferencesEntityParameter(node.Test, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "Conditional test cannot reference entity properties. " +
+                "Use captured variables or constants for the condition. " +
+                "Example: 'x => someFlag ? x.Field == value : true' is valid, " +
+                "but 'x => x.SomeProperty ? trueExpr : falseExpr' is not.",
+                node);
+        }
+
+        // Evaluate the test condition at translation time
+        bool testResult;
+        try
+        {
+            var testValue = EvaluateExpression(node.Test);
+            testResult = testValue is bool b ? b : Convert.ToBoolean(testValue);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate conditional test expression: {ex.Message}",
+                node);
+        }
+
+        if (testResult)
+        {
+            // Condition is true - check if true branch is constant true (skip filter)
+            if (IsConstantTrue(node.IfTrue))
+            {
+                // Return empty string to signal that this part of the filter should be omitted
+                return string.Empty;
+            }
+            
+            // Check if true branch is constant false (would return no results)
+            if (IsConstantFalse(node.IfTrue))
+            {
+                throw new UnsupportedExpressionException(
+                    "Filter expression evaluates to constant false, which would return no results. " +
+                    "Remove the filter or fix the condition.",
+                    node);
+            }
+            
+            // Process the true branch
+            return Visit(node.IfTrue, entityParameter, context);
+        }
+        else
+        {
+            // Condition is false - check if false branch is constant true (skip filter)
+            if (IsConstantTrue(node.IfFalse))
+            {
+                // Return empty string to signal that this part of the filter should be omitted
+                return string.Empty;
+            }
+            
+            // Check if false branch is constant false (would return no results)
+            if (IsConstantFalse(node.IfFalse))
+            {
+                throw new UnsupportedExpressionException(
+                    "Filter expression evaluates to constant false, which would return no results. " +
+                    "Remove the filter or fix the condition.",
+                    node);
+            }
+
+            // Process the false branch
+            return Visit(node.IfFalse, entityParameter, context);
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression is a constant true value.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if the expression is constant true, false otherwise.</returns>
+    private bool IsConstantTrue(Expression expression)
+    {
+        if (expression is ConstantExpression constant && constant.Value is bool b)
+        {
+            return b;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if an expression is a constant false value.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if the expression is constant false, false otherwise.</returns>
+    private bool IsConstantFalse(Expression expression)
+    {
+        if (expression is ConstantExpression constant && constant.Value is bool b)
+        {
+            return !b;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Handles conditional filter patterns where one operand is a local boolean condition
+    /// and the other references entity properties.
+    /// </summary>
+    /// <remarks>
+    /// <para><strong>Supported Patterns:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>OR with local condition: (localCondition || x.Property == value) - skip filter when local is true</description></item>
+    /// <item><description>AND with local condition: (localCondition &amp;&amp; x.Property == value) - include filter only when local is true</description></item>
+    /// </list>
+    /// </remarks>
+    /// <param name="node">The binary expression node.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="leftReferencesEntity">Whether the left operand references the entity parameter.</param>
+    /// <param name="rightReferencesEntity">Whether the right operand references the entity parameter.</param>
+    /// <returns>The translated DynamoDB expression string, or empty string if the filter should be omitted.</returns>
+    /// <exception cref="ExpressionTranslationException">Thrown when the local condition cannot be evaluated.</exception>
+    private string HandleConditionalFilterPattern(
+        BinaryExpression node,
+        ParameterExpression entityParameter,
+        ExpressionContext context,
+        bool leftReferencesEntity,
+        bool rightReferencesEntity)
+    {
+        var localOperand = leftReferencesEntity ? node.Right : node.Left;
+        var entityOperand = leftReferencesEntity ? node.Left : node.Right;
+
+        // Evaluate the local operand
+        bool localValue;
+        try
+        {
+            var evaluated = EvaluateExpression(localOperand);
+            localValue = evaluated is bool b ? b : Convert.ToBoolean(evaluated);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate local condition in filter expression: {ex.Message}",
+                node);
+        }
+
+        if (node.NodeType == ExpressionType.OrElse)
+        {
+            // OR pattern: (localCondition || entityFilter)
+            // If local is true → skip filter (return sentinel for "true in OR")
+            // If local is false → apply entity filter
+            if (localValue)
+            {
+                return SkipDueToTrueInOr;
+            }
+            return Visit(entityOperand, entityParameter, context);
+        }
+        else // AndAlso
+        {
+            // AND pattern: (localCondition && entityFilter)
+            // If local is true → apply entity filter
+            // If local is false → skip filter (return sentinel for "false in AND")
+            if (localValue)
+            {
+                return Visit(entityOperand, entityParameter, context);
+            }
+            return SkipDueToFalseInAnd;
+        }
+    }
+
+    /// <summary>
+    /// Evaluates and handles a fully local boolean expression where neither operand references the entity.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When both operands of a logical expression don't reference the entity parameter,
+    /// the entire expression can be evaluated at translation time.
+    /// </para>
+    /// <para>
+    /// If the expression evaluates to true, a sentinel is returned to indicate the skip reason.
+    /// If the expression evaluates to false, an exception is thrown because a constant false
+    /// filter would return no results.
+    /// </para>
+    /// </remarks>
+    /// <param name="node">The binary expression node.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>Sentinel value if the expression evaluates to true.</returns>
+    /// <exception cref="UnsupportedExpressionException">Thrown when the expression evaluates to constant false.</exception>
+    /// <exception cref="ExpressionTranslationException">Thrown when the expression cannot be evaluated.</exception>
+    private string EvaluateAndHandleLocalBooleanExpression(
+        BinaryExpression node,
+        ExpressionContext context)
+    {
+        bool result;
+        try
+        {
+            var evaluated = EvaluateExpression(node);
+            result = evaluated is bool b ? b : Convert.ToBoolean(evaluated);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate local boolean expression: {ex.Message}",
+                node);
+        }
+
+        if (result)
+        {
+            // Expression evaluates to true - return sentinel based on operator
+            // For OR: true is absorbing (true OR x = true)
+            // For AND: true is identity (true AND x = x)
+            return node.NodeType == ExpressionType.OrElse ? SkipDueToTrueInOr : SkipDueToTrueInOr;
+        }
+        else
+        {
+            // Expression evaluates to false - this would filter out everything
+            throw new UnsupportedExpressionException(
+                "Filter expression evaluates to constant false, which would return no results. " +
+                "Remove the filter or fix the condition.",
+                node);
+        }
     }
 
     /// <summary>
@@ -794,9 +1239,9 @@ public class ExpressionTranslator
             }
         }
 
-        // string.CompareOrdinal(str1, str2) - used for string comparisons in expressions
-        // This is NOT a DynamoDB function - it's handled specially in VisitBinary
-        // We don't handle it here
+        // string.CompareOrdinal(str1, str2) and string.CompareTo(str) - used for string comparisons
+        // These are NOT DynamoDB functions - they're handled specially in VisitBinary
+        // to translate patterns like x.SortKey.CompareTo("value") >= 0 to: #attr >= :p0
 
         // Between(low, high) -> attr BETWEEN low AND high
         if (node.Method.Name == "Between" && 
@@ -912,12 +1357,15 @@ public class ExpressionTranslator
             BinaryExpression binary => 
                 ReferencesEntityParameter(binary.Left, entityParameter) ||
                 ReferencesEntityParameter(binary.Right, entityParameter),
+            // Handle indexer expressions like x.DynamicFields["fieldName"]
+            IndexExpression index => ReferencesEntityParameter(index.Object!, entityParameter),
             _ => false
         };
     }
 
     /// <summary>
-    /// Checks if a member expression is accessing an entity property.
+    /// Checks if a member expression is accessing an entity property (direct or nested).
+    /// Also handles property access after list index (e.g., x.LineItems[0].ProductId).
     /// </summary>
     private bool IsEntityPropertyAccess(Expression node, ParameterExpression entityParameter)
     {
@@ -925,7 +1373,223 @@ public class ExpressionTranslator
             return false;
 
         // Check if the member is directly on the entity parameter (x.PropertyName)
-        return member.Expression == entityParameter;
+        if (member.Expression == entityParameter)
+            return true;
+
+        // Check for nested property access (x.Address.City)
+        // Also handles property access after list index (x.LineItems[0].ProductId)
+        return IsNestedPropertyAccess(member, entityParameter);
+    }
+
+    /// <summary>
+    /// Checks if a member expression is a nested property access (e.g., x.Address.City).
+    /// Also handles property access after list index (e.g., x.LineItems[0].ProductId).
+    /// </summary>
+    /// <param name="node">The member expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <returns>True if this is a nested property access, false otherwise.</returns>
+    private bool IsNestedPropertyAccess(MemberExpression node, ParameterExpression entityParameter)
+    {
+        // Walk up the expression tree to find if we eventually reach the entity parameter
+        Expression? current = node.Expression;
+        while (current != null)
+        {
+            if (current == entityParameter)
+            {
+                // We reached the entity parameter through a chain of member accesses
+                // This is nested if we had at least one intermediate member
+                return node.Expression != entityParameter;
+            }
+
+            if (current is MemberExpression member)
+            {
+                current = member.Expression;
+            }
+            else if (current is MethodCallExpression methodCall && methodCall.Method.Name == "get_Item")
+            {
+                // Handle list indexer access (x.LineItems[0].ProductId)
+                // The list indexer appears as a MethodCallExpression with method name "get_Item"
+                current = methodCall.Object;
+            }
+            else if (current is IndexExpression indexExpr)
+            {
+                // Handle IndexExpression (alternative representation of list indexer)
+                current = indexExpr.Object;
+            }
+            else
+            {
+                // Not a member expression chain leading to entity parameter
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Builds a DynamoDB document path from a chained member expression (e.g., x.Address.City -> #address.#city).
+    /// Also handles property access after list index (e.g., x.LineItems[0].ProductId -> #lineItems[0].#productId).
+    /// Supports dynamic indices (variables, method calls, property access) as long as they
+    /// don't reference the entity parameter.
+    /// </summary>
+    /// <param name="node">The member expression representing the nested property access.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The DynamoDB document path string.</returns>
+    private string BuildDocumentPathFromMemberChain(MemberExpression node, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var pathBuilder = new DocumentPathBuilder(context.AttributeNames);
+        
+        // Use a list to collect segments that can include both properties and indices
+        var segments = new List<object>(); // Either (string PropertyName, string AttributeName) or int index
+
+        // Collect all segments from leaf to root
+        Expression? current = node;
+        while (current != null && current != entityParameter)
+        {
+            if (current is MemberExpression member)
+            {
+                var propertyName = member.Member.Name;
+                var attributeName = GetDynamoDbAttributeName(member, entityParameter, context);
+                segments.Add((propertyName, attributeName));
+                current = member.Expression;
+            }
+            else if (current is MethodCallExpression methodCall && methodCall.Method.Name == "get_Item")
+            {
+                // Handle list indexer access (x.LineItems[0].ProductId)
+                // Extract the index value - supports dynamic indices
+                if (methodCall.Arguments.Count == 1)
+                {
+                    var indexValue = EvaluateIndexExpression(methodCall.Arguments[0], entityParameter, methodCall);
+                    ValidateListIndex(indexValue, methodCall.Arguments[0]);
+                    segments.Add(indexValue);
+                }
+                current = methodCall.Object;
+            }
+            else if (current is IndexExpression indexExpr)
+            {
+                // Handle IndexExpression (alternative representation of list indexer)
+                // Supports dynamic indices
+                if (indexExpr.Arguments.Count == 1)
+                {
+                    var indexValue = EvaluateIndexExpression(indexExpr.Arguments[0], entityParameter, indexExpr);
+                    ValidateListIndex(indexValue, indexExpr.Arguments[0]);
+                    segments.Add(indexValue);
+                }
+                current = indexExpr.Object;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        // Reverse to build path from root to leaf
+        segments.Reverse();
+
+        // Build path
+        foreach (var segment in segments)
+        {
+            if (segment is ValueTuple<string, string> propSegment)
+            {
+                pathBuilder.AddProperty(propSegment.Item1, propSegment.Item2);
+            }
+            else if (segment is int indexSegment)
+            {
+                pathBuilder.AddIndex(indexSegment);
+            }
+        }
+
+        return pathBuilder.Build();
+    }
+
+    /// <summary>
+    /// Gets the DynamoDB attribute name for a member expression.
+    /// </summary>
+    /// <param name="member">The member expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The DynamoDB attribute name.</returns>
+    private string GetDynamoDbAttributeName(MemberExpression member, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        var propertyName = member.Member.Name;
+
+        // If we have entity metadata and this is a direct property on the entity, use the metadata
+        if (context.EntityMetadata != null && member.Expression == entityParameter)
+        {
+            var propertyMetadata = context.EntityMetadata.Properties
+                .FirstOrDefault(p => p.PropertyName == propertyName);
+            if (propertyMetadata != null)
+            {
+                return propertyMetadata.AttributeName;
+            }
+        }
+
+        // For nested properties or when no metadata is available, check for DynamoDbAttribute
+        // Use reflection to get the attribute (AOT-safe since we're reading compile-time metadata)
+        if (member.Member is System.Reflection.PropertyInfo propInfo)
+        {
+            var dynamoDbAttr = propInfo.GetCustomAttributes(typeof(DynamoDbAttributeAttribute), true)
+                .FirstOrDefault() as DynamoDbAttributeAttribute;
+            if (dynamoDbAttr != null)
+            {
+                return dynamoDbAttr.AttributeName;
+            }
+        }
+
+        // Default to property name
+        return propertyName;
+    }
+
+    /// <summary>
+    /// Checks if an expression is a direct entity property comparison (e.g., x.Property == value).
+    /// This excludes conditional expressions (ternary) and other complex patterns.
+    /// </summary>
+    /// <param name="node">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <returns>True if this is a direct entity property comparison, false otherwise.</returns>
+    private bool IsDirectEntityPropertyComparison(Expression node, ParameterExpression entityParameter)
+    {
+        // Conditional expressions (ternary) are not direct comparisons
+        if (node is ConditionalExpression)
+            return false;
+
+        // Binary comparisons (==, !=, <, >, etc.) with entity property access
+        if (node is BinaryExpression binary)
+        {
+            // Check if this is a comparison operator (not AND/OR)
+            if (binary.NodeType != ExpressionType.AndAlso && binary.NodeType != ExpressionType.OrElse)
+            {
+                return IsEntityPropertyAccess(binary.Left, entityParameter) ||
+                       IsEntityPropertyAccess(binary.Right, entityParameter);
+            }
+            
+            // For AND/OR, recursively check both sides
+            return IsDirectEntityPropertyComparison(binary.Left, entityParameter) ||
+                   IsDirectEntityPropertyComparison(binary.Right, entityParameter);
+        }
+
+        // Method calls on entity properties (e.g., x.Name.StartsWith("value"))
+        if (node is MethodCallExpression methodCall)
+        {
+            if (methodCall.Object != null && IsEntityPropertyAccess(methodCall.Object, entityParameter))
+                return true;
+            
+            // Extension methods like Between, AttributeExists
+            if (methodCall.Arguments.Count > 0 && IsEntityPropertyAccess(methodCall.Arguments[0], entityParameter))
+                return true;
+        }
+
+        // Unary expressions (e.g., !x.IsActive)
+        if (node is UnaryExpression unary)
+        {
+            return IsDirectEntityPropertyComparison(unary.Operand, entityParameter);
+        }
+
+        // Direct entity property access (e.g., x.IsActive as boolean)
+        if (IsEntityPropertyAccess(node, entityParameter))
+            return true;
+
+        return false;
     }
 
     /// <summary>
@@ -1059,6 +1723,8 @@ public class ExpressionTranslator
             decimal dec => new AttributeValue { N = dec.ToString(CultureInfo.InvariantCulture) },
             DateTime dt => new AttributeValue { S = dt.ToString("o", CultureInfo.InvariantCulture) },
             DateTimeOffset dto => new AttributeValue { S = dto.ToString("o", CultureInfo.InvariantCulture) },
+            DateOnly d => new AttributeValue { S = d.ToString("O", CultureInfo.InvariantCulture) },
+            TimeOnly t => new AttributeValue { S = t.ToString("O", CultureInfo.InvariantCulture) },
             Guid g => new AttributeValue { S = g.ToString() },
             Enum e => new AttributeValue { S = e.ToString() },
             _ => new AttributeValue { S = value.ToString() ?? string.Empty }
@@ -1392,7 +2058,7 @@ public class ExpressionTranslator
     #region Dynamic Field Support
 
     /// <summary>
-    /// Visits an index expression node (indexer access like x.DynamicFields["fieldName"]).
+    /// Visits an index expression node (indexer access like x.DynamicFields["fieldName"] or x.Tags[0]).
     /// </summary>
     private string VisitIndex(IndexExpression node, ParameterExpression entityParameter, ExpressionContext context)
     {
@@ -1402,10 +2068,226 @@ public class ExpressionTranslator
             return TranslateDynamicFieldAccess(fieldName!, context);
         }
 
+        // Check if this is a list index access (x.Tags[0] or x.Metadata.Keywords[0])
+        if (IsListIndexAccess(node, entityParameter, out var listIndex))
+        {
+            return BuildListIndexPath(node.Object!, listIndex!.Value, entityParameter, context);
+        }
+
         throw new UnsupportedExpressionException(
             $"Index expression is not supported in DynamoDB expressions. " +
-            $"Only DynamicFields indexer access is supported (e.g., x.DynamicFields[\"fieldName\"]).",
+            $"Supported patterns: DynamicFields indexer (x.DynamicFields[\"fieldName\"]) and list index access (x.Tags[0]).",
             node);
+    }
+
+    /// <summary>
+    /// Checks if an IndexExpression is a list index access pattern (e.g., x.Tags[0]).
+    /// Supports dynamic indices (variables, method calls, property access) as long as they
+    /// don't reference the entity parameter.
+    /// </summary>
+    /// <param name="node">The index expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="index">The list index if this is a list index access.</param>
+    /// <returns>True if this is a list index access, false otherwise.</returns>
+    private bool IsListIndexAccess(IndexExpression node, ParameterExpression entityParameter, out int? index)
+    {
+        index = null;
+
+        // The object must be an entity property access (direct or nested)
+        if (node.Object == null || !IsEntityPropertyAccess(node.Object, entityParameter))
+            return false;
+
+        // Must have exactly one argument (the index)
+        if (node.Arguments.Count != 1)
+            return false;
+
+        // Evaluate the index expression (supports constants, variables, method calls, property access)
+        var indexValue = EvaluateIndexExpression(node.Arguments[0], entityParameter, node);
+        ValidateListIndex(indexValue, node.Arguments[0]);
+        index = indexValue;
+        return true;
+    }
+
+    /// <summary>
+    /// Evaluates an index expression to get the integer value.
+    /// Supports constants, variables, property access, and method calls.
+    /// Throws if the expression references the entity parameter.
+    /// </summary>
+    /// <param name="indexExpr">The index expression to evaluate.</param>
+    /// <param name="entityParameter">The entity parameter to check for references.</param>
+    /// <param name="sourceExpression">The source expression for error reporting.</param>
+    /// <returns>The evaluated integer index value.</returns>
+    private int EvaluateIndexExpression(Expression indexExpr, ParameterExpression entityParameter, Expression sourceExpression)
+    {
+        // Fast path: constant expression
+        if (indexExpr is ConstantExpression constant && constant.Value is int constIndex)
+        {
+            return constIndex;
+        }
+
+        // Check if expression references entity parameter
+        if (ParameterReferenceVisitor.ContainsReference(indexExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "List index cannot reference the entity parameter. " +
+                "Use a local variable, property, or method call that doesn't depend on the entity. " +
+                "Example: int idx = GetIndex(); .WithFilter(x => x.Tags[idx] == \"value\")",
+                sourceExpression);
+        }
+
+        // Evaluate the expression
+        try
+        {
+            var lambda = Expression.Lambda<Func<int>>(indexExpr);
+            var compiled = lambda.Compile();
+            return compiled();
+        }
+        catch (Exception ex)
+        {
+            throw new UnsupportedExpressionException(
+                $"Failed to evaluate list index expression: {ex.Message}. " +
+                "Ensure the index is a constant, variable, property, or method call that can be evaluated at translation time.",
+                sourceExpression);
+        }
+    }
+
+    /// <summary>
+    /// Validates that a list index is non-negative.
+    /// </summary>
+    /// <param name="index">The index value to validate.</param>
+    /// <param name="sourceExpr">The source expression for error reporting.</param>
+    private void ValidateListIndex(int index, Expression sourceExpr)
+    {
+        if (index < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                "index",
+                index,
+                $"List index must be non-negative. Got: {index}");
+        }
+    }
+
+    /// <summary>
+    /// Builds a document path for list index access (e.g., x.Tags[0] -> #tags[0], x.Metadata.Keywords[0] -> #metadata.#keywords[0]).
+    /// </summary>
+    /// <param name="listExpression">The expression representing the list (e.g., x.Tags or x.Metadata.Keywords).</param>
+    /// <param name="index">The list index.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The DynamoDB document path string.</returns>
+    private string BuildListIndexPath(Expression listExpression, int index, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // List index access is only valid in filter expressions and condition expressions
+        // Not valid in key condition expressions (KeysOnly mode)
+        if (context.ValidationMode == ExpressionValidationMode.KeysOnly)
+        {
+            throw new InvalidKeyExpressionException(
+                $"List index access is not supported in key condition expressions. " +
+                "DynamoDB key conditions only support partition key and sort key attributes. " +
+                "Use list index access in filter expressions (.WithFilter()) or condition expressions (.Where() on Put/Update/Delete) instead.",
+                listExpression);
+        }
+
+        var pathBuilder = new DocumentPathBuilder(context.AttributeNames);
+
+        // Build the path for the list property (may be nested like x.Metadata.Keywords)
+        if (listExpression is MemberExpression memberExpr)
+        {
+            BuildMemberPathSegments(memberExpr, entityParameter, context, pathBuilder);
+        }
+
+        // Add the index segment
+        pathBuilder.AddIndex(index);
+
+        return pathBuilder.Build();
+    }
+
+    /// <summary>
+    /// Builds path segments for a member expression chain into a DocumentPathBuilder.
+    /// </summary>
+    /// <param name="memberExpr">The member expression.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathBuilder">The path builder to add segments to.</param>
+    private void BuildMemberPathSegments(MemberExpression memberExpr, ParameterExpression entityParameter, ExpressionContext context, DocumentPathBuilder pathBuilder)
+    {
+        var segments = new Stack<(string PropertyName, string AttributeName)>();
+
+        // Collect all segments from leaf to root
+        Expression? current = memberExpr;
+        while (current is MemberExpression member)
+        {
+            var propertyName = member.Member.Name;
+            var attributeName = GetDynamoDbAttributeName(member, entityParameter, context);
+            segments.Push((propertyName, attributeName));
+            current = member.Expression;
+        }
+
+        // Build path from root to leaf
+        while (segments.Count > 0)
+        {
+            var (propName, attrName) = segments.Pop();
+            pathBuilder.AddProperty(propName, attrName);
+        }
+    }
+
+    /// <summary>
+    /// Checks if a MethodCallExpression is a list indexer access pattern (e.g., x.Tags[0] via get_Item).
+    /// In C# expression trees, list[index] is represented as a MethodCallExpression with method name "get_Item".
+    /// Supports dynamic indices (variables, method calls, property access) as long as they
+    /// don't reference the entity parameter.
+    /// </summary>
+    /// <param name="node">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter.</param>
+    /// <param name="listExpression">The expression representing the list if this is a list indexer access.</param>
+    /// <param name="index">The list index if this is a list indexer access.</param>
+    /// <returns>True if this is a list indexer access, false otherwise.</returns>
+    private bool IsListIndexerMethodCall(Expression node, ParameterExpression entityParameter, out Expression? listExpression, out int? index)
+    {
+        listExpression = null;
+        index = null;
+
+        // List indexer access appears as a MethodCallExpression with method name "get_Item"
+        if (node is not MethodCallExpression methodCall)
+            return false;
+
+        // Check if this is an indexer call (get_Item)
+        if (methodCall.Method.Name != "get_Item")
+            return false;
+
+        // The object must be an entity property access (direct or nested)
+        if (methodCall.Object == null || !IsEntityPropertyAccess(methodCall.Object, entityParameter))
+            return false;
+
+        // Exclude DynamicFields indexer - that's handled separately
+        if (methodCall.Object is MemberExpression memberExpr && memberExpr.Member.Name == "DynamicFields")
+            return false;
+
+        // Must have exactly one argument (the index)
+        if (methodCall.Arguments.Count != 1)
+            return false;
+
+        // Check if the declaring type is a list/collection type (List<T>, IList<T>, etc.)
+        var declaringType = methodCall.Method.DeclaringType;
+        if (declaringType == null)
+            return false;
+
+        // Accept List<T>, IList<T>, IReadOnlyList<T>, and array types
+        var isListType = declaringType.IsGenericType && (
+            declaringType.GetGenericTypeDefinition() == typeof(List<>) ||
+            declaringType.GetGenericTypeDefinition() == typeof(IList<>) ||
+            declaringType.GetGenericTypeDefinition() == typeof(IReadOnlyList<>));
+        var isArrayType = declaringType.IsArray;
+
+        if (!isListType && !isArrayType)
+            return false;
+
+        // Evaluate the index expression (supports constants, variables, method calls, property access)
+        var indexValue = EvaluateIndexExpression(methodCall.Arguments[0], entityParameter, node);
+        ValidateListIndex(indexValue, methodCall.Arguments[0]);
+        listExpression = methodCall.Object;
+        index = indexValue;
+        return true;
     }
 
     /// <summary>

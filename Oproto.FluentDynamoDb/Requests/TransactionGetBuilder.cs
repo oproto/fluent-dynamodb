@@ -39,7 +39,7 @@ public class TransactionGetBuilder
     /// </code>
     /// </example>
     public TransactionGetBuilder Add<TEntity>(GetItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         InferClientIfNeeded(builder);
         

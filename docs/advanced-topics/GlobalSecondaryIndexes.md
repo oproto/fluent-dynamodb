@@ -132,6 +132,48 @@ public static class ProductIndexes
 }
 ```
 
+### GSI with ProjectionType
+
+The `ProjectionType` property on `[GlobalSecondaryIndex]` specifies the DynamoDB projection type for the index. This is metadata that affects schema validation and table creation:
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+    
+    // GSI with ALL projection (default)
+    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+    
+    // GSI with KEYS_ONLY projection - auto-generates projection record
+    [GlobalSecondaryIndex("CategoryIndex", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+    [DynamoDbAttribute("category")]
+    public string Category { get; set; } = string.Empty;
+}
+```
+
+**ProjectionType Values:**
+
+| Value | Description | Generated Code |
+|-------|-------------|----------------|
+| `All` (default) | All attributes projected | Single-entity: `DynamoDbIndex<TEntity>`; Multi-entity: `DynamoDbIndex` |
+| `KeysOnly` | Only key attributes | Auto-generates `{IndexName}KeysProjection` record |
+| `Include` | Keys plus specified attributes | Use with `[UseProjection]` for custom projection |
+
+**Important:** The `ProjectionType` property is metadata only - it does not affect query behavior. It serves these purposes:
+1. **Documentation**: Reflects the actual DynamoDB index configuration
+2. **Schema Validation**: Enables validation that the index is configured as expected
+3. **Keys Only Auto-Generation**: Triggers generation of a keys-only projection record
+4. **Table Creation**: Used by `TableCreator` to configure the DynamoDB index projection
+
 ### GSI with Computed Keys
 
 Combine GSIs with computed keys for advanced patterns:
@@ -335,18 +377,24 @@ Paginate through large result sets:
 
 ```csharp
 var allOrders = new List<Order>();
-string? lastEvaluatedKey = null;
+Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
 do
 {
-    var response = await table.StatusIndex.Query<Order>()
+    var query = table.StatusIndex.Query<Order>()
         .Where(x => x.Status == "pending")
-        .Take(100)
-        .WithExclusiveStartKey(lastEvaluatedKey)
-        .ToResponseAsync();
+        .Take(100);
     
-    allOrders.AddRange(response.Items);
-    lastEvaluatedKey = response.LastEvaluatedKey;
+    if (lastEvaluatedKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastEvaluatedKey);
+    }
+    
+    var orders = await query.ToListAsync();
+    allOrders.AddRange(orders);
+    
+    // Access pagination key via builder.Response
+    lastEvaluatedKey = query.Response?.LastEvaluatedKey;
     
 } while (lastEvaluatedKey != null);
 
@@ -365,6 +413,113 @@ DynamoDB GSIs support three projection types:
 3. **ALL** - All attributes (default)
 
 **Note:** Projection type is configured in your DynamoDB table definition, not in the entity class.
+
+### Automatic Entity Projections for Single-Entity Tables
+
+For single-entity tables (tables with only one entity type), the source generator automatically uses the entity type as the default projection for indexes. This enables non-generic `Query()` methods:
+
+```csharp
+// Single-entity table
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+    
+    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+}
+
+// Generated: DynamoDbIndex<Order> StatusIndex
+// Non-generic Query() returns Order entities
+var orders = await table.StatusIndex.Query(x => x.Status == "pending").ToListAsync();
+```
+
+**Behavior by Table Type:**
+
+| Table Type | Index Without `[UseProjection]` | Generated Index Type |
+|------------|--------------------------------|---------------------|
+| Single-entity | Uses entity as default projection | `DynamoDbIndex<TEntity>` |
+| Multi-entity | No default projection | `DynamoDbIndex` (generic required) |
+
+### Keys Only Projection Auto-Generation
+
+When `ProjectionType = KeysOnly` is specified on an index, the source generator automatically creates a read-only projection record containing only the key attributes:
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+    
+    // Keys Only projection - auto-generates StatusIndexKeysProjection
+    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+    [DynamoDbAttribute("gsi1pk")]
+    public string Gsi1Pk { get; set; } = string.Empty;
+    
+    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [DynamoDbAttribute("gsi1sk")]
+    public string Gsi1Sk { get; set; } = string.Empty;
+}
+```
+
+**Generated Keys Only Projection:**
+
+```csharp
+// Auto-generated nested record within table class
+public sealed record StatusIndexKeysProjection : IReadOnlyEntity<StatusIndexKeysProjection>
+{
+    // Base table keys
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; init; } = string.Empty;
+    
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; init; } = string.Empty;
+    
+    // GSI keys
+    [DynamoDbAttribute("gsi1pk")]
+    public string Gsi1Pk { get; init; } = string.Empty;
+    
+    [DynamoDbAttribute("gsi1sk")]
+    public string Gsi1Sk { get; init; } = string.Empty;
+    
+    public static string ProjectionExpression => "pk, sk, gsi1pk, gsi1sk";
+    
+    // FromDynamoDb method for deserialization
+    // GetPartitionKey/GetSortKey return base table keys for entity lookup
+}
+```
+
+**Usage Pattern:**
+
+```csharp
+// Query returns keys-only projection
+var keys = await table.StatusIndex.Query(x => x.Gsi1Pk == "STATUS#pending").ToListAsync();
+
+// Use keys to batch-get full entities
+var orders = await DynamoDbBatch.Get
+    .Add(keys.Select(k => table.Orders.Get(k.Pk, k.Sk)))
+    .ExecuteAsync();
+```
+
+**Keys Only Projection Contents:**
+
+| Index Type | Included Keys |
+|------------|---------------|
+| GSI | GSI partition key, GSI sort key (if any), base table partition key, base table sort key |
+| LSI | Base table partition key, LSI sort key, base table sort key (if different) |
 
 ### Querying with Projections
 

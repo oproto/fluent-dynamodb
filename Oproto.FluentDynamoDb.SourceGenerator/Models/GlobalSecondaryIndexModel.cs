@@ -6,9 +6,15 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 internal class GlobalSecondaryIndexModel
 {
     /// <summary>
-    /// Gets or sets the name of the Global Secondary Index.
+    /// Gets or sets the name of the Global Secondary Index (the DynamoDB index name).
     /// </summary>
     public string IndexName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the custom C# property name specified via the Name property on the attribute.
+    /// If not specified, this will be null.
+    /// </summary>
+    public string? CustomName { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether this property is the partition key for the GSI.
@@ -39,4 +45,10 @@ internal class GlobalSecondaryIndexModel
     /// Gets or sets the GSI-specific discriminator configuration.
     /// </summary>
     public DiscriminatorConfig? Discriminator { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DynamoDB projection type for this index.
+    /// Defaults to <see cref="ProjectionType.All"/>.
+    /// </summary>
+    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
 }

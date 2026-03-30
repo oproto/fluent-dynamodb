@@ -308,7 +308,7 @@ namespace TestNamespace
             "accessor should contain Put operation method");
         tableCode.Should().Contain("Delete(string pk)",
             "accessor should contain Delete operation method");
-        tableCode.Should().Contain("Update(string pk)",
+        tableCode.Should().Contain("Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "accessor should contain Update operation method");
     }
 

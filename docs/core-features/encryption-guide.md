@@ -564,7 +564,8 @@ public class User
 **Step 2: Migrate existing data**
 ```csharp
 // Scan all items and re-encrypt
-await foreach (var user in table.Scan().ExecuteAsync())
+var users = await table.Scan().ToListAsync();
+foreach (var user in users)
 {
     // Update will encrypt the value
     await table.Update()
@@ -573,7 +574,7 @@ await foreach (var user in table.Scan().ExecuteAsync())
         { 
             SocialSecurityNumber = user.SocialSecurityNumber
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 ```
 

@@ -1,0 +1,171 @@
+# Implementation Plan
+
+- [x] 1. Create the fluentdynamodb.md steering document
+  - [x] 1.1 Create `.kiro/steering/fluentdynamodb.md` with Setup & DI section
+    - Show DI registration patterns for ASP.NET Core
+    - Show manual instantiation pattern
+    - Keep examples minimal but complete
+    - _Requirements: 1.1, 1.10_
+  - [x] 1.2 Add Entity Definition section
+    - Show basic entity with `[DynamoDbTable]`, `[PartitionKey]`, `[SortKey]`, `[DynamoDbAttribute]`
+    - Show GSI/LSI attribute usage
+    - Show `[Scannable]` attribute
+    - _Requirements: 1.1_
+  - [x] 1.3 Add Get operation examples
+    - Show builder pattern: `table.Get<T>().WithKey().GetItemAsync()`
+    - Show generated shortcut: `table.Get(pk).GetItemAsync()`
+    - Show entity accessor: `table.Entity.Get(pk).GetItemAsync()`
+    - Show convenience: `table.GetAsync(pk)`, `table.Entity.GetAsync(pk)`
+    - _Requirements: 1.1, 1.3, 1.4, 5.1_
+  - [x] 1.4 Add Put operation examples
+    - Show all three expression styles for condition expressions
+    - Show entity put and dictionary put
+    - Show convenience methods
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.2_
+  - [x] 1.5 Add Update operation examples
+    - Show Lambda expression style (preferred)
+    - Show Format string style
+    - Show Manual WithValue style
+    - Show condition expressions
+    - _Requirements: 1.1, 1.2, 5.3_
+  - [x] 1.6 Add Delete operation examples
+    - Show builder pattern with condition
+    - Show convenience methods
+    - _Requirements: 1.1, 1.3, 1.4, 5.4_
+  - [x] 1.7 Add Query operation examples
+    - Show all three expression styles
+    - Show filter expressions
+    - Show pagination (Take, WithPaginationToken)
+    - _Requirements: 1.1, 1.2, 5.5_
+  - [x] 1.8 Add Scan operation examples
+    - Show filter expressions
+    - Note about `[Scannable]` requirement
+    - _Requirements: 1.1, 5.5_
+  - [x] 1.9 Add Index Operations section
+    - Show GSI query via `table.gsi1.Query<T>()`
+    - Show index with projection
+    - _Requirements: 1.5_
+  - [x] 1.10 Add Batch Operations section
+    - Show `DynamoDbBatch.Get` pattern
+    - Show `DynamoDbBatch.Write` pattern
+    - Show `DynamoDbBatch.PartiQL` pattern
+    - Show result access patterns
+    - _Requirements: 1.6, 5.6_
+  - [x] 1.11 Add Transactions section
+    - Show `DynamoDbTransactions.Get` pattern
+    - Show `DynamoDbTransactions.Write` with Put, Update, Delete, ConditionCheck
+    - _Requirements: 1.7, 5.6_
+  - [x] 1.12 Add PartiQL section
+    - Show `ExecutePartiQL<T>()` pattern
+    - Show batch PartiQL
+    - _Requirements: 1.8_
+  - [x] 1.13 Add Raw SDK Access section
+    - Show `table.Get<T>(GetItemRequest)` pattern
+    - Show `table.Query<T>(QueryRequest)` pattern
+    - _Requirements: 1.9_
+  - [x] 1.14 Add Terminal Methods Reference table
+    - Create quick reference table for correct method names
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
+  - [x] 1.15 Verify document is under 500 lines
+    - Count lines and trim if necessary
+    - _Requirements: 1.10_
+
+- [x] 2. Create test entities for ApiConsistencyTests
+  - [x] 2.1 Create GsiLsiEntity in Entities folder
+    - Add entity with GSI and LSI attributes
+    - Ensure source generator produces index properties
+    - _Requirements: 2.8, 4.2_
+  - [x] 2.2 Verify existing entities cover all patterns
+    - BasicPkEntity (PK-only)
+    - BasicPkSkEntity (PK+SK)
+    - ScannableEntity (Scannable)
+    - _Requirements: 4.2_
+
+- [x] 3. Complete SingleEntityTables API surface tests
+  - [x] 3.1 Update GetApiSurface.cs with full coverage
+    - Add convenience methods: `GetAsync(pk)`, `table.Entity.GetAsync(pk)`
+    - Add raw SDK overloads
+    - Add PK+SK entity accessor patterns
+    - _Requirements: 2.2, 2.12_
+  - [x] 3.2 Update PutApiSurface.cs with full coverage
+    - Add convenience methods: `PutAsync(entity)`, `table.Entity.PutAsync(entity)`
+    - Add condition expression patterns
+    - Add raw SDK overloads
+    - _Requirements: 2.3, 2.12_
+  - [x] 3.3 Create DeleteApiSurface.cs
+    - Add builder pattern with condition
+    - Add convenience methods
+    - Add raw SDK overloads
+    - _Requirements: 2.5_
+  - [x] 3.4 Update UpdateApiSurface.cs with full coverage
+    - Verify all three expression styles
+    - Add raw SDK overloads
+    - _Requirements: 2.4_
+  - [x] 3.5 Update QueryApiSurface.cs with full coverage
+    - Add pagination patterns (Take, WithPaginationToken)
+    - Add projection patterns
+    - Add ConsistentRead option
+    - Add entity accessor Query patterns
+    - _Requirements: 2.6_
+  - [x] 3.6 Update ScanApiSurface.cs with full coverage
+    - Add pagination patterns
+    - Add entity accessor patterns
+    - _Requirements: 2.7_
+  - [x] 3.7 Create PartiQLApiSurface.cs
+    - Add `ExecutePartiQL<T>()` patterns
+    - Add `ExecutePartiQL()` (DynamicEntity) pattern
+    - Add `ToListAsync()`, `ExecuteAsync()`, `ToCompositeEntityAsync()` terminals
+    - _Requirements: 2.11_
+  - [x] 3.8 Create RawSdkApiSurface.cs
+    - Add all raw SDK request overloads
+    - Add async convenience methods for raw requests
+    - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+
+- [x] 4. Complete Batch API surface tests
+  - [x] 4.1 Update BatchGetApiSurface.cs with full coverage
+    - Verify ExecuteAsync() and ExecuteAndMapAsync patterns
+    - Verify result access patterns
+    - _Requirements: 2.9_
+  - [x] 4.2 Update BatchWriteApiSurface.cs with full coverage
+    - Add Put, Delete combinations
+    - _Requirements: 2.9_
+  - [x] 4.3 Create BatchPartiQLApiSurface.cs
+    - Add `DynamoDbBatch.PartiQL` patterns
+    - Add result access patterns
+    - _Requirements: 2.9, 2.11_
+
+- [x] 5. Complete Transaction API surface tests
+  - [x] 5.1 Update TransactionGetApiSurface.cs with full coverage
+    - Verify all result access patterns
+    - _Requirements: 2.10_
+  - [x] 5.2 Update TransactionWriteApiSurface.cs with full coverage
+    - Verify Put, Update, Delete, ConditionCheck combinations
+    - Verify both expression styles
+    - _Requirements: 2.10_
+
+- [x] 6. Create Index API surface tests
+  - [x] 6.1 Create Indexes/IndexQueryApiSurface.cs
+    - Add GSI query patterns via `table.gsi1.Query<T>()`
+    - Add index with projection patterns
+    - Add all three expression styles on index queries
+    - _Requirements: 2.8_
+
+- [x] 7. Update documentation.md with sync instructions
+  - [x] 7.1 Add fluentdynamodb.md synchronization section
+    - Add instructions for when to update the steering doc
+    - Add checklist for API changes
+    - _Requirements: 3.1, 3.3_
+
+- [x] 8. Checkpoint - Verify all tests compile
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. Final verification
+  - [x] 9.1 Build ApiConsistencyTests project
+    - Verify all tests compile without errors
+    - _Requirements: 2.1_
+  - [x] 9.2 Verify fluentdynamodb.md line count
+    - Ensure under 500 lines
+    - _Requirements: 1.10_
+  - [x] 9.3 Cross-reference steering doc with tests
+    - Ensure every pattern in steering doc has a corresponding test
+    - _Requirements: 2.1_

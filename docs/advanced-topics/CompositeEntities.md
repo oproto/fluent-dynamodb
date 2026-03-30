@@ -468,24 +468,30 @@ For entities with many related items, use pagination:
 
 ```csharp
 var allItems = new List<OrderItem>();
-string? lastEvaluatedKey = null;
+Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
 do
 {
-    var response = await table.Query
+    var query = table.Query
         .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
-        .Take(100)  // Limit items per page
-        .WithExclusiveStartKey(lastEvaluatedKey)
-        .ToListAsync();
+        .Take(100);  // Limit items per page
+    
+    if (lastEvaluatedKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastEvaluatedKey);
+    }
+    
+    var items = await query.ToListAsync();
     
     // Process items
-    var pageItems = response.Items
-        .Where(item => item[OrderFields.SortKey].S.StartsWith("ITEM#"))
-        .Select(item => /* map to OrderItem */)
+    var pageItems = items
+        .Where(item => item.SortKey.StartsWith("ITEM#"))
         .ToList();
     
     allItems.AddRange(pageItems);
-    lastEvaluatedKey = response.LastEvaluatedKey;
+    
+    // Access pagination key via builder.Response
+    lastEvaluatedKey = query.Response?.LastEvaluatedKey;
     
 } while (lastEvaluatedKey != null);
 ```
@@ -512,6 +518,122 @@ foreach (var item in order.Items)
 await batchBuilder.ExecuteAsync();
 ```
 
+
+## Limitations
+
+### ToCompositeEntityAsync Pagination Limitation
+
+The `ToCompositeEntityAsync()` and `ToCompositeEntityListAsync()` methods execute a single DynamoDB Query operation and **do not handle pagination automatically**. This means:
+
+1. **All items for a composite entity must fit in a single response** (up to 1MB of data)
+2. **If your composite entity spans more items than can fit in one response**, the related entity collections will be incomplete
+3. **Each page of results is processed independently** - composite entities are assembled only from items within the same response page
+
+**Example of the limitation:**
+
+```csharp
+// This works well for small composite entities
+var order = await table.Orders.Query()
+    .Where(x => x.Pk == OrderKeys.Pk("order123"))
+    .ToCompositeEntityAsync<Order>();
+
+// ⚠️ WARNING: If the order has thousands of line items that exceed 1MB,
+// only the items from the first page will be included in order.Items
+```
+
+### Recommended Alternatives
+
+For composite entities that may exceed the 1MB response limit, consider these alternatives:
+
+**1. Manual Pagination with Assembly**
+
+```csharp
+var allItems = new List<Dictionary<string, AttributeValue>>();
+Dictionary<string, AttributeValue>? lastKey = null;
+
+do
+{
+    var query = table.Orders.Query()
+        .Where(x => x.Pk == OrderKeys.Pk("order123"))
+        .Take(100);
+    
+    if (lastKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastKey);
+    }
+    
+    // Use ToListAsync for individual items
+    var items = await query.ToListAsync();
+    allItems.AddRange(items);
+    
+    // Check for more pages
+    lastKey = query.Response?.LastEvaluatedKey;
+    
+} while (lastKey != null);
+
+// Manually assemble the composite entity from all pages
+var order = AssembleOrderFromItems(allItems);
+```
+
+**2. Design Smaller Composite Entities**
+
+Instead of storing thousands of related items, consider:
+- Aggregating data (e.g., store summary counts instead of individual items)
+- Using separate queries for large collections
+- Implementing lazy loading for related entities
+
+```csharp
+// Instead of loading all line items with the order
+var order = await table.Orders.Get(orderId).GetItemAsync();
+
+// Load line items separately with pagination
+var lineItems = await LoadAllLineItemsWithPagination(orderId);
+order.Items = lineItems;
+```
+
+**3. Use ToListAsync for Individual Items**
+
+If you need to process items individually rather than as a composite entity:
+
+```csharp
+// Get all items as a flat list (supports pagination via builder.Response.LastEvaluatedKey)
+var items = await table.Orders.Query()
+    .Where(x => x.Pk == OrderKeys.Pk("order123"))
+    .ToListAsync();
+
+// Process items individually
+var orderHeader = items.FirstOrDefault(i => i.Sk == "METADATA");
+var lineItems = items.Where(i => i.Sk.StartsWith("ITEM#")).ToList();
+```
+
+### When ToCompositeEntityAsync Works Well
+
+`ToCompositeEntityAsync()` is ideal for:
+
+- **Small to medium composite entities** - Orders with up to ~100 line items
+- **Bounded collections** - Entities with a known maximum number of related items
+- **Summary data** - Composite entities with aggregated/summary related data
+- **Read-heavy workloads** - When you frequently need the complete entity
+
+### Monitoring for Pagination Issues
+
+Check `builder.Response.LastEvaluatedKey` after calling `ToCompositeEntityAsync()` to detect if pagination occurred:
+
+```csharp
+var query = table.Orders.Query()
+    .Where(x => x.Pk == OrderKeys.Pk("order123"));
+
+var order = await query.ToCompositeEntityAsync<Order>();
+
+// Check if there were more items that weren't included
+if (query.Response?.LastEvaluatedKey != null)
+{
+    // WARNING: The composite entity may be incomplete
+    _logger.LogWarning(
+        "Composite entity for order {OrderId} may be incomplete - pagination occurred",
+        orderId);
+}
+```
 
 ## Real-World Examples
 
@@ -880,19 +1002,26 @@ DynamoDB queries return up to 1MB of data. For large composite entities:
 ```csharp
 // ✅ Good - paginate large collections
 var allItems = new List<OrderItem>();
-string? lastKey = null;
+Dictionary<string, AttributeValue>? lastKey = null;
 
 do
 {
-    var response = await table.Query
+    var query = table.Query
         .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
-        .Take(100)
-        .WithExclusiveStartKey(lastKey)
-        .ToListAsync();
+        .Take(100);
+    
+    if (lastKey != null)
+    {
+        query = query.WithExclusiveStartKey(lastKey);
+    }
+    
+    var items = await query.ToListAsync();
     
     // Process page
-    allItems.AddRange(/* extract items */);
-    lastKey = response.LastEvaluatedKey;
+    allItems.AddRange(items);
+    
+    // Access pagination key via builder.Response
+    lastKey = query.Response?.LastEvaluatedKey;
     
 } while (lastKey != null);
 ```

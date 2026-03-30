@@ -294,16 +294,23 @@ public static class SemanticAssertions
         var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
         var root = syntaxTree.GetRoot();
 
+        // Look for both class and record declarations
         var classes = root.DescendantNodes()
             .OfType<ClassDeclarationSyntax>()
+            .Select(c => c.Identifier.Text)
             .ToList();
 
-        var hasClass = classes.Any(c => c.Identifier.Text == className);
+        var records = root.DescendantNodes()
+            .OfType<RecordDeclarationSyntax>()
+            .Select(r => r.Identifier.Text)
+            .ToList();
 
-        if (!hasClass)
+        var allTypes = classes.Concat(records).ToList();
+        var hasType = allTypes.Any(name => name == className);
+
+        if (!hasType)
         {
-            var availableClasses = classes
-                .Select(c => c.Identifier.Text)
+            var availableTypes = allTypes
                 .Distinct()
                 .OrderBy(name => name)
                 .ToList();
@@ -318,10 +325,10 @@ public static class SemanticAssertions
             
             errorMessage.AppendLine();
             
-            if (availableClasses.Any())
+            if (availableTypes.Any())
             {
                 errorMessage.AppendLine("Available classes:");
-                foreach (var cls in availableClasses)
+                foreach (var cls in availableTypes)
                 {
                     errorMessage.AppendLine($"  - {cls}");
                 }

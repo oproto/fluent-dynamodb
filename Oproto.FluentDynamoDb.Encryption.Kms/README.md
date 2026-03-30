@@ -39,6 +39,12 @@ dotnet add package Oproto.FluentDynamoDb.Encryption.Kms
 - AWS account with KMS access
 - IAM permissions for `kms:GenerateDataKey` and `kms:Decrypt`
 
+**Package Dependencies:**
+This package uses `AWS.Cryptography.EncryptionSDK` (v4.x) - the current AWS Encryption SDK for .NET. This package provides:
+- Standardized encryption message format compatible with AWS Encryption SDK implementations in other languages
+- Key commitment to prevent key substitution attacks
+- Algorithm agility for future-proofing
+
 ## Quick Start
 
 ### 1. Mark Fields for Encryption
@@ -218,9 +224,11 @@ var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
 
 ## AWS Encryption SDK Integration
 
+This package uses `AWS.Cryptography.EncryptionSDK` v4.x, the current AWS Encryption SDK for .NET.
+
 ### Message Format
 
-This package uses the AWS Encryption SDK, which provides:
+The AWS Encryption SDK provides:
 - **Standardized Format** - Recognized by AWS services and tools
 - **Algorithm Agility** - Easy to upgrade encryption algorithms
 - **Key Commitment** - Prevents key substitution attacks
@@ -245,26 +253,27 @@ This context:
 - Prevents ciphertext substitution attacks
 - Is validated during decryption
 
-### Data Key Caching
+### Keyring Caching
 
-The AWS Encryption SDK's `CachingCryptoMaterialsManager` is used to minimize KMS API calls:
+When `EnableCaching` is set to `true`, keyrings are cached to reduce object creation overhead:
 
 ```csharp
 var options = new AwsEncryptionSdkOptions
 {
-    EnableCaching = true,
-    DefaultCacheTtlSeconds = 300,  // Cache data keys for 5 minutes
-    MaxMessagesPerDataKey = 100,   // Max 100 messages per data key
-    MaxBytesPerDataKey = 100 * 1024 * 1024  // Max 100MB per data key
+    EnableCaching = true,  // Enable keyring caching
+    DefaultCacheTtlSeconds = 300  // Configuration option (for future use)
 };
 ```
 
-**Benefits:**
-- Reduced KMS API calls (lower costs)
-- Improved performance (fewer network round-trips)
-- Configurable limits for security best practices
+**Note:** The AWS Encryption SDK for .NET does not support data key caching like other language implementations (Java, Python). Each encryption operation calls KMS to generate a new data key. The `EnableCaching` option controls keyring object caching only.
 
-**Cache Key:** Includes context ID, so different contexts use different cached keys.
+**Benefits:**
+- Reduced object creation overhead
+- Tenant isolation via cache key partitioning (context ID included in cache key)
+
+**For True Data Key Caching:** Consider using the AWS KMS Hierarchical Keyring, which stores branch keys in a DynamoDB table. This requires additional infrastructure setup but provides data key caching while maintaining SDK interoperability.
+
+**Cost Context:** KMS API calls cost approximately $0.03 per 10,000 requests. For most applications, this overhead is acceptable.
 
 ## External Blob Storage
 
@@ -426,6 +435,36 @@ Encryption is CPU-bound:
 - Minimal impact on throughput for typical field sizes
 
 **Recommendation:** Only encrypt truly sensitive fields.
+
+## AOT Compatibility
+
+### Build Configuration
+
+This package is configured for AOT compatibility:
+- `IsTrimmable=true`
+- `IsAotCompatible=true`
+- `EnableTrimAnalyzer=true`
+
+**Build Status:** ✅ No trim/AOT warnings from encryption code
+
+### Transitive Dependencies
+
+The `AWS.Cryptography.EncryptionSDK` package has transitive dependencies that may have AOT limitations:
+
+| Package | AOT Concern |
+|---------|-------------|
+| `DafnyRuntime` | Generated from Dafny; may use reflection internally |
+| `BouncyCastle.Cryptography` | Known to have some AOT limitations |
+
+### Recommendations
+
+1. **Test in AOT Environment**: If deploying to Native AOT, thoroughly test encryption operations in that environment.
+
+2. **Fallback Strategy**: If AOT issues are encountered at runtime, consider running encryption operations in a non-AOT service.
+
+3. **Alternative for AOT-Critical Scenarios**: If full AOT compatibility is required, consider using AWS KMS directly with `AWSSDK.KeyManagementService` and implementing envelope encryption manually.
+
+For detailed AOT compatibility information, see [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md).
 
 ## Security Best Practices
 

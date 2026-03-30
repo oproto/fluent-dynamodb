@@ -48,11 +48,12 @@ public partial class Transaction
     [DynamoDbAttribute("description")]
     public string Description { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    // GSI with custom property name
+    [GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GlobalSecondaryIndex("status-index", IsSortKey = true)]
     [DynamoDbAttribute("created_date")]
     public DateTime CreatedDate { get; set; }
 }
@@ -243,12 +244,61 @@ foreach (var transaction in transactions)
 ### 3. Global Secondary Index Queries
 
 ```csharp
-// Query GSI using generated field constants and key builders
+// Query GSI using custom-named index property
+var pendingTransactions = await table.StatusIndex.Query<Transaction>()
+    .Where(x => x.Status == "pending")
+    .ToListAsync();
+
+// Query GSI using generated field constants and key builders (alternative)
 var pendingTransactions = await table.Query<Transaction>()
-    .UsingIndex("StatusIndex")
+    .UsingIndex("status-index")
     .Where($"{Transaction.Fields.Status} = {{0}}", "pending")
     .ToListAsync();
 ```
+
+### 4. Custom Index Property Names
+
+Use the `Name` property on `[GlobalSecondaryIndex]` or `[LocalSecondaryIndex]` to customize the generated property name:
+
+```csharp
+// Custom name: generates table.StatusIndex
+[GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
+[DynamoDbAttribute("status")]
+public string Status { get; set; }
+
+// Without Name: derives from DynamoDB index name
+// "status-index" → StatusIndex (PascalCase conversion)
+[GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+[DynamoDbAttribute("status")]
+public string Status { get; set; }
+```
+
+### 5. Type-Based Table References
+
+For compile-time safe table class references, use `typeof()` instead of string names:
+
+```csharp
+// Define your table class as partial
+public partial class OrdersTable { }
+
+// Reference it in entity definition
+[DynamoDbTable(typeof(OrdersTable))]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string OrderId { get; set; } = string.Empty;
+}
+
+// String-based reference (existing behavior)
+[DynamoDbTable("orders")]
+public partial class Order { ... }
+```
+
+Type-based references provide:
+- Compile-time validation (referenced type must exist)
+- Refactoring support (rename propagates automatically)
+- Diagnostic error if referenced type is not `partial`
 
 ## Advanced Features
 

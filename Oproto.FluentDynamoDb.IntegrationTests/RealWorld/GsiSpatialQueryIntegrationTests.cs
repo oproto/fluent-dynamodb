@@ -26,7 +26,7 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Table wrapper for testing GSI spatial queries.
     /// </summary>
-    private class S2StoreWithGsiTable : DynamoDbTableBase
+    private class S2StoreWithGsiTable : GenericTable
     {
         public DynamoDbIndex S2LocationIndex { get; }
         
@@ -46,7 +46,7 @@ public class GsiSpatialQueryIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Table wrapper for testing GSI spatial queries with low precision (S2 level 10).
     /// </summary>
-    private class S2StoreWithGsiLowPrecisionTable : DynamoDbTableBase
+    private class S2StoreWithGsiLowPrecisionTable : GenericTable
     {
         public DynamoDbIndex S2LocationIndex { get; }
         

@@ -382,14 +382,141 @@ public class JsonBlobIntegrationTests : IntegrationTestBase
     }
 
     #endregion
+
+    #region Test: Entity accessor Put(entity) passes options to ToDynamoDb
+
+    /// <summary>
+    /// Regression test: Verifies that the generated entity accessor's Put(entity) method
+    /// correctly passes FluentDynamoDbOptions to ToDynamoDb for JSON serialization.
+    /// 
+    /// This test covers the bug where the source generator was generating:
+    ///   var item = Entity.ToDynamoDb(entity);  // Missing options parameter!
+    /// Instead of:
+    ///   var item = Entity.ToDynamoDb(entity, _table.Options);
+    /// </summary>
+    [Fact]
+    public async Task EntityAccessor_Put_WithJsonBlob_PassesOptionsToToDynamoDb()
+    {
+        // Arrange - Create table with SystemTextJson configured
+        var options = new FluentDynamoDbOptions().WithSystemTextJson();
+        var table = new JsonBlobTestTable(DynamoDb, TableName, options);
+        
+        var entity = new JsonBlobTestEntity
+        {
+            Id = "accessor-put-test-1",
+            Content = new DocumentContent
+            {
+                Title = "Entity Accessor Test",
+                Body = "Testing that Put(entity) passes options correctly"
+            }
+        };
+
+        // Act - Use the entity accessor's Put(entity) method
+        // This was throwing InvalidOperationException before the fix because
+        // the generated code didn't pass options to ToDynamoDb
+        await table.JsonBlobTestEntitys.Put(entity).PutAsync();
+
+        // Assert - Verify the entity was saved correctly
+        var getResponse = await DynamoDb.GetItemAsync(TableName, new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = "accessor-put-test-1" }
+        });
+
+        getResponse.IsItemSet.Should().BeTrue();
+        getResponse.Item.Should().ContainKey("content");
+        
+        // Verify the JSON was serialized correctly
+        var json = getResponse.Item["content"].S;
+        json.Should().Contain("Entity Accessor Test");
+        json.Should().Contain("Testing that Put(entity) passes options correctly");
+    }
+
+    /// <summary>
+    /// Regression test: Verifies that the table-level Put(entity) method
+    /// correctly passes FluentDynamoDbOptions to ToDynamoDb for JSON serialization.
+    /// </summary>
+    [Fact]
+    public async Task TableLevel_Put_WithJsonBlob_PassesOptionsToToDynamoDb()
+    {
+        // Arrange - Create table with SystemTextJson configured
+        var options = new FluentDynamoDbOptions().WithSystemTextJson();
+        var table = new JsonBlobTestTable(DynamoDb, TableName, options);
+        
+        var entity = new JsonBlobTestEntity
+        {
+            Id = "table-put-test-1",
+            Content = new DocumentContent
+            {
+                Title = "Table Level Test",
+                Body = "Testing that table.Put(entity) passes options correctly"
+            }
+        };
+
+        // Act - Use the table-level Put(entity) method
+        await table.Put(entity).PutAsync();
+
+        // Assert - Verify the entity was saved correctly
+        var getResponse = await DynamoDb.GetItemAsync(TableName, new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = "table-put-test-1" }
+        });
+
+        getResponse.IsItemSet.Should().BeTrue();
+        getResponse.Item.Should().ContainKey("content");
+        
+        // Verify the JSON was serialized correctly
+        var json = getResponse.Item["content"].S;
+        json.Should().Contain("Table Level Test");
+    }
+
+    /// <summary>
+    /// Regression test: Verifies that PutAsync convenience method works with JsonBlob.
+    /// </summary>
+    [Fact]
+    public async Task EntityAccessor_PutAsync_WithJsonBlob_PassesOptionsToToDynamoDb()
+    {
+        // Arrange - Create table with NewtonsoftJson configured
+        var options = new FluentDynamoDbOptions().WithNewtonsoftJson();
+        var table = new JsonBlobTestTable(DynamoDb, TableName, options);
+        
+        var entity = new JsonBlobTestEntity
+        {
+            Id = "putasync-test-1",
+            Content = new DocumentContent
+            {
+                Title = "PutAsync Test",
+                Body = "Testing the PutAsync convenience method"
+            }
+        };
+
+        // Act - Use the entity accessor's PutAsync convenience method
+        await table.JsonBlobTestEntitys.PutAsync(entity);
+
+        // Assert - Verify the entity was saved correctly
+        var getResponse = await DynamoDb.GetItemAsync(TableName, new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = "putasync-test-1" }
+        });
+
+        getResponse.IsItemSet.Should().BeTrue();
+        getResponse.Item.Should().ContainKey("content");
+    }
+
+    #endregion
 }
 
-#region Test Entities
+#region Test Entities and Tables
+
+/// <summary>
+/// Generated table class for JsonBlobTestEntity.
+/// This is used to test the entity accessor Put methods.
+/// </summary>
+public partial class JsonBlobTestTable;
 
 /// <summary>
 /// Test entity with a [JsonBlob] property for integration testing.
 /// </summary>
-[DynamoDbTable("json-blob-test")]
+[DynamoDbTable(typeof(JsonBlobTestTable))]
 public partial class JsonBlobTestEntity
 {
     [PartitionKey]

@@ -39,4 +39,16 @@ internal class RelationshipModel
     /// Gets a value indicating whether this relationship has a specific entity type.
     /// </summary>
     public bool HasSpecificEntityType => !string.IsNullOrWhiteSpace(EntityType);
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the child entity type has its own [RelatedEntity] relationships.
+    /// When true, recursive composite entity assembly is needed.
+    /// </summary>
+    public bool ChildEntityHasRelationships { get; set; }
+
+    /// <summary>
+    /// Gets or sets the relationships defined on the child entity type.
+    /// Used for recursive composite entity assembly.
+    /// </summary>
+    public RelationshipModel[] ChildEntityRelationships { get; set; } = Array.Empty<RelationshipModel>();
 }

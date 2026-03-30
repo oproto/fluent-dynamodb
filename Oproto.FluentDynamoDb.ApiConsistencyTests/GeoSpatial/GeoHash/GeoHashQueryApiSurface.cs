@@ -17,7 +17,7 @@ public class GeoHashQueryApiSurface
 
         GeoLocation center = new GeoLocation(44.9778d, 93.2650d);
 
-        var results = await table.gsi1.Query<GeoHashEntity>()
+        var results = await table.Gsi1.Query<GeoHashEntity>()
             .Where(x => x.Gsi1PartitionKey == "category1"
                                       && x.Location.WithinDistanceKilometers(center, 20))
             .ToListAsync();

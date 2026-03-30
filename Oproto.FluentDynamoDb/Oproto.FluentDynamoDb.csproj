@@ -38,7 +38,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="AWSSDK.DynamoDBv2" Version="[4.0.0,5.0.0)" />
+      <PackageReference Include="AWSSDK.DynamoDBv2" />
     </ItemGroup>
 
     <ItemGroup>
@@ -50,26 +50,28 @@
         <None Include="README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
-    <!-- Include source generator as analyzer for development -->
-    <ItemGroup Condition="'$(DesignTimeBuild)' != 'true'">
-        <Analyzer Include="..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll" 
-                  Condition="Exists('..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll')" />
-    </ItemGroup>
-
-    <!-- Build source generator before main library -->
-    <Target Name="BuildSourceGenerator" BeforeTargets="BeforeBuild;BeforeCompile" Condition="'$(DesignTimeBuild)' != 'true'">
-        <MSBuild Projects="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj" 
-                 Targets="Build" 
-                 Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0" />
-    </Target>
-
-    <!-- Include source generator in NuGet package -->
+    <!-- 
+        Source Generator bundling using ProjectReference approach.
+        This ensures:
+        1. Source generator builds BEFORE main library (dependency order)
+        2. Source generator is available as analyzer during compilation
+        3. Source generator DLL is included in NuGet package at analyzers/dotnet/cs/
+        4. No runtime dependency is created (ReferenceOutputAssembly=false)
+    -->
     <ItemGroup>
-        <None Include="..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll" 
-              Pack="true" 
-              PackagePath="analyzers\dotnet\cs\Oproto.FluentDynamoDb.SourceGenerator.dll" 
-              Visible="false" 
-              Condition="Exists('..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll')" />
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj"
+                          PrivateAssets="all"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer" />
     </ItemGroup>
+
+    <!-- Pack the source generator into the NuGet package -->
+    <Target Name="IncludeSourceGeneratorInPackage" BeforeTargets="_GetPackageFiles">
+        <ItemGroup>
+            <_PackageFiles Include="..\Oproto.FluentDynamoDb.SourceGenerator\bin\$(Configuration)\netstandard2.0\Oproto.FluentDynamoDb.SourceGenerator.dll"
+                           PackagePath="analyzers/dotnet/cs"
+                           BuildAction="None" />
+        </ItemGroup>
+    </Target>
 
 </Project>

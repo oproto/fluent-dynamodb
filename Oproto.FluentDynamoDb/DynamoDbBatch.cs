@@ -1,3 +1,6 @@
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb;
@@ -136,6 +139,45 @@ public static class DynamoDbBatch
     public static BatchWriteBuilder Write => new();
 
     /// <summary>
+    /// Creates a new batch PartiQL builder for composing multiple PartiQL statements.
+    /// Unlike Write/Get, PartiQL batch can mix SELECT, INSERT, UPDATE, DELETE statements.
+    /// </summary>
+    /// <returns>A new <see cref="BatchPartiQLBuilder"/> instance.</returns>
+    /// <remarks>
+    /// <para>
+    /// DynamoDB's BatchExecuteStatement API handles all statement types in a single batch,
+    /// unlike BatchWriteItem/BatchGetItem which have separate read/write operations.
+    /// </para>
+    /// <para>
+    /// The builder follows the same patterns as BatchGetBuilder:
+    /// <list type="bullet">
+    /// <item><description>ExecuteAsync() returns a BatchPartiQLResponse wrapper</description></item>
+    /// <item><description>ExecuteAndMapAsync&lt;T1&gt;() etc. for typed tuple results</description></item>
+    /// <item><description>Response wrapper with GetItem&lt;T&gt;(index) for accessing individual SELECT results</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Batch SELECT operations
+    /// var response = await DynamoDbBatch.PartiQL
+    ///     .Add(table.ExecutePartiQL&lt;User&gt;("SELECT * FROM Users WHERE pk = {0}", "USER#123"))
+    ///     .Add(table.ExecutePartiQL&lt;Order&gt;("SELECT * FROM Orders WHERE pk = {0}", "ORDER#456"))
+    ///     .ExecuteAsync();
+    /// 
+    /// var user = response.GetItem&lt;User&gt;(0);
+    /// var order = response.GetItem&lt;Order&gt;(1);
+    /// 
+    /// // Or use tuple convenience method
+    /// var (user, order) = await DynamoDbBatch.PartiQL
+    ///     .Add(table.ExecutePartiQL&lt;User&gt;("SELECT * FROM Users WHERE pk = {0}", "USER#123"))
+    ///     .Add(table.ExecutePartiQL&lt;Order&gt;("SELECT * FROM Orders WHERE pk = {0}", "ORDER#456"))
+    ///     .ExecuteAndMapAsync&lt;User, Order&gt;();
+    /// </code>
+    /// </example>
+    public static BatchPartiQLBuilder PartiQL => new();
+
+    /// <summary>
     /// Creates a new batch get builder for composing bulk read operations.
     /// </summary>
     /// <returns>A new <see cref="BatchGetBuilder"/> instance.</returns>
@@ -190,4 +232,132 @@ public static class DynamoDbBatch
     /// </code>
     /// </example>
     public static BatchGetBuilder Get => new();
+
+    #region Direct SDK Request Support
+
+    /// <summary>
+    /// Executes a BatchWriteItemRequest directly using the SDK client.
+    /// </summary>
+    /// <param name="client">The DynamoDB client.</param>
+    /// <param name="request">The pre-built BatchWriteItemRequest.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>The batch write response containing any unprocessed items.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when client or request is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method allows executing a pre-built BatchWriteItemRequest directly,
+    /// which is useful when you have existing SDK code or need full control over the request.
+    /// </para>
+    /// <para>
+    /// Unlike transactions, batch operations do not provide atomicity. Some operations may
+    /// succeed while others fail. Check the UnprocessedItems property in the response and
+    /// implement retry logic for any unprocessed items.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var request = new BatchWriteItemRequest
+    /// {
+    ///     RequestItems = new Dictionary&lt;string, List&lt;WriteRequest&gt;&gt;
+    ///     {
+    ///         ["Users"] = new List&lt;WriteRequest&gt;
+    ///         {
+    ///             new WriteRequest { PutRequest = new PutRequest { Item = user1Item } },
+    ///             new WriteRequest { PutRequest = new PutRequest { Item = user2Item } }
+    ///         }
+    ///     }
+    /// };
+    /// var response = await DynamoDbBatch.WriteAsync(client, request);
+    /// if (response.UnprocessedItems.Count > 0)
+    /// {
+    ///     // Implement retry logic
+    /// }
+    /// </code>
+    /// </example>
+    public static async Task<BatchWriteItemResponse> WriteAsync(
+        IAmazonDynamoDB client,
+        BatchWriteItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var response = await client.BatchWriteItemAsync(request, cancellationToken);
+
+        // Populate operation context
+        DynamoDbOperationContext.Current = new OperationContextData
+        {
+            OperationType = "BatchWriteItem",
+            ConsumedCapacity = response.ConsumedCapacity?.FirstOrDefault(),
+            ResponseMetadata = response.ResponseMetadata
+        };
+        DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
+
+        return response;
+    }
+
+    /// <summary>
+    /// Executes a BatchGetItemRequest directly using the SDK client.
+    /// </summary>
+    /// <param name="client">The DynamoDB client.</param>
+    /// <param name="request">The pre-built BatchGetItemRequest.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>The batch get response containing items grouped by table.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when client or request is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method allows executing a pre-built BatchGetItemRequest directly,
+    /// which is useful when you have existing SDK code or need full control over the request.
+    /// </para>
+    /// <para>
+    /// Results are grouped by table name in the Responses dictionary. Check the UnprocessedKeys
+    /// property and implement retry logic for any unprocessed keys.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var request = new BatchGetItemRequest
+    /// {
+    ///     RequestItems = new Dictionary&lt;string, KeysAndAttributes&gt;
+    ///     {
+    ///         ["Users"] = new KeysAndAttributes
+    ///         {
+    ///             Keys = new List&lt;Dictionary&lt;string, AttributeValue&gt;&gt;
+    ///             {
+    ///                 new Dictionary&lt;string, AttributeValue&gt;
+    ///                 {
+    ///                     ["pk"] = new AttributeValue { S = "USER#1" },
+    ///                     ["sk"] = new AttributeValue { S = "PROFILE" }
+    ///                 }
+    ///             }
+    ///         }
+    ///     }
+    /// };
+    /// var response = await DynamoDbBatch.GetAsync(client, request);
+    /// var users = response.Responses["Users"];
+    /// </code>
+    /// </example>
+    public static async Task<BatchGetItemResponse> GetAsync(
+        IAmazonDynamoDB client,
+        BatchGetItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var response = await client.BatchGetItemAsync(request, cancellationToken);
+
+        // Populate operation context
+        DynamoDbOperationContext.Current = new OperationContextData
+        {
+            OperationType = "BatchGetItem",
+            ConsumedCapacity = response.ConsumedCapacity?.FirstOrDefault(),
+            ResponseMetadata = response.ResponseMetadata
+        };
+        DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
+
+        return response;
+    }
+
+    #endregion
 }

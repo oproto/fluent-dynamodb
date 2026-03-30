@@ -40,10 +40,19 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static bool IsDynamoDbEntity(SyntaxNode node)
     {
-        if (node is not ClassDeclarationSyntax classDecl)
+        // Support both class and record declarations
+        // Records are reference types in C# and can be used as DynamoDB entities
+        TypeDeclarationSyntax? typeDecl = node switch
+        {
+            ClassDeclarationSyntax classDecl => classDecl,
+            RecordDeclarationSyntax recordDecl => recordDecl,
+            _ => null
+        };
+
+        if (typeDecl == null)
             return false;
 
-        return classDecl.AttributeLists.Any(al =>
+        return typeDecl.AttributeLists.Any(al =>
             al.Attributes.Any(a =>
             {
                 var attributeName = a.Name.ToString();
@@ -56,10 +65,18 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static bool IsDynamoDbProjection(SyntaxNode node)
     {
-        if (node is not ClassDeclarationSyntax classDecl)
+        // Support both class and record declarations for projections
+        TypeDeclarationSyntax? typeDecl = node switch
+        {
+            ClassDeclarationSyntax classDecl => classDecl,
+            RecordDeclarationSyntax recordDecl => recordDecl,
+            _ => null
+        };
+
+        if (typeDecl == null)
             return false;
 
-        return classDecl.AttributeLists.Any(al =>
+        return typeDecl.AttributeLists.Any(al =>
             al.Attributes.Any(a =>
             {
                 var attributeName = a.Name.ToString();
@@ -70,13 +87,21 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static (EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics) GetEntityModel(GeneratorSyntaxContext context)
     {
-        if (context.Node is not ClassDeclarationSyntax classDecl)
+        // Support both class and record declarations
+        TypeDeclarationSyntax? typeDecl = context.Node switch
+        {
+            ClassDeclarationSyntax classDecl => classDecl,
+            RecordDeclarationSyntax recordDecl => recordDecl,
+            _ => null
+        };
+
+        if (typeDecl == null)
             return (null, Array.Empty<Diagnostic>());
 
         try
         {
             var analyzer = new EntityAnalyzer();
-            var entityModel = analyzer.AnalyzeEntity(classDecl, context.SemanticModel);
+            var entityModel = analyzer.AnalyzeEntity(typeDecl, context.SemanticModel);
 
             return (entityModel, analyzer.Diagnostics);
         }
@@ -91,8 +116,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                     "DynamoDb",
                     DiagnosticSeverity.Error,
                     isEnabledByDefault: true),
-                classDecl.Identifier.GetLocation(),
-                classDecl.Identifier.ValueText,
+                typeDecl.Identifier.GetLocation(),
+                typeDecl.Identifier.ValueText,
                 ex.Message);
 
             return (null, new[] { diagnostic });
@@ -111,6 +136,9 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         
         // Discover extension methods marked with [GenerateWrapper] once for all entities
         Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
+
+        // Track generated nested UpdateModel types to avoid duplicates across entities
+        var generatedNestedUpdateModels = new HashSet<string>();
 
         foreach (var (entity, diagnostics) in entities)
         {
@@ -151,6 +179,20 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
             var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity);
             context.AddSource($"{entity.ClassName}UpdateModel.g.cs", updateModelCode);
+
+            // Generate nested UpdateModel classes for properties with [DynamoDbMap] attribute
+            // where the property type has [DynamoDbEntity] attribute
+            var nestedUpdateModels = UpdateExpressionsGenerator.GenerateNestedUpdateModelClasses(entity, entity.SemanticModel);
+            foreach (var (typeName, typeNamespace, code) in nestedUpdateModels)
+            {
+                // Use fully qualified name to track duplicates
+                var fullTypeName = $"{typeNamespace}.{typeName}";
+                if (!generatedNestedUpdateModels.Contains(fullTypeName))
+                {
+                    generatedNestedUpdateModels.Add(fullTypeName);
+                    context.AddSource($"{typeName}.g.cs", code);
+                }
+            }
 
             // Discover extension methods for wrapper generation (do this once to avoid redundant work)
             if (extensionMethods == null && entity.SemanticModel != null)
@@ -197,24 +239,32 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             var tableName = tableGroup.Key;
             var tableEntities = tableGroup.Value;
             
-            var tableCode = TableGenerator.GenerateTableClass(tableName, tableEntities);
-            if (!string.IsNullOrEmpty(tableCode))
+            // Check if any entity uses a type-based table reference
+            var entityWithTableType = tableEntities.FirstOrDefault(e => e.IsTableTypeReference && !string.IsNullOrEmpty(e.TableTypeName));
+            var tableClassName = entityWithTableType?.TableTypeName ?? GetTableClassName(tableName);
+            
+            var tableCode = TableGenerator.GenerateTableClassWithDiagnostics(tableName, tableEntities);
+            if (!string.IsNullOrEmpty(tableCode.Code))
             {
-                // Use table name for the file name
-                var tableClassName = GetTableClassName(tableName);
-                context.AddSource($"{tableClassName}.g.cs", tableCode);
+                // Use the determined table class name for the file name
+                context.AddSource($"{tableClassName}.g.cs", tableCode.Code);
+                
+                // Report any diagnostics from index aggregation
+                foreach (var diagnostic in tableCode.Diagnostics)
+                {
+                    context.ReportDiagnostic(diagnostic);
+                }
             }
             
             // Generate OnStream method and registry if any entities have stream conversion enabled
             var streamCode = StreamRegistryGenerator.GenerateOnStreamMethod(
                 tableName,
                 tableEntities,
-                GetTableClassName(tableName),
+                tableClassName,
                 tableEntities[0].Namespace);
             
             if (!string.IsNullOrEmpty(streamCode))
             {
-                var tableClassName = GetTableClassName(tableName);
                 context.AddSource($"{tableClassName}StreamProcessor.g.cs", streamCode);
                 
                 // Validate consistent discriminator properties

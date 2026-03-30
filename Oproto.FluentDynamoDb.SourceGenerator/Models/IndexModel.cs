@@ -6,9 +6,22 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 internal class IndexModel
 {
     /// <summary>
-    /// Gets or sets the name of the secondary index.
+    /// Gets or sets the name of the secondary index (the DynamoDB index name).
     /// </summary>
     public string IndexName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the custom C# property name specified via the Name property on the attribute.
+    /// If not specified, this will be null.
+    /// </summary>
+    public string? CustomName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resolved C# property name for the generated index accessor.
+    /// This is either the <see cref="CustomName"/> if specified, or a PascalCase conversion
+    /// of the <see cref="IndexName"/>.
+    /// </summary>
+    public string ResolvedPropertyName { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the type of index (GSI or LSI).
@@ -23,9 +36,21 @@ internal class IndexModel
     public string PartitionKeyProperty { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the DynamoDB attribute name for the partition key.
+    /// This is used for validation across entities sharing the same index.
+    /// </summary>
+    public string PartitionKeyAttribute { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the sort key property name for this index, if any.
     /// </summary>
     public string? SortKeyProperty { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DynamoDB attribute name for the sort key, if any.
+    /// This is used for validation across entities sharing the same index.
+    /// </summary>
+    public string? SortKeyAttribute { get; set; }
 
     /// <summary>
     /// Gets or sets the properties projected in this index.
@@ -58,6 +83,19 @@ internal class IndexModel
     /// Only applicable for GSIs.
     /// </summary>
     public DiscriminatorConfig? GsiDiscriminator { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DynamoDB projection type for this index.
+    /// Defaults to <see cref="Metadata.ProjectionType.All"/>.
+    /// When set to <see cref="Metadata.ProjectionType.KeysOnly"/>, 
+    /// a read-only projection record is auto-generated.
+    /// </summary>
+    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
+
+    /// <summary>
+    /// Gets a value indicating whether this index requires a Keys Only projection record to be generated.
+    /// </summary>
+    public bool RequiresKeysOnlyProjection => ProjectionType == ProjectionType.KeysOnly;
 
     /// <summary>
     /// Gets a value indicating whether this is a Global Secondary Index.

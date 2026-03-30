@@ -12,7 +12,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.RealWorld;
 [Trait("Category", "Integration")]
 public class DynamicFieldsIntegrationTests : IntegrationTestBase
 {
-    private DynamoDbTableBase _table = null!;
+    private GenericTable _table = null!;
 
     public DynamicFieldsIntegrationTests(DynamoDbLocalFixture fixture) : base(fixture)
     {
@@ -1169,8 +1169,461 @@ public class DynamicFieldsIntegrationTests : IntegrationTestBase
 
     #endregion
 
+    #region Bulk Operations Integration Tests (Requirements 10.1, 10.2, 10.3, 10.4)
+
+    /// <summary>
+    /// Tests that SetMany bulk operation correctly generates SET clauses when used with ChangesOnly().
+    /// Validates Requirement 10.1.
+    /// </summary>
+    [Fact]
+    public async Task SetMany_WithChangesOnly_GeneratesCorrectSetClauses()
+    {
+        // Arrange - Create initial item
+        var pk = "bulk-set-test-1";
+        var sk = "meta";
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk },
+            ["name"] = new AttributeValue { S = "Bulk Set Test" },
+            ["existing_field"] = new AttributeValue { S = "existing_value" }
+        };
+        await DynamoDb.PutItemAsync(TableName, item);
+
+        // Act - Load entity and use SetMany to add multiple fields
+        var key = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk }
+        };
+        var response = await DynamoDb.GetItemAsync(TableName, key);
+        var entity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(response.Item);
+
+        // Use SetMany to add multiple fields at once
+        var newFields = new Dictionary<string, AttributeValue>
+        {
+            ["bulk_field_1"] = new AttributeValue { S = "value_1" },
+            ["bulk_field_2"] = new AttributeValue { N = "42" },
+            ["bulk_field_3"] = new AttributeValue { BOOL = true }
+        };
+        entity.DynamicFields.SetMany(newFields);
+
+        // Get changes and verify
+        var changes = entity.DynamicFields.ChangesOnly();
+        changes.Count.Should().Be(3, "Should have 3 new fields from SetMany");
+        changes.GetString("bulk_field_1").Should().Be("value_1");
+        changes.GetInt("bulk_field_2").Should().Be(42);
+        changes.GetBool("bulk_field_3").Should().BeTrue();
+
+        // Apply changes via UpdateItem
+        var updateExpressionParts = new List<string>();
+        var attributeNames = new Dictionary<string, string>();
+        var attributeValues = new Dictionary<string, AttributeValue>();
+
+        int fieldIndex = 0;
+        foreach (var kvp in changes)
+        {
+            var attrName = $"#df{fieldIndex}";
+            var attrValue = $":df{fieldIndex}";
+            updateExpressionParts.Add($"{attrName} = {attrValue}");
+            attributeNames[attrName] = kvp.Key;
+            attributeValues[attrValue] = kvp.Value;
+            fieldIndex++;
+        }
+
+        var updateExpression = "SET " + string.Join(", ", updateExpressionParts);
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = TableName,
+            Key = key,
+            UpdateExpression = updateExpression,
+            ExpressionAttributeNames = attributeNames,
+            ExpressionAttributeValues = attributeValues
+        };
+        await DynamoDb.UpdateItemAsync(updateRequest);
+
+        // Verify - Get item back and check all fields are present
+        var verifyResponse = await DynamoDb.GetItemAsync(TableName, key);
+        var verifiedEntity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(verifyResponse.Item);
+
+        // Assert
+        verifiedEntity.DynamicFields.GetString("existing_field").Should().Be("existing_value", "Existing field should remain");
+        verifiedEntity.DynamicFields.GetString("bulk_field_1").Should().Be("value_1");
+        verifiedEntity.DynamicFields.GetInt("bulk_field_2").Should().Be(42);
+        verifiedEntity.DynamicFields.GetBool("bulk_field_3").Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Tests that RemoveMany bulk operation correctly generates REMOVE clauses when used with ChangesOnly().
+    /// Validates Requirement 10.2.
+    /// </summary>
+    [Fact]
+    public async Task RemoveMany_WithChangesOnly_GeneratesCorrectRemoveClauses()
+    {
+        // Arrange - Create initial item with multiple fields to remove
+        var pk = "bulk-remove-test-1";
+        var sk = "meta";
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk },
+            ["name"] = new AttributeValue { S = "Bulk Remove Test" },
+            ["keep_field"] = new AttributeValue { S = "keep_value" },
+            ["remove_field_1"] = new AttributeValue { S = "remove_1" },
+            ["remove_field_2"] = new AttributeValue { N = "100" },
+            ["remove_field_3"] = new AttributeValue { BOOL = false }
+        };
+        await DynamoDb.PutItemAsync(TableName, item);
+
+        // Act - Load entity and use RemoveMany to remove multiple fields
+        var key = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk }
+        };
+        var response = await DynamoDb.GetItemAsync(TableName, key);
+        var entity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(response.Item);
+
+        // Verify initial state
+        entity.DynamicFields.Count.Should().Be(4, "Should have 4 dynamic fields initially");
+
+        // Use RemoveMany to remove multiple fields at once
+        var fieldsToRemove = new[] { "remove_field_1", "remove_field_2", "remove_field_3" };
+        var removedCount = entity.DynamicFields.RemoveMany(fieldsToRemove);
+        removedCount.Should().Be(3, "Should have removed 3 fields");
+
+        // Get changes and verify
+        var changes = entity.DynamicFields.ChangesOnly();
+        changes.Count.Should().Be(0, "No fields were added/modified");
+        changes.RemovedFields.Should().HaveCount(3);
+        changes.RemovedFields.Should().Contain("remove_field_1");
+        changes.RemovedFields.Should().Contain("remove_field_2");
+        changes.RemovedFields.Should().Contain("remove_field_3");
+
+        // Apply changes via UpdateItem
+        var attributeNames = new Dictionary<string, string>();
+        var removeExpressionParts = new List<string>();
+
+        int fieldIndex = 0;
+        foreach (var removedField in changes.RemovedFields)
+        {
+            var attrName = $"#rm{fieldIndex}";
+            removeExpressionParts.Add(attrName);
+            attributeNames[attrName] = removedField;
+            fieldIndex++;
+        }
+
+        var updateExpression = "REMOVE " + string.Join(", ", removeExpressionParts);
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = TableName,
+            Key = key,
+            UpdateExpression = updateExpression,
+            ExpressionAttributeNames = attributeNames
+        };
+        await DynamoDb.UpdateItemAsync(updateRequest);
+
+        // Verify - Get item back and check removed fields are gone
+        var verifyResponse = await DynamoDb.GetItemAsync(TableName, key);
+        var verifiedEntity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(verifyResponse.Item);
+
+        // Assert
+        verifiedEntity.DynamicFields.GetString("keep_field").Should().Be("keep_value", "Keep field should remain");
+        verifiedEntity.DynamicFields.ContainsKey("remove_field_1").Should().BeFalse("Field 1 should be removed");
+        verifiedEntity.DynamicFields.ContainsKey("remove_field_2").Should().BeFalse("Field 2 should be removed");
+        verifiedEntity.DynamicFields.ContainsKey("remove_field_3").Should().BeFalse("Field 3 should be removed");
+    }
+
+    /// <summary>
+    /// Tests that mixed SetMany and RemoveMany operations correctly generate both SET and REMOVE clauses.
+    /// Validates Requirements 10.3, 10.4.
+    /// </summary>
+    [Fact]
+    public async Task MixedSetManyAndRemoveMany_WithChangesOnly_GeneratesCorrectMixedClauses()
+    {
+        // Arrange - Create initial item with fields to modify and remove
+        var pk = "bulk-mixed-test-1";
+        var sk = "meta";
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk },
+            ["name"] = new AttributeValue { S = "Bulk Mixed Test" },
+            ["keep_field"] = new AttributeValue { S = "keep_value" },
+            ["update_field"] = new AttributeValue { S = "old_value" },
+            ["remove_field_a"] = new AttributeValue { S = "remove_a" },
+            ["remove_field_b"] = new AttributeValue { N = "999" }
+        };
+        await DynamoDb.PutItemAsync(TableName, item);
+
+        // Act - Load entity and perform mixed bulk operations
+        var key = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk }
+        };
+        var response = await DynamoDb.GetItemAsync(TableName, key);
+        var entity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(response.Item);
+
+        // Use SetMany to add/update fields
+        var newFields = new Dictionary<string, AttributeValue>
+        {
+            ["update_field"] = new AttributeValue { S = "new_value" },  // Update existing
+            ["new_field_1"] = new AttributeValue { S = "added_1" },     // Add new
+            ["new_field_2"] = new AttributeValue { N = "123" }          // Add new
+        };
+        entity.DynamicFields.SetMany(newFields);
+
+        // Use RemoveMany to remove fields
+        var fieldsToRemove = new[] { "remove_field_a", "remove_field_b" };
+        entity.DynamicFields.RemoveMany(fieldsToRemove);
+
+        // Get changes and verify
+        var changes = entity.DynamicFields.ChangesOnly();
+        changes.Count.Should().Be(3, "Should have 3 added/modified fields");
+        changes.RemovedFields.Should().HaveCount(2, "Should have 2 removed fields");
+
+        // Apply changes via UpdateItem with mixed SET and REMOVE
+        var updateExpressionParts = new List<string>();
+        var attributeNames = new Dictionary<string, string>();
+        var attributeValues = new Dictionary<string, AttributeValue>();
+        var removeExpressionParts = new List<string>();
+
+        int fieldIndex = 0;
+        foreach (var kvp in changes)
+        {
+            var attrName = $"#df{fieldIndex}";
+            var attrValue = $":df{fieldIndex}";
+            updateExpressionParts.Add($"{attrName} = {attrValue}");
+            attributeNames[attrName] = kvp.Key;
+            attributeValues[attrValue] = kvp.Value;
+            fieldIndex++;
+        }
+
+        foreach (var removedField in changes.RemovedFields)
+        {
+            var attrName = $"#rm{fieldIndex}";
+            removeExpressionParts.Add(attrName);
+            attributeNames[attrName] = removedField;
+            fieldIndex++;
+        }
+
+        var updateExpression = "SET " + string.Join(", ", updateExpressionParts);
+        if (removeExpressionParts.Count > 0)
+        {
+            updateExpression += " REMOVE " + string.Join(", ", removeExpressionParts);
+        }
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = TableName,
+            Key = key,
+            UpdateExpression = updateExpression,
+            ExpressionAttributeNames = attributeNames,
+            ExpressionAttributeValues = attributeValues
+        };
+        await DynamoDb.UpdateItemAsync(updateRequest);
+
+        // Verify - Get item back and check final state
+        var verifyResponse = await DynamoDb.GetItemAsync(TableName, key);
+        var verifiedEntity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(verifyResponse.Item);
+
+        // Assert - Unchanged fields remain
+        verifiedEntity.DynamicFields.GetString("keep_field").Should().Be("keep_value", "Keep field should remain unchanged");
+
+        // Assert - Updated/added fields have correct values
+        verifiedEntity.DynamicFields.GetString("update_field").Should().Be("new_value", "Updated field should have new value");
+        verifiedEntity.DynamicFields.GetString("new_field_1").Should().Be("added_1", "New field 1 should be added");
+        verifiedEntity.DynamicFields.GetInt("new_field_2").Should().Be(123, "New field 2 should be added");
+
+        // Assert - Removed fields are gone
+        verifiedEntity.DynamicFields.ContainsKey("remove_field_a").Should().BeFalse("Field A should be removed");
+        verifiedEntity.DynamicFields.ContainsKey("remove_field_b").Should().BeFalse("Field B should be removed");
+    }
+
+    /// <summary>
+    /// Tests that SetManyWithPrefix correctly generates SET clauses with prefixed keys.
+    /// Validates Requirements 10.1, 10.3.
+    /// </summary>
+    [Fact]
+    public async Task SetManyWithPrefix_WithChangesOnly_GeneratesCorrectPrefixedSetClauses()
+    {
+        // Arrange - Create initial item
+        var pk = "bulk-prefix-test-1";
+        var sk = "meta";
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk },
+            ["name"] = new AttributeValue { S = "Bulk Prefix Test" }
+        };
+        await DynamoDb.PutItemAsync(TableName, item);
+
+        // Act - Load entity and use SetManyWithPrefix
+        var key = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk }
+        };
+        var response = await DynamoDb.GetItemAsync(TableName, key);
+        var entity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(response.Item);
+
+        // Use SetManyWithPrefix to add transaction-like fields
+        var txnFields = new Dictionary<string, AttributeValue>
+        {
+            ["TXN001"] = new AttributeValue { S = "C1000.00" },
+            ["TXN002"] = new AttributeValue { S = "D500.00" },
+            ["TXN003"] = new AttributeValue { S = "C250.00" }
+        };
+        entity.DynamicFields.SetManyWithPrefix("t_", txnFields);
+
+        // Get changes and verify prefixed keys
+        var changes = entity.DynamicFields.ChangesOnly();
+        changes.Count.Should().Be(3, "Should have 3 prefixed fields");
+        changes.GetString("t_TXN001").Should().Be("C1000.00");
+        changes.GetString("t_TXN002").Should().Be("D500.00");
+        changes.GetString("t_TXN003").Should().Be("C250.00");
+
+        // Apply changes via UpdateItem
+        var updateExpressionParts = new List<string>();
+        var attributeNames = new Dictionary<string, string>();
+        var attributeValues = new Dictionary<string, AttributeValue>();
+
+        int fieldIndex = 0;
+        foreach (var kvp in changes)
+        {
+            var attrName = $"#df{fieldIndex}";
+            var attrValue = $":df{fieldIndex}";
+            updateExpressionParts.Add($"{attrName} = {attrValue}");
+            attributeNames[attrName] = kvp.Key;
+            attributeValues[attrValue] = kvp.Value;
+            fieldIndex++;
+        }
+
+        var updateExpression = "SET " + string.Join(", ", updateExpressionParts);
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = TableName,
+            Key = key,
+            UpdateExpression = updateExpression,
+            ExpressionAttributeNames = attributeNames,
+            ExpressionAttributeValues = attributeValues
+        };
+        await DynamoDb.UpdateItemAsync(updateRequest);
+
+        // Verify - Get item back and check prefixed fields
+        var verifyResponse = await DynamoDb.GetItemAsync(TableName, key);
+        var verifiedEntity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(verifyResponse.Item);
+
+        // Assert - Prefixed fields are stored correctly
+        verifiedEntity.DynamicFields.GetString("t_TXN001").Should().Be("C1000.00");
+        verifiedEntity.DynamicFields.GetString("t_TXN002").Should().Be("D500.00");
+        verifiedEntity.DynamicFields.GetString("t_TXN003").Should().Be("C250.00");
+
+        // Verify we can retrieve them by prefix
+        var txnFieldNames = verifiedEntity.DynamicFields.GetFieldNamesByPrefix("t_").ToList();
+        txnFieldNames.Should().HaveCount(3);
+        txnFieldNames.Should().Contain("t_TXN001");
+        txnFieldNames.Should().Contain("t_TXN002");
+        txnFieldNames.Should().Contain("t_TXN003");
+    }
+
+    /// <summary>
+    /// Tests that RemoveByPrefix correctly generates REMOVE clauses for all matching fields.
+    /// Validates Requirements 10.2, 10.4.
+    /// </summary>
+    [Fact]
+    public async Task RemoveByPrefix_WithChangesOnly_GeneratesCorrectPrefixedRemoveClauses()
+    {
+        // Arrange - Create initial item with prefixed fields
+        var pk = "bulk-remove-prefix-test-1";
+        var sk = "meta";
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk },
+            ["name"] = new AttributeValue { S = "Bulk Remove Prefix Test" },
+            ["keep_field"] = new AttributeValue { S = "keep_value" },
+            ["c_CHILD001"] = new AttributeValue { S = "child_1" },
+            ["c_CHILD002"] = new AttributeValue { S = "child_2" },
+            ["c_CHILD003"] = new AttributeValue { S = "child_3" },
+            ["t_TXN001"] = new AttributeValue { S = "txn_1" }  // Different prefix, should remain
+        };
+        await DynamoDb.PutItemAsync(TableName, item);
+
+        // Act - Load entity and use RemoveByPrefix
+        var key = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = pk },
+            ["sk"] = new AttributeValue { S = sk }
+        };
+        var response = await DynamoDb.GetItemAsync(TableName, key);
+        var entity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(response.Item);
+
+        // Verify initial state
+        entity.DynamicFields.Count.Should().Be(5, "Should have 5 dynamic fields initially");
+
+        // Use RemoveByPrefix to remove all child fields
+        var removedCount = entity.DynamicFields.RemoveByPrefix("c_");
+        removedCount.Should().Be(3, "Should have removed 3 child fields");
+
+        // Get changes and verify
+        var changes = entity.DynamicFields.ChangesOnly();
+        changes.Count.Should().Be(0, "No fields were added/modified");
+        changes.RemovedFields.Should().HaveCount(3);
+        changes.RemovedFields.Should().Contain("c_CHILD001");
+        changes.RemovedFields.Should().Contain("c_CHILD002");
+        changes.RemovedFields.Should().Contain("c_CHILD003");
+
+        // Apply changes via UpdateItem
+        var attributeNames = new Dictionary<string, string>();
+        var removeExpressionParts = new List<string>();
+
+        int fieldIndex = 0;
+        foreach (var removedField in changes.RemovedFields)
+        {
+            var attrName = $"#rm{fieldIndex}";
+            removeExpressionParts.Add(attrName);
+            attributeNames[attrName] = removedField;
+            fieldIndex++;
+        }
+
+        var updateExpression = "REMOVE " + string.Join(", ", removeExpressionParts);
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = TableName,
+            Key = key,
+            UpdateExpression = updateExpression,
+            ExpressionAttributeNames = attributeNames
+        };
+        await DynamoDb.UpdateItemAsync(updateRequest);
+
+        // Verify - Get item back and check state
+        var verifyResponse = await DynamoDb.GetItemAsync(TableName, key);
+        var verifiedEntity = DynamicFieldsTestEntity.FromDynamoDb<DynamicFieldsTestEntity>(verifyResponse.Item);
+
+        // Assert - Non-prefixed and different-prefix fields remain
+        verifiedEntity.DynamicFields.GetString("keep_field").Should().Be("keep_value");
+        verifiedEntity.DynamicFields.GetString("t_TXN001").Should().Be("txn_1");
+
+        // Assert - All c_ prefixed fields are removed
+        verifiedEntity.DynamicFields.ContainsKey("c_CHILD001").Should().BeFalse();
+        verifiedEntity.DynamicFields.ContainsKey("c_CHILD002").Should().BeFalse();
+        verifiedEntity.DynamicFields.ContainsKey("c_CHILD003").Should().BeFalse();
+
+        // Verify no c_ prefixed fields remain
+        var childFieldNames = verifiedEntity.DynamicFields.GetFieldNamesByPrefix("c_").ToList();
+        childFieldNames.Should().BeEmpty();
+    }
+
+    #endregion
+
     // Helper class to create a table instance
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName)
             : base(client, tableName)

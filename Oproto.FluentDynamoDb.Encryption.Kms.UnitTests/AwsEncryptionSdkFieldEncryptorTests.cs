@@ -148,9 +148,9 @@ public class AwsEncryptionSdkFieldEncryptorTests
         {
             await encryptor.EncryptAsync(plaintext, TestFieldName, context);
         }
-        catch (NotImplementedException)
+        catch (FieldEncryptionException)
         {
-            // Expected since AWS SDK integration is not complete
+            // Expected - AWS SDK will fail without real KMS access, but key resolver should have been called
         }
 
         // Assert
@@ -172,9 +172,9 @@ public class AwsEncryptionSdkFieldEncryptorTests
         {
             await encryptor.EncryptAsync(plaintext, TestFieldName, context);
         }
-        catch (NotImplementedException)
+        catch (FieldEncryptionException)
         {
-            // Expected since AWS SDK integration is not complete
+            // Expected - AWS SDK will fail without real KMS access, but key resolver should have been called
         }
 
         // Assert
@@ -285,9 +285,9 @@ public class AwsEncryptionSdkFieldEncryptorTests
         {
             await encryptor.DecryptAsync(ciphertext, TestFieldName, context);
         }
-        catch (NotImplementedException)
+        catch (FieldEncryptionException)
         {
-            // Expected since AWS SDK integration is not complete
+            // Expected - AWS SDK will fail without real KMS access, but key resolver should have been called
         }
 
         // Assert
@@ -309,9 +309,9 @@ public class AwsEncryptionSdkFieldEncryptorTests
         {
             await encryptor.DecryptAsync(ciphertext, TestFieldName, context);
         }
-        catch (NotImplementedException)
+        catch (FieldEncryptionException)
         {
-            // Expected since AWS SDK integration is not complete
+            // Expected - AWS SDK will fail without real KMS access, but key resolver should have been called
         }
 
         // Assert
@@ -375,9 +375,9 @@ public class AwsEncryptionSdkFieldEncryptorTests
         {
             await encryptor.EncryptAsync(plaintext, TestFieldName, context, cts.Token);
         }
-        catch (NotImplementedException)
+        catch (FieldEncryptionException)
         {
-            // Expected since AWS SDK integration is not complete
+            // Expected - AWS SDK will fail without real KMS access
         }
 
         // Assert - No exception from cancellation token means it was accepted
@@ -400,9 +400,9 @@ public class AwsEncryptionSdkFieldEncryptorTests
         {
             await encryptor.DecryptAsync(ciphertext, TestFieldName, context, cts.Token);
         }
-        catch (NotImplementedException)
+        catch (FieldEncryptionException)
         {
-            // Expected since AWS SDK integration is not complete
+            // Expected - AWS SDK will fail without real KMS access
         }
 
         // Assert - No exception from cancellation token means it was accepted

@@ -926,4 +926,144 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "When using [EnableDynamicFields], the source generator adds a DynamicFields property. If the class already has this property, there will be a conflict.");
+
+    // Index Name Conflict Diagnostics (FDDB050-FDDB052)
+
+    /// <summary>
+    /// Error when multiple entities define conflicting Name values for the same DynamoDB index.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingIndexNames = new(
+        "FDDB050",
+        "Conflicting index Name values",
+        "Index '{0}' has conflicting Name values: '{1}' and '{2}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, they must use the same Name property value or only one entity should specify it. All entities must agree on the C# property name for the generated index accessor.");
+
+    /// <summary>
+    /// Warning when multiple entities specify the same Name for an index (informational).
+    /// </summary>
+    public static readonly DiagnosticDescriptor RedundantIndexNameSpecification = new(
+        "FDDB052",
+        "Redundant index Name specification",
+        "Index '{0}' has Name '{1}' specified on multiple entities",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, consider specifying the Name property on only one entity to avoid redundancy. The Name will be used for all entities sharing the index.");
+
+    /// <summary>
+    /// Error when type-based table reference uses a non-partial class.
+    /// </summary>
+    public static readonly DiagnosticDescriptor NonPartialTableType = new(
+        "FDDB051",
+        "Non-partial table type",
+        "Type '{0}' must be declared as partial when used in [DynamoDbTable(typeof({0}))]",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When using type-based table references with [DynamoDbTable(typeof(T))], the referenced type must be declared as a partial class to allow the source generator to add implementation code.");
+
+    // Projection Interface Enhancement Diagnostics (FDDB060-FDDB062)
+
+    /// <summary>
+    /// Error when a projection references a source entity that doesn't exist or isn't properly configured.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ProjectionSourceEntityNotFound = new(
+        "FDDB060",
+        "Projection source entity not found",
+        "Projection '{0}' references source entity '{1}' which could not be found or is not a valid DynamoDB entity. Ensure the source entity exists and is marked with [DynamoDbTable] attribute.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Projections must reference a valid DynamoDB entity as their source. The source entity must exist in the compilation and be properly configured with [DynamoDbTable] attribute.");
+
+    /// <summary>
+    /// Error when a projection cannot inherit metadata from its source entity.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ProjectionMetadataInheritanceFailure = new(
+        "FDDB061",
+        "Projection metadata inheritance failure",
+        "Projection '{0}' cannot inherit metadata from source entity '{1}'. Ensure the source entity has proper DynamoDB attributes and metadata including partition key configuration.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Projections inherit metadata (table name, partition key, sort key) from their source entity. The source entity must have valid metadata configuration for inheritance to succeed.");
+
+    /// <summary>
+    /// Error when a projection is used in an incompatible context (e.g., write operations).
+    /// </summary>
+    public static readonly DiagnosticDescriptor ProjectionInterfaceViolation = new(
+        "FDDB062",
+        "Projection interface violation",
+        "Projection '{0}' cannot be used in this context. Projections are read-only and implement IReadOnlyEntity<T>, not IDynamoDbEntity<T>. For write operations (Put, Update, Delete), use the source entity '{1}' instead.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Projections implement IReadOnlyEntity<T> which only supports read operations (Query, Get). For write operations, use the full source entity type that implements IDynamoDbEntity<T>.");
+
+    // Index Configuration Conflict Diagnostics (FDDB053-FDDB055)
+
+    /// <summary>
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different partition key attributes.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingIndexPartitionKey = new(
+        "FDDB053",
+        "Conflicting index partition key attribute",
+        "Index '{0}' has conflicting partition key attributes: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, they must use the same DynamoDB attribute for the partition key. Different C# property names are allowed as long as they map to the same DynamoDB attribute name.");
+
+    /// <summary>
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different sort key attributes.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingIndexSortKey = new(
+        "FDDB054",
+        "Conflicting index sort key attribute",
+        "Index '{0}' has conflicting sort key attributes: '{1}' on entity '{2}' vs '{3}' on entity '{4}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, they must use the same DynamoDB attribute for the sort key (or both have no sort key). Different C# property names are allowed as long as they map to the same DynamoDB attribute name.");
+
+    /// <summary>
+    /// Error when multiple entities define indexes with the same DynamoDB index name but different index types (GSI vs LSI).
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingIndexType = new(
+        "FDDB055",
+        "Conflicting index type",
+        "Index '{0}' has conflicting types: {1} on entity '{2}' vs {3} on entity '{4}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When multiple entities define the same DynamoDB index, they must use the same index type (either all GSI or all LSI). An index cannot be both a Global Secondary Index and a Local Secondary Index.");
+
+    // Index Projection Diagnostics (FDDB070-FDDB072)
+
+    /// <summary>
+    /// Warning when ProjectionType = Include is specified but no ProjectedProperties are defined.
+    /// </summary>
+    public static readonly DiagnosticDescriptor IncludeProjectionWithoutProperties = new(
+        "FDDB070",
+        "Include projection without properties",
+        "Index '{0}' on entity '{1}' has ProjectionType = Include but no ProjectedProperties are defined. The index will project only the key attributes.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When using ProjectionType = Include, you should specify which non-key attributes to project. Without ProjectedProperties, only the key attributes will be included in the index projection.");
+
+    /// <summary>
+    /// Warning when ProjectionType = KeysOnly is combined with [UseProjection] attribute.
+    /// </summary>
+    public static readonly DiagnosticDescriptor KeysOnlyWithUseProjection = new(
+        "FDDB072",
+        "KeysOnly with UseProjection",
+        "Index '{0}' on entity '{1}' has both ProjectionType = KeysOnly and [UseProjection] attribute. The [UseProjection] attribute takes precedence and the auto-generated Keys Only projection will not be used.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When both ProjectionType = KeysOnly and [UseProjection] are specified, the [UseProjection] attribute takes precedence. The auto-generated Keys Only projection record will not be generated. Consider removing one of these configurations to avoid confusion.");
 }

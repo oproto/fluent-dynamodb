@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using System.Text;
 
@@ -259,8 +260,37 @@ internal static class UpdateExpressionsGenerator
     {
         var propertyName = property.PropertyName;
         var propertyType = property.PropertyType;
-        var nullableType = MakeNullable(propertyType, property.IsNullable);
         var isKeyProperty = property.IsPartitionKey || property.IsSortKey;
+
+        // Check if this is a nested map property that should use a nested UpdateModel type
+        var useNestedUpdateModel = false;
+        string? nestedUpdateModelType = null;
+
+        if (property.ComplexType?.IsMap == true && 
+            !propertyType.Contains("Dictionary<") &&
+            entity.SemanticModel != null &&
+            property.PropertyDeclaration != null)
+        {
+            var propertySymbol = entity.SemanticModel.GetDeclaredSymbol(property.PropertyDeclaration) as IPropertySymbol;
+            if (propertySymbol?.Type is INamedTypeSymbol nestedTypeSymbol)
+            {
+                if (HasDynamoDbEntityAttribute(nestedTypeSymbol))
+                {
+                    useNestedUpdateModel = true;
+                    nestedUpdateModelType = $"{nestedTypeSymbol.Name}UpdateModel";
+                }
+            }
+        }
+
+        string nullableType;
+        if (useNestedUpdateModel && nestedUpdateModelType != null)
+        {
+            nullableType = $"{nestedUpdateModelType}?";
+        }
+        else
+        {
+            nullableType = MakeNullable(propertyType, property.IsNullable);
+        }
 
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
@@ -270,7 +300,14 @@ internal static class UpdateExpressionsGenerator
         // Add documentation about setting values
         sb.AppendLine("        /// <remarks>");
         sb.AppendLine("        /// <para>");
-        sb.AppendLine("        /// Can be set to a constant value, variable, or the result of an operation like Add(), Remove(), etc.");
+        if (useNestedUpdateModel)
+        {
+            sb.AppendLine($"        /// Use {nestedUpdateModelType} to partially update nested properties.");
+        }
+        else
+        {
+            sb.AppendLine("        /// Can be set to a constant value, variable, or the result of an operation like Add(), Remove(), etc.");
+        }
         sb.AppendLine("        /// </para>");
 
         // Add warning for key properties
@@ -426,5 +463,46 @@ internal static class UpdateExpressionsGenerator
         };
 
         return !valueTypes.Contains(propertyType);
+    }
+
+    /// <summary>
+    /// Generates UpdateModel classes for nested types that have [DynamoDbMap] attribute
+    /// and whose property type has [DynamoDbEntity] attribute.
+    /// </summary>
+    /// <remarks>
+    /// This method returns an empty list because:
+    /// - Types with [DynamoDbEntity] or [DynamoDbTable] attributes are already handled by the main generator
+    /// - Types without these attributes should not have UpdateModel generated
+    /// 
+    /// The main generator already generates UpdateModel classes for all entities with [DynamoDbEntity]
+    /// or [DynamoDbTable] attributes, so no additional generation is needed here.
+    /// </remarks>
+    /// <param name="entity">The entity model containing properties to analyze.</param>
+    /// <param name="semanticModel">The semantic model for type resolution.</param>
+    /// <returns>An empty list since all UpdateModel generation is handled by the main generator.</returns>
+    public static List<(string TypeName, string Namespace, string Code)> GenerateNestedUpdateModelClasses(
+        EntityModel entity,
+        SemanticModel? semanticModel)
+    {
+        // All UpdateModel generation is handled by the main generator:
+        // - Types with [DynamoDbEntity] attribute have their UpdateModel generated automatically
+        // - Types with [DynamoDbTable] attribute have their UpdateModel generated automatically
+        // - Types without these attributes should not have UpdateModel generated
+        return new List<(string TypeName, string Namespace, string Code)>();
+    }
+
+    /// <summary>
+    /// Checks if a type symbol has the [DynamoDbEntity] or [DynamoDbTable] attribute.
+    /// </summary>
+    private static bool HasDynamoDbEntityAttribute(INamedTypeSymbol typeSymbol)
+    {
+        return typeSymbol.GetAttributes().Any(attr =>
+        {
+            var attrName = attr.AttributeClass?.Name;
+            return attrName == "DynamoDbEntityAttribute" ||
+                   attrName == "DynamoDbEntity" ||
+                   attrName == "DynamoDbTableAttribute" ||
+                   attrName == "DynamoDbTable";
+        });
     }
 }

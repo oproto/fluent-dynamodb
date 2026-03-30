@@ -119,6 +119,12 @@ internal class PropertyModel
     public SecurityInfo? Security { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether this property has [RelatedEntity] attribute.
+    /// Used to suppress DYNDB023 performance warnings for intentional composite entity patterns.
+    /// </summary>
+    public bool IsRelatedEntity { get; set; }
+
+    /// <summary>
     /// Gets or sets the format string from DynamoDbAttribute for value serialization.
     /// </summary>
     public string? Format { get; set; }

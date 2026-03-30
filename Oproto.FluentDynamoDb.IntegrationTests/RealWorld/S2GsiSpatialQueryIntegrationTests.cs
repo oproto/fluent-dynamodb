@@ -32,7 +32,7 @@ public class S2GsiSpatialQueryIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Table wrapper for GSI-based spatial queries.
     /// </summary>
-    private class S2StoreGsiTable : DynamoDbTableBase
+    private class S2StoreGsiTable : GenericTable
     {
         public DynamoDbIndex LocationIndex { get; }
         

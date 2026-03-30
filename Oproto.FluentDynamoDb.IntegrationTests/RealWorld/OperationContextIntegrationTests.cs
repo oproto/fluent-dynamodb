@@ -1,3 +1,4 @@
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 using Oproto.FluentDynamoDb.Requests;
@@ -887,14 +888,14 @@ public class OperationContextIntegrationTests : IntegrationTestBase
     }
     
     // Helper class to create a table instance
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)
         {
         }
         
-        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        public new ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity =>
             new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
     }
 }

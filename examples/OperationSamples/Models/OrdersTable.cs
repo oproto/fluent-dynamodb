@@ -1,5 +1,4 @@
 using Amazon.DynamoDBv2;
-using Oproto.FluentDynamoDb.Storage;
 
 namespace FluentDynamoDb.OperationSamples.Models;
 
@@ -30,7 +29,7 @@ namespace FluentDynamoDb.OperationSamples.Models;
 /// <item><description>Get complete order: Query pk = "ORDER#{orderId}" (returns both order and lines)</description></item>
 /// </list>
 /// </remarks>
-public partial class OrdersTable : DynamoDbTableBase
+public partial class OrdersTable
 {
     /// <summary>
     /// The name of the DynamoDB table for orders.

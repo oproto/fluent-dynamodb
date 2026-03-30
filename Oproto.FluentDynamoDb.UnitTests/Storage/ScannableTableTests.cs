@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using AwesomeAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Storage;
@@ -34,12 +35,36 @@ public class ScannableTableTests
         request.TableName.Should().Be("TestScannableTable");
     }
     
-    public class TestEntity
+    public class TestEntity : IReadOnlyEntity
     {
         public string? Id { get; set; }
         public string? Name { get; set; }
         public string? Status { get; set; }
         public decimal Price { get; set; }
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+            where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntity
+            {
+                Id = item.TryGetValue("pk", out var pk) ? pk.S : null,
+                Name = item.TryGetValue("name", out var name) ? name.S : null,
+                Status = item.TryGetValue("status", out var status) ? status.S : null,
+                Price = item.TryGetValue("price", out var price) && decimal.TryParse(price.N, out var p) ? p : 0m
+            };
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item) =>
+            item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+
+        public static Metadata.EntityMetadata GetEntityMetadata() => new()
+        {
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new Metadata.PropertyMetadata { PropertyName = "Id", AttributeName = "pk", IsPartitionKey = true },
+                new Metadata.PropertyMetadata { PropertyName = "Name", AttributeName = "name" },
+                new Metadata.PropertyMetadata { PropertyName = "Status", AttributeName = "status" },
+                new Metadata.PropertyMetadata { PropertyName = "Price", AttributeName = "price" }
+            }
+        };
     }
     
     [Fact]
@@ -353,28 +378,36 @@ public class ScannableTableTests
     /// Test table that simulates a generated scannable table.
     /// This mimics what the source generator would produce for a table marked with [Scannable].
     /// </summary>
-    private class TestScannableTable : DynamoDbTableBase
+    private class TestScannableTable : IDynamoDbTable
     {
-        public TestScannableTable(IAmazonDynamoDB client) 
-            : base(client, "TestScannableTable")
+        public TestScannableTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "TestScannableTable";
+            Options = new FluentDynamoDbOptions();
         }
         
-        public TestScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options) 
-            : base(client, "TestScannableTable", options)
+        public TestScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options)
         {
+            DynamoDbClient = client;
+            Name = "TestScannableTable";
+            Options = options ?? new FluentDynamoDbOptions();
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
+        protected FluentDynamoDbOptions Options { get; }
         
         /// <summary>
         /// Simulates the generated parameterless Scan() method.
         /// </summary>
-        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity => 
             new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
         
         /// <summary>
         /// Simulates the generated expression-based Scan() method.
         /// </summary>
-        public ScanRequestBuilder<TEntity> Scan<TEntity>(string filterExpression, params object[] values) where TEntity : class
+        public ScanRequestBuilder<TEntity> Scan<TEntity>(string filterExpression, params object[] values) where TEntity : class, IReadOnlyEntity
         {
             var builder = Scan<TEntity>();
             return Oproto.FluentDynamoDb.Requests.Extensions.WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);
@@ -386,24 +419,32 @@ public class ScannableTableTests
     /// This demonstrates how developers can manually implement scan operations
     /// without using source generation or the [Scannable] attribute.
     /// </summary>
-    private class ManualScannableTable : DynamoDbTableBase
+    private class ManualScannableTable : IDynamoDbTable
     {
-        public ManualScannableTable(IAmazonDynamoDB client) 
-            : base(client, "ManualScannableTable")
+        public ManualScannableTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "ManualScannableTable";
+            Options = new FluentDynamoDbOptions();
         }
         
-        public ManualScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options) 
-            : base(client, "ManualScannableTable", options)
+        public ManualScannableTable(IAmazonDynamoDB client, FluentDynamoDbOptions options)
         {
+            DynamoDbClient = client;
+            Name = "ManualScannableTable";
+            Options = options ?? new FluentDynamoDbOptions();
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
+        protected FluentDynamoDbOptions Options { get; }
         
         /// <summary>
         /// Manually implemented parameterless Scan() method.
         /// Creates a new Scan operation builder for this table.
         /// </summary>
         /// <returns>A ScanRequestBuilder configured for this table.</returns>
-        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class => 
+        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity => 
             new ScanRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
         
         /// <summary>
@@ -413,7 +454,7 @@ public class ScannableTableTests
         /// <param name="filterExpression">The filter expression with format placeholders.</param>
         /// <param name="values">The values to substitute into the expression.</param>
         /// <returns>A ScanRequestBuilder configured with the filter.</returns>
-        public ScanRequestBuilder<TEntity> Scan<TEntity>(string filterExpression, params object[] values) where TEntity : class
+        public ScanRequestBuilder<TEntity> Scan<TEntity>(string filterExpression, params object[] values) where TEntity : class, IReadOnlyEntity
         {
             var builder = Scan<TEntity>();
             return Oproto.FluentDynamoDb.Requests.Extensions.WithFilterExpressionExtensions.WithFilter(builder, filterExpression, values);

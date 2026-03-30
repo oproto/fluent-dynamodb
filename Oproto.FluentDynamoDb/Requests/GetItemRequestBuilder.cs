@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -9,8 +10,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// Fluent builder for DynamoDB GetItem operations.
 /// Provides a type-safe way to construct GetItem requests with support for key specification,
 /// projection expressions, consistent reads, and attribute name mapping.
+/// Now supports both full entities and projections through IReadOnlyEntity constraint.
 /// </summary>
-/// <typeparam name="TEntity">The entity type being retrieved.</typeparam>
+/// <typeparam name="TEntity">The entity or projection type being retrieved. Must implement IReadOnlyEntity&lt;TEntity&gt;.</typeparam>
 /// <example>
 /// <code>
 /// // Get an item by primary key
@@ -29,7 +31,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </code>
 /// </example>
 public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEntity>>, IWithAttributeNames<GetItemRequestBuilder<TEntity>>, ITransactableGetBuilder, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IReadOnlyEntity
 {
     /// <summary>
     /// Initializes a new instance of the GetItemRequestBuilder.
@@ -58,6 +60,13 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     private readonly IDynamoDbLogger _logger;
     private readonly FluentDynamoDbOptions _options;
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the response metadata from the most recent GetItem execution.
+    /// This is populated by Primary API methods (GetItemAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public GetItemOperationResponse? Response { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute name helper for extension method access.
@@ -117,6 +126,41 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     public GetItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built GetItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's entity hydration capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built GetItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new GetItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Key = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" }
+    ///     },
+    ///     ConsistentRead = true
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Get&lt;User&gt;().WithRequest(sdkRequest);
+    /// var user = await builder.GetItemAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public GetItemRequestBuilder<TEntity> WithRequest(GetItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 

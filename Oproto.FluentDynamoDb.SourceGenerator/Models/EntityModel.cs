@@ -30,6 +30,18 @@ internal class EntityModel
     public string? TableNamespace { get; set; }
 
     /// <summary>
+    /// Gets or sets the type name of the table class when using type-based table references.
+    /// When set, the source generator uses this type name instead of generating one.
+    /// </summary>
+    public string? TableTypeName { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this entity uses a type-based table reference.
+    /// When true, TableTypeName contains the referenced type name.
+    /// </summary>
+    public bool IsTableTypeReference { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional entity discriminator for multi-type tables.
     /// </summary>
     [Obsolete("Use Discriminator property instead")]
@@ -102,8 +114,19 @@ internal class EntityModel
 
     /// <summary>
     /// Gets or sets the original class declaration syntax node.
+    /// For backward compatibility - use TypeDeclaration for new code.
     /// </summary>
     public ClassDeclarationSyntax? ClassDeclaration { get; set; }
+
+    /// <summary>
+    /// Gets or sets the original type declaration syntax node (class or record).
+    /// </summary>
+    public TypeDeclarationSyntax? TypeDeclaration { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this entity is a record type.
+    /// </summary>
+    public bool IsRecord { get; set; }
 
     /// <summary>
     /// Gets or sets the semantic model for accessing compilation information.
@@ -132,6 +155,21 @@ internal class EntityModel
     /// When true (default), dynamic field values are redacted in logs while field names are still logged.
     /// </summary>
     public bool DynamicFieldsSensitiveLogging { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether FluentResults API generation is enabled for this entity.
+    /// When true, the source generator will generate Result-returning convenience methods
+    /// (e.g., GetAsyncResult, PutAsyncResult, DeleteAsyncResult, QueryAsyncResult).
+    /// </summary>
+    public bool UseFluentResults { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to suppress generation of traditional async methods
+    /// when UseFluentResults is enabled.
+    /// When true (default), only Result-returning methods are generated.
+    /// When false, both traditional async and Result-returning methods are generated.
+    /// </summary>
+    public bool HideGeneratedAsyncMethods { get; set; } = true;
 
     /// <summary>
     /// Gets the partition key property, if any.

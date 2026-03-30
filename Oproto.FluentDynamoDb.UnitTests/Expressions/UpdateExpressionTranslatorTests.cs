@@ -755,6 +755,161 @@ public class UpdateExpressionTranslatorTests
         context.AttributeValues.AttributeValues[":p0"].L.Should().HaveCount(1);
     }
 
+    [Fact]
+    public void TranslateUpdateExpression_IfNotExistsWithAddition_ShouldGenerateSetWithFunctionAndArithmetic()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        // Build expression: x => new TestUpdateModel { Count = x.Count.IfNotExists(0) + 1 }
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var countProperty = Expression.Property(parameter, nameof(TestUpdateExpressions.Count));
+        
+        // Find the non-nullable IfNotExists method
+        var ifNotExistsMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.IfNotExists))
+            .Where(m => m.IsGenericMethod)
+            .Where(m => m.GetParameters().Length == 2)
+            .Where(m => !m.GetParameters()[0].ParameterType.GetGenericArguments()[0].IsGenericType || 
+                       m.GetParameters()[0].ParameterType.GetGenericArguments()[0].GetGenericTypeDefinition() != typeof(Nullable<>))
+            .Single()
+            .MakeGenericMethod(typeof(int));
+        var ifNotExistsCall = Expression.Call(ifNotExistsMethod, countProperty, Expression.Constant(0));
+        
+        // Add arithmetic: IfNotExists(0) + 1
+        var addExpression = Expression.Add(ifNotExistsCall, Expression.Constant(1));
+        
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Count))!, addExpression);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = if_not_exists(#attr0, :p0) + :p1");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("count");
+        context.AttributeValues.AttributeValues[":p0"].N.Should().Be("0");
+        context.AttributeValues.AttributeValues[":p1"].N.Should().Be("1");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_IfNotExistsWithSubtraction_ShouldGenerateSetWithFunctionAndArithmetic()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        // Build expression: x => new TestUpdateModel { Count = x.Count.IfNotExists(100) - 5 }
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var countProperty = Expression.Property(parameter, nameof(TestUpdateExpressions.Count));
+        
+        var ifNotExistsMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.IfNotExists))
+            .Where(m => m.IsGenericMethod)
+            .Where(m => m.GetParameters().Length == 2)
+            .Where(m => !m.GetParameters()[0].ParameterType.GetGenericArguments()[0].IsGenericType || 
+                       m.GetParameters()[0].ParameterType.GetGenericArguments()[0].GetGenericTypeDefinition() != typeof(Nullable<>))
+            .Single()
+            .MakeGenericMethod(typeof(int));
+        var ifNotExistsCall = Expression.Call(ifNotExistsMethod, countProperty, Expression.Constant(100));
+        
+        // Subtract: IfNotExists(100) - 5
+        var subtractExpression = Expression.Subtract(ifNotExistsCall, Expression.Constant(5));
+        
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Count))!, subtractExpression);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = if_not_exists(#attr0, :p0) - :p1");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("count");
+        context.AttributeValues.AttributeValues[":p0"].N.Should().Be("100");
+        context.AttributeValues.AttributeValues[":p1"].N.Should().Be("5");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_IfNotExistsWithDecimalArithmetic_ShouldGenerateCorrectExpression()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        // Build expression: x => new TestUpdateModel { Balance = x.Balance.IfNotExists(0m) + 50.25m }
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var balanceProperty = Expression.Property(parameter, nameof(TestUpdateExpressions.Balance));
+        
+        var ifNotExistsMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.IfNotExists))
+            .Where(m => m.IsGenericMethod)
+            .Where(m => m.GetParameters().Length == 2)
+            .Where(m => !m.GetParameters()[0].ParameterType.GetGenericArguments()[0].IsGenericType || 
+                       m.GetParameters()[0].ParameterType.GetGenericArguments()[0].GetGenericTypeDefinition() != typeof(Nullable<>))
+            .Single()
+            .MakeGenericMethod(typeof(decimal));
+        var ifNotExistsCall = Expression.Call(ifNotExistsMethod, balanceProperty, Expression.Constant(0m));
+        
+        // Add: IfNotExists(0m) + 50.25m
+        var addExpression = Expression.Add(ifNotExistsCall, Expression.Constant(50.25m));
+        
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Balance))!, addExpression);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = if_not_exists(#attr0, :p0) + :p1");
+        context.AttributeNames.AttributeNames["#attr0"].Should().Be("balance");
+        context.AttributeValues.AttributeValues[":p0"].N.Should().Be("0");
+        context.AttributeValues.AttributeValues[":p1"].N.Should().Be("50.25");
+    }
+
+    [Fact]
+    public void TranslateUpdateExpression_IfNotExistsWithNonZeroDefault_ShouldUseCorrectDefaultValue()
+    {
+        // Arrange - common pattern: initialize counter to 100 if doesn't exist, then increment
+        var translator = CreateTranslator();
+        var context = CreateContext(CreateTestMetadata());
+        
+        // Build expression: x => new TestUpdateModel { Count = x.Count.IfNotExists(100) + 1 }
+        var parameter = Expression.Parameter(typeof(TestUpdateExpressions), "x");
+        var countProperty = Expression.Property(parameter, nameof(TestUpdateExpressions.Count));
+        
+        var ifNotExistsMethod = typeof(UpdateExpressionPropertyExtensions)
+            .GetMethods()
+            .Where(m => m.Name == nameof(UpdateExpressionPropertyExtensions.IfNotExists))
+            .Where(m => m.IsGenericMethod)
+            .Where(m => m.GetParameters().Length == 2)
+            .Where(m => !m.GetParameters()[0].ParameterType.GetGenericArguments()[0].IsGenericType || 
+                       m.GetParameters()[0].ParameterType.GetGenericArguments()[0].GetGenericTypeDefinition() != typeof(Nullable<>))
+            .Single()
+            .MakeGenericMethod(typeof(int));
+        var ifNotExistsCall = Expression.Call(ifNotExistsMethod, countProperty, Expression.Constant(100));
+        
+        var addExpression = Expression.Add(ifNotExistsCall, Expression.Constant(1));
+        
+        var binding = Expression.Bind(typeof(TestUpdateModel).GetProperty(nameof(TestUpdateModel.Count))!, addExpression);
+        var memberInit = Expression.MemberInit(Expression.New(typeof(TestUpdateModel)), binding);
+        var lambda = Expression.Lambda<Func<TestUpdateExpressions, TestUpdateModel>>(memberInit, parameter);
+
+        // Act
+        var result = translator.TranslateUpdateExpression(lambda, context);
+
+        // Assert
+        result.Should().Be("SET #attr0 = if_not_exists(#attr0, :p0) + :p1");
+        context.AttributeValues.AttributeValues[":p0"].N.Should().Be("100"); // Default value
+        context.AttributeValues.AttributeValues[":p1"].N.Should().Be("1");   // Increment value
+    }
+
     #endregion
 
     #region Format String Application

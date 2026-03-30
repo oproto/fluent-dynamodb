@@ -33,7 +33,7 @@ public class S2GsiEdgeCaseIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Table wrapper for GSI-based spatial queries with very low precision (level 8).
     /// </summary>
-    private class S2StoreGsiTable : DynamoDbTableBase
+    private class S2StoreGsiTable : GenericTable
     {
         public DynamoDbIndex LocationIndex { get; }
         

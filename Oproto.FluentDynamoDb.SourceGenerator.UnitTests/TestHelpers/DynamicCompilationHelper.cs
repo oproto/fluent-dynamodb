@@ -129,6 +129,8 @@ public static class DynamicCompilationHelper
         
         // AWS SDK references
         references.Add(CreateReferenceFromType(typeof(Amazon.DynamoDBv2.Model.AttributeValue)));
+        references.Add(CreateReferenceFromType(typeof(Amazon.DynamoDBv2.IAmazonDynamoDB)));
+        references.Add(CreateReferenceFromType(typeof(Amazon.Runtime.AmazonWebServiceRequest)));
         
         // FluentDynamoDb library references
         references.Add(CreateReferenceFromType(typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute)));

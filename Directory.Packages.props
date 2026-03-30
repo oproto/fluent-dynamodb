@@ -1,0 +1,58 @@
+<Project>
+  <!-- 
+    Central Package Management (CPM) - All package versions are defined here.
+    Individual .csproj files should use <PackageReference Include="..." /> without Version attribute.
+    See: https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management
+  -->
+  
+  <!-- AWS SDK Packages -->
+  <ItemGroup>
+    <PackageVersion Include="AWSSDK.DynamoDBv2" Version="[4.0.0,5.0.0)" />
+    <PackageVersion Include="AWSSDK.S3" Version="[4.0.0,5.0.0)" />
+    <PackageVersion Include="AWSSDK.KeyManagementService" Version="[4.0.0,5.0.0)" />
+    <PackageVersion Include="AWS.Cryptography.EncryptionSDK" Version="[4.0.0,5.0.0)" />
+    <PackageVersion Include="Amazon.Lambda.DynamoDBEvents" Version="[3.1.1,4.0.0)" />
+  </ItemGroup>
+  
+  <!-- Microsoft Packages - Version ranges support .NET 8.x through 10.x -->
+  <ItemGroup>
+    <PackageVersion Include="System.Text.Json" Version="[8.0.0,11.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="[8.0.0,11.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="[8.0.0,11.0.0)" />
+  </ItemGroup>
+  
+  <!-- Source Generator Dependencies -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+  </ItemGroup>
+  
+  <!-- Serialization Packages -->
+  <ItemGroup>
+    <PackageVersion Include="Newtonsoft.Json" Version="[13.0.3,14.0.0)" />
+    <PackageVersion Include="FluentResults" Version="[4.0.0,5.0.0)" />
+  </ItemGroup>
+  
+  <!-- Test Framework Packages -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+  
+  <!-- Test Utility Packages -->
+  <ItemGroup>
+    <PackageVersion Include="AwesomeAssertions" Version="9.3.0" />
+    <PackageVersion Include="FsCheck" Version="2.16.6" />
+    <PackageVersion Include="FsCheck.Xunit" Version="2.16.6" />
+    <PackageVersion Include="NSubstitute" Version="5.3.0" />
+  </ItemGroup>
+  
+  <!-- Geospatial Test Packages -->
+  <ItemGroup>
+    <PackageVersion Include="H3Lib" Version="3.7.2" />
+    <PackageVersion Include="S2Geometry" Version="1.0.3" />
+  </ItemGroup>
+  
+</Project>

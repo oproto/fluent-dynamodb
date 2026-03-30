@@ -40,7 +40,7 @@ public class RequireWriteTransactionValidationTests
             => new() { ["pk"] = new AttributeValue { S = (entity as TransactionRequiredEntity)?.Id ?? string.Empty } };
         
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
-            where TSelf : IDynamoDbEntity 
+            where TSelf : IReadOnlyEntity 
             => (TSelf)(object)new TransactionRequiredEntity();
         
         public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) 
@@ -78,7 +78,7 @@ public class RequireWriteTransactionValidationTests
             => new() { ["pk"] = new AttributeValue { S = (entity as NormalEntity)?.Id ?? string.Empty } };
         
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
-            where TSelf : IDynamoDbEntity 
+            where TSelf : IReadOnlyEntity 
             => (TSelf)(object)new NormalEntity();
         
         public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) 

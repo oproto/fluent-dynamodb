@@ -27,6 +27,9 @@ internal class ComplexTypeAnalyzer
         info.IsMap = IsMapType(property, semanticModel);
         info.IsSet = IsSetType(property, semanticModel);
         info.IsList = IsListType(property, semanticModel);
+        
+        // Detect List<T> with [DynamoDbMap] - these are lists of nested entities
+        info.IsListOfMaps = IsListOfMapsType(property, semanticModel);
 
         // Detect special attributes
         info.IsTtl = HasAttribute(property, "TimeToLiveAttribute");
@@ -39,7 +42,7 @@ internal class ComplexTypeAnalyzer
         info.BlobDataInnerType = blobStorageConfig.InnerType;
 
         // Extract element type for collections
-        if (info.IsSet || info.IsList)
+        if (info.IsSet || info.IsList || info.IsListOfMaps)
         {
             info.ElementType = ExtractElementType(property.PropertyType);
         }
@@ -121,6 +124,7 @@ internal class ComplexTypeAnalyzer
 
     /// <summary>
     /// Determines if a property is a Map type (Dictionary or custom object with [DynamoDbMap]).
+    /// Note: List<T> with [DynamoDbMap] is NOT a map type - it's a list of maps.
     /// </summary>
     private bool IsMapType(PropertyModel property, SemanticModel semanticModel)
     {
@@ -134,12 +138,44 @@ internal class ComplexTypeAnalyzer
         }
 
         // Check for custom class with [DynamoDbMap] attribute
+        // BUT exclude List<T> types - those are lists of maps, not maps themselves
         if (HasAttribute(property, "DynamoDbMapAttribute"))
         {
+            // If it's a List<T>, it's not a map type - it's a list of maps
+            if (propertyType.StartsWith("List<") || 
+                propertyType.StartsWith("System.Collections.Generic.List<") ||
+                propertyType.StartsWith("IList<") ||
+                propertyType.StartsWith("ICollection<") ||
+                propertyType.StartsWith("IEnumerable<"))
+            {
+                return false;
+            }
             return true;
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Determines if a property is a List of nested entities with [DynamoDbMap] attribute.
+    /// These are serialized as DynamoDB List (L) containing Map (M) elements.
+    /// </summary>
+    private bool IsListOfMapsType(PropertyModel property, SemanticModel semanticModel)
+    {
+        var propertyType = property.PropertyType;
+
+        // Must be a List<T> type
+        if (!propertyType.StartsWith("List<") && 
+            !propertyType.StartsWith("System.Collections.Generic.List<") &&
+            !propertyType.StartsWith("IList<") &&
+            !propertyType.StartsWith("ICollection<") &&
+            !propertyType.StartsWith("IEnumerable<"))
+        {
+            return false;
+        }
+
+        // Must have [DynamoDbMap] attribute
+        return HasAttribute(property, "DynamoDbMapAttribute");
     }
 
     /// <summary>
