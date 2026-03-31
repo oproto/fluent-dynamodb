@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Oproto.FluentDynamoDb.SourceGenerator.Analysis;
+using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Analysis;
 
@@ -130,21 +131,13 @@ namespace TestNamespace
     private static (ClassDeclarationSyntax, SemanticModel) ParseSource(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = new[]
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-        };
-
-        // Add reference to the attributes assembly
-        var attributesAssembly = typeof(Oproto.FluentDynamoDb.Attributes.DynamoDbTableAttribute).Assembly;
-        var attributesReference = MetadataReference.CreateFromFile(attributesAssembly.Location);
+        var references = DynamicCompilationHelper.GetStandardReferences()
+            .Concat(DynamicCompilationHelper.GetFluentDynamoDbReferences());
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] { syntaxTree },
-            references.Append(attributesReference),
+            references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
