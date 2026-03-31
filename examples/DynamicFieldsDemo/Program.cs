@@ -411,11 +411,13 @@ static async Task RemoveDynamicFieldAsync(ProductsTable table)
         return;
     }
 
-    // Create a DynamicFieldCollection with the removal tracked
-    var changes = new DynamicFieldCollection();
-    changes.Remove(fieldName);
+    // Remove the field from the loaded entity's DynamicFields (change tracking records the removal)
+    product.DynamicFields.Remove(fieldName);
 
-    // Update using the DynamicFields property on the update model
+    // Evaluate ChangesOnly() outside the expression tree to avoid CS0854 (optional arguments)
+    var changes = product.DynamicFields.ChangesOnly();
+
+    // Update using the changes which includes tracked removals as REMOVE clauses
     await table.Products.Update(pk, "META")
         .Set(x => new ProductUpdateModel { DynamicFields = changes })
         .UpdateAsync();

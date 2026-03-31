@@ -210,9 +210,9 @@ static async Task ScanItemsAsync(DynamicTable table)
     {
         var filterValue = ConsoleHelpers.GetInput($"Filter value for '{filterField}'") ?? string.Empty;
         
-        // Scan with filter using format string
+        // Scan with filter using lambda expression with DynamicFields indexer
         items = await table.Scan()
-            .WithFilter("{0} = {1}", filterField, filterValue)
+            .WithFilter(x => x.DynamicFields[filterField] == filterValue)
             .ToListAsync();
     }
     else
@@ -266,10 +266,14 @@ static async Task UpdateItemAsync(DynamicTable table)
     var newValue = ConsoleHelpers.GetInput($"Enter new value for '{fieldName}'");
     if (string.IsNullOrWhiteSpace(newValue)) return;
     
-    // Update using the builder pattern with format string
+    // Update using a single Set call with both fields combined
+    // Format string {n} placeholders are for values only; field names must use #attribute syntax
     await table.Update(pk, sk)
-        .Set("{0} = {1}", fieldName, newValue)
-        .Set("updatedAt = {0}", DateTime.UtcNow.ToString("o"))
+        .Set("SET #field = :val, #updatedAt = :ts")
+        .WithAttribute("#field", fieldName)
+        .WithAttribute("#updatedAt", "updatedAt")
+        .WithValue(":val", newValue)
+        .WithValue(":ts", DateTime.UtcNow.ToString("o"))
         .UpdateAsync();
     
     ConsoleHelpers.ShowSuccess("Item updated successfully");
