@@ -31,7 +31,7 @@ public class TransactionComparison
 
     public async Task<TransactionResult> ExecuteFluentTransactionAsync()
     {
-        const int lineCount = 35;
+        const int lineCount = 54;
         var stopwatch = Stopwatch.StartNew();
 
         try
@@ -88,7 +88,7 @@ public class TransactionComparison
 
     public async Task<TransactionResult> ExecuteRawSdkTransactionAsync()
     {
-        const int lineCount = 95;
+        const int lineCount = 79;
         var stopwatch = Stopwatch.StartNew();
 
         try
