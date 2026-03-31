@@ -21,7 +21,7 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 /// <item>Never hardcode KMS key ARNs in source code</item>
 /// <item>Use key commitment algorithms (default) to prevent key substitution attacks</item>
 /// <item>Use encryption context for audit trails in CloudTrail</item>
-/// <item>If using data key caching, ensure your cache implementation is secure</item>
+/// <item>Consider the AWS KMS Hierarchical Keyring for data key caching scenarios</item>
 /// </list>
 /// </remarks>
 /// <example>
@@ -30,8 +30,7 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 /// var options = new AwsEncryptionSdkOptions
 /// {
 ///     DefaultKeyId = configuration["Kms:DefaultKeyArn"],
-///     EnableCaching = true,
-///     DefaultCacheTtlSeconds = 300
+///     EnableCaching = true
 /// };
 /// </code>
 /// </example>
@@ -46,10 +45,7 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 ///         ["tenant-a"] = configuration["Kms:TenantA:KeyArn"],
 ///         ["tenant-b"] = configuration["Kms:TenantB:KeyArn"]
 ///     },
-///     EnableCaching = true,
-///     DefaultCacheTtlSeconds = 300,
-///     MaxMessagesPerDataKey = 100,
-///     MaxBytesPerDataKey = 100 * 1024 * 1024
+///     EnableCaching = true
 /// };
 /// </code>
 /// </example>
@@ -110,59 +106,6 @@ public sealed class AwsEncryptionSdkOptions
     /// </para>
     /// </remarks>
     public bool EnableCaching { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets the default cache TTL (time-to-live) for data keys in seconds.
-    /// Default is 300 seconds (5 minutes).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <strong>Note:</strong> This property is retained for API compatibility but is not used
-    /// by the AWS Encryption SDK for .NET, which does not support data key caching.
-    /// </para>
-    /// </remarks>
-    [Obsolete("The AWS Encryption SDK for .NET does not support data key caching. This property is retained for API compatibility only.")]
-    public int DefaultCacheTtlSeconds { get; set; } = 300;
-
-    /// <summary>
-    /// Gets or sets the maximum number of messages that can be encrypted with a single data key.
-    /// Default is 100.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <strong>Note:</strong> This property is retained for API compatibility but is not used
-    /// by the AWS Encryption SDK for .NET, which does not support data key caching.
-    /// </para>
-    /// </remarks>
-    [Obsolete("The AWS Encryption SDK for .NET does not support data key caching. This property is retained for API compatibility only.")]
-    public int MaxMessagesPerDataKey { get; set; } = 100;
-
-    /// <summary>
-    /// Gets or sets the maximum number of bytes that can be encrypted with a single data key.
-    /// Default is 104,857,600 bytes (100 MB).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <strong>Note:</strong> This property is retained for API compatibility but is not used
-    /// by the AWS Encryption SDK for .NET, which does not support data key caching.
-    /// </para>
-    /// </remarks>
-    [Obsolete("The AWS Encryption SDK for .NET does not support data key caching. This property is retained for API compatibility only.")]
-    public long MaxBytesPerDataKey { get; set; } = 100 * 1024 * 1024; // 100 MB
-
-    /// <summary>
-    /// Gets or sets the maximum number of entries in the keyring cache.
-    /// Default is 1000.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <strong>Note:</strong> This property is retained for API compatibility but is not used
-    /// by the AWS Encryption SDK for .NET, which does not support data key caching.
-    /// The keyring cache uses a ConcurrentDictionary which grows as needed.
-    /// </para>
-    /// </remarks>
-    [Obsolete("The AWS Encryption SDK for .NET does not support data key caching. This property is retained for API compatibility only.")]
-    public int CacheEntryCapacity { get; set; } = 1000;
 
     /// <summary>
     /// Gets or sets the algorithm suite identifier to use for encryption.

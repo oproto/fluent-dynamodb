@@ -10,7 +10,7 @@ This package provides transparent field-level encryption for DynamoDB entities u
 - 🔐 **AWS KMS Integration** - Industry-standard encryption using AWS Key Management Service
 - 🔄 **Transparent Encryption/Decryption** - Automatic encryption on write, decryption on read
 - 🏢 **Multi-Tenant Support** - Different encryption keys per tenant/customer/context
-- ⚡ **Data Key Caching** - Minimize KMS API calls with configurable caching
+- ⚡ **Keyring Caching** - Reduce object creation overhead with cached keyrings
 - 🛡️ **AWS Encryption SDK** - Battle-tested encryption library with key commitment
 - 📊 **CloudTrail Integration** - Audit trail of encryption operations
 - 🔗 **Blob Storage Support** - Integrate with external storage for large encrypted fields
@@ -82,8 +82,7 @@ var keyResolver = new DefaultKmsKeyResolver(
 var options = new AwsEncryptionSdkOptions
 {
     DefaultKeyId = configuration["Kms:DefaultKeyArn"],
-    EnableCaching = true,
-    DefaultCacheTtlSeconds = 300  // 5 minutes
+    EnableCaching = true
 };
 
 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -120,17 +119,8 @@ var options = new AwsEncryptionSdkOptions
         ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b"
     },
     
-    // Enable data key caching (recommended)
+    // Enable keyring caching (recommended)
     EnableCaching = true,
-    
-    // Cache TTL for data keys (seconds)
-    DefaultCacheTtlSeconds = 300,  // 5 minutes
-    
-    // Maximum messages encrypted with a single data key
-    MaxMessagesPerDataKey = 100,
-    
-    // Maximum bytes encrypted with a single data key
-    MaxBytesPerDataKey = 100 * 1024 * 1024,  // 100 MB
     
     // Algorithm suite (default uses key commitment)
     Algorithm = CryptoAlgorithm.AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384,
@@ -260,8 +250,7 @@ When `EnableCaching` is set to `true`, keyrings are cached to reduce object crea
 ```csharp
 var options = new AwsEncryptionSdkOptions
 {
-    EnableCaching = true,  // Enable keyring caching
-    DefaultCacheTtlSeconds = 300  // Configuration option (for future use)
+    EnableCaching = true  // Enable keyring caching
 };
 ```
 
@@ -531,9 +520,8 @@ dotnet add package Oproto.FluentDynamoDb.Encryption.Kms
 
 **Solutions:**
 1. Enable caching: `EnableCaching = true`
-2. Increase cache TTL: `DefaultCacheTtlSeconds = 600`
-3. Reduce encrypted field count
-4. Monitor KMS API calls in CloudWatch
+2. Reduce encrypted field count
+3. Monitor KMS API calls in CloudWatch
 
 ## Examples
 

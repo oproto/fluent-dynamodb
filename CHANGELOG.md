@@ -1374,6 +1374,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **AwsEncryptionSdkOptions Data Key Caching Properties** - Removed non-functional properties from `AwsEncryptionSdkOptions`
+  - Removed `DefaultCacheTtlSeconds`, `MaxMessagesPerDataKey`, `MaxBytesPerDataKey`, and `CacheEntryCapacity`
+  - The AWS Encryption SDK for .NET does not support data key caching; these properties had no effect
+  - `EnableCaching` (keyring object caching) and `Algorithm` properties are retained
+  - `EncryptedAttribute.CacheTtlSeconds` and `FieldEncryptionContext.CacheTtlSeconds` on the core library interface are unchanged
+
 ### Fixed
 - **GeoHash Query Bug** - Fixed interpolated string bug in GeoHash BETWEEN queries
   - Changed `$"geohash_cell BETWEEN {0} AND {1}"` to `"geohash_cell BETWEEN {0} AND {1}"` in StoreLocator example

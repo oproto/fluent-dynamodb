@@ -57,6 +57,57 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-03-31]
+
+### File: docs/advanced-topics/FieldLevelSecurity.md
+
+**Category:** API Correction
+
+**Before:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true,
+    DefaultCacheTtlSeconds = 300,  // 5 minutes
+    MaxMessagesPerDataKey = 100,
+    MaxBytesPerDataKey = 100 * 1024 * 1024  // 100 MB
+};
+```
+
+**After:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true
+};
+```
+
+**Reason:** Removed `DefaultCacheTtlSeconds`, `MaxMessagesPerDataKey`, `MaxBytesPerDataKey`, and `CacheEntryCapacity` properties from `AwsEncryptionSdkOptions`. The AWS Encryption SDK for .NET does not support data key caching, so these properties were non-functional. Since the API is unreleased, they were removed entirely rather than deprecated. The `AwsEncryptionSdkOptions` API reference section was also updated to reflect the current class shape. The `EncryptedAttribute.CacheTtlSeconds` doc comment was updated to remove the reference to the deleted `AwsEncryptionSdkOptions.DefaultCacheTtlSeconds`. Troubleshooting section updated to remove suggestion to increase `DefaultCacheTtlSeconds`.
+
+### File: docs/core-features/Configuration.md
+
+**Category:** API Correction
+
+**Before:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true,
+    DefaultCacheTtlSeconds = 300,
+    MaxMessagesPerDataKey = 1000
+};
+```
+
+**After:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true
+};
+```
+
+**Reason:** Same as above — removed references to deleted `AwsEncryptionSdkOptions` properties.
+
 ## [2026-01-20]
 
 ### Fresh Start - External Sources Synchronized

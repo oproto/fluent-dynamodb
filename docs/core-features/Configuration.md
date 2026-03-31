@@ -189,9 +189,7 @@ var table = new SecretsTable(client, "secrets", options);
 ```csharp
 var encryptorOptions = new AwsEncryptionSdkOptions
 {
-    EnableCaching = true,
-    DefaultCacheTtlSeconds = 300,
-    MaxMessagesPerDataKey = 1000
+    EnableCaching = true
 };
 
 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, encryptorOptions);
