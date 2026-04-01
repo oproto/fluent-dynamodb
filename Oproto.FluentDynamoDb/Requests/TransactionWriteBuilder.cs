@@ -25,6 +25,7 @@ public class TransactionWriteBuilder
 {
     private readonly List<TransactWriteItem> _items = new();
     private readonly List<ITransactableUpdateBuilder> _updateBuilders = new(); // Store update builders for encryption
+    private readonly List<(int itemIndex, Func<CancellationToken, Task> resolver)> _deferredPutResolvers = new(); // Store deferred put builders for encryption
     private IAmazonDynamoDB? _client;
     private IAmazonDynamoDB? _explicitClient;
     private ReturnConsumedCapacity? _returnConsumedCapacity;
@@ -52,19 +53,54 @@ public class TransactionWriteBuilder
         InferClientIfNeeded(builder);
         InferOptionsIfNeeded(builder);
         
-        var item = new TransactWriteItem
-        {
-            Put = new Put
-            {
-                TableName = ((ITransactablePutBuilder)builder).GetTableName(),
-                Item = ((ITransactablePutBuilder)builder).GetItem(),
-                ConditionExpression = ((ITransactablePutBuilder)builder).GetConditionExpression(),
-                ExpressionAttributeNames = ((ITransactablePutBuilder)builder).GetExpressionAttributeNames(),
-                ExpressionAttributeValues = ((ITransactablePutBuilder)builder).GetExpressionAttributeValues()
-            }
-        };
+        var putBuilder = (ITransactablePutBuilder)builder;
         
-        _items.Add(item);
+        if (builder.HasDeferredEntity)
+        {
+            // Deferred serialization: store placeholder and resolve during ExecuteAsync
+            var itemIndex = _items.Count;
+            var item = new TransactWriteItem
+            {
+                Put = new Put
+                {
+                    TableName = putBuilder.GetTableName(),
+                    ConditionExpression = putBuilder.GetConditionExpression(),
+                    ExpressionAttributeNames = putBuilder.GetExpressionAttributeNames(),
+                    ExpressionAttributeValues = putBuilder.GetExpressionAttributeValues()
+                }
+            };
+            _items.Add(item);
+            
+            _deferredPutResolvers.Add((itemIndex, async (ct) =>
+            {
+                var options = builder.GetOptions();
+                var hydrator = options.HydratorRegistry?.GetHydrator<TEntity>();
+                var entity = builder.GetDeferredEntity();
+                if (hydrator != null && entity != null)
+                {
+                    var blobProvider = options.BlobStorageProvider;
+                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct);
+                    builder.SetResolvedItem(serialized);
+                    _items[itemIndex].Put.Item = serialized;
+                }
+            }));
+        }
+        else
+        {
+            var item = new TransactWriteItem
+            {
+                Put = new Put
+                {
+                    TableName = putBuilder.GetTableName(),
+                    Item = putBuilder.GetItem(),
+                    ConditionExpression = putBuilder.GetConditionExpression(),
+                    ExpressionAttributeNames = putBuilder.GetExpressionAttributeNames(),
+                    ExpressionAttributeValues = putBuilder.GetExpressionAttributeValues()
+                }
+            };
+            _items.Add(item);
+        }
+        
         return this;
     }
 
@@ -451,6 +487,15 @@ public class TransactionWriteBuilder
                     $"Transaction execution failed due to field encryption error: {ex.Message} " +
                     $"Review the update operations in this transaction and verify encryption configuration.",
                     ex);
+            }
+        }
+
+        // Resolve deferred put operations (encrypted entities) before building request
+        if (_deferredPutResolvers.Count > 0)
+        {
+            foreach (var (_, resolver) in _deferredPutResolvers)
+            {
+                await resolver(cancellationToken);
             }
         }
 

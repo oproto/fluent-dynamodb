@@ -75,6 +75,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     private TEntity? _entity;
+    private bool _hasDeferredEntity;
     private KeyCondition _keyCondition = KeyCondition.None;
 
     /// <summary>
@@ -109,6 +110,29 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// </summary>
     /// <returns>The FluentDynamoDbOptions instance used by this builder.</returns>
     public FluentDynamoDbOptions GetOptions() => _options;
+
+    /// <summary>
+    /// Gets whether this builder has a deferred entity that requires async serialization.
+    /// When true, the entity must be serialized via the hydrator registry before building the request.
+    /// </summary>
+    public bool HasDeferredEntity => _hasDeferredEntity;
+
+    /// <summary>
+    /// Gets the deferred entity that needs async serialization, or null if no entity is deferred.
+    /// </summary>
+    /// <returns>The deferred entity, or null.</returns>
+    public TEntity? GetDeferredEntity() => _hasDeferredEntity ? _entity : null;
+
+    /// <summary>
+    /// Sets the serialized item dictionary after async serialization has been resolved.
+    /// Called by PutAsync and other async execution methods after resolving deferred serialization.
+    /// </summary>
+    /// <param name="item">The serialized DynamoDB attribute dictionary.</param>
+    public void SetResolvedItem(Dictionary<string, AttributeValue> item)
+    {
+        _req.Item = item;
+        _hasDeferredEntity = false;
+    }
 
     /// <summary>
     /// Replaces the DynamoDB client used for executing this request.
@@ -368,6 +392,9 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// <summary>
     /// Sets the item to put using an entity instance.
     /// The entity is automatically mapped to DynamoDB attributes using the generated mapper.
+    /// For entities with a registered hydrator (e.g., encrypted entities), serialization is
+    /// deferred to async execution time. For non-encrypted entities, serialization happens
+    /// synchronously at configuration time.
     /// </summary>
     /// <param name="entity">The entity instance to put.</param>
     /// <returns>The builder instance for method chaining.</returns>
@@ -382,7 +409,31 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     public PutItemRequestBuilder<TEntity> WithItem(TEntity entity)
     {
         _entity = entity;
-        _req.Item = TEntity.ToDynamoDb(entity, _options);
+
+        // Check if the entity has a hydrator registered (indicating async serialization is needed,
+        // e.g., for encrypted entities). If so, defer serialization to async execution time.
+        var hydrator = _options.HydratorRegistry?.GetHydrator<TEntity>();
+        if (hydrator != null)
+        {
+            // Defer serialization — async execution (PutAsync) will resolve via hydrator
+            _hasDeferredEntity = true;
+            return this;
+        }
+
+        // No hydrator registered — try synchronous serialization.
+        // For encrypted entities whose hydrator hasn't been registered yet,
+        // the generated ToDynamoDb stub throws NotSupportedException.
+        // Catch that and defer serialization to async execution time.
+        try
+        {
+            _req.Item = TEntity.ToDynamoDb(entity, _options);
+        }
+        catch (NotSupportedException)
+        {
+            // Entity requires async serialization (e.g., encryption) — defer to PutAsync
+            _hasDeferredEntity = true;
+        }
+
         return this;
     }
 
@@ -415,6 +466,15 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     {
         // Apply key condition before building the request
         ApplyKeyCondition();
+
+        // If the entity requires async serialization (deferred) and hasn't been resolved yet,
+        // throw to indicate that async execution is required
+        if (_hasDeferredEntity && _req.Item == null)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' requires async serialization (e.g., encryption). " +
+                "Use PutAsync() or resolve the deferred entity via the hydrator registry before calling ToPutItemRequest().");
+        }
         
         if (_attrN.AttributeNames.Count > 0)
         {
@@ -429,7 +489,16 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
 
     // ITransactablePutBuilder implementation
     string ITransactablePutBuilder.GetTableName() => _req.TableName;
-    Dictionary<string, AttributeValue> ITransactablePutBuilder.GetItem() => _req.Item;
+    Dictionary<string, AttributeValue> ITransactablePutBuilder.GetItem()
+    {
+        if (_hasDeferredEntity && _req.Item == null)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' requires async serialization (e.g., encryption). " +
+                "Resolve the deferred entity via the hydrator registry before calling GetItem().");
+        }
+        return _req.Item;
+    }
     string? ITransactablePutBuilder.GetConditionExpression()
     {
         // Apply key condition before returning the condition expression
@@ -460,6 +529,18 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
             throw new InvalidOperationException(
                 $"Entity '{typeof(TEntity).Name}' is marked with [RequireWriteTransaction] and cannot be modified " +
                 "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
+        }
+        
+        // Resolve deferred async serialization for encrypted entities before building the request
+        if (_hasDeferredEntity)
+        {
+            var hydrator = _options.HydratorRegistry?.GetHydrator<TEntity>();
+            if (hydrator != null && _entity != null)
+            {
+                var blobProvider = _options.BlobStorageProvider;
+                var item = await hydrator.SerializeAsync(_entity, blobProvider, _options, cancellationToken);
+                SetResolvedItem(item);
+            }
         }
         
         var request = ToPutItemRequest();

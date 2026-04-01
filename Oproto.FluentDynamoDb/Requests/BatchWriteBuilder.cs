@@ -24,6 +24,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 public class BatchWriteBuilder
 {
     private readonly Dictionary<string, List<WriteRequest>> _requestItems = new();
+    private readonly List<(string tableName, int requestIndex, Func<CancellationToken, Task> resolver)> _deferredPutResolvers = new();
     private IAmazonDynamoDB? _client;
     private IAmazonDynamoDB? _explicitClient;
     private ReturnConsumedCapacity? _returnConsumedCapacity;
@@ -67,16 +68,43 @@ public class BatchWriteBuilder
             _requestItems[tableName] = new List<WriteRequest>();
         }
         
-        // Add put request (ignore condition expressions - not supported in batch)
-        var writeRequest = new WriteRequest
+        if (builder.HasDeferredEntity)
         {
-            PutRequest = new PutRequest
+            // Deferred serialization: store placeholder and resolve during ExecuteAsync
+            var writeRequest = new WriteRequest
             {
-                Item = putBuilder.GetItem()
-            }
-        };
+                PutRequest = new PutRequest()
+            };
+            var requestIndex = _requestItems[tableName].Count;
+            _requestItems[tableName].Add(writeRequest);
+            
+            _deferredPutResolvers.Add((tableName, requestIndex, async (ct) =>
+            {
+                var options = builder.GetOptions();
+                var hydrator = options.HydratorRegistry?.GetHydrator<TEntity>();
+                var entity = builder.GetDeferredEntity();
+                if (hydrator != null && entity != null)
+                {
+                    var blobProvider = options.BlobStorageProvider;
+                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct);
+                    builder.SetResolvedItem(serialized);
+                    _requestItems[tableName][requestIndex].PutRequest.Item = serialized;
+                }
+            }));
+        }
+        else
+        {
+            // Non-deferred: serialize synchronously as before
+            var writeRequest = new WriteRequest
+            {
+                PutRequest = new PutRequest
+                {
+                    Item = putBuilder.GetItem()
+                }
+            };
+            _requestItems[tableName].Add(writeRequest);
+        }
         
-        _requestItems[tableName].Add(writeRequest);
         return this;
     }
 
@@ -340,6 +368,15 @@ public class BatchWriteBuilder
             ReturnConsumedCapacity = _returnConsumedCapacity,
             ReturnItemCollectionMetrics = _returnItemCollectionMetrics
         };
+
+        // Resolve deferred put operations (encrypted entities) before executing
+        if (_deferredPutResolvers.Count > 0)
+        {
+            foreach (var (_, _, resolver) in _deferredPutResolvers)
+            {
+                await resolver(cancellationToken);
+            }
+        }
 
         // Handle blob storage if configured
         var strategy = _options?.BlobStorageStrategy;

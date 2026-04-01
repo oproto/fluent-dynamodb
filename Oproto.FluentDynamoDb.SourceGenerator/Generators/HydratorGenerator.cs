@@ -23,17 +23,18 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
 internal static class HydratorGenerator
 {
     /// <summary>
-    /// Determines if an entity requires a hydrator (has blob storage properties).
+    /// Determines if an entity requires a hydrator (has blob storage or encrypted properties).
     /// </summary>
     /// <param name="entity">The entity model to check.</param>
-    /// <returns>True if the entity has blob storage properties, false otherwise.</returns>
+    /// <returns>True if the entity has blob storage or encrypted properties, false otherwise.</returns>
     public static bool RequiresHydrator(EntityModel entity)
     {
-        return entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        return entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true)
+            || entity.Properties.Any(p => p.Security?.IsEncrypted == true);
     }
 
     /// <summary>
-    /// Generates the IAsyncEntityHydrator implementation for an entity with blob references.
+    /// Generates the IAsyncEntityHydrator implementation for an entity with blob references or encrypted properties.
     /// </summary>
     /// <param name="entity">The entity model to generate the hydrator for.</param>
     /// <returns>The generated C# source code, or null if the entity doesn't require a hydrator.</returns>
@@ -68,7 +69,7 @@ internal static class HydratorGenerator
         // Hydrator class
         sb.AppendLine($"    /// <summary>");
         sb.AppendLine($"    /// Generated IAsyncEntityHydrator implementation for {entity.ClassName}.");
-        sb.AppendLine($"    /// Provides AOT-compatible async entity hydration with blob storage support.");
+        sb.AppendLine($"    /// Provides AOT-compatible async entity hydration with blob storage and/or encryption support.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    public sealed class {entity.ClassName}Hydrator : IAsyncEntityHydrator<{entity.ClassName}>");
         sb.AppendLine("    {");
@@ -108,6 +109,8 @@ internal static class HydratorGenerator
 
     private static void GenerateHydrateAsyncSingleMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Hydrates a {entity.ClassName} from DynamoDB attributes, loading blob references.");
         sb.AppendLine($"        /// </summary>");
@@ -123,12 +126,26 @@ internal static class HydratorGenerator
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
         sb.AppendLine($"            ArgumentNullException.ThrowIfNull(item);");
-        sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+
+        if (hasBlobStorage)
+        {
+            sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+        }
+
         sb.AppendLine();
         sb.AppendLine($"            // Delegate to the generated FromDynamoDbAsync method on the entity");
         sb.AppendLine($"            return await {entity.ClassName}.FromDynamoDbAsync<{entity.ClassName}>(");
         sb.AppendLine($"                item,");
-        sb.AppendLine($"                blobProvider,");
+
+        if (hasBlobStorage)
+        {
+            sb.AppendLine($"                blobProvider,");
+        }
+        else
+        {
+            sb.AppendLine($"                null!,");
+        }
+
         sb.AppendLine($"                options?.FieldEncryptor,");
         sb.AppendLine($"                options,");
         sb.AppendLine($"                cancellationToken);");
@@ -138,6 +155,8 @@ internal static class HydratorGenerator
 
     private static void GenerateHydrateAsyncMultiMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Hydrates a {entity.ClassName} from multiple DynamoDB items (composite entities).");
         sb.AppendLine($"        /// </summary>");
@@ -153,7 +172,12 @@ internal static class HydratorGenerator
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
         sb.AppendLine($"            ArgumentNullException.ThrowIfNull(items);");
-        sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+
+        if (hasBlobStorage)
+        {
+            sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+        }
+
         sb.AppendLine();
         sb.AppendLine($"            if (items.Count == 0)");
         sb.AppendLine("            {");
@@ -163,7 +187,16 @@ internal static class HydratorGenerator
         sb.AppendLine($"            // Delegate to the generated FromDynamoDbAsync method on the entity");
         sb.AppendLine($"            return await {entity.ClassName}.FromDynamoDbAsync<{entity.ClassName}>(");
         sb.AppendLine($"                items,");
-        sb.AppendLine($"                blobProvider,");
+
+        if (hasBlobStorage)
+        {
+            sb.AppendLine($"                blobProvider,");
+        }
+        else
+        {
+            sb.AppendLine($"                null!,");
+        }
+
         sb.AppendLine($"                options?.FieldEncryptor,");
         sb.AppendLine($"                options,");
         sb.AppendLine($"                cancellationToken);");
@@ -172,6 +205,8 @@ internal static class HydratorGenerator
 
     private static void GenerateSerializeAsyncMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+
         sb.AppendLine();
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Serializes a {entity.ClassName} to DynamoDB attributes, storing blob references.");
@@ -188,12 +223,26 @@ internal static class HydratorGenerator
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
         sb.AppendLine($"            ArgumentNullException.ThrowIfNull(entity);");
-        sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+
+        if (hasBlobStorage)
+        {
+            sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+        }
+
         sb.AppendLine();
         sb.AppendLine($"            // Delegate to the generated ToDynamoDbAsync method on the entity");
         sb.AppendLine($"            return await {entity.ClassName}.ToDynamoDbAsync(");
         sb.AppendLine($"                entity,");
-        sb.AppendLine($"                blobProvider,");
+
+        if (hasBlobStorage)
+        {
+            sb.AppendLine($"                blobProvider,");
+        }
+        else
+        {
+            sb.AppendLine($"                null!,");
+        }
+
         sb.AppendLine($"                options?.FieldEncryptor,");
         sb.AppendLine($"                options,");
         sb.AppendLine($"                cancellationToken);");

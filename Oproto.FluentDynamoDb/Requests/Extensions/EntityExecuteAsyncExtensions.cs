@@ -1002,6 +1002,20 @@ public static class EntityExecuteAsyncExtensions
     {
         try
         {
+            // Resolve deferred async serialization for encrypted entities before building the request
+            if (builder.HasDeferredEntity)
+            {
+                var options = builder.GetOptions();
+                var hydrator = options.HydratorRegistry?.GetHydrator<T>();
+                if (hydrator != null)
+                {
+                    var entity = builder.GetDeferredEntity()!;
+                    var blobProvider = options.BlobStorageProvider;
+                    var item = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken);
+                    builder.SetResolvedItem(item);
+                }
+            }
+
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToPutItemRequest();
             var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken);

@@ -358,6 +358,10 @@ internal static class MapperGenerator
 
     private static void GenerateToDynamoDbAsyncMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncrypted = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        var isEncryptionOnly = hasEncrypted && !hasBlobStorage;
+
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// High-performance async conversion from entity to DynamoDB AttributeValue dictionary.");
@@ -375,7 +379,9 @@ internal static class MapperGenerator
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"        public static async Task<Dictionary<string, AttributeValue>> ToDynamoDbAsync<TSelf>(");
         sb.AppendLine("            TSelf entity,");
-        sb.AppendLine("            IBlobStorageProvider blobProvider,");
+        sb.AppendLine(isEncryptionOnly
+            ? "            IBlobStorageProvider? blobProvider,"
+            : "            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
         sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
@@ -388,9 +394,14 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (entity is not {entity.ClassName} typedEntity)");
         sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{entity.GetType().Name}}\", nameof(entity));");
         sb.AppendLine();
-        sb.AppendLine("            if (blobProvider == null)");
-        sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
-        sb.AppendLine();
+
+        // Only generate null guard for blobProvider when entity has blob storage properties
+        if (!isEncryptionOnly)
+        {
+            sb.AppendLine("            if (blobProvider == null)");
+            sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
+            sb.AppendLine();
+        }
 
         // Wrap entire mapping operation in try-catch
         sb.AppendLine("            try");
@@ -1907,6 +1918,10 @@ internal static class MapperGenerator
 
     private static void GenerateFromDynamoDbSingleAsyncMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncrypted = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        var isEncryptionOnly = hasEncrypted && !hasBlobStorage;
+
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// High-performance async conversion from DynamoDB item to entity with minimal boxing and allocations.");
@@ -1924,7 +1939,9 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
         sb.AppendLine($"        public static async Task<TSelf> FromDynamoDbAsync<TSelf>(");
         sb.AppendLine("            Dictionary<string, AttributeValue> item,");
-        sb.AppendLine("            IBlobStorageProvider blobProvider,");
+        sb.AppendLine(isEncryptionOnly
+            ? "            IBlobStorageProvider? blobProvider,"
+            : "            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
         sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
@@ -1937,9 +1954,14 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (typeof(TSelf) != typeof({entity.ClassName}))");
         sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{typeof(TSelf).Name}}\");");
         sb.AppendLine();
-        sb.AppendLine("            if (blobProvider == null)");
-        sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
-        sb.AppendLine();
+
+        // Only generate null guard for blobProvider when entity has blob storage properties
+        if (!isEncryptionOnly)
+        {
+            sb.AppendLine("            if (blobProvider == null)");
+            sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
+            sb.AppendLine();
+        }
 
         // Wrap entire mapping operation in try-catch
         sb.AppendLine("            try");
@@ -1993,6 +2015,10 @@ internal static class MapperGenerator
 
     private static void GenerateFromDynamoDbMultiAsyncMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncrypted = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        var isEncryptionOnly = hasEncrypted && !hasBlobStorage;
+
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// Creates an entity instance from multiple DynamoDB items (composite entity support).");
@@ -2011,7 +2037,9 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
         sb.AppendLine($"        public static async Task<TSelf> FromDynamoDbAsync<TSelf>(");
         sb.AppendLine("            IList<Dictionary<string, AttributeValue>> items,");
-        sb.AppendLine("            IBlobStorageProvider blobProvider,");
+        sb.AppendLine(isEncryptionOnly
+            ? "            IBlobStorageProvider? blobProvider,"
+            : "            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
         sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
@@ -2019,9 +2047,14 @@ internal static class MapperGenerator
         sb.AppendLine("            if (items == null || items.Count == 0)");
         sb.AppendLine($"                throw new ArgumentException(\"Items collection cannot be null or empty\", nameof(items));");
         sb.AppendLine();
-        sb.AppendLine("            if (blobProvider == null)");
-        sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
-        sb.AppendLine();
+
+        // Only generate null guard for blobProvider when entity has blob storage properties
+        if (!isEncryptionOnly)
+        {
+            sb.AppendLine("            if (blobProvider == null)");
+            sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
+            sb.AppendLine();
+        }
         sb.AppendLine("            try");
         sb.AppendLine("            {");
 
