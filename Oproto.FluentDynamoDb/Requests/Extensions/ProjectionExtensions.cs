@@ -50,7 +50,7 @@ public static class ProjectionExtensions
             }
 
             // Execute the query
-            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate response metadata
@@ -112,7 +112,7 @@ public static class ProjectionExtensions
             builder = ApplyProjectionIfNeeded<TEntity, TResult>(builder);
 
             // Execute the query
-            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken).ConfigureAwait(false);
 
             // Hydrate results using the interface method
             return HydrateResults<TResult>(response.Items);
@@ -146,7 +146,7 @@ public static class ProjectionExtensions
             builder = ApplyProjectionIfNeeded<TEntity, TResult>(builder);
 
             // Execute the query
-            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken).ConfigureAwait(false);
 
             // Hydrate results with discriminator filtering
             return HydrateDiscriminatedResults<TResult>(response.Items);

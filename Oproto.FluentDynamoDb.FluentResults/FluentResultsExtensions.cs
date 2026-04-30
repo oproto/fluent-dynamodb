@@ -29,7 +29,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var entity = await EntityExecuteAsyncExtensions.GetItemAsync<T>(builder, cancellationToken);
+            var entity = await EntityExecuteAsyncExtensions.GetItemAsync<T>(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok(entity);
         }
         catch (OperationCanceledException)
@@ -61,7 +61,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var entity = await EntityExecuteAsyncExtensions.GetItemAsync<T>(builder, blobProvider, cancellationToken);
+            var entity = await EntityExecuteAsyncExtensions.GetItemAsync<T>(builder, blobProvider, cancellationToken).ConfigureAwait(false);
             return Result.Ok(entity);
         }
         catch (OperationCanceledException)
@@ -90,7 +90,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, cancellationToken);
+            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -122,7 +122,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, blobProvider, cancellationToken);
+            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, blobProvider, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -151,7 +151,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await EntityExecuteAsyncExtensions.ToCompositeEntityListAsync<T>(builder, cancellationToken);
+            var response = await EntityExecuteAsyncExtensions.ToCompositeEntityListAsync<T>(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -180,7 +180,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await EntityExecuteAsyncExtensions.ToCompositeEntityAsync<T>(builder, cancellationToken);
+            var response = await EntityExecuteAsyncExtensions.ToCompositeEntityAsync<T>(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -210,7 +210,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, cancellationToken);
+            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -243,7 +243,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, blobProvider, cancellationToken);
+            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, blobProvider, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -273,7 +273,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await EntityExecuteAsyncExtensions.ToCompositeEntityListAsync<T>(builder, cancellationToken);
+            var response = await EntityExecuteAsyncExtensions.ToCompositeEntityListAsync<T>(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -303,7 +303,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            await EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken);
+            await EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok();
         }
         catch (OperationCanceledException)
@@ -335,7 +335,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            await EntityExecuteAsyncExtensions.PutAsync(builder, blobProvider, cancellationToken);
+            await EntityExecuteAsyncExtensions.PutAsync(builder, blobProvider, cancellationToken).ConfigureAwait(false);
             return Result.Ok();
         }
         catch (OperationCanceledException)
@@ -365,7 +365,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            await EntityExecuteAsyncExtensions.UpdateAsync(builder, cancellationToken);
+            await EntityExecuteAsyncExtensions.UpdateAsync(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok();
         }
         catch (OperationCanceledException)
@@ -394,7 +394,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            await EntityExecuteAsyncExtensions.DeleteAsync(builder, cancellationToken);
+            await EntityExecuteAsyncExtensions.DeleteAsync(builder, cancellationToken).ConfigureAwait(false);
             return Result.Ok();
         }
         catch (OperationCanceledException)
@@ -425,7 +425,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(client, cancellationToken);
+            var response = await builder.ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
             var result = Result.Ok(response);
             
             // Add warnings for unprocessed keys
@@ -465,7 +465,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(client, cancellationToken);
+            var response = await builder.ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
             var result = Result.Ok(response);
             
             // Add warnings for unprocessed items
@@ -504,7 +504,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(client, cancellationToken);
+            var response = await builder.ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
             var result = Result.Ok(response);
             
             // Add warnings for any statement errors
@@ -551,7 +551,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var entity = await builder.ExecuteAndMapAsync<T1>(client, cancellationToken);
+            var entity = await builder.ExecuteAndMapAsync<T1>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(entity);
         }
         catch (OperationCanceledException)
@@ -582,7 +582,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -608,7 +608,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -635,7 +635,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -663,7 +663,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -692,7 +692,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -722,7 +722,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -753,7 +753,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7, T8>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7, T8>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -787,7 +787,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(client, cancellationToken);
+            var response = await builder.ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -827,7 +827,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var response = await builder.ExecuteAsync(client, cancellationToken);
+            var response = await builder.ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -863,7 +863,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var entity = await builder.ExecuteAndMapAsync<T1>(client, cancellationToken);
+            var entity = await builder.ExecuteAndMapAsync<T1>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(entity);
         }
         catch (OperationCanceledException)
@@ -894,7 +894,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -920,7 +920,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -947,7 +947,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -975,7 +975,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -1004,7 +1004,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -1034,7 +1034,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -1065,7 +1065,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7, T8>(client, cancellationToken);
+            var result = await builder.ExecuteAndMapAsync<T1, T2, T3, T4, T5, T6, T7, T8>(client, cancellationToken).ConfigureAwait(false);
             return Result.Ok(result);
         }
         catch (OperationCanceledException)
@@ -1116,7 +1116,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            var entities = await builder.ToListAsync(cancellationToken);
+            var entities = await builder.ToListAsync(cancellationToken).ConfigureAwait(false);
             return Result.Ok(entities);
         }
         catch (OperationCanceledException)
@@ -1157,7 +1157,7 @@ public static class FluentResultsExtensions
     {
         try
         {
-            await builder.ExecuteAsync(cancellationToken);
+            await builder.ExecuteAsync(cancellationToken).ConfigureAwait(false);
             return Result.Ok();
         }
         catch (OperationCanceledException)

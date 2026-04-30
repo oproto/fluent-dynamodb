@@ -211,7 +211,7 @@ public static class DynamoDbTransactions
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(request);
 
-        var response = await client.TransactWriteItemsAsync(request, cancellationToken);
+        var response = await client.TransactWriteItemsAsync(request, cancellationToken).ConfigureAwait(false);
 
         // Populate operation context
         DynamoDbOperationContext.Current = new OperationContextData
@@ -268,7 +268,7 @@ public static class DynamoDbTransactions
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(request);
 
-        var response = await client.TransactGetItemsAsync(request, cancellationToken);
+        var response = await client.TransactGetItemsAsync(request, cancellationToken).ConfigureAwait(false);
 
         // Populate operation context
         DynamoDbOperationContext.Current = new OperationContextData

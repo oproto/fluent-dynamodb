@@ -614,9 +614,6 @@ internal class EntityAnalyzer
         // Extract LSI attributes
         ExtractLsiAttributes(propertyDecl, semanticModel, propertyModel);
 
-        // Extract queryable attributes
-        ExtractQueryableAttributes(propertyDecl, semanticModel, propertyModel);
-
         // Extract computed key attributes
         ExtractComputedKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
@@ -782,39 +779,6 @@ internal class EntityAnalyzer
         }
 
         propertyModel.LocalSecondaryIndexes = lsiModels.ToArray();
-    }
-
-    private void ExtractQueryableAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
-    {
-        var queryableAttr = GetAttribute(propertyDecl, semanticModel, "QueryableAttribute");
-        if (queryableAttr == null)
-            return;
-
-        // Emit deprecation warning for [Queryable] attribute usage
-        ReportDiagnostic(DiagnosticDescriptors.DeprecatedQueryableAttribute,
-            queryableAttr.GetLocation(),
-            propertyModel.PropertyName);
-
-        var queryableModel = new QueryableModel();
-
-        // Extract named arguments
-        if (queryableAttr.ArgumentList != null)
-        {
-            foreach (var arg in queryableAttr.ArgumentList.Arguments)
-            {
-                switch (arg.NameEquals?.Name.Identifier.ValueText)
-                {
-                    case "SupportedOperations":
-                        // TODO: Extract array of operations - simplified for now
-                        break;
-                    case "AvailableInIndexes":
-                        // TODO: Extract array of index names - simplified for now
-                        break;
-                }
-            }
-        }
-
-        propertyModel.Queryable = queryableModel;
     }
 
     private void ExtractComputedKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
@@ -1541,20 +1505,9 @@ internal class EntityAnalyzer
             return;
         }
 
-        // Warn about potentially large string properties
-        if (propertyModel.PropertyType == "string" && !propertyModel.IsCollection)
-        {
-            // This is a heuristic - in practice, you'd need more context
-            if (propertyModel.PropertyName.ToLowerInvariant().Contains("description") ||
-                propertyModel.PropertyName.ToLowerInvariant().Contains("content") ||
-                propertyModel.PropertyName.ToLowerInvariant().Contains("body"))
-            {
-                ReportDiagnostic(DiagnosticDescriptors.PerformanceWarning,
-                    propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
-                    propertyModel.PropertyName, propertyModel.PropertyType,
-                    "Large string properties may impact DynamoDB performance and costs");
-            }
-        }
+        // Note: String properties are not flagged - naming heuristics (e.g., "Description", "Content")
+        // produce too many false positives. DynamoDB handles strings of any size natively, and item
+        // size limits (400KB) are the real constraint, which is better validated at runtime.
 
         // Warn about binary data properties
         if (propertyModel.PropertyType == "byte[]" || propertyModel.PropertyType == "System.Byte[]")

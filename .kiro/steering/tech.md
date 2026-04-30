@@ -49,6 +49,13 @@ dotnet build-server shutdown
 
 By default, the source generator WILL NOT write files to disk.  This has to be enabled in the csproj if you need to inspect the output.
 
+## Async Conventions
+- **ConfigureAwait(false)**: All `await` calls in library projects (non-test) MUST use `.ConfigureAwait(false)`. This prevents deadlocks when the library is consumed from environments with a SynchronizationContext (WPF, WinForms, Blazor WASM, legacy ASP.NET).
+  - ✅ `await client.GetItemAsync(request, ct).ConfigureAwait(false);`
+  - ❌ `await client.GetItemAsync(request, ct);`
+  - Applies to: `Oproto.FluentDynamoDb/`, `Oproto.FluentDynamoDb.Streams/`, `Oproto.FluentDynamoDb.FluentResults/`, `Oproto.FluentDynamoDb.Geospatial/`, `Oproto.FluentDynamoDb.Encryption.Kms/`, `Oproto.FluentDynamoDb.BlobStorage.S3/`, `Oproto.FluentDynamoDb.Logging.Extensions/`, `Oproto.FluentDynamoDb.SystemTextJson/`, `Oproto.FluentDynamoDb.NewtonsoftJson/`
+  - Does NOT apply to: test projects, example projects, or the source generator (which runs at compile time, not async)
+
 ## Project Configuration
 - **ImplicitUsings**: Enabled for cleaner code
 - **Nullable**: Enabled for null safety

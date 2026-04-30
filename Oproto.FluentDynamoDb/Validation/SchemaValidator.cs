@@ -30,7 +30,7 @@ public class SchemaValidator
         var describeTableResponse = await client.DescribeTableAsync(new DescribeTableRequest
         {
             TableName = tableName
-        });
+        }).ConfigureAwait(false);
 
         var tableDescription = describeTableResponse.Table;
 
@@ -44,7 +44,7 @@ public class SchemaValidator
         ValidateLocalSecondaryIndexes(tableDescription, metadata, result, options);
 
         // Validate TTL
-        await ValidateTtlAsync(client, tableName, metadata, result);
+        await ValidateTtlAsync(client, tableName, metadata, result).ConfigureAwait(false);
 
         return result;
     }
@@ -468,7 +468,7 @@ public class SchemaValidator
         var ttlResponse = await client.DescribeTimeToLiveAsync(new DescribeTimeToLiveRequest
         {
             TableName = tableName
-        });
+        }).ConfigureAwait(false);
 
         var ttlDescription = ttlResponse.TimeToLiveDescription;
         var ttlEnabled = ttlDescription.TimeToLiveStatus == TimeToLiveStatus.ENABLED ||

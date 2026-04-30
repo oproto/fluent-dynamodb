@@ -86,7 +86,7 @@ public class BatchWriteBuilder
                 if (hydrator != null && entity != null)
                 {
                     var blobProvider = options.BlobStorageProvider;
-                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct);
+                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct).ConfigureAwait(false);
                     builder.SetResolvedItem(serialized);
                     _requestItems[tableName][requestIndex].PutRequest.Item = serialized;
                 }
@@ -374,7 +374,7 @@ public class BatchWriteBuilder
         {
             foreach (var (_, _, resolver) in _deferredPutResolvers)
             {
-                await resolver(cancellationToken);
+                await resolver(cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -389,7 +389,7 @@ public class BatchWriteBuilder
             {
                 foreach (var blobContext in _blobWriteContexts)
                 {
-                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken);
+                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken).ConfigureAwait(false);
                     blobContext.UploadedReferenceKeys = result.ReferenceKeys;
                     uploadedContexts.Add(blobContext);
                     
@@ -406,12 +406,12 @@ public class BatchWriteBuilder
             {
                 foreach (var deleteContext in _blobDeleteContexts)
                 {
-                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken);
+                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken).ConfigureAwait(false);
                 }
             }
 
             // Step 3: Execute batch write
-            var response = await effectiveClient.BatchWriteItemAsync(request, cancellationToken);
+            var response = await effectiveClient.BatchWriteItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (response == null)
             {
@@ -423,12 +423,12 @@ public class BatchWriteBuilder
             {
                 foreach (var blobContext in uploadedContexts)
                 {
-                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken);
+                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken).ConfigureAwait(false);
                 }
                 
                 foreach (var deleteContext in _blobDeleteContexts)
                 {
-                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken);
+                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken).ConfigureAwait(false);
                 }
             }
             
@@ -460,7 +460,7 @@ public class BatchWriteBuilder
                 {
                     try
                     {
-                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken);
+                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {

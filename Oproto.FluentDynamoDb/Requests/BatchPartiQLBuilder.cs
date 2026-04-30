@@ -175,7 +175,7 @@ public class BatchPartiQLBuilder
 
         try
         {
-            var response = await effectiveClient.BatchExecuteStatementAsync(request, cancellationToken);
+            var response = await effectiveClient.BatchExecuteStatementAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Populate operation context
             DynamoDbOperationContext.Current = new OperationContextData
@@ -221,7 +221,7 @@ public class BatchPartiQLBuilder
         CancellationToken cancellationToken = default)
         where T1 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return response.GetItem<T1>(0);
     }
 
@@ -234,7 +234,7 @@ public class BatchPartiQLBuilder
         where T1 : class, IDynamoDbEntity
         where T2 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (response.GetItem<T1>(0), response.GetItem<T2>(1));
     }
 
@@ -248,7 +248,7 @@ public class BatchPartiQLBuilder
         where T2 : class, IDynamoDbEntity
         where T3 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0),
             response.GetItem<T2>(1),
@@ -267,7 +267,7 @@ public class BatchPartiQLBuilder
         where T3 : class, IDynamoDbEntity
         where T4 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0),
             response.GetItem<T2>(1),
@@ -288,7 +288,7 @@ public class BatchPartiQLBuilder
         where T4 : class, IDynamoDbEntity
         where T5 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0),
             response.GetItem<T2>(1),
@@ -311,7 +311,7 @@ public class BatchPartiQLBuilder
         where T5 : class, IDynamoDbEntity
         where T6 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0),
             response.GetItem<T2>(1),
@@ -336,7 +336,7 @@ public class BatchPartiQLBuilder
         where T6 : class, IDynamoDbEntity
         where T7 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0),
             response.GetItem<T2>(1),
@@ -363,7 +363,7 @@ public class BatchPartiQLBuilder
         where T7 : class, IDynamoDbEntity
         where T8 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0),
             response.GetItem<T2>(1),

@@ -538,7 +538,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
             if (hydrator != null && _entity != null)
             {
                 var blobProvider = _options.BlobStorageProvider;
-                var item = await hydrator.SerializeAsync(_entity, blobProvider, _options, cancellationToken);
+                var item = await hydrator.SerializeAsync(_entity, blobProvider, _options, cancellationToken).ConfigureAwait(false);
                 SetResolvedItem(item);
             }
         }
@@ -549,10 +549,10 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         if (_entity != null && _options.BlobStorageStrategy != null && 
             BlobStorageHelper.HasBlobStorageProperties<TEntity>())
         {
-            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
-        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<PutItemResponse> ExecuteWithBlobStorageAsync(
@@ -563,8 +563,8 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
             _entity!,
             request.Item,
             _options,
-            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
-            cancellationToken);
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<PutItemResponse> ExecuteDynamoDbOperationAsync(
@@ -588,7 +588,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         
         try
         {
-            var response = await _dynamoDbClient.PutItemAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

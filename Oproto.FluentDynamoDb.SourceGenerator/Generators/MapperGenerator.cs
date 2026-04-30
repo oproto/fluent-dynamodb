@@ -786,7 +786,7 @@ internal static class MapperGenerator
             sb.AppendLine("                                bytes,");
             sb.AppendLine($"                                \"{propertyName}\",");
             sb.AppendLine("                                encryptionContext,");
-            sb.AppendLine("                                cancellationToken);");
+            sb.AppendLine("                                cancellationToken).ConfigureAwait(false);");
             sb.AppendLine();
             sb.AppendLine("                            // Step 3: Store encrypted data in blob storage");
             sb.AppendLine("                            using var stream = new MemoryStream(encryptedBytes);");
@@ -796,7 +796,7 @@ internal static class MapperGenerator
             sb.AppendLine("                            using var stream = new MemoryStream(bytes);");
         }
         
-        sb.AppendLine("                            var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken);");
+        sb.AppendLine("                            var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken).ConfigureAwait(false);");
         sb.AppendLine($"                            typedEntity.{escapedPropertyName}.SetReferenceKey(reference);");
         sb.AppendLine($"                            item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
         sb.AppendLine("                        }");
@@ -2062,12 +2062,12 @@ internal static class MapperGenerator
         {
             sb.AppendLine("                // Multi-item entity: combine all items into a single entity");
             sb.AppendLine("                // Note: Multi-item entities with blob references not yet fully supported");
-            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken);");
+            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken).ConfigureAwait(false);");
         }
         else
         {
             sb.AppendLine("                // Single-item entity: use the first item");
-            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken);");
+            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken).ConfigureAwait(false);");
         }
 
         sb.AppendLine("            }");
@@ -2713,7 +2713,7 @@ internal static class MapperGenerator
             sb.AppendLine("                        {");
             sb.AppendLine("                            // Step 1: Read encrypted bytes from blob storage");
             sb.AppendLine("                            using var memoryStream = new MemoryStream();");
-            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct);");
+            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct).ConfigureAwait(false);");
             sb.AppendLine("                            var encryptedBytes = memoryStream.ToArray();");
             sb.AppendLine();
             sb.AppendLine("                            // Step 2: Decrypt the data");
@@ -2736,7 +2736,7 @@ internal static class MapperGenerator
             sb.AppendLine("                                encryptedBytes,");
             sb.AppendLine($"                                \"{propertyName}\",");
             sb.AppendLine("                                encryptionContext,");
-            sb.AppendLine("                                ct);");
+            sb.AppendLine("                                ct).ConfigureAwait(false);");
             sb.AppendLine();
             
             if (isJsonBlob)
@@ -2789,7 +2789,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
             sb.AppendLine("                            }");
             sb.AppendLine("                            using var reader = new StreamReader(stream);");
-            sb.AppendLine("                            var json = await reader.ReadToEndAsync();");
+            sb.AppendLine("                            var json = await reader.ReadToEndAsync().ConfigureAwait(false);");
             sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
             sb.AppendLine("                        };");
         }
@@ -2799,7 +2799,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
             sb.AppendLine("                        {");
             sb.AppendLine("                            using var memoryStream = new MemoryStream();");
-            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct);");
+            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct).ConfigureAwait(false);");
             sb.AppendLine("                            return memoryStream.ToArray();");
             sb.AppendLine("                        };");
         }
@@ -2809,7 +2809,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
             sb.AppendLine("                        {");
             sb.AppendLine("                            using var reader = new StreamReader(stream);");
-            sb.AppendLine("                            return await reader.ReadToEndAsync();");
+            sb.AppendLine("                            return await reader.ReadToEndAsync().ConfigureAwait(false);");
             sb.AppendLine("                        };");
         }
         else
@@ -2824,7 +2824,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
             sb.AppendLine("                            }");
             sb.AppendLine("                            using var reader = new StreamReader(stream);");
-            sb.AppendLine("                            var json = await reader.ReadToEndAsync();");
+            sb.AppendLine("                            var json = await reader.ReadToEndAsync().ConfigureAwait(false);");
             sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
             sb.AppendLine("                        };");
         }
@@ -2841,7 +2841,7 @@ internal static class MapperGenerator
         if (!lazyLoad)
         {
             sb.AppendLine("                        // Eager loading: load blob data immediately");
-            sb.AppendLine($"                        await entity.{escapedPropertyName}.LoadAsync(cancellationToken);");
+            sb.AppendLine($"                        await entity.{escapedPropertyName}.LoadAsync(cancellationToken).ConfigureAwait(false);");
         }
         else
         {
@@ -3757,13 +3757,8 @@ internal static class MapperGenerator
         sb.AppendLine($"                        IsCollection = {property.IsCollection.ToString().ToLowerInvariant()},");
         sb.AppendLine($"                        IsNullable = {property.IsNullable.ToString().ToLowerInvariant()},");
 
-        // Add supported operations if available
-        if (property.Queryable?.HasSupportedOperations == true)
-        {
-            var operations = string.Join(", ", property.Queryable.SupportedOperations.Select(op => $"DynamoDbOperation.{op}"));
-            sb.AppendLine($"                        SupportedOperations = new[] {{ {operations} }},");
-        }
-        else if (property.IsPartitionKey)
+        // Add supported operations derived from key attributes
+        if (property.IsPartitionKey)
         {
             // Partition keys only support equality in key conditions
             sb.AppendLine($"                        SupportedOperations = new[] {{ DynamoDbOperation.Equals }},");
@@ -3777,13 +3772,6 @@ internal static class MapperGenerator
         {
             // Non-key properties support all operations in filter expressions
             sb.AppendLine($"                        SupportedOperations = new[] {{ DynamoDbOperation.Equals, DynamoDbOperation.GreaterThan, DynamoDbOperation.LessThan, DynamoDbOperation.Contains, DynamoDbOperation.In }},");
-        }
-
-        // Add available indexes if specified
-        if (property.Queryable?.HasIndexRestrictions == true)
-        {
-            var indexes = string.Join(", ", property.Queryable.AvailableInIndexes.Select(idx => $"\"{idx}\""));
-            sb.AppendLine($"                        AvailableInIndexes = new[] {{ {indexes} }},");
         }
 
         // Add key format if available
@@ -4557,7 +4545,7 @@ internal static class MapperGenerator
         sb.AppendLine($"                        {propertyName}Plaintext,");
         sb.AppendLine($"                        \"{propertyName}\",");
         sb.AppendLine("                        encryptionContext,");
-        sb.AppendLine("                        cancellationToken);");
+        sb.AppendLine("                        cancellationToken).ConfigureAwait(false);");
         sb.AppendLine();
 
         // Store as Binary (B) AttributeValue
@@ -4613,7 +4601,7 @@ internal static class MapperGenerator
         sb.AppendLine($"                                {propertyName}Ciphertext,");
         sb.AppendLine($"                                \"{propertyName}\",");
         sb.AppendLine("                                encryptionContext,");
-        sb.AppendLine("                                cancellationToken);");
+        sb.AppendLine("                                cancellationToken).ConfigureAwait(false);");
         sb.AppendLine();
 
         // Convert bytes back to property type

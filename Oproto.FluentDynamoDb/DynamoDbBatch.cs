@@ -282,7 +282,7 @@ public static class DynamoDbBatch
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(request);
 
-        var response = await client.BatchWriteItemAsync(request, cancellationToken);
+        var response = await client.BatchWriteItemAsync(request, cancellationToken).ConfigureAwait(false);
 
         // Populate operation context
         DynamoDbOperationContext.Current = new OperationContextData
@@ -345,7 +345,7 @@ public static class DynamoDbBatch
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(request);
 
-        var response = await client.BatchGetItemAsync(request, cancellationToken);
+        var response = await client.BatchGetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
         // Populate operation context
         DynamoDbOperationContext.Current = new OperationContextData

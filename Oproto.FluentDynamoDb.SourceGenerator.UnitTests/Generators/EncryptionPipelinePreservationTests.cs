@@ -236,13 +236,13 @@ public class EncryptionPipelinePreservationTests
                 var result = HydratorGenerator.GenerateHydrator(entity);
 
                 var isNonNull = result != null;
-                var hasNonNullableBlobProvider = result?.Contains("IBlobStorageProvider blobProvider,") == true;
+                var hasNonNullableBlobProvider = result?.Contains("IBlobStorageProvider? blobProvider,") == true;
                 var hasNullGuard = result?.Contains("ArgumentNullException.ThrowIfNull(blobProvider)") == true;
 
                 return isNonNull.ToProperty()
                     .Label("GenerateHydrator() should return non-null for blob-only entities")
                     .And(hasNonNullableBlobProvider.ToProperty()
-                        .Label("Generated hydrator should have non-nullable blobProvider parameter"))
+                        .Label("Generated hydrator should have nullable blobProvider parameter matching interface"))
                     .And(hasNullGuard.ToProperty()
                         .Label("Generated hydrator should have null guard for blobProvider"));
             });
@@ -289,7 +289,7 @@ public class EncryptionPipelinePreservationTests
                 var result = HydratorGenerator.GenerateHydrator(entity);
 
                 var isNonNull = result != null;
-                var hasBlobProvider = result?.Contains("IBlobStorageProvider blobProvider,") == true;
+                var hasBlobProvider = result?.Contains("IBlobStorageProvider? blobProvider,") == true;
                 var hasFieldEncryptor = result?.Contains("options?.FieldEncryptor") == true;
 
                 return isNonNull.ToProperty()

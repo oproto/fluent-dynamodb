@@ -5,7 +5,7 @@ namespace Oproto.FluentDynamoDb.Expressions;
 
 /// <summary>
 /// Cache for translated expressions to avoid repeated analysis.
-/// Thread-safe implementation using ConcurrentDictionary.
+/// Thread-safe implementation using ConcurrentDictionary with bounded size.
 /// </summary>
 /// <remarks>
 /// <para><strong>Caching Strategy:</strong></para>
@@ -43,11 +43,17 @@ namespace Oproto.FluentDynamoDb.Expressions;
 /// <item><description>Particularly beneficial in high-throughput scenarios</description></item>
 /// </list>
 /// 
-/// <para><strong>Memory Considerations:</strong></para>
+/// <para><strong>Memory Management:</strong></para>
 /// <para>
-/// The cache grows unbounded by default. In long-running applications with many unique
-/// expression patterns, consider periodically calling <see cref="Clear"/> to free memory.
-/// Each cached entry stores only the expression string template (typically &lt; 1KB).
+/// The cache is bounded to a configurable maximum size (default: 1024 entries). When the
+/// limit is reached, the cache is cleared entirely to reclaim memory. This simple eviction
+/// strategy avoids the overhead of LRU tracking while preventing unbounded growth in
+/// long-running applications. Most applications use a small number of distinct query patterns,
+/// so the cache rarely reaches its limit in practice.
+/// </para>
+/// <para>
+/// To customize the limit, pass a <c>maxSize</c> parameter to the constructor. Each cached
+/// entry stores only the expression string template (typically &lt; 1KB).
 /// </para>
 /// </remarks>
 /// <example>
@@ -69,10 +75,37 @@ namespace Oproto.FluentDynamoDb.Expressions;
 /// </example>
 public class ExpressionCache
 {
+    /// <summary>
+    /// Default maximum number of cached expressions before eviction.
+    /// </summary>
+    public const int DefaultMaxSize = 1024;
+
     private readonly ConcurrentDictionary<ExpressionCacheKey, string> _cache = new();
+    private readonly int _maxSize;
+
+    /// <summary>
+    /// Creates a new expression cache with the default maximum size.
+    /// </summary>
+    public ExpressionCache() : this(DefaultMaxSize)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new expression cache with the specified maximum size.
+    /// </summary>
+    /// <param name="maxSize">
+    /// Maximum number of entries before the cache is cleared. Must be greater than zero.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxSize"/> is less than 1.</exception>
+    public ExpressionCache(int maxSize)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxSize, 1);
+        _maxSize = maxSize;
+    }
 
     /// <summary>
     /// Gets a cached expression translation or adds a new one using the provided translator function.
+    /// If the cache has reached its maximum size, it is cleared before adding the new entry.
     /// </summary>
     /// <param name="expression">The expression to translate.</param>
     /// <param name="mode">The validation mode for the expression.</param>
@@ -83,12 +116,20 @@ public class ExpressionCache
         ExpressionValidationMode mode,
         Func<string> translator)
     {
-        if (expression == null)
-            throw new ArgumentNullException(nameof(expression));
-        if (translator == null)
-            throw new ArgumentNullException(nameof(translator));
+        ArgumentNullException.ThrowIfNull(expression);
+        ArgumentNullException.ThrowIfNull(translator);
 
         var key = new ExpressionCacheKey(expression, mode);
+
+        if (_cache.TryGetValue(key, out var cached))
+            return cached;
+
+        // Evict all entries when the cache is full. This is a simple strategy that avoids
+        // the complexity and overhead of LRU tracking. In practice, most applications use
+        // a small set of query patterns that will quickly repopulate the cache.
+        if (_cache.Count >= _maxSize)
+            _cache.Clear();
+
         return _cache.GetOrAdd(key, _ => translator());
     }
 
@@ -104,6 +145,11 @@ public class ExpressionCache
     /// Gets the number of cached expressions.
     /// </summary>
     public int Count => _cache.Count;
+
+    /// <summary>
+    /// Gets the maximum number of entries this cache will hold before eviction.
+    /// </summary>
+    public int MaxSize => _maxSize;
 }
 
 /// <summary>

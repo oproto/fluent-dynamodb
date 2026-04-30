@@ -28,19 +28,19 @@ public class TableCreator
         options ??= new TableCreationOptions();
         
         var request = BuildCreateTableRequest(tableName, metadata, options);
-        var response = await client.CreateTableAsync(request, cancellationToken);
+        var response = await client.CreateTableAsync(request, cancellationToken).ConfigureAwait(false);
         
         var tableStatus = response.TableDescription.TableStatus;
         
         // Wait for table to become active if requested
         if (options.WaitForActive)
         {
-            await WaitForTableActiveAsync(client, tableName, options, cancellationToken);
+            await WaitForTableActiveAsync(client, tableName, options, cancellationToken).ConfigureAwait(false);
             
             // Update status after waiting
             var describeResponse = await client.DescribeTableAsync(
                 new DescribeTableRequest { TableName = tableName }, 
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             tableStatus = describeResponse.Table.TableStatus;
         }
         
@@ -56,7 +56,7 @@ public class TableCreator
                     Enabled = true,
                     AttributeName = metadata.TtlAttributeName
                 }
-            }, cancellationToken);
+            }, cancellationToken).ConfigureAwait(false);
             ttlEnabled = true;
         }
         
@@ -402,7 +402,7 @@ public class TableCreator
         {
             var response = await client.DescribeTableAsync(
                 new DescribeTableRequest { TableName = tableName },
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             
             if (response.Table.TableStatus == TableStatus.ACTIVE)
             {
@@ -415,7 +415,7 @@ public class TableCreator
                     $"Table '{tableName}' did not become ACTIVE within {options.WaitTimeout.TotalSeconds} seconds");
             }
             
-            await Task.Delay(options.PollingInterval, cancellationToken);
+            await Task.Delay(options.PollingInterval, cancellationToken).ConfigureAwait(false);
         }
     }
 }

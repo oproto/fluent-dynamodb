@@ -107,7 +107,6 @@ public class PropertyModelTests
         property.IsCollection.Should().BeFalse();
         property.IsNullable.Should().BeFalse();
         property.KeyFormat.Should().BeNull();
-        property.Queryable.Should().BeNull();
         property.GlobalSecondaryIndexes.Should().BeEmpty();
         property.PropertyDeclaration.Should().BeNull();
         property.HasAttributeMapping.Should().BeFalse();
@@ -119,7 +118,6 @@ public class PropertyModelTests
     {
         // Arrange
         var keyFormat = new KeyFormatModel { Prefix = "test", Separator = "#" };
-        var queryable = new QueryableModel { SupportedOperations = new[] { DynamoDbOperation.Equals } };
         var gsiModel = new GlobalSecondaryIndexModel { IndexName = "TestGSI", IsPartitionKey = true };
 
         // Act
@@ -133,7 +131,6 @@ public class PropertyModelTests
             IsCollection = false,
             IsNullable = true,
             KeyFormat = keyFormat,
-            Queryable = queryable,
             GlobalSecondaryIndexes = new[] { gsiModel }
         };
 
@@ -146,7 +143,6 @@ public class PropertyModelTests
         property.IsCollection.Should().BeFalse();
         property.IsNullable.Should().BeTrue();
         property.KeyFormat.Should().Be(keyFormat);
-        property.Queryable.Should().Be(queryable);
         property.GlobalSecondaryIndexes.Should().HaveCount(1);
         property.GlobalSecondaryIndexes[0].Should().Be(gsiModel);
         property.HasAttributeMapping.Should().BeTrue();

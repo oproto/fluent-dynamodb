@@ -615,14 +615,14 @@ public sealed class TypedStreamProcessor<[DynamicallyAccessedMembers(Dynamically
         {
             foreach (var handler in _insertHandlers)
             {
-                await handler(null, newEntity);
+                await handler(null, newEntity).ConfigureAwait(false);
             }
         }
         else if (eventName == "MODIFY" && oldEntity != null && newEntity != null)
         {
             foreach (var handler in _updateHandlers)
             {
-                await handler(oldEntity, newEntity);
+                await handler(oldEntity, newEntity).ConfigureAwait(false);
             }
         }
         else if (eventName == "REMOVE" && oldEntity != null)
@@ -630,7 +630,7 @@ public sealed class TypedStreamProcessor<[DynamicallyAccessedMembers(Dynamically
             // Execute general delete handlers
             foreach (var handler in _deleteHandlers)
             {
-                await handler(oldEntity, null);
+                await handler(oldEntity, null).ConfigureAwait(false);
             }
 
             // Step 6: Check UserIdentity for TTL detection
@@ -641,7 +641,7 @@ public sealed class TypedStreamProcessor<[DynamicallyAccessedMembers(Dynamically
                 // Execute TTL-specific delete handlers
                 foreach (var handler in _ttlDeleteHandlers)
                 {
-                    await handler(oldEntity, null);
+                    await handler(oldEntity, null).ConfigureAwait(false);
                 }
             }
             else
@@ -649,7 +649,7 @@ public sealed class TypedStreamProcessor<[DynamicallyAccessedMembers(Dynamically
                 // Execute non-TTL delete handlers
                 foreach (var handler in _nonTtlDeleteHandlers)
                 {
-                    await handler(oldEntity, null);
+                    await handler(oldEntity, null).ConfigureAwait(false);
                 }
             }
         }

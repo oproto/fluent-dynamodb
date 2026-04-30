@@ -79,7 +79,7 @@ public class TransactionWriteBuilder
                 if (hydrator != null && entity != null)
                 {
                     var blobProvider = options.BlobStorageProvider;
-                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct);
+                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct).ConfigureAwait(false);
                     builder.SetResolvedItem(serialized);
                     _items[itemIndex].Put.Item = serialized;
                 }
@@ -429,7 +429,7 @@ public class TransactionWriteBuilder
                 // Encrypt parameters for all update builders
                 foreach (var updateBuilder in _updateBuilders)
                 {
-                    await updateBuilder.EncryptParametersIfNeededAsync(cancellationToken);
+                    await updateBuilder.EncryptParametersIfNeededAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 // Rebuild update items after encryption to get encrypted attribute values
@@ -495,7 +495,7 @@ public class TransactionWriteBuilder
         {
             foreach (var (_, resolver) in _deferredPutResolvers)
             {
-                await resolver(cancellationToken);
+                await resolver(cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -518,7 +518,7 @@ public class TransactionWriteBuilder
             {
                 foreach (var blobContext in _blobWriteContexts)
                 {
-                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken);
+                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken).ConfigureAwait(false);
                     blobContext.UploadedReferenceKeys = result.ReferenceKeys;
                     uploadedContexts.Add(blobContext);
                     
@@ -532,12 +532,12 @@ public class TransactionWriteBuilder
             {
                 foreach (var deleteContext in _blobDeleteContexts)
                 {
-                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken);
+                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken).ConfigureAwait(false);
                 }
             }
 
             // Step 3: Execute transaction
-            var response = await effectiveClient.TransactWriteItemsAsync(request, cancellationToken);
+            var response = await effectiveClient.TransactWriteItemsAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (response == null)
             {
@@ -549,12 +549,12 @@ public class TransactionWriteBuilder
             {
                 foreach (var blobContext in uploadedContexts)
                 {
-                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken);
+                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken).ConfigureAwait(false);
                 }
                 
                 foreach (var deleteContext in _blobDeleteContexts)
                 {
-                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken);
+                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken).ConfigureAwait(false);
                 }
             }
             
@@ -589,7 +589,7 @@ public class TransactionWriteBuilder
                 {
                     try
                     {
-                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken);
+                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {

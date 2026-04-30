@@ -207,8 +207,8 @@ public sealed class BlobData<T>
 
         try
         {
-            await using var stream = await _provider.RetrieveAsync(ReferenceKey, cancellationToken);
-            _value = await _deserializer(stream, cancellationToken);
+            await using var stream = await _provider.RetrieveAsync(ReferenceKey, cancellationToken).ConfigureAwait(false);
+            _value = await _deserializer(stream, cancellationToken).ConfigureAwait(false);
             _isLoaded = true;
         }
         catch (Exception ex) when (ex is not InvalidOperationException and not BlobStorageException)

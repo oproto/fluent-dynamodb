@@ -289,7 +289,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       .UpdateAsync();
   ```
 
+### Changed
+
+- **ExpressionCache bounded to 1024 entries** - The expression translation cache now has a configurable maximum size (default: 1024) to prevent unbounded memory growth in long-running applications. When the limit is reached, the cache is cleared and repopulates naturally. A new `ExpressionCache(int maxSize)` constructor overload and `MaxSize` property are available for customization.
+
+- **DYNDB023 string property heuristic removed** - The source generator no longer emits DYNDB023 performance warnings for `string` properties named "Description", "Content", or "Body". The heuristic produced too many false positives. Warnings for `byte[]`, complex collections, and nested complex objects remain.
+
+- **`[Queryable]` attribute removed** - The deprecated `[Queryable]` attribute has been removed as promised in the v0.9 deprecation notice. Query capabilities are now exclusively derived from `[PartitionKey]` and `[SortKey]` attributes. The `DynamoDbOperation` enum remains available for use in generated `PropertyMetadata`. The DYNDB113 diagnostic warning is also removed since the attribute no longer exists.
+
+- **System.Text.Json minimum version raised to 8.0.5** - The lower bound of the `System.Text.Json` dependency range was raised from `[8.0.0,11.0.0)` to `[8.0.5,11.0.0)` to exclude versions with known high-severity vulnerabilities (GHSA-8g4q-xg66-9fp4, GHSA-hh2w-p6rv-4g7w). Consumers using System.Text.Json 8.0.0 through 8.0.4 will need to update.
+
+- **ConfigureAwait(false) applied to all library async calls** - All `await` calls across all library projects and source-generated code now use `.ConfigureAwait(false)`. This prevents potential deadlocks when the library is consumed from environments with a `SynchronizationContext` (WPF, WinForms, Blazor WASM). No API changes; this is a behavioral improvement.
+
 ### Fixed
+
+- **Source generator hydrator nullability mismatch (CS8767)** - The generated `IAsyncEntityHydrator<T>` implementations now emit `IBlobStorageProvider?` (nullable) for the `blobProvider` parameter, matching the interface declaration. This eliminates CS8767 warnings in consumer projects using encryption-only entities without blob storage.
 
 - **Local Method Evaluation in Update Expressions** - Fixed `UnsupportedExpressionException` when using local method calls like `.ToString()`, `.ToUpper()`, `.Trim()` in update expressions
   - Previously, method calls that don't reference the entity parameter (e.g., `TransactionStatus.Active.ToString()`, `myVar.Trim().ToUpper()`) would throw an exception

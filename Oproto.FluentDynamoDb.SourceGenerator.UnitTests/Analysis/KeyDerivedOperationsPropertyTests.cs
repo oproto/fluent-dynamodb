@@ -246,16 +246,14 @@ public class KeyDerivedOperationsPropertyTests
                     PropertyName = "PartitionId",
                     AttributeName = "pk",
                     PropertyType = "string",
-                    IsPartitionKey = true,
-                    Queryable = null // No [Queryable] attribute
+                    IsPartitionKey = true
                 },
                 new PropertyModel
                 {
                     PropertyName = "SortId",
                     AttributeName = "sk",
                     PropertyType = "string",
-                    IsSortKey = true,
-                    Queryable = null // No [Queryable] attribute
+                    IsSortKey = true
                 },
                 new PropertyModel
                 {
@@ -263,8 +261,7 @@ public class KeyDerivedOperationsPropertyTests
                     AttributeName = "data",
                     PropertyType = "string",
                     IsPartitionKey = false,
-                    IsSortKey = false,
-                    Queryable = null // No [Queryable] attribute
+                    IsSortKey = false
                 }
             }
         };
@@ -285,51 +282,6 @@ public class KeyDerivedOperationsPropertyTests
         
         result.Should().Contain("DynamoDbOperation.Contains",
             "Non-key property should have Contains operation for filter expressions");
-    }
-
-    /// <summary>
-    /// **Feature: api-enhancements-v0.9, Property 3: Partition key properties support equality operations**
-    /// 
-    /// Verifies that deprecated [Queryable] attribute still works for backward compatibility,
-    /// but operations are overridden by key attributes when both are present.
-    /// 
-    /// **Validates: Requirements 3.2**
-    /// </summary>
-    [Fact]
-    public void QueryableWithKeyAttribute_KeyAttributeTakesPrecedence()
-    {
-        // Arrange - Create an entity with both [Queryable] and [PartitionKey]
-        // The [Queryable] has custom operations, but [PartitionKey] should derive Equals
-        var entity = new EntityModel
-        {
-            ClassName = "TestEntity",
-            Namespace = "TestNamespace",
-            TableName = "test-table",
-            Properties = new[]
-            {
-                new PropertyModel
-                {
-                    PropertyName = "UserId",
-                    AttributeName = "pk",
-                    PropertyType = "string",
-                    IsPartitionKey = true,
-                    // [Queryable] with explicit operations - but since it has no operations set,
-                    // the key attribute derivation should take precedence
-                    Queryable = new QueryableModel
-                    {
-                        SupportedOperations = Array.Empty<DynamoDbOperation>()
-                    }
-                }
-            }
-        };
-
-        // Act - Generate the entity implementation
-        var result = MapperGenerator.GenerateEntityImplementation(entity);
-
-        // Assert - Verify that partition key operations are used (Equals only)
-        // When Queryable has no operations, key attribute derivation takes precedence
-        result.Should().Contain("SupportedOperations = new[] { DynamoDbOperation.Equals }",
-            "Partition key should derive Equals operation even when [Queryable] is present with no operations");
     }
 
     /// <summary>

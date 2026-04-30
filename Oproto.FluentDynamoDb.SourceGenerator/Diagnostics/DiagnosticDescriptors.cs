@@ -881,7 +881,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor DeprecatedQueryableAttribute = new(
         "DYNDB113",
         "Deprecated [Queryable] attribute",
-        "Property '{0}' uses the deprecated [Queryable] attribute. Query capabilities are now derived from [PartitionKey] and [SortKey] attributes. This attribute will be removed in v1.0.",
+        "Property '{0}' uses the deprecated [Queryable] attribute. Query capabilities are now derived from [PartitionKey] and [SortKey] attributes. This attribute will be removed in a future version.",
         "DynamoDb",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,

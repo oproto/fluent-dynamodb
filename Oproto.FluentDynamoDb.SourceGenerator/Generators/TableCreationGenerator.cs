@@ -54,7 +54,7 @@ internal static class TableCreationGenerator
         sb.AppendLine($"            tableName,");
         sb.AppendLine($"            {entity.ClassName}.GetEntityMetadata(),");
         sb.AppendLine($"            options ?? new Oproto.FluentDynamoDb.Provisioning.TableCreationOptions(),");
-        sb.AppendLine($"            cancellationToken);");
+        sb.AppendLine($"            cancellationToken).ConfigureAwait(false);");
         sb.AppendLine("    }");
     }
 

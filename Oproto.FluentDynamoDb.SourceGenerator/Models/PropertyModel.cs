@@ -48,11 +48,6 @@ internal class PropertyModel
     public KeyFormatModel? KeyFormat { get; set; }
 
     /// <summary>
-    /// Gets or sets the queryable information for this property.
-    /// </summary>
-    public QueryableModel? Queryable { get; set; }
-
-    /// <summary>
     /// Gets or sets the Global Secondary Index attributes for this property.
     /// </summary>
     public GlobalSecondaryIndexModel[] GlobalSecondaryIndexes { get; set; } = Array.Empty<GlobalSecondaryIndexModel>();

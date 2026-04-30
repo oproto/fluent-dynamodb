@@ -59,7 +59,7 @@ public static class FluentResultsGeospatialExtensions
                 pageSize,
                 continuationToken,
                 maxCells,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -137,7 +137,7 @@ public static class FluentResultsGeospatialExtensions
                 pageSize,
                 continuationToken,
                 maxCells,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -204,7 +204,7 @@ public static class FluentResultsGeospatialExtensions
                 radiusKilometers,
                 pageSize,
                 continuationToken,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -265,7 +265,7 @@ public static class FluentResultsGeospatialExtensions
                 pageSize,
                 continuationToken,
                 maxCells,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -343,7 +343,7 @@ public static class FluentResultsGeospatialExtensions
                 pageSize,
                 continuationToken,
                 maxCells,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -410,7 +410,7 @@ public static class FluentResultsGeospatialExtensions
                 radiusKilometers,
                 pageSize,
                 continuationToken,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)

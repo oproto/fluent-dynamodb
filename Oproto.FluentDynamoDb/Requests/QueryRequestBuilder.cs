@@ -430,7 +430,7 @@ public class QueryRequestBuilder<TEntity> :
         
         try
         {
-            var response = await _dynamoDbClient.QueryAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.QueryAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

@@ -32,7 +32,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToGetItemRequest();
-            var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Populate builder.Response with response metadata for direct access
             builder.Response = new GetItemOperationResponse
@@ -91,7 +91,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToGetItemRequest();
-            var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Populate builder.Response with response metadata for direct access
             builder.Response = new GetItemOperationResponse
@@ -120,7 +120,7 @@ public static class EntityExecuteAsyncExtensions
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
-                return await hydrator.HydrateAsync(response.Item, blobProvider, builder.GetOptions(), cancellationToken);
+                return await hydrator.HydrateAsync(response.Item, blobProvider, builder.GetOptions(), cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -156,7 +156,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate builder.Response with response metadata for direct access
@@ -227,7 +227,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate builder.Response with response metadata for direct access
@@ -265,7 +265,7 @@ public static class EntityExecuteAsyncExtensions
             {
                 // Entity has blob references - use registered hydrator (no reflection)
                 var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, options, cancellationToken));
-                return (await Task.WhenAll(tasks)).ToList();
+                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
             }
             else
             {
@@ -317,7 +317,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
@@ -398,7 +398,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
@@ -432,15 +432,15 @@ public static class EntityExecuteAsyncExtensions
                 {
                     if (group.Count() == 1)
                     {
-                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken);
+                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken);
+                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken).ConfigureAwait(false);
                     }
                 });
 
-                return (await Task.WhenAll(tasks)).ToList();
+                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
             }
             else
             {
@@ -495,7 +495,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
@@ -572,7 +572,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with QueryResponse metadata
@@ -601,7 +601,7 @@ public static class EntityExecuteAsyncExtensions
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator (no reflection)
-                return await hydrator.HydrateAsync(items, blobProvider, options, cancellationToken);
+                return await hydrator.HydrateAsync(items, blobProvider, options, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -677,7 +677,7 @@ public static class EntityExecuteAsyncExtensions
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator's serialize method (no reflection)
-                attributeDict = await hydrator.SerializeAsync(item, blobProvider, options, cancellationToken);
+                attributeDict = await hydrator.SerializeAsync(item, blobProvider, options, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -715,7 +715,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
-            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate builder.Response with response metadata for direct access
@@ -787,7 +787,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
-            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate builder.Response with response metadata for direct access
@@ -825,7 +825,7 @@ public static class EntityExecuteAsyncExtensions
             {
                 // Entity has blob references - use registered hydrator (no reflection)
                 var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, options, cancellationToken));
-                return (await Task.WhenAll(tasks)).ToList();
+                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
             }
             else
             {
@@ -860,7 +860,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
-            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with ScanResponse metadata
@@ -926,7 +926,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of ExecuteAsync()
             var request = builder.ToScanRequest();
-            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken).ConfigureAwait(false);
             var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
 
             // Populate context with ScanResponse metadata
@@ -959,15 +959,15 @@ public static class EntityExecuteAsyncExtensions
                 {
                     if (group.Count() == 1)
                     {
-                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken);
+                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken);
+                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken).ConfigureAwait(false);
                     }
                 });
 
-                return (await Task.WhenAll(tasks)).ToList();
+                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
             }
             else
             {
@@ -1011,14 +1011,14 @@ public static class EntityExecuteAsyncExtensions
                 {
                     var entity = builder.GetDeferredEntity()!;
                     var blobProvider = options.BlobStorageProvider;
-                    var item = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken);
+                    var item = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken).ConfigureAwait(false);
                     builder.SetResolvedItem(item);
                 }
             }
 
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToPutItemRequest();
-            var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Populate builder.Response with response metadata for direct access
             builder.Response = new PutItemOperationResponse
@@ -1073,7 +1073,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToPutItemRequest();
-            var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Populate builder.Response with response metadata for direct access
             builder.Response = new PutItemOperationResponse
@@ -1121,7 +1121,7 @@ public static class EntityExecuteAsyncExtensions
         try
         {
             // Use ToDynamoDbResponseAsync which handles encryption and execution
-            var response = await builder.ToDynamoDbResponseAsync(cancellationToken);
+            var response = await builder.ToDynamoDbResponseAsync(cancellationToken).ConfigureAwait(false);
             
             // Get the request after encryption to check ReturnValues setting
             var request = builder.ToUpdateItemRequest();
@@ -1178,7 +1178,7 @@ public static class EntityExecuteAsyncExtensions
         {
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToDeleteItemRequest();
-            var response = await builder.GetDynamoDbClient().DeleteItemAsync(request, cancellationToken);
+            var response = await builder.GetDynamoDbClient().DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Populate builder.Response with response metadata for direct access
             builder.Response = new DeleteItemOperationResponse

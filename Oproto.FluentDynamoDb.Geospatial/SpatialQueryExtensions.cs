@@ -413,7 +413,7 @@ public static class SpatialQueryExtensions
             queryTasks.Add(query.ToListAsync(cancellationToken));
         }
 
-        var responses = await Task.WhenAll(queryTasks);
+        var responses = await Task.WhenAll(queryTasks).ConfigureAwait(false);
 
         // Merge results from all cells
         // Note: Deduplication is not needed because each DynamoDB item has a unique primary key.
@@ -504,7 +504,7 @@ public static class SpatialQueryExtensions
                 query = query.StartAt(deserializedKey);
             }
             
-            var entityList = await query.ToListAsync(cancellationToken);
+            var entityList = await query.ToListAsync(cancellationToken).ConfigureAwait(false);
             cellsQueried++;
             
             // Get LastEvaluatedKey and ScannedCount from the builder's Response property

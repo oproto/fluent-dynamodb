@@ -121,7 +121,7 @@ internal static class HydratorGenerator
         sb.AppendLine($"        /// <returns>The hydrated entity.</returns>");
         sb.AppendLine($"        public async Task<{entity.ClassName}> HydrateAsync(");
         sb.AppendLine($"            Dictionary<string, AttributeValue> item,");
-        sb.AppendLine($"            IBlobStorageProvider blobProvider,");
+        sb.AppendLine($"            IBlobStorageProvider? blobProvider,");
         sb.AppendLine($"            FluentDynamoDbOptions? options = null,");
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
@@ -148,7 +148,7 @@ internal static class HydratorGenerator
 
         sb.AppendLine($"                options?.FieldEncryptor,");
         sb.AppendLine($"                options,");
-        sb.AppendLine($"                cancellationToken);");
+        sb.AppendLine($"                cancellationToken).ConfigureAwait(false);");
         sb.AppendLine("        }");
         sb.AppendLine();
     }
@@ -167,7 +167,7 @@ internal static class HydratorGenerator
         sb.AppendLine($"        /// <returns>The hydrated entity.</returns>");
         sb.AppendLine($"        public async Task<{entity.ClassName}> HydrateAsync(");
         sb.AppendLine($"            IList<Dictionary<string, AttributeValue>> items,");
-        sb.AppendLine($"            IBlobStorageProvider blobProvider,");
+        sb.AppendLine($"            IBlobStorageProvider? blobProvider,");
         sb.AppendLine($"            FluentDynamoDbOptions? options = null,");
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
@@ -199,7 +199,7 @@ internal static class HydratorGenerator
 
         sb.AppendLine($"                options?.FieldEncryptor,");
         sb.AppendLine($"                options,");
-        sb.AppendLine($"                cancellationToken);");
+        sb.AppendLine($"                cancellationToken).ConfigureAwait(false);");
         sb.AppendLine("        }");
     }
 
@@ -218,7 +218,7 @@ internal static class HydratorGenerator
         sb.AppendLine($"        /// <returns>The DynamoDB attributes.</returns>");
         sb.AppendLine($"        public async Task<Dictionary<string, AttributeValue>> SerializeAsync(");
         sb.AppendLine($"            {entity.ClassName} entity,");
-        sb.AppendLine($"            IBlobStorageProvider blobProvider,");
+        sb.AppendLine($"            IBlobStorageProvider? blobProvider,");
         sb.AppendLine($"            FluentDynamoDbOptions? options = null,");
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
@@ -245,7 +245,7 @@ internal static class HydratorGenerator
 
         sb.AppendLine($"                options?.FieldEncryptor,");
         sb.AppendLine($"                options,");
-        sb.AppendLine($"                cancellationToken);");
+        sb.AppendLine($"                cancellationToken).ConfigureAwait(false);");
         sb.AppendLine("        }");
     }
 

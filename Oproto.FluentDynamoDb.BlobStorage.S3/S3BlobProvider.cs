@@ -32,7 +32,7 @@ public class S3BlobProvider : IBlobStorageProvider
         string? suggestedKey = null,
         CancellationToken cancellationToken = default)
     {
-        return await StoreAsync(data, new BlobStoreOptions(), suggestedKey, cancellationToken);
+        return await StoreAsync(data, new BlobStoreOptions(), suggestedKey, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -86,7 +86,7 @@ public class S3BlobProvider : IBlobStorageProvider
 
         try
         {
-            await _s3Client.PutObjectAsync(request, cancellationToken);
+            await _s3Client.PutObjectAsync(request, cancellationToken).ConfigureAwait(false);
             return key;
         }
         catch (AmazonS3Exception ex)
@@ -112,11 +112,11 @@ public class S3BlobProvider : IBlobStorageProvider
 
         try
         {
-            var response = await _s3Client.GetObjectAsync(request, cancellationToken);
+            var response = await _s3Client.GetObjectAsync(request, cancellationToken).ConfigureAwait(false);
             
             // Copy to memory stream to avoid disposing the response stream prematurely
             var memoryStream = new MemoryStream();
-            await response.ResponseStream.CopyToAsync(memoryStream, cancellationToken);
+            await response.ResponseStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
             memoryStream.Position = 0;
             
             return memoryStream;
@@ -149,7 +149,7 @@ public class S3BlobProvider : IBlobStorageProvider
 
         try
         {
-            await _s3Client.DeleteObjectAsync(request, cancellationToken);
+            await _s3Client.DeleteObjectAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (AmazonS3Exception ex)
         {
@@ -174,7 +174,7 @@ public class S3BlobProvider : IBlobStorageProvider
                 Key = referenceKey
             };
 
-            await _s3Client.GetObjectMetadataAsync(request, cancellationToken);
+            await _s3Client.GetObjectMetadataAsync(request, cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
