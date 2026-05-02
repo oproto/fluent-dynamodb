@@ -49,16 +49,20 @@ public partial class Order
 }
 
 // GSI/LSI
-[GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+[GsiPartitionKey("gsi1")]
 [DynamoDbAttribute("gsi1pk")]
 public string CategoryId { get; set; }
 
-[LocalSecondaryIndex("lsi1")]
+[GsiSortKey("gsi1")]
+[DynamoDbAttribute("gsi1sk")]
+public string CategorySort { get; set; }
+
+[LsiSortKey("lsi1")]
 [DynamoDbAttribute("createdAt")]
 public DateTime CreatedAt { get; set; }
 
 // GSI/LSI with custom property names
-[GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
+[GsiPartitionKey("status-index", Name = "StatusIndex")]
 [DynamoDbAttribute("status")]
 public string Status { get; set; }
 
@@ -556,13 +560,13 @@ Single-entity tables automatically use the entity type as the default projection
 public partial class Order
 {
     [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
-    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [GsiPartitionKey("status-index")]
     [DynamoDbAttribute("status")] public string Status { get; set; } = string.Empty;
 }
 var orders = await table.StatusIndex.Query(x => x.Status == "pending").ToListAsync();
 
 // Keys Only: auto-generates {IndexName}KeysProjection record
-[GlobalSecondaryIndex("gsi1", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+[GsiPartitionKey("gsi1", ProjectionType = ProjectionType.KeysOnly)]
 ```
 
 | ProjectionType | Behavior |
@@ -583,7 +587,7 @@ public partial class Order
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [GsiPartitionKey("status-index")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 }
@@ -595,7 +599,7 @@ public partial class Customer
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+    [GsiPartitionKey("email-index")]
     [DynamoDbAttribute("email")]
     public string Email { get; set; } = string.Empty;
 }

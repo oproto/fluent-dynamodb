@@ -26,21 +26,21 @@ public partial class SchemaValidationTestEntity
     /// <summary>
     /// GSI partition key - allows querying by status across all tenants.
     /// </summary>
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string? Status { get; set; }
     
     /// <summary>
     /// GSI sort key - used with StatusIndex.
     /// </summary>
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("created_at")]
     public string? CreatedAt { get; set; }
     
     /// <summary>
     /// LSI sort key - allows querying items by category within a tenant.
     /// </summary>
-    [LocalSecondaryIndex("CategoryIndex")]
+    [LsiSortKey("CategoryIndex")]
     [DynamoDbAttribute("category")]
     public string? Category { get; set; }
     
@@ -107,7 +107,7 @@ public partial class GsiOnlyValidationEntity
     /// <summary>
     /// GSI partition key - allows querying by email.
     /// </summary>
-    [GlobalSecondaryIndex("EmailIndex")]
+    [GsiPartitionKey("EmailIndex")]
     [DynamoDbAttribute("email")]
     public string? Email { get; set; }
     

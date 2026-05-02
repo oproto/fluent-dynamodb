@@ -33,7 +33,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string CreatedAt { get; set; } = string.Empty;
         
-        [LocalSecondaryIndex(""StatusIndex"")]
+        [LsiSortKey(""StatusIndex"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -53,7 +53,7 @@ namespace TestNamespace
         lsi.IndexName.Should().Be("StatusIndex");
         lsi.IndexType.Should().Be(IndexType.LocalSecondaryIndex);
         lsi.PartitionKeyProperty.Should().Be("TenantId", "LSI should inherit partition key from base table");
-        lsi.SortKeyProperty.Should().Be("Status", "LSI sort key should be the property with [LocalSecondaryIndex]");
+        lsi.SortKeyProperty.Should().Be("Status", "LSI sort key should be the property with [LsiSortKey]");
     }
 
     [Fact]
@@ -76,11 +76,11 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string CreatedAt { get; set; } = string.Empty;
         
-        [LocalSecondaryIndex(""StatusIndex"")]
+        [LsiSortKey(""StatusIndex"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
         
-        [LocalSecondaryIndex(""PriorityIndex"")]
+        [LsiSortKey(""PriorityIndex"")]
         [DynamoDbAttribute(""priority"")]
         public int Priority { get; set; }
     }
@@ -127,11 +127,11 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string CreatedAt { get; set; } = string.Empty;
         
-        [LocalSecondaryIndex(""StatusLSI"")]
+        [LsiSortKey(""StatusLSI"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""EmailGSI"", IsPartitionKey = true)]
+        [GsiPartitionKey(""EmailGSI"")]
         [DynamoDbAttribute(""email"")]
         public string Email { get; set; } = string.Empty;
     }
@@ -176,7 +176,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string CreatedAt { get; set; } = string.Empty;
         
-        [LocalSecondaryIndex(""StatusIndex"")]
+        [LsiSortKey(""StatusIndex"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -193,9 +193,9 @@ namespace TestNamespace
         
         var statusProperty = result!.Properties.FirstOrDefault(p => p.PropertyName == "Status");
         statusProperty.Should().NotBeNull();
-        statusProperty!.IsPartOfLsi.Should().BeTrue("property has [LocalSecondaryIndex] attribute");
-        statusProperty.LocalSecondaryIndexes.Should().HaveCount(1);
-        statusProperty.LocalSecondaryIndexes[0].IndexName.Should().Be("StatusIndex");
+        statusProperty!.IsPartOfLsi.Should().BeTrue("property has [LsiSortKey] attribute");
+        statusProperty.LsiSortKeys.Should().HaveCount(1);
+        statusProperty.LsiSortKeys[0].IndexName.Should().Be("StatusIndex");
     }
 
     [Fact]
@@ -232,7 +232,7 @@ namespace TestNamespace
         var nameProperty = result.Properties.FirstOrDefault(p => p.PropertyName == "Name");
         nameProperty.Should().NotBeNull();
         nameProperty!.IsPartOfLsi.Should().BeFalse();
-        nameProperty.LocalSecondaryIndexes.Should().BeEmpty();
+        nameProperty.LsiSortKeys.Should().BeEmpty();
     }
 
     /// <summary>

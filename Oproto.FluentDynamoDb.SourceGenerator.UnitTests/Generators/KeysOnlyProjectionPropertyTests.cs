@@ -342,13 +342,12 @@ public class KeysOnlyProjectionPropertyTests
                     PropertyName = "GsiPk",
                     PropertyType = "string",
                     AttributeName = "gsi1pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = indexName,
-                            IsPartitionKey = true,
-                            ProjectionType = projectionType
+ProjectionType = projectionType
                         }
                     }
                 }
@@ -406,13 +405,12 @@ public class KeysOnlyProjectionPropertyTests
                     PropertyName = "GsiPk",
                     PropertyType = "string",
                     AttributeName = "gsi1pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = indexName,
-                            IsPartitionKey = true,
-                            ProjectionType = projectionType
+ProjectionType = projectionType
                         }
                     }
                 },
@@ -421,13 +419,12 @@ public class KeysOnlyProjectionPropertyTests
                     PropertyName = "GsiSk",
                     PropertyType = "string",
                     AttributeName = "gsi1sk",
-                    GlobalSecondaryIndexes = new[]
-                    {
-                        new GlobalSecondaryIndexModel
+                    GsiSortKeys = new[]
+                        {
+                            new GsiSortKeyModel
                         {
                             IndexName = indexName,
-                            IsSortKey = true,
-                            ProjectionType = projectionType
+ProjectionType = projectionType
                         }
                     }
                 }
@@ -487,9 +484,9 @@ public class KeysOnlyProjectionPropertyTests
                     PropertyName = "LsiSk",
                     PropertyType = "string",
                     AttributeName = "lsi1sk",
-                    LocalSecondaryIndexes = new[]
+                    LsiSortKeys = new[]
                     {
-                        new LocalSecondaryIndexModel
+                        new LsiSortKeyModel
                         {
                             IndexName = indexName,
                             ProjectionType = projectionType

@@ -277,14 +277,13 @@ public partial class User
     public string SortKey { get; set; } = string.Empty;
     
     // GSI uses different discriminator
-    [GlobalSecondaryIndex("StatusIndex",
-        IsPartitionKey = true,
+    [GsiPartitionKey("StatusIndex",
         DiscriminatorProperty = "GSI1SK",
         DiscriminatorPattern = "USER#*")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("gsi1sk")]
     public string StatusSortKey { get; set; } = string.Empty;
 }

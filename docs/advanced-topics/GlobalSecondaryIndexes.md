@@ -20,7 +20,7 @@ Global Secondary Indexes (GSIs) enable alternative query patterns on your Dynamo
 
 ### Basic GSI Definition
 
-Define a GSI using the `[GlobalSecondaryIndex]` attribute:
+Define a GSI using the `[GsiPartitionKey]` and `[GsiSortKey]` attributes:
 
 ```csharp
 using Oproto.FluentDynamoDb.Attributes;
@@ -34,7 +34,7 @@ public partial class User
     public string UserId { get; set; } = string.Empty;
     
     // GSI partition key
-    [GlobalSecondaryIndex("EmailIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("EmailIndex")]
     [DynamoDbAttribute("email")]
     public string Email { get; set; } = string.Empty;
     
@@ -64,12 +64,12 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
     
     // GSI partition key
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
     // GSI sort key
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; }
     
@@ -95,25 +95,25 @@ public partial class Product
     public string ProductId { get; set; } = string.Empty;
     
     // GSI 1: Query by category
-    [GlobalSecondaryIndex("CategoryIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("CategoryIndex")]
     [DynamoDbAttribute("category")]
     public string Category { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("CategoryIndex", IsSortKey = true)]
+    [GsiSortKey("CategoryIndex")]
     [DynamoDbAttribute("price")]
     public decimal Price { get; set; }
     
     // GSI 2: Query by vendor
-    [GlobalSecondaryIndex("VendorIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("VendorIndex")]
     [DynamoDbAttribute("vendorId")]
     public string VendorId { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("VendorIndex", IsSortKey = true)]
+    [GsiSortKey("VendorIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; }
     
     // GSI 3: Query by status
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = "active";
     
@@ -134,7 +134,7 @@ public static class ProductIndexes
 
 ### GSI with ProjectionType
 
-The `ProjectionType` property on `[GlobalSecondaryIndex]` specifies the DynamoDB projection type for the index. This is metadata that affects schema validation and table creation:
+The `ProjectionType` property on `[GsiPartitionKey]` specifies the DynamoDB projection type for the index. This is metadata that affects schema validation and table creation:
 
 ```csharp
 [DynamoDbTable("orders")]
@@ -149,12 +149,12 @@ public partial class Order
     public string Sk { get; set; } = string.Empty;
     
     // GSI with ALL projection (default)
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
     // GSI with KEYS_ONLY projection - auto-generates projection record
-    [GlobalSecondaryIndex("CategoryIndex", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+    [GsiPartitionKey("CategoryIndex", ProjectionType = ProjectionType.KeysOnly)]
     [DynamoDbAttribute("category")]
     public string Category { get; set; } = string.Empty;
 }
@@ -192,13 +192,13 @@ public partial class Transaction
     public DateTime CreatedAt { get; set; }
     
     // GSI partition key: "TENANT#tenant123#STATUS#pending"
-    [GlobalSecondaryIndex("TenantStatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("TenantStatusIndex")]
     [Computed(nameof(TenantId), nameof(Status), Format = "TENANT#{0}#STATUS#{1}")]
     [DynamoDbAttribute("gsi1pk")]
     public string TenantStatusKey { get; set; } = string.Empty;
     
     // GSI sort key: ISO 8601 timestamp
-    [GlobalSecondaryIndex("TenantStatusIndex", IsSortKey = true)]
+    [GsiSortKey("TenantStatusIndex")]
     [Computed(nameof(CreatedAt), Format = "{0:o}")]
     [DynamoDbAttribute("gsi1sk")]
     public string CreatedAtKey { get; set; } = string.Empty;
@@ -293,7 +293,7 @@ public partial class Event
     public string EventType { get; set; } = string.Empty;
     
     // Computed GSI key
-    [GlobalSecondaryIndex("TenantTypeIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("TenantTypeIndex")]
     [Computed(nameof(TenantId), nameof(EventType), Format = "TENANT#{0}#TYPE#{1}")]
     [DynamoDbAttribute("gsi1pk")]
     public string TenantTypeKey { get; set; } = string.Empty;
@@ -431,7 +431,7 @@ public partial class Order
     [DynamoDbAttribute("sk")]
     public string Sk { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 }
@@ -465,11 +465,11 @@ public partial class Order
     public string Sk { get; set; } = string.Empty;
     
     // Keys Only projection - auto-generates StatusIndexKeysProjection
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+    [GsiPartitionKey("StatusIndex", ProjectionType = ProjectionType.KeysOnly)]
     [DynamoDbAttribute("gsi1pk")]
     public string Gsi1Pk { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("gsi1sk")]
     public string Gsi1Sk { get; set; } = string.Empty;
 }
@@ -601,11 +601,11 @@ public partial class Task
     [DynamoDbAttribute("pk")]
     public string TaskId { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = "pending";
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("dueDate")]
     public DateTime DueDate { get; set; }
     
@@ -636,12 +636,12 @@ public partial class Document
     [DynamoDbAttribute("pk")]
     public string DocumentId { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("TenantIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("TenantIndex")]
     [Computed(nameof(TenantId), Format = "TENANT#{0}")]
     [DynamoDbAttribute("gsi1pk")]
     public string TenantId { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("TenantIndex", IsSortKey = true)]
+    [GsiSortKey("TenantIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; }
     
@@ -675,11 +675,11 @@ public partial class User
     public string Email { get; set; } = string.Empty;
     
     // Only users with premium status are indexed
-    [GlobalSecondaryIndex("PremiumIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("PremiumIndex")]
     [DynamoDbAttribute("premiumStatus")]
     public string? PremiumStatus { get; set; }  // null for non-premium users
     
-    [GlobalSecondaryIndex("PremiumIndex", IsSortKey = true)]
+    [GsiSortKey("PremiumIndex")]
     [DynamoDbAttribute("premiumSince")]
     public DateTime? PremiumSince { get; set; }
 }
@@ -720,12 +720,12 @@ public partial class Relationship
     public string FollowerId { get; set; } = string.Empty;
     
     // GSI: Inverted index for Follower -> Following
-    [GlobalSecondaryIndex("InvertedIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("InvertedIndex")]
     [Computed(nameof(FollowerId), Format = "USER#{0}")]
     [DynamoDbAttribute("gsi1pk")]
     public string InvertedPk { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("InvertedIndex", IsSortKey = true)]
+    [GsiSortKey("InvertedIndex")]
     [Computed(nameof(UserId), Format = "FOLLOWING#{0}")]
     [DynamoDbAttribute("gsi1sk")]
     public string InvertedSk { get; set; } = string.Empty;
@@ -766,12 +766,12 @@ public partial class Product
     public decimal Price { get; set; }
     
     // Composite GSI key: "CATEGORY#electronics#STATUS#active"
-    [GlobalSecondaryIndex("CategoryStatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("CategoryStatusIndex")]
     [Computed(nameof(Category), nameof(Status), Format = "CATEGORY#{0}#STATUS#{1}")]
     [DynamoDbAttribute("gsi1pk")]
     public string CategoryStatusKey { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("CategoryStatusIndex", IsSortKey = true)]
+    [GsiSortKey("CategoryStatusIndex")]
     [DynamoDbAttribute("price")]
     public decimal PriceKey { get; set; }
 }
@@ -878,7 +878,7 @@ var orders = await table.StatusIndex.Query<Order>()
 ```csharp
 // ✅ Good - GSI matches query pattern
 // Access pattern: "Get all pending orders for a customer"
-[GlobalSecondaryIndex("CustomerStatusIndex", IsPartitionKey = true)]
+[GsiPartitionKey("CustomerStatusIndex")]
 [Computed(nameof(CustomerId), nameof(Status), Format = "{0}#{1}")]
 [DynamoDbAttribute("gsi1pk")]
 public string CustomerStatusKey { get; set; } = string.Empty;
@@ -893,7 +893,7 @@ var orders = await table.CustomerStatusIndex.Query<Order>()
 
 ```csharp
 // ✅ Good - only index items that need it
-[GlobalSecondaryIndex("ErrorIndex", IsPartitionKey = true)]
+[GsiPartitionKey("ErrorIndex")]
 [DynamoDbAttribute("errorCode")]
 public string? ErrorCode { get; set; }  // null for successful items
 
@@ -921,12 +921,12 @@ var fullOrders = await BatchGetFullItems(orders.Select(o => o.OrderId));
 
 ```csharp
 // ❌ Avoid - all items have same GSI partition key
-[GlobalSecondaryIndex("TypeIndex", IsPartitionKey = true)]
+[GsiPartitionKey("TypeIndex")]
 [DynamoDbAttribute("type")]
 public string Type { get; set; } = "ORDER";  // Same for all orders
 
 // ✅ Better - distribute across multiple partitions
-[GlobalSecondaryIndex("StatusDateIndex", IsPartitionKey = true)]
+[GsiPartitionKey("StatusDateIndex")]
 [Computed(nameof(Status), nameof(CreatedDate), Format = "{0}#{1:yyyy-MM-dd}")]
 [DynamoDbAttribute("gsi1pk")]
 public string StatusDateKey { get; set; } = string.Empty;

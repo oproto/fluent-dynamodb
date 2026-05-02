@@ -273,11 +273,11 @@ public partial class Product
     [DynamoDbAttribute("pk")]
     public string ProductId { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("created_date")]
     public DateTime CreatedDate { get; set; }
 }
@@ -521,11 +521,11 @@ public static class ProductGSI
 }
 
 // After - generated constants
-[GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+[GsiPartitionKey("StatusIndex")]
 [DynamoDbAttribute("status")]
 public string Status { get; set; } = string.Empty;
 
-[GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+[GsiSortKey("StatusIndex")]
 [DynamoDbAttribute("created_date")]
 public DateTime CreatedDate { get; set; }
 

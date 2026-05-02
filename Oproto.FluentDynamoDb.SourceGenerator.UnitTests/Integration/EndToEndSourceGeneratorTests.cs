@@ -39,11 +39,11 @@ namespace TestNamespace
         public decimal Amount { get; set; }
         
         [DynamoDbAttribute(""status"")]
-        [GlobalSecondaryIndex(""StatusIndex"", IsPartitionKey = true)]
+        [GsiPartitionKey(""StatusIndex"")]
         public string Status { get; set; } = string.Empty;
         
         [DynamoDbAttribute(""created_date"")]
-        [GlobalSecondaryIndex(""StatusIndex"", IsSortKey = true)]
+        [GsiSortKey(""StatusIndex"")]
         public DateTime CreatedDate { get; set; }
         
         [DynamoDbAttribute(""tags"")]
@@ -636,27 +636,27 @@ namespace TestNamespace
         [DynamoDbAttribute(""pk"")]
         public string Id { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""GSI1"")]
         [DynamoDbAttribute(""gsi1_pk"")]
         public string Gsi1Pk { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI2"", IsPartitionKey = true)]
+        [GsiPartitionKey(""GSI2"")]
         [DynamoDbAttribute(""gsi2_pk"")]
         public string Gsi2Pk { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI3"", IsPartitionKey = true)]
+        [GsiPartitionKey(""GSI3"")]
         [DynamoDbAttribute(""gsi3_pk"")]
         public string Gsi3Pk { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI4"", IsPartitionKey = true)]
+        [GsiPartitionKey(""GSI4"")]
         [DynamoDbAttribute(""gsi4_pk"")]
         public string Gsi4Pk { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI5"", IsPartitionKey = true)]
+        [GsiPartitionKey(""GSI5"")]
         [DynamoDbAttribute(""gsi5_pk"")]
         public string Gsi5Pk { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI6"", IsPartitionKey = true)]
+        [GsiPartitionKey(""GSI6"")]
         [DynamoDbAttribute(""gsi6_pk"")]
         public string Gsi6Pk { get; set; } = string.Empty;
         

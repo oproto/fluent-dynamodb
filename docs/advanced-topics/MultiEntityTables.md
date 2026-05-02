@@ -444,11 +444,11 @@ public partial class Order
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string StatusIndexPk { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime StatusIndexSk { get; set; }
 }
@@ -936,7 +936,7 @@ public partial class Order
     [DynamoDbAttribute("sk")]
     public string OrderId { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [GsiPartitionKey("status-index")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 }
@@ -953,7 +953,7 @@ public partial class Customer
     [DynamoDbAttribute("sk")]
     public string SortKey { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+    [GsiPartitionKey("email-index")]
     [DynamoDbAttribute("email")]
     public string Email { get; set; } = string.Empty;
 }
@@ -982,7 +982,7 @@ When multiple entities use the same index with identical configuration, a single
 [DynamoDbTable("ecommerce", IsDefault = true)]
 public partial class Order
 {
-    [GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+    [GsiPartitionKey("gsi1")]
     [DynamoDbAttribute("gsi1pk")]
     public string Gsi1Pk { get; set; } = string.Empty;
 }
@@ -990,7 +990,7 @@ public partial class Order
 [DynamoDbTable("ecommerce")]
 public partial class Customer
 {
-    [GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+    [GsiPartitionKey("gsi1")]
     [DynamoDbAttribute("gsi1pk")]
     public string Gsi1Pk { get; set; } = string.Empty;
 }
@@ -1012,7 +1012,7 @@ If you see FDDB053, FDDB054, or FDDB055 errors, ensure all entities using the sa
 [DynamoDbTable("ecommerce", IsDefault = true)]
 public partial class Order
 {
-    [GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+    [GsiPartitionKey("gsi1")]
     [DynamoDbAttribute("status")]  // Different attribute
     public string Status { get; set; }
 }
@@ -1020,7 +1020,7 @@ public partial class Order
 [DynamoDbTable("ecommerce")]
 public partial class Customer
 {
-    [GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+    [GsiPartitionKey("gsi1")]
     [DynamoDbAttribute("email")]  // Different attribute - conflict!
     public string Email { get; set; }
 }
@@ -1029,7 +1029,7 @@ public partial class Customer
 [DynamoDbTable("ecommerce", IsDefault = true)]
 public partial class Order
 {
-    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [GsiPartitionKey("status-index")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; }
 }
@@ -1037,7 +1037,7 @@ public partial class Order
 [DynamoDbTable("ecommerce")]
 public partial class Customer
 {
-    [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+    [GsiPartitionKey("email-index")]
     [DynamoDbAttribute("email")]
     public string Email { get; set; }
 }
@@ -1132,11 +1132,11 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
     
     // GSI for status-based queries
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; }
 }

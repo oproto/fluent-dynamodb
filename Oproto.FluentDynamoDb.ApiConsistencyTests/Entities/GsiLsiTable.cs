@@ -17,21 +17,21 @@ public partial class GsiLsiEntity
     /// <summary>
     /// GSI1 partition key - enables querying by category.
     /// </summary>
-    [GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+    [GsiPartitionKey("gsi1")]
     [DynamoDbAttribute("gsi1pk")]
     public string Gsi1Pk { get; set; } = string.Empty;
     
     /// <summary>
     /// GSI1 sort key - enables range queries within a category.
     /// </summary>
-    [GlobalSecondaryIndex("gsi1", IsSortKey = true)]
+    [GsiSortKey("gsi1")]
     [DynamoDbAttribute("gsi1sk")]
     public string Gsi1Sk { get; set; } = string.Empty;
     
     /// <summary>
     /// LSI sort key - enables alternate sort order on the same partition key.
     /// </summary>
-    [LocalSecondaryIndex("lsi1")]
+    [LsiSortKey("lsi1")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; }
     

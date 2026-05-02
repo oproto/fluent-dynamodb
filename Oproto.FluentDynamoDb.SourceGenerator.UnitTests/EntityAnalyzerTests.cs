@@ -167,11 +167,11 @@ namespace TestNamespace
         [DynamoDbAttribute(""pk"")]
         public string Id { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""GSI1"")]
         [DynamoDbAttribute(""gsi1pk"")]
         public string GsiPartitionKey { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""GSI1"", IsSortKey = true)]
+        [GsiSortKey(""GSI1"")]
         [DynamoDbAttribute(""gsi1sk"")]
         public string GsiSortKey { get; set; } = string.Empty;
     }

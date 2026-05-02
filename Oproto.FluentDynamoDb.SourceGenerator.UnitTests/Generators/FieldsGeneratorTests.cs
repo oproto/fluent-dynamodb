@@ -92,26 +92,24 @@ public class FieldsGeneratorTests
                 {
                     PropertyName = "GsiKey",
                     AttributeName = "gsi_pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "TestGSI",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 },
                 new PropertyModel
                 {
                     PropertyName = "GsiSort",
                     AttributeName = "gsi_sk",
-                    GlobalSecondaryIndexes = new[]
-                    {
-                        new GlobalSecondaryIndexModel
+                    GsiSortKeys = new[]
+                        {
+                            new GsiSortKeyModel
                         {
                             IndexName = "TestGSI",
-                            IsSortKey = true
-                        }
+}
                     }
                 }
             },
@@ -233,13 +231,12 @@ public class FieldsGeneratorTests
                 {
                     PropertyName = "GsiKey",
                     AttributeName = "gsi_pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "test-gsi-with-dashes",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 }
             },
@@ -289,26 +286,24 @@ public class FieldsGeneratorTests
                 {
                     PropertyName = "Gsi1Key",
                     AttributeName = "gsi1_pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "GSI1",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 },
                 new PropertyModel
                 {
                     PropertyName = "Gsi2Key",
                     AttributeName = "gsi2_pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "GSI2",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 }
             },
@@ -370,26 +365,24 @@ public class FieldsGeneratorTests
                 {
                     PropertyName = "Status",
                     AttributeName = "status",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "StatusIndex",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 },
                 new PropertyModel
                 {
                     PropertyName = "CreatedDate",
                     AttributeName = "created_date",
-                    GlobalSecondaryIndexes = new[]
-                    {
-                        new GlobalSecondaryIndexModel
+                    GsiSortKeys = new[]
+                        {
+                            new GsiSortKeyModel
                         {
                             IndexName = "StatusIndex",
-                            IsSortKey = true
-                        }
+}
                     }
                 }
             },

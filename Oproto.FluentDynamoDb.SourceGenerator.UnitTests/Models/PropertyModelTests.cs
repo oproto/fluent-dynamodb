@@ -59,12 +59,11 @@ public class PropertyModelTests
         // Arrange
         var property = new PropertyModel
         {
-            GlobalSecondaryIndexes = new[]
+            GsiPartitionKeys = new[]
             {
-                new GlobalSecondaryIndexModel
+                new GsiPartitionKeyModel
                 {
-                    IndexName = "TestGSI",
-                    IsPartitionKey = true
+                    IndexName = "TestGSI"
                 }
             }
         };
@@ -82,7 +81,7 @@ public class PropertyModelTests
         // Arrange
         var property = new PropertyModel
         {
-            GlobalSecondaryIndexes = Array.Empty<GlobalSecondaryIndexModel>()
+            GsiPartitionKeys = Array.Empty<GsiPartitionKeyModel>()
         };
 
         // Act
@@ -107,7 +106,9 @@ public class PropertyModelTests
         property.IsCollection.Should().BeFalse();
         property.IsNullable.Should().BeFalse();
         property.KeyFormat.Should().BeNull();
-        property.GlobalSecondaryIndexes.Should().BeEmpty();
+        property.GsiPartitionKeys.Should().BeEmpty();
+        property.GsiSortKeys.Should().BeEmpty();
+        property.LsiSortKeys.Should().BeEmpty();
         property.PropertyDeclaration.Should().BeNull();
         property.HasAttributeMapping.Should().BeFalse();
         property.IsPartOfGsi.Should().BeFalse();
@@ -118,7 +119,7 @@ public class PropertyModelTests
     {
         // Arrange
         var keyFormat = new KeyFormatModel { Prefix = "test", Separator = "#" };
-        var gsiModel = new GlobalSecondaryIndexModel { IndexName = "TestGSI", IsPartitionKey = true };
+        var gsiModel = new GsiPartitionKeyModel { IndexName = "TestGSI" };
 
         // Act
         var property = new PropertyModel
@@ -131,7 +132,7 @@ public class PropertyModelTests
             IsCollection = false,
             IsNullable = true,
             KeyFormat = keyFormat,
-            GlobalSecondaryIndexes = new[] { gsiModel }
+            GsiPartitionKeys = new[] { gsiModel }
         };
 
         // Assert
@@ -143,8 +144,8 @@ public class PropertyModelTests
         property.IsCollection.Should().BeFalse();
         property.IsNullable.Should().BeTrue();
         property.KeyFormat.Should().Be(keyFormat);
-        property.GlobalSecondaryIndexes.Should().HaveCount(1);
-        property.GlobalSecondaryIndexes[0].Should().Be(gsiModel);
+        property.GsiPartitionKeys.Should().HaveCount(1);
+        property.GsiPartitionKeys[0].Should().Be(gsiModel);
         property.HasAttributeMapping.Should().BeTrue();
         property.IsPartOfGsi.Should().BeTrue();
     }
@@ -153,22 +154,24 @@ public class PropertyModelTests
     public void PropertyModel_WithMultipleGsiAttributes_ShouldHandleCorrectly()
     {
         // Arrange
-        var gsi1 = new GlobalSecondaryIndexModel { IndexName = "GSI1", IsPartitionKey = true };
-        var gsi2 = new GlobalSecondaryIndexModel { IndexName = "GSI2", IsSortKey = true };
+        var gsiPk = new GsiPartitionKeyModel { IndexName = "GSI1" };
+        var gsiSk = new GsiSortKeyModel { IndexName = "GSI2" };
 
         // Act
         var property = new PropertyModel
         {
             PropertyName = "TestProperty",
             AttributeName = "test_attribute",
-            GlobalSecondaryIndexes = new[] { gsi1, gsi2 }
+            GsiPartitionKeys = new[] { gsiPk },
+            GsiSortKeys = new[] { gsiSk }
         };
 
         // Assert
         property.IsPartOfGsi.Should().BeTrue();
-        property.GlobalSecondaryIndexes.Should().HaveCount(2);
-        property.GlobalSecondaryIndexes.Should().Contain(gsi1);
-        property.GlobalSecondaryIndexes.Should().Contain(gsi2);
+        property.GsiPartitionKeys.Should().HaveCount(1);
+        property.GsiPartitionKeys.Should().Contain(gsiPk);
+        property.GsiSortKeys.Should().HaveCount(1);
+        property.GsiSortKeys.Should().Contain(gsiSk);
     }
 
     [Theory]

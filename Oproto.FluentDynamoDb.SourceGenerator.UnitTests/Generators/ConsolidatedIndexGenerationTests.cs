@@ -39,7 +39,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi1"")]
         [DynamoDbAttribute(""gsi1pk"")]
         public string StatusIndex { get; set; } = string.Empty;
     }
@@ -55,7 +55,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi2"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi2"")]
         [DynamoDbAttribute(""gsi2pk"")]
         public string EmailIndex { get; set; } = string.Empty;
     }
@@ -119,7 +119,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""email-index"", IsPartitionKey = true)]
+        [GsiPartitionKey(""email-index"")]
         [DynamoDbAttribute(""email"")]
         public string Email { get; set; } = string.Empty;
     }
@@ -170,7 +170,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi1"")]
         [DynamoDbAttribute(""gsi1pk"")]
         public string Gsi1Pk { get; set; } = string.Empty;
     }
@@ -186,7 +186,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi1"")]
         [DynamoDbAttribute(""gsi1pk"")]
         public string Gsi1Pk { get; set; } = string.Empty;
     }
@@ -239,7 +239,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi1"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -255,7 +255,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi1"")]
         [DynamoDbAttribute(""email"")]
         public string Email { get; set; } = string.Empty;
     }
@@ -306,7 +306,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""index1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""index1"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -322,7 +322,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [LocalSecondaryIndex(""index1"")]
+        [LsiSortKey(""index1"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -361,11 +361,11 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""status-index"", IsPartitionKey = true)]
+        [GsiPartitionKey(""status-index"")]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""date-index"", IsPartitionKey = true)]
+        [GsiPartitionKey(""date-index"")]
         [DynamoDbAttribute(""date"")]
         public string Date { get; set; } = string.Empty;
     }
@@ -417,7 +417,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi1"")]
         [DynamoDbAttribute(""gsi1pk"")]
         public string Gsi1Pk { get; set; } = string.Empty;
     }
@@ -433,7 +433,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""gsi1"", IsPartitionKey = true)]
+        [GsiPartitionKey(""gsi1"")]
         [DynamoDbAttribute(""gsi1pk"")]
         public string Gsi1Pk { get; set; } = string.Empty;
     }

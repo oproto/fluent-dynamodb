@@ -218,13 +218,12 @@ public class MapperGeneratorTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "StatusIndex",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 }
             },

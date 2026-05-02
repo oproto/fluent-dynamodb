@@ -1066,4 +1066,102 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "When both ProjectionType = KeysOnly and [UseProjection] are specified, the [UseProjection] attribute takes precedence. The auto-generated Keys Only projection record will not be generated. Consider removing one of these configurations to avoid confusion.");
+
+    // Index Attribute Redesign Diagnostics (DYNDB120-DYNDB127)
+
+    /// <summary>
+    /// Error when a GSI has a [GsiSortKey] but no [GsiPartitionKey] for the same index name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor GsiSortKeyWithoutPartitionKey = new(
+        "DYNDB120",
+        "GSI sort key without partition key",
+        "GSI '{0}' on entity '{1}' has a sort key but no partition key. Add [GsiPartitionKey(\"{0}\")] to a property.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Every Global Secondary Index that has a sort key must also have a partition key. Add a [GsiPartitionKey] attribute with the same index name to a property.");
+
+    /// <summary>
+    /// Error when a GSI has multiple [GsiPartitionKey] attributes for the same index name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateGsiPartitionKey = new(
+        "DYNDB121",
+        "Duplicate GSI partition keys",
+        "GSI '{0}' on entity '{1}' has multiple partition keys: properties '{2}' and '{3}'. Only one is allowed.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A Global Secondary Index can only have one partition key property. Remove the duplicate [GsiPartitionKey] attribute from one of the properties.");
+
+    /// <summary>
+    /// Error when a GSI has multiple [GsiSortKey] attributes for the same index name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateGsiSortKey = new(
+        "DYNDB122",
+        "Duplicate GSI sort keys",
+        "GSI '{0}' on entity '{1}' has multiple sort keys: properties '{2}' and '{3}'. Only one is allowed.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A Global Secondary Index can only have one sort key property. Remove the duplicate [GsiSortKey] attribute from one of the properties.");
+
+    /// <summary>
+    /// Error when an LSI has multiple [LsiSortKey] attributes for the same index name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateLsiSortKey = new(
+        "DYNDB123",
+        "Duplicate LSI sort keys",
+        "LSI '{0}' on entity '{1}' has multiple sort keys: properties '{2}' and '{3}'. Only one is allowed.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A Local Secondary Index can only have one sort key property. Remove the duplicate [LsiSortKey] attribute from one of the properties.");
+
+    /// <summary>
+    /// Error when [GsiPartitionKey] has an empty or whitespace index name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EmptyGsiPartitionKeyIndexName = new(
+        "DYNDB124",
+        "Empty GsiPartitionKey index name",
+        "[GsiPartitionKey] on property '{0}' has an empty or whitespace index name",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The index name parameter on [GsiPartitionKey] must be a non-empty, non-whitespace string.");
+
+    /// <summary>
+    /// Error when [GsiSortKey] has an empty or whitespace index name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EmptyGsiSortKeyIndexName = new(
+        "DYNDB125",
+        "Empty GsiSortKey index name",
+        "[GsiSortKey] on property '{0}' has an empty or whitespace index name",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The index name parameter on [GsiSortKey] must be a non-empty, non-whitespace string.");
+
+    /// <summary>
+    /// Error when [LsiSortKey] has an empty or whitespace index name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EmptyLsiSortKeyIndexName = new(
+        "DYNDB126",
+        "Empty LsiSortKey index name",
+        "[LsiSortKey] on property '{0}' has an empty or whitespace index name",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The index name parameter on [LsiSortKey] must be a non-empty, non-whitespace string.");
+
+    /// <summary>
+    /// Error when the same index name is used as both a GSI and an LSI within the same entity.
+    /// </summary>
+    public static readonly DiagnosticDescriptor GsiLsiIndexNameConflict = new(
+        "DYNDB127",
+        "GSI/LSI index name conflict",
+        "Index name '{0}' on entity '{1}' is used as both a GSI and an LSI. An index name must be exclusively GSI or LSI.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A DynamoDB index name cannot be used as both a Global Secondary Index and a Local Secondary Index within the same entity. Use distinct index names for GSI and LSI.");
 }

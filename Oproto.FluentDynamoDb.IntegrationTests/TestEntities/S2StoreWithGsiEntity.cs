@@ -36,7 +36,7 @@ public partial class S2StoreWithGsiEntity : IDynamoDbEntity
     /// S2 cell token for the location - GSI partition key.
     /// This is the S2 token at level 16 for the store's location.
     /// </summary>
-    [GlobalSecondaryIndex("s2-location-index", IsPartitionKey = true)]
+    [GsiPartitionKey("s2-location-index")]
     [DynamoDbAttribute("s2_cell", SpatialIndexType = SpatialIndexType.S2, S2Level = 16)]
     public GeoLocation Location { get; set; }
     

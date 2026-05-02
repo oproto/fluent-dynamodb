@@ -284,11 +284,11 @@ public partial class Product
     public decimal Price { get; set; }
     
     // GSI for querying by category
-    [GlobalSecondaryIndex("CategoryIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("CategoryIndex")]
     [DynamoDbAttribute("category")]
     public string Category { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("CategoryIndex", IsSortKey = true)]
+    [GsiSortKey("CategoryIndex")]
     [DynamoDbAttribute("name")]
     public string CategorySortKey { get; set; } = string.Empty;
 }
@@ -404,7 +404,7 @@ public partial class BlogUser
     [DynamoDbAttribute("email")]
     public string Email { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("EmailIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("EmailIndex")]
     [DynamoDbAttribute("email_lower")]
     public string EmailLower { get; set; } = string.Empty;
 }
@@ -426,11 +426,11 @@ public partial class BlogPost
     [DynamoDbAttribute("authorId")]
     public string AuthorId { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("AuthorIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("AuthorIndex")]
     [DynamoDbAttribute("authorId")]
     public string AuthorIndexKey { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("AuthorIndex", IsSortKey = true)]
+    [GsiSortKey("AuthorIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

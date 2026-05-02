@@ -313,14 +313,13 @@ public partial class User
     public string SortKey { get; set; } = string.Empty;
     
     // GSI uses different discriminator pattern
-    [GlobalSecondaryIndex("StatusIndex",
-        IsPartitionKey = true,
+    [GsiPartitionKey("StatusIndex",
         DiscriminatorProperty = "GSI1SK",
         DiscriminatorPattern = "USER#*")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("gsi1sk")]
     public string StatusSortKey { get; set; } = string.Empty;
 }
@@ -717,7 +716,7 @@ public partial class TimeSeriesData
 
 ## Global Secondary Indexes
 
-Define Global Secondary Indexes (GSIs) using the `[GlobalSecondaryIndex]` attribute:
+Define Global Secondary Indexes (GSIs) using the `[GsiPartitionKey]` and `[GsiSortKey]` attributes:
 
 ### Simple GSI
 
@@ -730,7 +729,7 @@ public partial class User
     public string UserId { get; set; } = string.Empty;
     
     // GSI partition key
-    [GlobalSecondaryIndex("EmailIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("EmailIndex")]
     [DynamoDbAttribute("email")]
     public string Email { get; set; } = string.Empty;
 }
@@ -771,12 +770,12 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
     
     // GSI partition key
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
     // GSI sort key
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; }
 }
@@ -804,17 +803,17 @@ public partial class Product
     public string ProductId { get; set; } = string.Empty;
     
     // GSI 1: Query by category
-    [GlobalSecondaryIndex("CategoryIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("CategoryIndex")]
     [DynamoDbAttribute("category")]
     public string Category { get; set; } = string.Empty;
     
     // GSI 2: Query by vendor
-    [GlobalSecondaryIndex("VendorIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("VendorIndex")]
     [DynamoDbAttribute("vendorId")]
     public string VendorId { get; set; } = string.Empty;
     
     // GSI 2 sort key
-    [GlobalSecondaryIndex("VendorIndex", IsSortKey = true)]
+    [GsiSortKey("VendorIndex")]
     [DynamoDbAttribute("price")]
     public decimal Price { get; set; }
 }
@@ -845,13 +844,13 @@ public partial class Transaction
     public string Status { get; set; } = string.Empty;
     
     // GSI partition key: "TENANT#tenant123#STATUS#pending"
-    [GlobalSecondaryIndex("TenantStatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("TenantStatusIndex")]
     [Computed(nameof(TenantId), nameof(Status), Format = "TENANT#{0}#STATUS#{1}")]
     [DynamoDbAttribute("gsi1pk")]
     public string TenantStatusKey { get; set; } = string.Empty;
     
     // GSI sort key
-    [GlobalSecondaryIndex("TenantStatusIndex", IsSortKey = true)]
+    [GsiSortKey("TenantStatusIndex")]
     [DynamoDbAttribute("gsi1sk")]
     public DateTime CreatedAt { get; set; }
 }
@@ -958,12 +957,12 @@ public string TenantId { get; set; } = string.Empty;
 public string OrderId { get; set; } = string.Empty;
 
 // Access pattern 1: Query by customer
-[GlobalSecondaryIndex("CustomerIndex", IsPartitionKey = true)]
+[GsiPartitionKey("CustomerIndex")]
 [DynamoDbAttribute("customerId")]
 public string CustomerId { get; set; } = string.Empty;
 
 // Access pattern 2: Query by status
-[GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+[GsiPartitionKey("StatusIndex")]
 [DynamoDbAttribute("status")]
 public string Status { get; set; } = string.Empty;
 ```
@@ -1043,21 +1042,21 @@ public partial class Order
     public string ExtractedOrderId { get; set; } = string.Empty;
     
     // GSI 1: Query by customer
-    [GlobalSecondaryIndex("CustomerIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("CustomerIndex")]
     [Computed(nameof(CustomerId), Format = "CUSTOMER#{0}")]
     [DynamoDbAttribute("gsi1pk")]
     public string CustomerKey { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("CustomerIndex", IsSortKey = true)]
+    [GsiSortKey("CustomerIndex")]
     [DynamoDbAttribute("gsi1sk")]
     public DateTime CustomerIndexSortKey { get; set; }
     
     // GSI 2: Query by status
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string StatusKey { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime StatusIndexSortKey { get; set; }
     

@@ -17,14 +17,14 @@ public partial class ProjectionTestEntity
     /// <summary>
     /// GSI1 partition key - enables querying by status.
     /// </summary>
-    [GlobalSecondaryIndex("gsi1", IsPartitionKey = true, Name = "StatusIndex")]
+    [GsiPartitionKey("gsi1", Name = "StatusIndex")]
     [DynamoDbAttribute("gsi1pk")]
     public string Status { get; set; } = string.Empty;
     
     /// <summary>
     /// GSI1 sort key - enables range queries within a status.
     /// </summary>
-    [GlobalSecondaryIndex("gsi1", IsSortKey = true)]
+    [GsiSortKey("gsi1")]
     [DynamoDbAttribute("gsi1sk")]
     public string StatusSortKey { get; set; } = string.Empty;
     

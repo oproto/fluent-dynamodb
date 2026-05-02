@@ -473,13 +473,13 @@ var sortKey = OrderItemKeys.Sk("item456");
 ```
 
 
-## [GlobalSecondaryIndex]
+## [GsiPartitionKey]
 
-Marks a property as part of a Global Secondary Index (GSI).
+Marks a property as the partition key for a Global Secondary Index (GSI).
 
 ### Purpose
 
-Defines properties that participate in Global Secondary Indexes, enabling alternative query patterns. The source generator creates GSI-specific field constants and key builders.
+Defines properties that serve as the partition key for Global Secondary Indexes, enabling alternative query patterns. The key role is encoded directly in the attribute name, eliminating the need for boolean flags. The source generator creates GSI-specific field constants and key builders.
 
 ### Parameters
 
@@ -491,9 +491,8 @@ Defines properties that participate in Global Secondary Indexes, enabling altern
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `IsPartitionKey` | `bool` | `false` | Whether this property is the GSI partition key |
-| `IsSortKey` | `bool` | `false` | Whether this property is the GSI sort key |
-| `KeyFormat` | `string?` | `null` | Format pattern for composite keys |
+| `Name` | `string?` | `null` | Custom C# property name for the generated index accessor |
+| `ProjectionType` | `ProjectionType` | `All` | DynamoDB projection type for the index |
 | `DiscriminatorProperty` | `string?` | `null` | GSI-specific discriminator property (overrides table-level discriminator) |
 | `DiscriminatorValue` | `string?` | `null` | GSI-specific discriminator exact value |
 | `DiscriminatorPattern` | `string?` | `null` | GSI-specific discriminator pattern with wildcard support |
@@ -513,16 +512,16 @@ public partial class User
     public string Username { get; set; } = string.Empty;
     
     // GSI for querying by email
-    [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+    [GsiPartitionKey("email-index")]
     [DynamoDbAttribute("email")]
     public string Email { get; set; } = string.Empty;
     
     // GSI for querying by status and created date
-    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [GsiPartitionKey("status-index")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("status-index", IsSortKey = true)]
+    [GsiSortKey("status-index")]
     [DynamoDbAttribute("created_at")]
     public DateTime CreatedAt { get; set; }
 }
@@ -542,7 +541,7 @@ public partial class Product
     public string Subcategory { get; set; } = string.Empty;
     
     // Composite GSI key: "Electronics#Laptops"
-    [GlobalSecondaryIndex("category-index", IsPartitionKey = true, KeyFormat = "{0}#{1}")]
+    [GsiPartitionKey("category-index")]
     [Computed(nameof(Category), nameof(Subcategory))]
     [DynamoDbAttribute("category_sk")]
     public string CategoryKey { get; set; } = string.Empty;
@@ -563,15 +562,13 @@ public partial class User
     public string SortKey { get; set; } = string.Empty;
     
     // GSI uses different discriminator pattern
-    [GlobalSecondaryIndex("StatusIndex",
-        IsPartitionKey = true,
+    [GsiPartitionKey("StatusIndex",
         DiscriminatorProperty = "GSI1SK",
         DiscriminatorPattern = "USER#*")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex",
-        IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("gsi1sk")]
     public string StatusSortKey { get; set; } = string.Empty;
 }
@@ -602,13 +599,60 @@ public static class UserIndexes
 - [Querying Data](../core-features/QueryingData.md)
 
 
-## [LocalSecondaryIndex]
+## [GsiSortKey]
+
+Marks a property as the sort key for a Global Secondary Index (GSI).
+
+### Purpose
+
+Defines properties that serve as the sort key for Global Secondary Indexes. The key role is encoded directly in the attribute name. When both `[GsiPartitionKey]` and `[GsiSortKey]` specify `Name` or `ProjectionType` for the same index, the `[GsiPartitionKey]` values take precedence.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `indexName` | `string` | Yes | The name of the Global Secondary Index |
+
+### Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Name` | `string?` | `null` | Custom C# property name for the generated index accessor (fallback if `[GsiPartitionKey]` doesn't specify) |
+| `ProjectionType` | `ProjectionType` | `All` | DynamoDB projection type (fallback if `[GsiPartitionKey]` doesn't specify) |
+
+### Example
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    [GsiPartitionKey("status-index")]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+    
+    [GsiSortKey("status-index")]
+    [DynamoDbAttribute("created_at")]
+    public DateTime CreatedAt { get; set; }
+}
+```
+
+### See Also
+
+- [Global Secondary Indexes Guide](../advanced-topics/GlobalSecondaryIndexes.md)
+- [Querying Data](../core-features/QueryingData.md)
+
+
+## [LsiSortKey]
 
 Marks a property as the sort key for a Local Secondary Index (LSI).
 
 ### Purpose
 
-Identifies the property that serves as the sort key for a Local Secondary Index. LSIs share the same partition key as the base table but have a different sort key, enabling alternative query patterns without the cost of a GSI.
+Identifies the property that serves as the sort key for a Local Secondary Index. LSIs share the same partition key as the base table but have a different sort key, enabling alternative query patterns without the cost of a GSI. The index type and key role are both immediately clear from the attribute name.
 
 ### Key Differences from GSI
 
@@ -626,6 +670,13 @@ Identifies the property that serves as the sort key for a Local Secondary Index.
 |-----------|------|----------|-------------|
 | `indexName` | `string` | Yes | The name of the Local Secondary Index |
 
+### Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Name` | `string?` | `null` | Custom C# property name for the generated index accessor |
+| `ProjectionType` | `ProjectionType` | `All` | DynamoDB projection type for the index |
+
 ### Example
 
 ```csharp
@@ -641,12 +692,12 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
     
     // LSI for querying orders by date within a customer
-    [LocalSecondaryIndex("orders-by-date")]
+    [LsiSortKey("orders-by-date")]
     [DynamoDbAttribute("order_date")]
     public string OrderDate { get; set; } = string.Empty;
     
     // Another LSI for querying by status
-    [LocalSecondaryIndex("orders-by-status")]
+    [LsiSortKey("orders-by-status")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
@@ -1234,7 +1285,7 @@ public partial class User
     })]
     public string Username { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+    [GsiPartitionKey("email-index")]
     [DynamoDbAttribute("email")]
     [Queryable(
         SupportedOperations = new[] { DynamoDbOperation.Equals },
@@ -1242,7 +1293,7 @@ public partial class User
     )]
     public string Email { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [GsiPartitionKey("status-index")]
     [DynamoDbAttribute("status")]
     [Queryable(
         SupportedOperations = new[] { DynamoDbOperation.Equals, DynamoDbOperation.In },
@@ -1566,8 +1617,8 @@ These attributes work together to define your DynamoDB entity schema:
 1. **[DynamoDbTable]**: Required on every entity class (supports custom `Namespace` for generated table class)
 2. **[DynamoDbAttribute]**: Required on every persisted property
 3. **[PartitionKey]** and **[SortKey]**: Define table keys
-4. **[GlobalSecondaryIndex]**: Enable alternative query patterns with GSIs
-5. **[LocalSecondaryIndex]**: Enable alternative query patterns with LSIs (same partition key)
+4. **[GsiPartitionKey]** and **[GsiSortKey]**: Enable alternative query patterns with GSIs
+5. **[LsiSortKey]**: Enable alternative query patterns with LSIs (same partition key)
 
 ### Composite Key Attributes
 5. **[Computed]** and **[Extracted]**: Handle composite keys

@@ -50,13 +50,12 @@ public class ProjectionTypePropertyTests
                             PropertyName = "GsiPk",
                             AttributeName = "gsi1pk",
                             PropertyType = "string",
-                            GlobalSecondaryIndexes = new[]
+                            GsiPartitionKeys = new[]
                             {
-                                new GlobalSecondaryIndexModel
+                                new GsiPartitionKeyModel
                                 {
                                     IndexName = indexName,
-                                    IsPartitionKey = true,
-                                    ProjectionType = projectionType
+ProjectionType = projectionType
                                 }
                             }
                         }
@@ -137,9 +136,9 @@ public class ProjectionTypePropertyTests
                             PropertyName = "LsiSk",
                             AttributeName = "lsi1sk",
                             PropertyType = "string",
-                            LocalSecondaryIndexes = new[]
+                            LsiSortKeys = new[]
                             {
-                                new LocalSecondaryIndexModel
+                                new LsiSortKeyModel
                                 {
                                     IndexName = indexName,
                                     ProjectionType = projectionType
@@ -217,13 +216,12 @@ public class ProjectionTypePropertyTests
                             PropertyName = "GsiPk",
                             AttributeName = "gsi1pk",
                             PropertyType = "string",
-                            GlobalSecondaryIndexes = new[]
+                            GsiPartitionKeys = new[]
                             {
-                                new GlobalSecondaryIndexModel
+                                new GsiPartitionKeyModel
                                 {
                                     IndexName = indexName,
-                                    IsPartitionKey = true
-                                    // ProjectionType not specified - should default to All
+// ProjectionType not specified - should default to All
                                 }
                             }
                         }
