@@ -26,7 +26,7 @@ public partial class LsiTestEntity
     /// <summary>
     /// LSI sort key - allows querying orders by date for a customer.
     /// </summary>
-    [LocalSecondaryIndex("OrderDateIndex")]
+    [LsiSortKey("OrderDateIndex")]
     [DynamoDbAttribute("order_date")]
     public string? OrderDate { get; set; }
     

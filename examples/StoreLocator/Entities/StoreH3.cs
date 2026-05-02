@@ -61,7 +61,7 @@ public partial class StoreH3
     /// Fine precision index for nearby searches (radius ≤ 2km).
     /// The H3 cell index is automatically computed by the source generator and used as the GSI partition key.
     /// </summary>
-    [GlobalSecondaryIndex("h3-index-fine", IsPartitionKey = true)]
+    [GsiPartitionKey("h3-index-fine")]
     [DynamoDbAttribute("h3_cell_r9", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 9)]
     [StoreCoordinates(LatitudeAttributeName = "lat", LongitudeAttributeName = "lon")]
     public GeoLocation Location { get; set; }
@@ -70,7 +70,7 @@ public partial class StoreH3
     /// Gets or sets the store location with H3 encoding at resolution 7 (~1.2km edge).
     /// Medium precision index for city-level searches (radius 2-10km).
     /// </summary>
-    [GlobalSecondaryIndex("h3-index-medium", IsPartitionKey = true)]
+    [GsiPartitionKey("h3-index-medium")]
     [DynamoDbAttribute("h3_cell_r7", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 7)]
     public GeoLocation LocationMedium { get; set; }
 
@@ -78,7 +78,7 @@ public partial class StoreH3
     /// Gets or sets the store location with H3 encoding at resolution 5 (~8.5km edge).
     /// Coarse precision index for regional searches (radius > 10km).
     /// </summary>
-    [GlobalSecondaryIndex("h3-index-coarse", IsPartitionKey = true)]
+    [GsiPartitionKey("h3-index-coarse")]
     [DynamoDbAttribute("h3_cell_r5", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 5)]
     public GeoLocation LocationCoarse { get; set; }
 

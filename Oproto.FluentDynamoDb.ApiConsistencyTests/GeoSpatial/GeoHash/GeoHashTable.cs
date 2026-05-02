@@ -9,10 +9,10 @@ public partial class GeoHashEntity
     [DynamoDbAttribute("pk")]
     public string PartitionKey { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+    [GsiPartitionKey("gsi1")]
     [DynamoDbAttribute("gsi1pk")]
     public string Gsi1PartitionKey { get; set; } = string.Empty;
-    [GlobalSecondaryIndex("gsi1", IsSortKey = true)]
+    [GsiSortKey("gsi1")]
     [DynamoDbAttribute("gsi1sk", SpatialIndexType = SpatialIndexType.GeoHash)]
     public GeoLocation Location { get; set; }
     

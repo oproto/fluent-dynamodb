@@ -4,14 +4,20 @@ using Oproto.FluentDynamoDb.Metadata;
 namespace Oproto.FluentDynamoDb.Attributes;
 
 /// <summary>
-/// Marks a property as the sort key for a Local Secondary Index (LSI).
-/// LSIs share the same partition key as the base table.
+/// Marks a property as the sort key for a Global Secondary Index (GSI).
+/// The key role is encoded in the attribute name, eliminating the need for boolean flags.
 /// </summary>
-[AttributeUsage(AttributeTargets.Property)]
-public class LocalSecondaryIndexAttribute : Attribute
+/// <remarks>
+/// Discriminator configuration is an index-level concern that belongs on the
+/// <see cref="GsiPartitionKeyAttribute"/> declaration. If only a <c>[GsiSortKey]</c> specifies
+/// <see cref="Name"/> or <see cref="ProjectionType"/>, those values are used as fallbacks when
+/// the <c>[GsiPartitionKey]</c> for the same index doesn't specify them.
+/// </remarks>
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+public class GsiSortKeyAttribute : Attribute
 {
     /// <summary>
-    /// Gets the name of the Local Secondary Index.
+    /// Gets the name of the Global Secondary Index.
     /// </summary>
     public string IndexName { get; }
 
@@ -21,8 +27,8 @@ public class LocalSecondaryIndexAttribute : Attribute
     /// </summary>
     /// <example>
     /// <code>
-    /// [LocalSecondaryIndex("lsi1", Name = "CreatedAtIndex")]
-    /// // Generates: table.CreatedAtIndex.Query&lt;T&gt;()
+    /// [GsiSortKey("status-index", Name = "StatusIndex")]
+    /// // Generates: table.StatusIndex.Query&lt;T&gt;()
     /// </code>
     /// </example>
     public string? Name { get; set; }
@@ -39,12 +45,12 @@ public class LocalSecondaryIndexAttribute : Attribute
     /// </para>
     /// <para>
     /// When set to <see cref="Metadata.ProjectionType.KeysOnly"/>, a read-only projection record
-    /// is auto-generated containing the base table partition key, LSI sort key, and base table sort key.
+    /// is auto-generated containing the GSI keys and base table keys.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// [LocalSecondaryIndex("created-at-index", ProjectionType = ProjectionType.KeysOnly)]
+    /// [GsiSortKey("status-index", ProjectionType = ProjectionType.KeysOnly)]
     /// [DynamoDbAttribute("createdAt")]
     /// public DateTime CreatedAt { get; set; }
     /// </code>
@@ -52,10 +58,10 @@ public class LocalSecondaryIndexAttribute : Attribute
     public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
 
     /// <summary>
-    /// Initializes a new instance of the LocalSecondaryIndexAttribute class.
+    /// Initializes a new instance of the <see cref="GsiSortKeyAttribute"/> class.
     /// </summary>
-    /// <param name="indexName">The name of the Local Secondary Index.</param>
-    public LocalSecondaryIndexAttribute(string indexName)
+    /// <param name="indexName">The name of the Global Secondary Index.</param>
+    public GsiSortKeyAttribute(string indexName)
     {
         IndexName = indexName;
     }

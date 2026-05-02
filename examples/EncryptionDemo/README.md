@@ -5,19 +5,16 @@ This example demonstrates field-level encryption and sensitive data logging with
 ## Features Demonstrated
 
 - **[Sensitive] Attribute**: Redacts property values in log output while storing actual values in DynamoDB
-- **[Encrypted] Attribute**: API pattern for field-level encryption using AWS KMS (implementation pending)
+- **[Encrypted] Attribute**: Field-level encryption using AWS KMS — encrypted fields are stored as binary ciphertext in DynamoDB and automatically decrypted on read
 - **ConsoleLogger**: Real-time logging with color-coded output and timestamps
 - **FluentDynamoDbOptions Configuration**: Setting up logging and encryption providers
-
-## Important Note
-
-⚠️ **AWS Encryption SDK integration is pending completion.** The `[Encrypted]` attribute demonstrates the intended API pattern, but actual encryption/decryption is not yet implemented. The `[Sensitive]` attribute for log redaction is fully functional.
 
 ## Prerequisites
 
 - .NET 8.0 SDK
 - DynamoDB Local running on port 8000
-- (Optional) AWS KMS key for encryption features
+- AWS credentials configured via environment variables (e.g., `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`) for KMS encryption features
+- A KMS key ARN for field-level encryption (optional — the demo runs in reduced mode without one, demonstrating sensitive logging only)
 
 ### Starting DynamoDB Local
 
@@ -40,7 +37,8 @@ dotnet run
 
 When prompted, you can provide:
 - **KMS Key ARN**: The ARN of your KMS key (e.g., `arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012`)
-- **AWS Profile**: The name of your AWS profile for credentials
+
+AWS credentials are resolved from the environment (e.g., `AWS_PROFILE`, default credential chain). No profile prompt is displayed.
 
 ### Required IAM Permissions
 
@@ -85,7 +83,7 @@ public partial class SecureRecord
     [DynamoDbAttribute("email")]
     public string Email { get; set; }
 
-    // [Encrypted] - Encrypted at rest (when implemented)
+    // [Encrypted] - Encrypted at rest via AWS KMS
     [Encrypted]
     [DynamoDbAttribute("ssn")]
     public string SocialSecurityNumber { get; set; }
@@ -104,8 +102,8 @@ public partial class SecureRecord
 |-----------|------------|------------------|
 | (none) | Actual value | Plain text |
 | `[Sensitive]` | `[REDACTED]` | Plain text |
-| `[Encrypted]` | Actual value | Encrypted (pending) |
-| `[Encrypted] + [Sensitive]` | `[REDACTED]` | Encrypted (pending) |
+| `[Encrypted]` | Actual value | Encrypted binary |
+| `[Encrypted] + [Sensitive]` | `[REDACTED]` | Encrypted binary |
 
 ## Console Logger
 
@@ -122,6 +120,7 @@ The example includes a `ConsoleLogger` implementation that:
 3. **View Record Details** - See actual values stored in DynamoDB
 4. **Delete Record** - Remove a record
 5. **Show Logging Demo** - Demonstrate different log levels
+6. **Round-Trip Encryption Demo** - Creates a record with encrypted fields, retrieves the raw DynamoDB attributes to show encrypted binary ciphertext, then reads the record through the FluentDynamoDb pipeline to show automatic decryption back to plaintext
 
 ## Related Documentation
 

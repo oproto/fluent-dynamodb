@@ -1,13 +1,13 @@
 namespace Oproto.FluentDynamoDb.SourceGenerator.Models;
 
 /// <summary>
-/// Represents a Local Secondary Index attribute on a property.
-/// LSIs share the same partition key as the base table but have a different sort key.
+/// Represents a <c>[GsiSortKey]</c> attribute on a property.
+/// Captures the sort key role for a Global Secondary Index.
 /// </summary>
-internal class LocalSecondaryIndexModel
+internal class GsiSortKeyModel
 {
     /// <summary>
-    /// Gets or sets the name of the Local Secondary Index (the DynamoDB index name).
+    /// Gets or sets the name of the Global Secondary Index (the DynamoDB index name).
     /// </summary>
     public string IndexName { get; set; } = string.Empty;
 

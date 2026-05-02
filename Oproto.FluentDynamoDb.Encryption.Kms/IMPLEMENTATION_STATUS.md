@@ -26,7 +26,6 @@ Field-level encryption using AWS Encryption SDK with KMS keyring support is **co
 ### Backward Compatibility ✅
 - **IFieldEncryptor**: Interface unchanged
 - **IKmsKeyResolver**: Interface unchanged
-- **AwsEncryptionSdkOptions**: All existing properties maintained with same defaults
 - **FieldEncryptionContext**: Class unchanged
 - **FieldEncryptionException**: Exception class unchanged
 

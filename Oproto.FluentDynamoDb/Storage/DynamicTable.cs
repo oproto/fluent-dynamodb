@@ -210,7 +210,7 @@ public class DynamicTable
     public async Task<DynamicEntity?> GetAsync(string partitionKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptions();
-        return await GetAsync(CreateStringKey(partitionKey), null, cancellationToken);
+        return await GetAsync(CreateStringKey(partitionKey), null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -225,7 +225,7 @@ public class DynamicTable
     public async Task<DynamicEntity?> GetAsync(string partitionKey, string sortKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptionsWithSortKey();
-        return await GetAsync(CreateStringKey(partitionKey), CreateStringKey(sortKey), cancellationToken);
+        return await GetAsync(CreateStringKey(partitionKey), CreateStringKey(sortKey), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -239,7 +239,7 @@ public class DynamicTable
     public async Task<DynamicEntity?> GetAsync(long partitionKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptions();
-        return await GetAsync(CreateNumericKey(partitionKey), null, cancellationToken);
+        return await GetAsync(CreateNumericKey(partitionKey), null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -254,7 +254,7 @@ public class DynamicTable
     public async Task<DynamicEntity?> GetAsync(long partitionKey, long sortKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptionsWithSortKey();
-        return await GetAsync(CreateNumericKey(partitionKey), CreateNumericKey(sortKey), cancellationToken);
+        return await GetAsync(CreateNumericKey(partitionKey), CreateNumericKey(sortKey), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -294,7 +294,7 @@ public class DynamicTable
             request.ConsistentRead = Options.DefaultConsistentRead.Value;
         }
 
-        var response = await DynamoDbClient.GetItemAsync(request, cancellationToken);
+        var response = await DynamoDbClient.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
         if (response.Item == null || response.Item.Count == 0)
         {
@@ -319,7 +319,7 @@ public class DynamicTable
     public async Task DeleteAsync(string partitionKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptions();
-        await DeleteAsync(CreateStringKey(partitionKey), null, cancellationToken);
+        await DeleteAsync(CreateStringKey(partitionKey), null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -334,7 +334,7 @@ public class DynamicTable
     public async Task DeleteAsync(string partitionKey, string sortKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptionsWithSortKey();
-        await DeleteAsync(CreateStringKey(partitionKey), CreateStringKey(sortKey), cancellationToken);
+        await DeleteAsync(CreateStringKey(partitionKey), CreateStringKey(sortKey), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -348,7 +348,7 @@ public class DynamicTable
     public async Task DeleteAsync(long partitionKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptions();
-        await DeleteAsync(CreateNumericKey(partitionKey), null, cancellationToken);
+        await DeleteAsync(CreateNumericKey(partitionKey), null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -363,7 +363,7 @@ public class DynamicTable
     public async Task DeleteAsync(long partitionKey, long sortKey, CancellationToken cancellationToken = default)
     {
         ValidateKeyOptionsWithSortKey();
-        await DeleteAsync(CreateNumericKey(partitionKey), CreateNumericKey(sortKey), cancellationToken);
+        await DeleteAsync(CreateNumericKey(partitionKey), CreateNumericKey(sortKey), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -398,7 +398,7 @@ public class DynamicTable
             Key = key
         };
 
-        await DynamoDbClient.DeleteItemAsync(request, cancellationToken);
+        await DynamoDbClient.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     #endregion
@@ -528,7 +528,7 @@ public class DynamicTable
             Item = item
         };
 
-        await DynamoDbClient.PutItemAsync(request, cancellationToken);
+        await DynamoDbClient.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     #endregion
@@ -589,7 +589,7 @@ public class DynamicTable
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A list of hydrated DynamicEntity instances.</returns>
     public async Task<List<DynamicEntity>> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
-        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Query(request), cancellationToken);
+        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Query(request), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Creates a Scan operation builder configured with a pre-built SDK request.
@@ -607,7 +607,7 @@ public class DynamicTable
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A list of hydrated DynamicEntity instances.</returns>
     public async Task<List<DynamicEntity>> ScanAsync(ScanRequest request, CancellationToken cancellationToken = default)
-        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Scan(request), cancellationToken);
+        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Scan(request), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Executes a pre-built GetItemRequest and hydrates the result to DynamicEntity.
@@ -617,7 +617,7 @@ public class DynamicTable
     /// <returns>The hydrated DynamicEntity or null if not found.</returns>
     public async Task<DynamicEntity?> GetAsync(GetItemRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await DynamoDbClient.GetItemAsync(request, cancellationToken);
+        var response = await DynamoDbClient.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
         
         if (response.Item == null || response.Item.Count == 0)
             return null;
@@ -632,7 +632,7 @@ public class DynamicTable
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task PutAsync(PutItemRequest request, CancellationToken cancellationToken = default)
-        => await DynamoDbClient.PutItemAsync(request, cancellationToken);
+        => await DynamoDbClient.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Executes a pre-built UpdateItemRequest.
@@ -641,7 +641,7 @@ public class DynamicTable
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task UpdateAsync(UpdateItemRequest request, CancellationToken cancellationToken = default)
-        => await DynamoDbClient.UpdateItemAsync(request, cancellationToken);
+        => await DynamoDbClient.UpdateItemAsync(request, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Executes a pre-built DeleteItemRequest.
@@ -650,7 +650,7 @@ public class DynamicTable
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task DeleteAsync(DeleteItemRequest request, CancellationToken cancellationToken = default)
-        => await DynamoDbClient.DeleteItemAsync(request, cancellationToken);
+        => await DynamoDbClient.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
 
     #endregion
 }

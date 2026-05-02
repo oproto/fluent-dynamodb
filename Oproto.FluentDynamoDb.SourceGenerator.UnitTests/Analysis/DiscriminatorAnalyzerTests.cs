@@ -377,7 +377,7 @@ using Oproto.FluentDynamoDb.Attributes;
 
 public partial class TestEntity
 {
-    [GlobalSecondaryIndex(""StatusIndex"",
+    [GsiPartitionKey(""StatusIndex"",
         DiscriminatorProperty = ""GSI1SK"",
         DiscriminatorPattern = ""USER#*"")]
     public string Status { get; set; }
@@ -408,7 +408,7 @@ using Oproto.FluentDynamoDb.Attributes;
 
 public partial class TestEntity
 {
-    [GlobalSecondaryIndex(""StatusIndex"")]
+    [GsiPartitionKey(""StatusIndex"")]
     public string Status { get; set; }
 }";
 
@@ -447,7 +447,7 @@ public partial class TestEntity
     }
 
     /// <summary>
-    /// Parses source code and extracts the GlobalSecondaryIndex attribute with semantic model.
+    /// Parses source code and extracts the GsiPartitionKey attribute with semantic model.
     /// Uses DynamicCompilationHelper for proper IL3000 warning handling.
     /// </summary>
     private static (AttributeSyntax Attribute, SemanticModel SemanticModel) ParseGsiAttribute(string source)
@@ -463,7 +463,7 @@ public partial class TestEntity
         var attribute = syntaxTree.GetRoot()
             .DescendantNodes()
             .OfType<AttributeSyntax>()
-            .First(a => a.Name.ToString().Contains("GlobalSecondaryIndex"));
+            .First(a => a.Name.ToString().Contains("GsiPartitionKey"));
 
         return (attribute, semanticModel);
     }

@@ -1,11 +1,13 @@
 // EncryptionDemo example application - demonstrates field encryption and sensitive data logging
 // This example shows how to use [Encrypted] and [Sensitive] attributes with FluentDynamoDb
 
+using Amazon.DynamoDBv2.Model;
 using EncryptionDemo;
 using EncryptionDemo.Entities;
 using Examples.Shared;
 using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Encryption.Kms;
+using Oproto.FluentDynamoDb.Hydration;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -24,22 +26,15 @@ Console.WriteLine("║  data redaction in logs                                  
 Console.WriteLine("╚════════════════════════════════════════════════════════════╝");
 Console.WriteLine();
 
-// Display important warning about encryption status
-Console.ForegroundColor = ConsoleColor.Yellow;
-Console.WriteLine("⚠ IMPORTANT: AWS Encryption SDK integration is pending completion.");
-Console.WriteLine("  This demo shows the intended API pattern and demonstrates:");
-Console.WriteLine("  - [Sensitive] attribute for log redaction (fully working)");
-Console.WriteLine("  - [Encrypted] attribute API (encryption not yet implemented)");
-Console.WriteLine();
+Console.ForegroundColor = ConsoleColor.Green;
+Console.WriteLine("  Provide a KMS Key ARN to enable [Encrypted] field encryption.");
+Console.WriteLine("  AWS credentials are resolved from the environment (AWS_PROFILE, etc.).");
 Console.ForegroundColor = ConsoleColor.White;
+Console.WriteLine();
 
-// Prompt for KMS key ARN (optional for this demo since encryption isn't complete)
+// Prompt for KMS key ARN
 Console.Write("Enter KMS Key ARN (or press Enter to skip): ");
 var kmsKeyArn = Console.ReadLine()?.Trim();
-
-// Prompt for AWS profile (optional)
-Console.Write("Enter AWS Profile name (or press Enter for default): ");
-var awsProfile = Console.ReadLine()?.Trim();
 
 // Initialize DynamoDB Local connection
 ConsoleHelpers.ShowInfo("Connecting to DynamoDB Local...");
@@ -61,12 +56,16 @@ else
     ConsoleHelpers.ShowInfo($"Table '{TableName}' already exists");
 }
 
+// Register the source-generated hydrator for async encryption serialization
+DefaultEntityHydratorRegistry.Instance.RegisterSecureRecordHydrator();
+
 // Configure FluentDynamoDbOptions with logger and optional encryptor
 var logger = new ConsoleLogger(LogLevel.Debug);
 var optionsBuilder = new FluentDynamoDbOptions()
     .WithLogger(logger);
 
 // Configure encryption if KMS key was provided
+var encryptionConfigured = false;
 if (!string.IsNullOrWhiteSpace(kmsKeyArn))
 {
     try
@@ -74,6 +73,7 @@ if (!string.IsNullOrWhiteSpace(kmsKeyArn))
         var keyResolver = new DefaultKmsKeyResolver(kmsKeyArn);
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         optionsBuilder = optionsBuilder.WithEncryption(encryptor);
+        encryptionConfigured = true;
         ConsoleHelpers.ShowSuccess($"Configured encryption with KMS key: {kmsKeyArn[..Math.Min(20, kmsKeyArn.Length)]}...");
     }
     catch (Exception ex)
@@ -104,6 +104,7 @@ while (true)
         "View Record Details",
         "Delete Record",
         "Show Logging Demo",
+        "Round-Trip Encryption Demo",
         "Exit");
 
     try
@@ -126,6 +127,9 @@ while (true)
                 ShowLoggingDemo(logger);
                 break;
             case 6:
+                await RunRoundTripDemoAsync(table, client, encryptionConfigured);
+                break;
+            case 7:
                 ConsoleHelpers.ShowInfo("Goodbye!");
                 return;
             case 0:
@@ -181,8 +185,8 @@ static async Task CreateSecureRecordAsync(SecureRecordsTable table, FluentDynamo
     Console.WriteLine("─".PadRight(60, '─'));
 
     // Store the record - sensitive fields will be redacted in logs
-    // Note: Encrypted fields would be encrypted here if encryption was implemented
-    await table.SecureRecords.PutAsync(record);
+    // Encrypted fields are encrypted via the async serialization path
+    await table.Put<SecureRecord>().WithItem(record).PutAsync();
     
     Console.WriteLine("─".PadRight(60, '─'));
     ConsoleHelpers.ShowSuccess($"Created record with ID: {record.Id[..8]}...");
@@ -193,10 +197,10 @@ static async Task CreateSecureRecordAsync(SecureRecordsTable table, FluentDynamo
     Console.WriteLine("  - The 'creditCard' field shows [REDACTED] (marked with [Sensitive])");
     Console.WriteLine("  - The 'label' field shows the actual value (not sensitive)");
     Console.WriteLine();
-    Console.WriteLine("  In DynamoDB, the actual values are stored:");
-    Console.WriteLine($"  - Email: {email}");
-    Console.WriteLine($"  - SSN: {(string.IsNullOrEmpty(ssn) ? "(empty)" : ssn)}");
-    Console.WriteLine($"  - Credit Card: {(string.IsNullOrEmpty(creditCard) ? "(empty)" : creditCard)}");
+    Console.WriteLine("  In DynamoDB, when encryption is configured:");
+    Console.WriteLine($"  - Email: {email} (stored as plaintext - not encrypted)");
+    Console.WriteLine($"  - SSN: {(string.IsNullOrEmpty(ssn) ? "(empty)" : "encrypted as binary blob in DynamoDB")}");
+    Console.WriteLine($"  - Credit Card: {(string.IsNullOrEmpty(creditCard) ? "(empty)" : "encrypted as binary blob in DynamoDB")}");
 }
 
 /// <summary>
@@ -384,4 +388,114 @@ static string MaskCreditCard(string cardNumber)
     if (digitsOnly.Length <= 4)
         return "****-****-****-" + digitsOnly;
     return "****-****-****-" + digitsOnly[^4..];
+}
+
+/// <summary>
+/// Demonstrates a complete round-trip encryption flow: create, inspect raw encrypted data,
+/// retrieve with automatic decryption, and clean up.
+/// </summary>
+static async Task RunRoundTripDemoAsync(SecureRecordsTable table, Amazon.DynamoDBv2.IAmazonDynamoDB client, bool encryptionConfigured)
+{
+    ConsoleHelpers.ShowSection("Round-Trip Encryption Demo");
+
+    if (!encryptionConfigured)
+    {
+        ConsoleHelpers.ShowInfo("Encryption is not configured. Provide a KMS Key ARN at startup to use this demo.");
+        return;
+    }
+
+    const string recordId = "demo-round-trip-001";
+
+    var record = new SecureRecord
+    {
+        Id = recordId,
+        Label = "Round-Trip Demo Record",
+        Email = "demo@example.com",
+        SocialSecurityNumber = "123-45-6789",
+        CreditCardNumber = "4111-1111-1111-1111",
+        CreatedAt = DateTime.UtcNow
+    };
+
+    // Step 1: Store the record with encryption
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Step 1: Storing record with encrypted fields...");
+    Console.WriteLine("─".PadRight(60, '─'));
+    await table.Put<SecureRecord>().WithItem(record).PutAsync();
+    Console.WriteLine("─".PadRight(60, '─'));
+    ConsoleHelpers.ShowSuccess("Record stored successfully.");
+
+    // Step 2: Read raw attributes directly via the DynamoDB SDK
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Step 2: Reading raw attributes directly from DynamoDB...");
+    var rawResponse = await client.GetItemAsync(new GetItemRequest
+    {
+        TableName = TableName,
+        Key = new Dictionary<string, AttributeValue>
+        {
+            { "pk", new AttributeValue { S = recordId } }
+        }
+    });
+
+    Console.WriteLine();
+    Console.WriteLine("  Raw DynamoDB attributes:");
+    Console.WriteLine("  ─────────────────────────────────────────────");
+
+    foreach (var attr in rawResponse.Item)
+    {
+        if (attr.Value.B != null)
+        {
+            var base64 = Convert.ToBase64String(attr.Value.B.ToArray());
+            Console.WriteLine($"  {attr.Key}: [Binary] {base64[..Math.Min(60, base64.Length)]}...");
+        }
+        else if (attr.Value.S != null)
+        {
+            Console.WriteLine($"  {attr.Key}: {attr.Value.S}");
+        }
+    }
+
+    // Step 3: Retrieve via FluentDynamoDb pipeline (auto-decrypts)
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Step 3: Retrieving record via FluentDynamoDb (auto-decrypts)...");
+    Console.WriteLine("─".PadRight(60, '─'));
+    var decrypted = await table.SecureRecords.Get(recordId).GetItemAsync();
+    Console.WriteLine("─".PadRight(60, '─'));
+
+    if (decrypted == null)
+    {
+        ConsoleHelpers.ShowError("Failed to retrieve the demo record after storing it.");
+        return;
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("  Decrypted record values:");
+    Console.WriteLine("  ─────────────────────────────────────────────");
+    Console.WriteLine($"  ID:          {decrypted.Id}");
+    Console.WriteLine($"  Label:       {decrypted.Label}");
+    Console.WriteLine($"  Email:       {decrypted.Email}");
+    Console.WriteLine($"  SSN:         {decrypted.SocialSecurityNumber}");
+    Console.WriteLine($"  Credit Card: {decrypted.CreditCardNumber}");
+    Console.WriteLine($"  Created:     {decrypted.CreatedAt:yyyy-MM-dd HH:mm:ss}");
+
+    // Step 4: Verify round-trip
+    Console.WriteLine();
+    var ssnMatch = decrypted.SocialSecurityNumber == record.SocialSecurityNumber;
+    var ccMatch = decrypted.CreditCardNumber == record.CreditCardNumber;
+
+    if (ssnMatch && ccMatch)
+    {
+        ConsoleHelpers.ShowSuccess("Round-trip verified: decrypted values match the originals.");
+    }
+    else
+    {
+        ConsoleHelpers.ShowWarning("Round-trip mismatch detected:");
+        if (!ssnMatch) ConsoleHelpers.ShowWarning($"  SSN: expected '{record.SocialSecurityNumber}', got '{decrypted.SocialSecurityNumber}'");
+        if (!ccMatch) ConsoleHelpers.ShowWarning($"  Credit Card: expected '{record.CreditCardNumber}', got '{decrypted.CreditCardNumber}'");
+    }
+
+    // Step 5: Clean up
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Step 5: Cleaning up demo record...");
+    await table.SecureRecords.DeleteAsync(recordId);
+    ConsoleHelpers.ShowSuccess("Demo record deleted.");
+    Console.WriteLine();
 }

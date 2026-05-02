@@ -156,51 +156,6 @@ public class PublicApiSurfaceTests
     }
 
     [Fact]
-    public void AwsEncryptionSdkOptions_HasDefaultCacheTtlSecondsProperty()
-    {
-        var options = new AwsEncryptionSdkOptions();
-        
-        // Verify property exists and has expected default (5 minutes)
-#pragma warning disable CS0618 // Type or member is obsolete
-        options.DefaultCacheTtlSeconds.Should().Be(300);
-        
-        // Verify property can be set
-        options.DefaultCacheTtlSeconds = 600;
-        options.DefaultCacheTtlSeconds.Should().Be(600);
-#pragma warning restore CS0618
-    }
-
-    [Fact]
-    public void AwsEncryptionSdkOptions_HasMaxMessagesPerDataKeyProperty()
-    {
-        var options = new AwsEncryptionSdkOptions();
-        
-        // Verify property exists and has expected default
-#pragma warning disable CS0618 // Type or member is obsolete
-        options.MaxMessagesPerDataKey.Should().Be(100);
-        
-        // Verify property can be set
-        options.MaxMessagesPerDataKey = 200;
-        options.MaxMessagesPerDataKey.Should().Be(200);
-#pragma warning restore CS0618
-    }
-
-    [Fact]
-    public void AwsEncryptionSdkOptions_HasMaxBytesPerDataKeyProperty()
-    {
-        var options = new AwsEncryptionSdkOptions();
-        
-        // Verify property exists and has expected default (100 MB)
-#pragma warning disable CS0618 // Type or member is obsolete
-        options.MaxBytesPerDataKey.Should().Be(100 * 1024 * 1024);
-        
-        // Verify property can be set
-        options.MaxBytesPerDataKey = 50 * 1024 * 1024;
-        options.MaxBytesPerDataKey.Should().Be(50 * 1024 * 1024);
-#pragma warning restore CS0618
-    }
-
-    [Fact]
     public void AwsEncryptionSdkOptions_HasAlgorithmProperty()
     {
         var options = new AwsEncryptionSdkOptions();

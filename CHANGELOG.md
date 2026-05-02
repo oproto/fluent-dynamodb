@@ -289,7 +289,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       .UpdateAsync();
   ```
 
+### Changed
+
+- **BREAKING: Index attribute API redesigned** — `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` have been removed and replaced with three self-describing attributes: `[GsiPartitionKey]`, `[GsiSortKey]`, and `[LsiSortKey]`. The key role (partition key vs sort key) and index type (GSI vs LSI) are now encoded directly in the attribute name, eliminating the error-prone `IsPartitionKey = true` / `IsSortKey = true` boolean flags.
+  - `[GlobalSecondaryIndex("index-name", IsPartitionKey = true)]` → `[GsiPartitionKey("index-name")]`
+  - `[GlobalSecondaryIndex("index-name", IsSortKey = true)]` → `[GsiSortKey("index-name")]`
+  - `[LocalSecondaryIndex("index-name")]` → `[LsiSortKey("index-name")]`
+  - All three attributes support optional `Name` and `ProjectionType` properties
+  - `[GsiPartitionKey]` additionally supports `DiscriminatorProperty`, `DiscriminatorValue`, and `DiscriminatorPattern`
+  - When both `[GsiPartitionKey]` and `[GsiSortKey]` specify `Name` or `ProjectionType` for the same index, the `[GsiPartitionKey]` values take precedence
+  - New diagnostic codes DYNDB120–DYNDB127 for index attribute validation:
+    - DYNDB120: GSI sort key without partition key
+    - DYNDB121: Duplicate GSI partition keys for same index
+    - DYNDB122: Duplicate GSI sort keys for same index
+    - DYNDB123: Duplicate LSI sort keys for same index
+    - DYNDB124: Empty/whitespace index name on `[GsiPartitionKey]`
+    - DYNDB125: Empty/whitespace index name on `[GsiSortKey]`
+    - DYNDB126: Empty/whitespace index name on `[LsiSortKey]`
+    - DYNDB127: Same index name used as both GSI and LSI
+  
+  **Migration — GSI with partition key only:**
+  ```csharp
+  // Before
+  [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  
+  // After
+  [GsiPartitionKey("status-index")]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  ```
+  
+  **Migration — GSI with partition key and sort key:**
+  ```csharp
+  // Before
+  [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  
+  [GlobalSecondaryIndex("status-index", IsSortKey = true)]
+  [DynamoDbAttribute("createdAt")]
+  public DateTime CreatedAt { get; set; }
+  
+  // After
+  [GsiPartitionKey("status-index")]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  
+  [GsiSortKey("status-index")]
+  [DynamoDbAttribute("createdAt")]
+  public DateTime CreatedAt { get; set; }
+  ```
+  
+  **Migration — LSI sort key:**
+  ```csharp
+  // Before
+  [LocalSecondaryIndex("lsi1")]
+  [DynamoDbAttribute("updatedAt")]
+  public DateTime UpdatedAt { get; set; }
+  
+  // After
+  [LsiSortKey("lsi1")]
+  [DynamoDbAttribute("updatedAt")]
+  public DateTime UpdatedAt { get; set; }
+  ```
+
+- **ExpressionCache bounded to 1024 entries** - The expression translation cache now has a configurable maximum size (default: 1024) to prevent unbounded memory growth in long-running applications. When the limit is reached, the cache is cleared and repopulates naturally. A new `ExpressionCache(int maxSize)` constructor overload and `MaxSize` property are available for customization.
+
+- **DYNDB023 string property heuristic removed** - The source generator no longer emits DYNDB023 performance warnings for `string` properties named "Description", "Content", or "Body". The heuristic produced too many false positives. Warnings for `byte[]`, complex collections, and nested complex objects remain.
+
+- **`[Queryable]` attribute removed** - The deprecated `[Queryable]` attribute has been removed as promised in the v0.9 deprecation notice. Query capabilities are now exclusively derived from `[PartitionKey]` and `[SortKey]` attributes. The `DynamoDbOperation` enum remains available for use in generated `PropertyMetadata`. The DYNDB113 diagnostic warning is also removed since the attribute no longer exists.
+
+- **System.Text.Json minimum version raised to 8.0.5** - The lower bound of the `System.Text.Json` dependency range was raised from `[8.0.0,11.0.0)` to `[8.0.5,11.0.0)` to exclude versions with known high-severity vulnerabilities (GHSA-8g4q-xg66-9fp4, GHSA-hh2w-p6rv-4g7w). Consumers using System.Text.Json 8.0.0 through 8.0.4 will need to update.
+
+- **ConfigureAwait(false) applied to all library async calls** - All `await` calls across all library projects and source-generated code now use `.ConfigureAwait(false)`. This prevents potential deadlocks when the library is consumed from environments with a `SynchronizationContext` (WPF, WinForms, Blazor WASM). No API changes; this is a behavioral improvement.
+
 ### Fixed
+
+- **Source generator hydrator nullability mismatch (CS8767)** - The generated `IAsyncEntityHydrator<T>` implementations now emit `IBlobStorageProvider?` (nullable) for the `blobProvider` parameter, matching the interface declaration. This eliminates CS8767 warnings in consumer projects using encryption-only entities without blob storage.
 
 - **Local Method Evaluation in Update Expressions** - Fixed `UnsupportedExpressionException` when using local method calls like `.ToString()`, `.ToUpper()`, `.Trim()` in update expressions
   - Previously, method calls that don't reference the entity parameter (e.g., `TransactionStatus.Active.ToString()`, `myVar.Trim().ToUpper()`) would throw an exception
@@ -1373,6 +1451,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 ### Removed
+
+- **AwsEncryptionSdkOptions Data Key Caching Properties** - Removed non-functional properties from `AwsEncryptionSdkOptions`
+  - Removed `DefaultCacheTtlSeconds`, `MaxMessagesPerDataKey`, `MaxBytesPerDataKey`, and `CacheEntryCapacity`
+  - The AWS Encryption SDK for .NET does not support data key caching; these properties had no effect
+  - `EnableCaching` (keyring object caching) and `Algorithm` properties are retained
+  - `EncryptedAttribute.CacheTtlSeconds` and `FieldEncryptionContext.CacheTtlSeconds` on the core library interface are unchanged
 
 ### Fixed
 - **GeoHash Query Bug** - Fixed interpolated string bug in GeoHash BETWEEN queries

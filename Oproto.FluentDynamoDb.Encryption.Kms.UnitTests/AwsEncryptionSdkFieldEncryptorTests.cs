@@ -53,10 +53,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
         var keyResolver = Substitute.For<IKmsKeyResolver>();
         var options = new AwsEncryptionSdkOptions
         {
-            EnableCaching = true,
-            DefaultCacheTtlSeconds = 600,
-            MaxMessagesPerDataKey = 200,
-            MaxBytesPerDataKey = 50 * 1024 * 1024
+            EnableCaching = true
         };
 
         // Act

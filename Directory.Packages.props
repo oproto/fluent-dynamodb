@@ -15,8 +15,10 @@
   </ItemGroup>
   
   <!-- Microsoft Packages - Version ranges support .NET 8.x through 10.x -->
+  <!-- System.Text.Json lower bound set to 8.0.5 to avoid known high-severity CVEs in 8.0.0-8.0.4 -->
+  <!-- See: GHSA-8g4q-xg66-9fp4, GHSA-hh2w-p6rv-4g7w -->
   <ItemGroup>
-    <PackageVersion Include="System.Text.Json" Version="[8.0.0,11.0.0)" />
+    <PackageVersion Include="System.Text.Json" Version="[8.0.5,11.0.0)" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="[8.0.0,11.0.0)" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="[8.0.0,11.0.0)" />
   </ItemGroup>

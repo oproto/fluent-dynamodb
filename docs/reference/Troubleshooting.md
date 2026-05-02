@@ -730,7 +730,7 @@ public partial class User
     public string UserId { get; set; } = string.Empty;
     
     // Add GSI for querying by status
-    [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+    [GsiPartitionKey("status-index")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 }

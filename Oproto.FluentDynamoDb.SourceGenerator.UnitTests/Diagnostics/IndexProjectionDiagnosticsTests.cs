@@ -72,7 +72,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""status-index"", IsPartitionKey = true, ProjectionType = ProjectionType.Include)]
+        [GsiPartitionKey(""status-index"", ProjectionType = ProjectionType.Include)]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -107,7 +107,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [LocalSecondaryIndex(""created-index"", ProjectionType = ProjectionType.Include)]
+        [LsiSortKey(""created-index"", ProjectionType = ProjectionType.Include)]
         [DynamoDbAttribute(""created_at"")]
         public DateTime CreatedAt { get; set; }
     }
@@ -142,7 +142,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""status-index"", IsPartitionKey = true, ProjectionType = ProjectionType.All)]
+        [GsiPartitionKey(""status-index"", ProjectionType = ProjectionType.All)]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -177,7 +177,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""status-index"", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+        [GsiPartitionKey(""status-index"", ProjectionType = ProjectionType.KeysOnly)]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -216,7 +216,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""status-index"", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+        [GsiPartitionKey(""status-index"", ProjectionType = ProjectionType.KeysOnly)]
         [UseProjection(typeof(TestProjection))]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
@@ -262,7 +262,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""status-index"", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+        [GsiPartitionKey(""status-index"", ProjectionType = ProjectionType.KeysOnly)]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
     }
@@ -297,7 +297,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [GlobalSecondaryIndex(""status-index"", IsPartitionKey = true, ProjectionType = ProjectionType.All)]
+        [GsiPartitionKey(""status-index"", ProjectionType = ProjectionType.All)]
         [UseProjection(typeof(TestProjection))]
         [DynamoDbAttribute(""status"")]
         public string Status { get; set; } = string.Empty;
@@ -368,24 +368,33 @@ namespace Oproto.FluentDynamoDb.Attributes
     }
 
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
-    public class GlobalSecondaryIndexAttribute : Attribute
+    public class GsiPartitionKeyAttribute : Attribute
     {
         public string IndexName { get; }
         public string? Name { get; set; }
-        public bool IsPartitionKey { get; set; }
-        public bool IsSortKey { get; set; }
-        public string? KeyFormat { get; set; }
+        public string? DiscriminatorProperty { get; set; }
+        public string? DiscriminatorValue { get; set; }
+        public string? DiscriminatorPattern { get; set; }
         public Oproto.FluentDynamoDb.Metadata.ProjectionType ProjectionType { get; set; } = Oproto.FluentDynamoDb.Metadata.ProjectionType.All;
-        public GlobalSecondaryIndexAttribute(string indexName) => IndexName = indexName;
+        public GsiPartitionKeyAttribute(string indexName) => IndexName = indexName;
     }
 
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
-    public class LocalSecondaryIndexAttribute : Attribute
+    public class GsiSortKeyAttribute : Attribute
     {
         public string IndexName { get; }
         public string? Name { get; set; }
         public Oproto.FluentDynamoDb.Metadata.ProjectionType ProjectionType { get; set; } = Oproto.FluentDynamoDb.Metadata.ProjectionType.All;
-        public LocalSecondaryIndexAttribute(string indexName) => IndexName = indexName;
+        public GsiSortKeyAttribute(string indexName) => IndexName = indexName;
+    }
+
+    [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+    public class LsiSortKeyAttribute : Attribute
+    {
+        public string IndexName { get; }
+        public string? Name { get; set; }
+        public Oproto.FluentDynamoDb.Metadata.ProjectionType ProjectionType { get; set; } = Oproto.FluentDynamoDb.Metadata.ProjectionType.All;
+        public LsiSortKeyAttribute(string indexName) => IndexName = indexName;
     }
 
     [AttributeUsage(AttributeTargets.Property)]

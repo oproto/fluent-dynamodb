@@ -389,7 +389,7 @@ public class ScanRequestBuilder<TEntity> :
         
         try
         {
-            var response = await _dynamoDbClient.ScanAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.ScanAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

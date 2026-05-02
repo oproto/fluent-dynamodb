@@ -210,7 +210,7 @@ public static class MappingErrorHandler
     {
         try
         {
-            return await operation();
+            return await operation().ConfigureAwait(false);
         }
         catch (DynamoDbMappingException)
         {

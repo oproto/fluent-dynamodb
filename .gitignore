@@ -298,3 +298,6 @@ Thumbs.db
 
 # DynamoDB Local (downloaded by integration tests)
 dynamodb-local/
+
+# Scratch/prototype files
+temp/

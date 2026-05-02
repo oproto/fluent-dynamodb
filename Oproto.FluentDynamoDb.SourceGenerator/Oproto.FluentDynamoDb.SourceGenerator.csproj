@@ -30,9 +30,12 @@
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         
-        <!-- Suppress warnings for source generator code -->
+        <!-- Suppress warnings for source generator code targeting netstandard2.0 -->
         <!-- CS0618: Obsolete Roslyn APIs - required for compatibility with older SDK versions -->
-        <!-- CS8604: Nullable warnings - handled by runtime checks -->
+        <!-- CS86xx: Nullable reference type warnings - netstandard2.0 lacks nullable annotations -->
+        <!-- on many Roslyn APIs (e.g., SyntaxNode.Parent, SemanticModel.GetDeclaredSymbol), -->
+        <!-- producing ~68 false positives. Runtime null checks are used instead. -->
+        <!-- TODO: Remove these suppressions if/when the generator targets a newer TFM. -->
         <NoWarn>$(NoWarn);CS0618;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8629</NoWarn>
     </PropertyGroup>
 

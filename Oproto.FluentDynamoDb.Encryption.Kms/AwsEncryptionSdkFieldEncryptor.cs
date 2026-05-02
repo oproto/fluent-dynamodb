@@ -172,7 +172,7 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
             // Read the ciphertext from the output stream
             using var ciphertextStream = encryptOutput.Ciphertext;
             using var memoryStream = new MemoryStream();
-            await ciphertextStream.CopyToAsync(memoryStream, cancellationToken);
+            await ciphertextStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
             return memoryStream.ToArray();
         }
         catch (FieldEncryptionException)
@@ -244,7 +244,7 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
             // 7. Read the plaintext from the output stream
             using var plaintextStream = decryptOutput.Plaintext;
             using var memoryStream = new MemoryStream();
-            await plaintextStream.CopyToAsync(memoryStream, cancellationToken);
+            await plaintextStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
             return memoryStream.ToArray();
         }
         catch (FieldEncryptionException)

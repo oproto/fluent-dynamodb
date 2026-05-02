@@ -42,9 +42,9 @@ public class LsiMetadataGenerationTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
-                    LocalSecondaryIndexes = new[]
+                    LsiSortKeys = new[]
                     {
-                        new LocalSecondaryIndexModel
+                        new LsiSortKeyModel
                         {
                             IndexName = "StatusIndex"
                         }
@@ -104,13 +104,12 @@ public class LsiMetadataGenerationTests
                     PropertyName = "Email",
                     AttributeName = "email",
                     PropertyType = "string",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "EmailIndex",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 }
             },
@@ -169,9 +168,9 @@ public class LsiMetadataGenerationTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
-                    LocalSecondaryIndexes = new[]
+                    LsiSortKeys = new[]
                     {
-                        new LocalSecondaryIndexModel { IndexName = "StatusLSI" }
+                        new LsiSortKeyModel { IndexName = "StatusLSI" }
                     }
                 },
                 new PropertyModel
@@ -179,13 +178,12 @@ public class LsiMetadataGenerationTests
                     PropertyName = "Email",
                     AttributeName = "email",
                     PropertyType = "string",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "EmailGSI",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 }
             },
@@ -255,9 +253,9 @@ public class LsiMetadataGenerationTests
                     PropertyName = "Priority",
                     AttributeName = "priority",
                     PropertyType = "int",
-                    LocalSecondaryIndexes = new[]
+                    LsiSortKeys = new[]
                     {
-                        new LocalSecondaryIndexModel { IndexName = "PriorityIndex" }
+                        new LsiSortKeyModel { IndexName = "PriorityIndex" }
                     }
                 }
             },
@@ -404,9 +402,9 @@ public class LsiMetadataGenerationTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
-                    LocalSecondaryIndexes = new[]
+                    LsiSortKeys = new[]
                     {
-                        new LocalSecondaryIndexModel { IndexName = "StatusIndex" }
+                        new LsiSortKeyModel { IndexName = "StatusIndex" }
                     }
                 }
             },

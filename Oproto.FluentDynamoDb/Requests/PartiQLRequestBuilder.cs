@@ -188,7 +188,7 @@ public class PartiQLRequestBuilder<TEntity> : IHasDynamoDbClient
 
         try
         {
-            var response = await _client.ExecuteStatementAsync(request, cancellationToken);
+            var response = await _client.ExecuteStatementAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Store response metadata
             ResponseMetadata = response.ResponseMetadata;
@@ -259,7 +259,7 @@ public class PartiQLRequestBuilder<TEntity> : IHasDynamoDbClient
 
         try
         {
-            var response = await _client.ExecuteStatementAsync(request, cancellationToken);
+            var response = await _client.ExecuteStatementAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Store response metadata
             ResponseMetadata = response.ResponseMetadata;
@@ -322,7 +322,7 @@ public class PartiQLRequestBuilder<TEntity> : IHasDynamoDbClient
 
         try
         {
-            var response = await _client.ExecuteStatementAsync(request, cancellationToken);
+            var response = await _client.ExecuteStatementAsync(request, cancellationToken).ConfigureAwait(false);
 
             // Store response metadata
             ResponseMetadata = response.ResponseMetadata;

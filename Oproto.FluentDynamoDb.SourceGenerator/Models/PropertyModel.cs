@@ -48,20 +48,19 @@ internal class PropertyModel
     public KeyFormatModel? KeyFormat { get; set; }
 
     /// <summary>
-    /// Gets or sets the queryable information for this property.
+    /// Gets or sets the GSI partition key attributes for this property (new attribute model).
     /// </summary>
-    public QueryableModel? Queryable { get; set; }
+    public GsiPartitionKeyModel[] GsiPartitionKeys { get; set; } = Array.Empty<GsiPartitionKeyModel>();
 
     /// <summary>
-    /// Gets or sets the Global Secondary Index attributes for this property.
+    /// Gets or sets the GSI sort key attributes for this property (new attribute model).
     /// </summary>
-    public GlobalSecondaryIndexModel[] GlobalSecondaryIndexes { get; set; } = Array.Empty<GlobalSecondaryIndexModel>();
+    public GsiSortKeyModel[] GsiSortKeys { get; set; } = Array.Empty<GsiSortKeyModel>();
 
     /// <summary>
-    /// Gets or sets the Local Secondary Index attributes for this property.
-    /// LSIs share the same partition key as the base table but have a different sort key.
+    /// Gets or sets the LSI sort key attributes for this property (new attribute model).
     /// </summary>
-    public LocalSecondaryIndexModel[] LocalSecondaryIndexes { get; set; } = Array.Empty<LocalSecondaryIndexModel>();
+    public LsiSortKeyModel[] LsiSortKeys { get; set; } = Array.Empty<LsiSortKeyModel>();
 
     /// <summary>
     /// Gets or sets the computed key information for this property.
@@ -86,12 +85,12 @@ internal class PropertyModel
     /// <summary>
     /// Gets a value indicating whether this property is part of any GSI.
     /// </summary>
-    public bool IsPartOfGsi => GlobalSecondaryIndexes.Length > 0;
+    public bool IsPartOfGsi => GsiPartitionKeys.Length > 0 || GsiSortKeys.Length > 0;
 
     /// <summary>
     /// Gets a value indicating whether this property is part of any LSI.
     /// </summary>
-    public bool IsPartOfLsi => LocalSecondaryIndexes.Length > 0;
+    public bool IsPartOfLsi => LsiSortKeys.Length > 0;
 
     /// <summary>
     /// Gets a value indicating whether this property is computed from other properties.

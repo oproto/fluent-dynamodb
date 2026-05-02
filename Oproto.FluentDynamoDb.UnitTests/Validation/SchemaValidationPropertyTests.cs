@@ -14,8 +14,8 @@ public class SchemaValidationPropertyTests
     /// <summary>
     /// **Feature: schema-validation, Property 12: IndexType correctly identifies GSI vs LSI**
     /// 
-    /// For any entity with [GlobalSecondaryIndex] attributes, the generated IndexMetadata SHALL have 
-    /// IndexType = GlobalSecondaryIndex. For any entity with [LocalSecondaryIndex] attributes, 
+    /// For any entity with [GsiPartitionKey]/[GsiSortKey] attributes, the generated IndexMetadata SHALL have 
+    /// IndexType = GlobalSecondaryIndex. For any entity with [LsiSortKey] attributes, 
     /// the generated IndexMetadata SHALL have IndexType = LocalSecondaryIndex.
     /// 
     /// **Validates: Requirements 7.1, 7.2**

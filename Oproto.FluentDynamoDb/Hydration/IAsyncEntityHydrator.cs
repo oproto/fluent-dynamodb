@@ -14,13 +14,13 @@ public interface IAsyncEntityHydrator<TEntity> where TEntity : class
     /// Hydrates an entity from DynamoDB attributes, loading blob references.
     /// </summary>
     /// <param name="item">The DynamoDB item attributes.</param>
-    /// <param name="blobProvider">The blob storage provider for loading blob references.</param>
+    /// <param name="blobProvider">The blob storage provider for loading blob references. Null for encryption-only entities.</param>
     /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The hydrated entity.</returns>
     Task<TEntity> HydrateAsync(
         Dictionary<string, AttributeValue> item,
-        IBlobStorageProvider blobProvider,
+        IBlobStorageProvider? blobProvider,
         FluentDynamoDbOptions? options = null,
         CancellationToken cancellationToken = default);
     
@@ -28,13 +28,13 @@ public interface IAsyncEntityHydrator<TEntity> where TEntity : class
     /// Hydrates an entity from multiple DynamoDB items (composite entities).
     /// </summary>
     /// <param name="items">The list of DynamoDB item attributes.</param>
-    /// <param name="blobProvider">The blob storage provider for loading blob references.</param>
+    /// <param name="blobProvider">The blob storage provider for loading blob references. Null for encryption-only entities.</param>
     /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The hydrated entity.</returns>
     Task<TEntity> HydrateAsync(
         IList<Dictionary<string, AttributeValue>> items,
-        IBlobStorageProvider blobProvider,
+        IBlobStorageProvider? blobProvider,
         FluentDynamoDbOptions? options = null,
         CancellationToken cancellationToken = default);
     
@@ -42,13 +42,13 @@ public interface IAsyncEntityHydrator<TEntity> where TEntity : class
     /// Serializes an entity to DynamoDB attributes, storing blob references.
     /// </summary>
     /// <param name="entity">The entity to serialize.</param>
-    /// <param name="blobProvider">The blob storage provider for storing blob references.</param>
+    /// <param name="blobProvider">The blob storage provider for storing blob references. Null for encryption-only entities.</param>
     /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The DynamoDB attributes.</returns>
     Task<Dictionary<string, AttributeValue>> SerializeAsync(
         TEntity entity,
-        IBlobStorageProvider blobProvider,
+        IBlobStorageProvider? blobProvider,
         FluentDynamoDbOptions? options = null,
         CancellationToken cancellationToken = default);
 }

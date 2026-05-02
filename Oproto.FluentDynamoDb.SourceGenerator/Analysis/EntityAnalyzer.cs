@@ -80,6 +80,9 @@ internal class EntityAnalyzer
         // Extract index information
         ExtractIndexes(entityModel);
 
+        // Validate new index attribute configurations (DYNDB120-127)
+        ValidateIndexAttributes(entityModel);
+
         // Validate index projection configurations
         ValidateIndexProjectionConfiguration(entityModel);
 
@@ -608,14 +611,14 @@ internal class EntityAnalyzer
         // Extract key attributes
         ExtractKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
-        // Extract GSI attributes
-        ExtractGsiAttributes(propertyDecl, semanticModel, propertyModel);
+        // Extract new GSI partition key attributes
+        ExtractGsiPartitionKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
-        // Extract LSI attributes
-        ExtractLsiAttributes(propertyDecl, semanticModel, propertyModel);
+        // Extract new GSI sort key attributes
+        ExtractGsiSortKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
-        // Extract queryable attributes
-        ExtractQueryableAttributes(propertyDecl, semanticModel, propertyModel);
+        // Extract new LSI sort key attributes
+        ExtractLsiSortKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
         // Extract computed key attributes
         ExtractComputedKeyAttributes(propertyDecl, semanticModel, propertyModel);
@@ -684,45 +687,36 @@ internal class EntityAnalyzer
         return keyFormat;
     }
 
-    private void ExtractGsiAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    private void ExtractGsiPartitionKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
     {
-        var gsiAttributes = GetAttributes(propertyDecl, semanticModel, "GlobalSecondaryIndexAttribute");
-        var gsiModels = new List<GlobalSecondaryIndexModel>();
+        var gsiPkAttributes = GetAttributes(propertyDecl, semanticModel, "GsiPartitionKeyAttribute");
+        var gsiPkModels = new List<GsiPartitionKeyModel>();
 
-        foreach (var gsiAttr in gsiAttributes)
+        foreach (var gsiPkAttr in gsiPkAttributes)
         {
-            var gsiModel = new GlobalSecondaryIndexModel();
+            var gsiPkModel = new GsiPartitionKeyModel();
 
             // Extract index name from constructor argument
-            if (gsiAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
+            if (gsiPkAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
             {
-                gsiModel.IndexName = indexNameLiteral.Token.ValueText;
+                gsiPkModel.IndexName = indexNameLiteral.Token.ValueText;
             }
 
             // Extract named arguments
-            if (gsiAttr.ArgumentList != null)
+            if (gsiPkAttr.ArgumentList != null)
             {
-                foreach (var arg in gsiAttr.ArgumentList.Arguments)
+                foreach (var arg in gsiPkAttr.ArgumentList.Arguments)
                 {
                     switch (arg.NameEquals?.Name.Identifier.ValueText)
                     {
                         case "Name" when arg.Expression is LiteralExpressionSyntax nameLiteral:
-                            gsiModel.CustomName = nameLiteral.Token.ValueText;
-                            break;
-                        case "IsPartitionKey" when arg.Expression is LiteralExpressionSyntax partitionKeyLiteral:
-                            gsiModel.IsPartitionKey = bool.Parse(partitionKeyLiteral.Token.ValueText);
-                            break;
-                        case "IsSortKey" when arg.Expression is LiteralExpressionSyntax sortKeyLiteral:
-                            gsiModel.IsSortKey = bool.Parse(sortKeyLiteral.Token.ValueText);
-                            break;
-                        case "KeyFormat" when arg.Expression is LiteralExpressionSyntax keyFormatLiteral:
-                            gsiModel.KeyFormat = keyFormatLiteral.Token.ValueText;
+                            gsiPkModel.CustomName = nameLiteral.Token.ValueText;
                             break;
                         case "ProjectionType" when arg.Expression is MemberAccessExpressionSyntax projectionTypeExpr:
                             var projectionTypeName = projectionTypeExpr.Name.Identifier.ValueText;
                             if (Enum.TryParse<ProjectionType>(projectionTypeName, out var projectionType))
                             {
-                                gsiModel.ProjectionType = projectionType;
+                                gsiPkModel.ProjectionType = projectionType;
                             }
                             break;
                     }
@@ -730,91 +724,100 @@ internal class EntityAnalyzer
             }
 
             // Extract GSI-specific discriminator configuration
-            gsiModel.Discriminator = DiscriminatorAnalyzer.AnalyzeGsiDiscriminator(
-                gsiAttr, 
-                semanticModel, 
-                gsiModel.IndexName, 
+            gsiPkModel.Discriminator = DiscriminatorAnalyzer.AnalyzeGsiDiscriminator(
+                gsiPkAttr,
+                semanticModel,
+                gsiPkModel.IndexName,
                 _diagnostics);
 
-            gsiModels.Add(gsiModel);
+            gsiPkModels.Add(gsiPkModel);
         }
 
-        propertyModel.GlobalSecondaryIndexes = gsiModels.ToArray();
+        propertyModel.GsiPartitionKeys = gsiPkModels.ToArray();
     }
 
-    private void ExtractLsiAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    private void ExtractGsiSortKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
     {
-        var lsiAttributes = GetAttributes(propertyDecl, semanticModel, "LocalSecondaryIndexAttribute");
-        var lsiModels = new List<LocalSecondaryIndexModel>();
+        var gsiSkAttributes = GetAttributes(propertyDecl, semanticModel, "GsiSortKeyAttribute");
+        var gsiSkModels = new List<GsiSortKeyModel>();
 
-        foreach (var lsiAttr in lsiAttributes)
+        foreach (var gsiSkAttr in gsiSkAttributes)
         {
-            var lsiModel = new LocalSecondaryIndexModel();
+            var gsiSkModel = new GsiSortKeyModel();
 
             // Extract index name from constructor argument
-            if (lsiAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
+            if (gsiSkAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
             {
-                lsiModel.IndexName = indexNameLiteral.Token.ValueText;
+                gsiSkModel.IndexName = indexNameLiteral.Token.ValueText;
             }
 
             // Extract named arguments
-            if (lsiAttr.ArgumentList != null)
+            if (gsiSkAttr.ArgumentList != null)
             {
-                foreach (var arg in lsiAttr.ArgumentList.Arguments)
+                foreach (var arg in gsiSkAttr.ArgumentList.Arguments)
                 {
                     switch (arg.NameEquals?.Name.Identifier.ValueText)
                     {
                         case "Name" when arg.Expression is LiteralExpressionSyntax nameLiteral:
-                            lsiModel.CustomName = nameLiteral.Token.ValueText;
+                            gsiSkModel.CustomName = nameLiteral.Token.ValueText;
                             break;
                         case "ProjectionType" when arg.Expression is MemberAccessExpressionSyntax projectionTypeExpr:
                             var projectionTypeName = projectionTypeExpr.Name.Identifier.ValueText;
                             if (Enum.TryParse<ProjectionType>(projectionTypeName, out var projectionType))
                             {
-                                lsiModel.ProjectionType = projectionType;
+                                gsiSkModel.ProjectionType = projectionType;
                             }
                             break;
                     }
                 }
             }
 
-            lsiModels.Add(lsiModel);
+            gsiSkModels.Add(gsiSkModel);
         }
 
-        propertyModel.LocalSecondaryIndexes = lsiModels.ToArray();
+        propertyModel.GsiSortKeys = gsiSkModels.ToArray();
     }
 
-    private void ExtractQueryableAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
+    private void ExtractLsiSortKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
     {
-        var queryableAttr = GetAttribute(propertyDecl, semanticModel, "QueryableAttribute");
-        if (queryableAttr == null)
-            return;
+        var lsiSkAttributes = GetAttributes(propertyDecl, semanticModel, "LsiSortKeyAttribute");
+        var lsiSkModels = new List<LsiSortKeyModel>();
 
-        // Emit deprecation warning for [Queryable] attribute usage
-        ReportDiagnostic(DiagnosticDescriptors.DeprecatedQueryableAttribute,
-            queryableAttr.GetLocation(),
-            propertyModel.PropertyName);
-
-        var queryableModel = new QueryableModel();
-
-        // Extract named arguments
-        if (queryableAttr.ArgumentList != null)
+        foreach (var lsiSkAttr in lsiSkAttributes)
         {
-            foreach (var arg in queryableAttr.ArgumentList.Arguments)
+            var lsiSkModel = new LsiSortKeyModel();
+
+            // Extract index name from constructor argument
+            if (lsiSkAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax indexNameLiteral)
             {
-                switch (arg.NameEquals?.Name.Identifier.ValueText)
+                lsiSkModel.IndexName = indexNameLiteral.Token.ValueText;
+            }
+
+            // Extract named arguments
+            if (lsiSkAttr.ArgumentList != null)
+            {
+                foreach (var arg in lsiSkAttr.ArgumentList.Arguments)
                 {
-                    case "SupportedOperations":
-                        // TODO: Extract array of operations - simplified for now
-                        break;
-                    case "AvailableInIndexes":
-                        // TODO: Extract array of index names - simplified for now
-                        break;
+                    switch (arg.NameEquals?.Name.Identifier.ValueText)
+                    {
+                        case "Name" when arg.Expression is LiteralExpressionSyntax nameLiteral:
+                            lsiSkModel.CustomName = nameLiteral.Token.ValueText;
+                            break;
+                        case "ProjectionType" when arg.Expression is MemberAccessExpressionSyntax projectionTypeExpr:
+                            var projectionTypeName = projectionTypeExpr.Name.Identifier.ValueText;
+                            if (Enum.TryParse<ProjectionType>(projectionTypeName, out var projectionType))
+                            {
+                                lsiSkModel.ProjectionType = projectionType;
+                            }
+                            break;
+                    }
                 }
             }
+
+            lsiSkModels.Add(lsiSkModel);
         }
 
-        propertyModel.Queryable = queryableModel;
+        propertyModel.LsiSortKeys = lsiSkModels.ToArray();
     }
 
     private void ExtractComputedKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
@@ -1026,86 +1029,86 @@ internal class EntityAnalyzer
     {
         var indexes = new Dictionary<string, IndexModel>();
 
-        // Extract GSI indexes
+        // Extract GSI indexes from GsiPartitionKey attributes
         foreach (var property in entityModel.Properties)
         {
-            foreach (var gsi in property.GlobalSecondaryIndexes)
+            foreach (var gsiPk in property.GsiPartitionKeys)
             {
-                if (!indexes.TryGetValue(gsi.IndexName, out var indexModel))
+                if (!indexes.TryGetValue(gsiPk.IndexName, out var indexModel))
                 {
-                    indexModel = new IndexModel 
-                    { 
-                        IndexName = gsi.IndexName,
-                        IndexType = IndexType.GlobalSecondaryIndex,
-                        ProjectionType = gsi.ProjectionType
-                    };
-                    indexes[gsi.IndexName] = indexModel;
-                }
-
-                if (gsi.IsPartitionKey)
-                {
-                    indexModel.PartitionKeyProperty = property.PropertyName;
-                    indexModel.PartitionKeyAttribute = property.AttributeName;
-                    indexModel.PartitionKeyFormat = gsi.KeyFormat;
-                    
-                    // Propagate ProjectionType from partition key property (takes precedence)
-                    if (gsi.ProjectionType != ProjectionType.All)
+                    indexModel = new IndexModel
                     {
-                        indexModel.ProjectionType = gsi.ProjectionType;
-                    }
-                }
-                else if (gsi.IsSortKey)
-                {
-                    indexModel.SortKeyProperty = property.PropertyName;
-                    indexModel.SortKeyAttribute = property.AttributeName;
-                    indexModel.SortKeyFormat = gsi.KeyFormat;
+                        IndexName = gsiPk.IndexName,
+                        IndexType = IndexType.GlobalSecondaryIndex,
+                        ProjectionType = gsiPk.ProjectionType
+                    };
+                    indexes[gsiPk.IndexName] = indexModel;
                 }
 
-                // Propagate GSI discriminator (use first one found if multiple properties define it)
-                if (gsi.Discriminator != null && indexModel.GsiDiscriminator == null)
-                {
-                    indexModel.GsiDiscriminator = gsi.Discriminator;
-                }
+                indexModel.PartitionKeyProperty = property.PropertyName;
+                indexModel.PartitionKeyAttribute = property.AttributeName;
 
-                // Propagate custom name (use first one found if multiple properties define it)
-                if (!string.IsNullOrEmpty(gsi.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))
-                {
-                    indexModel.CustomName = gsi.CustomName;
-                }
+                // GsiPartitionKey values take precedence
+                if (gsiPk.ProjectionType != ProjectionType.All)
+                    indexModel.ProjectionType = gsiPk.ProjectionType;
+                if (gsiPk.Discriminator != null && indexModel.GsiDiscriminator == null)
+                    indexModel.GsiDiscriminator = gsiPk.Discriminator;
+                if (!string.IsNullOrEmpty(gsiPk.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))
+                    indexModel.CustomName = gsiPk.CustomName;
             }
         }
 
-        // Extract LSI indexes - LSIs share the partition key with the base table
-        var partitionKeyProperty = entityModel.Properties.FirstOrDefault(p => p.IsPartitionKey);
-        
+        // Extract GSI sort keys
         foreach (var property in entityModel.Properties)
         {
-            foreach (var lsi in property.LocalSecondaryIndexes)
+            foreach (var gsiSk in property.GsiSortKeys)
             {
-                if (!indexes.TryGetValue(lsi.IndexName, out var indexModel))
+                if (!indexes.TryGetValue(gsiSk.IndexName, out var indexModel))
                 {
-                    indexModel = new IndexModel 
-                    { 
-                        IndexName = lsi.IndexName,
-                        IndexType = IndexType.LocalSecondaryIndex,
-                        // LSIs inherit the partition key from the base table
-                        PartitionKeyProperty = partitionKeyProperty?.PropertyName ?? string.Empty,
-                        PartitionKeyAttribute = partitionKeyProperty?.AttributeName ?? string.Empty,
-                        PartitionKeyFormat = partitionKeyProperty?.KeyFormat?.Prefix,
-                        ProjectionType = lsi.ProjectionType
+                    indexModel = new IndexModel
+                    {
+                        IndexName = gsiSk.IndexName,
+                        IndexType = IndexType.GlobalSecondaryIndex,
+                        ProjectionType = gsiSk.ProjectionType
                     };
-                    indexes[lsi.IndexName] = indexModel;
+                    indexes[gsiSk.IndexName] = indexModel;
                 }
 
-                // The property with [LocalSecondaryIndex] is the sort key for that LSI
                 indexModel.SortKeyProperty = property.PropertyName;
                 indexModel.SortKeyAttribute = property.AttributeName;
 
-                // Propagate custom name (use first one found if multiple properties define it)
-                if (!string.IsNullOrEmpty(lsi.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))
+                // GsiSortKey values are fallbacks (only if GsiPartitionKey didn't set them)
+                if (!string.IsNullOrEmpty(gsiSk.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))
+                    indexModel.CustomName = gsiSk.CustomName;
+                if (gsiSk.ProjectionType != ProjectionType.All && indexModel.ProjectionType == ProjectionType.All)
+                    indexModel.ProjectionType = gsiSk.ProjectionType;
+            }
+        }
+
+        // Extract LSI indexes
+        var partitionKeyProperty = entityModel.Properties.FirstOrDefault(p => p.IsPartitionKey);
+        foreach (var property in entityModel.Properties)
+        {
+            foreach (var lsiSk in property.LsiSortKeys)
+            {
+                if (!indexes.TryGetValue(lsiSk.IndexName, out var indexModel))
                 {
-                    indexModel.CustomName = lsi.CustomName;
+                    indexModel = new IndexModel
+                    {
+                        IndexName = lsiSk.IndexName,
+                        IndexType = IndexType.LocalSecondaryIndex,
+                        PartitionKeyProperty = partitionKeyProperty?.PropertyName ?? string.Empty,
+                        PartitionKeyAttribute = partitionKeyProperty?.AttributeName ?? string.Empty,
+                        ProjectionType = lsiSk.ProjectionType
+                    };
+                    indexes[lsiSk.IndexName] = indexModel;
                 }
+
+                indexModel.SortKeyProperty = property.PropertyName;
+                indexModel.SortKeyAttribute = property.AttributeName;
+
+                if (!string.IsNullOrEmpty(lsiSk.CustomName) && string.IsNullOrEmpty(indexModel.CustomName))
+                    indexModel.CustomName = lsiSk.CustomName;
             }
         }
 
@@ -1541,20 +1544,9 @@ internal class EntityAnalyzer
             return;
         }
 
-        // Warn about potentially large string properties
-        if (propertyModel.PropertyType == "string" && !propertyModel.IsCollection)
-        {
-            // This is a heuristic - in practice, you'd need more context
-            if (propertyModel.PropertyName.ToLowerInvariant().Contains("description") ||
-                propertyModel.PropertyName.ToLowerInvariant().Contains("content") ||
-                propertyModel.PropertyName.ToLowerInvariant().Contains("body"))
-            {
-                ReportDiagnostic(DiagnosticDescriptors.PerformanceWarning,
-                    propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
-                    propertyModel.PropertyName, propertyModel.PropertyType,
-                    "Large string properties may impact DynamoDB performance and costs");
-            }
-        }
+        // Note: String properties are not flagged - naming heuristics (e.g., "Description", "Content")
+        // produce too many false positives. DynamoDB handles strings of any size natively, and item
+        // size limits (400KB) are the real constraint, which is better validated at runtime.
 
         // Warn about binary data properties
         if (propertyModel.PropertyType == "byte[]" || propertyModel.PropertyType == "System.Byte[]")
@@ -2462,6 +2454,123 @@ internal class EntityAnalyzer
     }
 
     /// <summary>
+    /// Validates new index attribute configurations (DYNDB120-127).
+    /// Checks for empty index names, duplicate keys, missing partition keys, and GSI/LSI type conflicts.
+    /// </summary>
+    /// <param name="entityModel">The entity model containing properties with index attributes to validate.</param>
+    private void ValidateIndexAttributes(EntityModel entityModel)
+    {
+        // 1. Check for empty/whitespace index names (DYNDB124-126)
+        foreach (var property in entityModel.Properties)
+        {
+            var location = property.PropertyDeclaration?.Identifier.GetLocation();
+
+            foreach (var gsiPk in property.GsiPartitionKeys)
+            {
+                if (string.IsNullOrWhiteSpace(gsiPk.IndexName))
+                {
+                    ReportDiagnostic(DiagnosticDescriptors.EmptyGsiPartitionKeyIndexName, location, property.PropertyName);
+                }
+            }
+
+            foreach (var gsiSk in property.GsiSortKeys)
+            {
+                if (string.IsNullOrWhiteSpace(gsiSk.IndexName))
+                {
+                    ReportDiagnostic(DiagnosticDescriptors.EmptyGsiSortKeyIndexName, location, property.PropertyName);
+                }
+            }
+
+            foreach (var lsiSk in property.LsiSortKeys)
+            {
+                if (string.IsNullOrWhiteSpace(lsiSk.IndexName))
+                {
+                    ReportDiagnostic(DiagnosticDescriptors.EmptyLsiSortKeyIndexName, location, property.PropertyName);
+                }
+            }
+        }
+
+        // 2. Group by index name and check for conflicts
+        var gsiPartitionKeys = entityModel.Properties
+            .SelectMany(p => p.GsiPartitionKeys.Select(g => (Property: p, Model: g)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Model.IndexName))
+            .GroupBy(x => x.Model.IndexName);
+
+        var gsiSortKeys = entityModel.Properties
+            .SelectMany(p => p.GsiSortKeys.Select(g => (Property: p, Model: g)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Model.IndexName))
+            .GroupBy(x => x.Model.IndexName);
+
+        var lsiSortKeys = entityModel.Properties
+            .SelectMany(p => p.LsiSortKeys.Select(g => (Property: p, Model: g)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Model.IndexName))
+            .GroupBy(x => x.Model.IndexName);
+
+        // 3. Check duplicate GSI partition keys (DYNDB121)
+        foreach (var group in gsiPartitionKeys.Where(g => g.Count() > 1))
+        {
+            var props = group.Select(x => x.Property.PropertyName).ToArray();
+            var location = group.First().Property.PropertyDeclaration?.Identifier.GetLocation();
+            ReportDiagnostic(DiagnosticDescriptors.DuplicateGsiPartitionKey, location, group.Key, entityModel.ClassName, props[0], props[1]);
+        }
+
+        // 4. Check duplicate GSI sort keys (DYNDB122)
+        foreach (var group in gsiSortKeys.Where(g => g.Count() > 1))
+        {
+            var props = group.Select(x => x.Property.PropertyName).ToArray();
+            var location = group.First().Property.PropertyDeclaration?.Identifier.GetLocation();
+            ReportDiagnostic(DiagnosticDescriptors.DuplicateGsiSortKey, location, group.Key, entityModel.ClassName, props[0], props[1]);
+        }
+
+        // 5. Check duplicate LSI sort keys (DYNDB123)
+        foreach (var group in lsiSortKeys.Where(g => g.Count() > 1))
+        {
+            var props = group.Select(x => x.Property.PropertyName).ToArray();
+            var location = group.First().Property.PropertyDeclaration?.Identifier.GetLocation();
+            ReportDiagnostic(DiagnosticDescriptors.DuplicateLsiSortKey, location, group.Key, entityModel.ClassName, props[0], props[1]);
+        }
+
+        // 6. Check GSI sort key without partition key (DYNDB120)
+        var gsiPkIndexNames = new HashSet<string>(
+            entityModel.Properties.SelectMany(p => p.GsiPartitionKeys
+                .Where(g => !string.IsNullOrWhiteSpace(g.IndexName))
+                .Select(g => g.IndexName)));
+
+        foreach (var group in gsiSortKeys)
+        {
+            if (!gsiPkIndexNames.Contains(group.Key))
+            {
+                var location = group.First().Property.PropertyDeclaration?.Identifier.GetLocation();
+                ReportDiagnostic(DiagnosticDescriptors.GsiSortKeyWithoutPartitionKey, location, group.Key, entityModel.ClassName);
+            }
+        }
+
+        // 7. Check same index name used as both GSI and LSI (DYNDB127)
+        var gsiIndexNames = new HashSet<string>(
+            entityModel.Properties
+                .SelectMany(p => p.GsiPartitionKeys
+                    .Where(g => !string.IsNullOrWhiteSpace(g.IndexName))
+                    .Select(g => g.IndexName)
+                    .Concat(p.GsiSortKeys
+                        .Where(g => !string.IsNullOrWhiteSpace(g.IndexName))
+                        .Select(g => g.IndexName))));
+
+        var lsiIndexNames = new HashSet<string>(
+            entityModel.Properties.SelectMany(p => p.LsiSortKeys
+                .Where(l => !string.IsNullOrWhiteSpace(l.IndexName))
+                .Select(l => l.IndexName)));
+
+        foreach (var overlap in gsiIndexNames.Intersect(lsiIndexNames))
+        {
+            var gsiProperty = entityModel.Properties.FirstOrDefault(p =>
+                p.GsiPartitionKeys.Any(g => g.IndexName == overlap) ||
+                p.GsiSortKeys.Any(g => g.IndexName == overlap));
+            var location = gsiProperty?.PropertyDeclaration?.Identifier.GetLocation();
+            ReportDiagnostic(DiagnosticDescriptors.GsiLsiIndexNameConflict, location, overlap, entityModel.ClassName);
+        }
+    }
+
+    /// <summary>
     /// Validates index configurations for projection type warnings.
     /// </summary>
     /// <param name="entityModel">The entity model containing indexes to validate.</param>
@@ -2510,13 +2619,13 @@ internal class EntityAnalyzer
         if (index.IsGsi)
         {
             return entityModel.Properties.FirstOrDefault(p => 
-                p.GlobalSecondaryIndexes.Any(gsi => 
-                    gsi.IndexName == index.IndexName && gsi.IsPartitionKey));
+                p.GsiPartitionKeys.Any(gsi => 
+                    gsi.IndexName == index.IndexName));
         }
         
         // For LSIs, find the property with the sort key for this index
         return entityModel.Properties.FirstOrDefault(p => 
-            p.LocalSecondaryIndexes.Any(lsi => lsi.IndexName == index.IndexName));
+            p.LsiSortKeys.Any(lsi => lsi.IndexName == index.IndexName));
     }
 
     /// <summary>

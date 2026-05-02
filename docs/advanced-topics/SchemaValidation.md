@@ -277,6 +277,21 @@ catch (SchemaValidationException ex)
 |------|-------------|
 | `ProjectionModelRequired` | Index has non-ALL projection but no projection model defined |
 
+### Index Attribute Validation Errors (Compile-Time)
+
+These diagnostics are emitted by the source generator at compile time when index attributes are misconfigured:
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| `DYNDB120` | Error | GSI has a `[GsiSortKey]` but no `[GsiPartitionKey]` for the same index name. Add a `[GsiPartitionKey]` to a property. |
+| `DYNDB121` | Error | GSI has multiple `[GsiPartitionKey]` attributes on different properties for the same index name. Only one partition key per GSI is allowed. |
+| `DYNDB122` | Error | GSI has multiple `[GsiSortKey]` attributes on different properties for the same index name. Only one sort key per GSI is allowed. |
+| `DYNDB123` | Error | LSI has multiple `[LsiSortKey]` attributes on different properties for the same index name. Only one sort key per LSI is allowed. |
+| `DYNDB124` | Error | `[GsiPartitionKey]` has an empty or whitespace index name. |
+| `DYNDB125` | Error | `[GsiSortKey]` has an empty or whitespace index name. |
+| `DYNDB126` | Error | `[LsiSortKey]` has an empty or whitespace index name. |
+| `DYNDB127` | Error | Same index name is used as both a GSI and an LSI within the same entity. An index name must be exclusively GSI or LSI. |
+
 ---
 
 ## Warning Codes
@@ -296,7 +311,7 @@ Warnings indicate non-critical differences that may be intentional:
 
 ### Defining LSIs
 
-Use the `[LocalSecondaryIndex]` attribute to define LSIs:
+Use the `[LsiSortKey]` attribute to define LSIs:
 
 ```csharp
 [DynamoDbTable("orders")]
@@ -311,12 +326,12 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
     
     // Local Secondary Index - shares partition key with base table
-    [LocalSecondaryIndex("orders-by-date")]
+    [LsiSortKey("orders-by-date")]
     [DynamoDbAttribute("order_date")]
     public string OrderDate { get; set; } = string.Empty;
     
     // Another LSI
-    [LocalSecondaryIndex("orders-by-status")]
+    [LsiSortKey("orders-by-status")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 }
@@ -517,7 +532,7 @@ Add schema validation to your deployment pipeline:
 
 ## See Also
 
-- **[Attribute Reference](../reference/AttributeReference.md)** - Complete attribute documentation including `[LocalSecondaryIndex]`
+- **[Attribute Reference](../reference/AttributeReference.md)** - Complete attribute documentation including `[LsiSortKey]`
 - **[Global Secondary Indexes](GlobalSecondaryIndexes.md)** - GSI configuration and usage
 - **[Entity Definition](../core-features/EntityDefinition.md)** - Defining DynamoDB entities
 - **[Logging Configuration](../core-features/LoggingConfiguration.md)** - Configure logging and diagnostics

@@ -21,13 +21,13 @@ public partial class InventoryEntity
     [DynamoDbAttribute("entity_type")]
     public string EntityType { get; set; } = "INVENTORY";
     
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true,
+    [GsiPartitionKey("StatusIndex",
         DiscriminatorProperty = "gsi1_sk",
         DiscriminatorPattern = "INVENTORY#*")]
     [DynamoDbAttribute("gsi1_pk")]
     public string? Status { get; set; }
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("gsi1_sk")]
     public string? StatusSortKey { get; set; }
     

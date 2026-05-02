@@ -137,7 +137,7 @@ internal class GenericTable : IDynamoDbTable
     /// <returns>The hydrated entity or null if not found.</returns>
     public async Task<TEntity?> GetAsync<TEntity>(GetItemRequest request, CancellationToken cancellationToken = default)
         where TEntity : class, IDynamoDbEntity
-        => await EntityExecuteAsyncExtensions.GetItemAsync(Get<TEntity>(request), cancellationToken);
+        => await EntityExecuteAsyncExtensions.GetItemAsync(Get<TEntity>(request), cancellationToken).ConfigureAwait(false);
 
     #endregion
 
@@ -168,7 +168,7 @@ internal class GenericTable : IDynamoDbTable
     /// <param name="cancellationToken">A cancellation token.</param>
     public async Task PutAsync<TEntity>(PutItemRequest request, CancellationToken cancellationToken = default)
         where TEntity : class, IDynamoDbEntity, new()
-        => await EntityExecuteAsyncExtensions.PutAsync(Put<TEntity>(request), cancellationToken);
+        => await EntityExecuteAsyncExtensions.PutAsync(Put<TEntity>(request), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Puts an entity into the table.
@@ -178,7 +178,7 @@ internal class GenericTable : IDynamoDbTable
     /// <param name="cancellationToken">A cancellation token.</param>
     public async Task PutAsync<TEntity>(TEntity entity, CancellationToken cancellationToken = default)
         where TEntity : class, IDynamoDbEntity, new()
-        => await EntityExecuteAsyncExtensions.PutAsync(Put<TEntity>().WithItem(entity), cancellationToken);
+        => await EntityExecuteAsyncExtensions.PutAsync(Put<TEntity>().WithItem(entity), cancellationToken).ConfigureAwait(false);
 
     #endregion
 
@@ -209,7 +209,7 @@ internal class GenericTable : IDynamoDbTable
     /// <param name="cancellationToken">A cancellation token.</param>
     public async Task UpdateAsync<TEntity>(UpdateItemRequest request, CancellationToken cancellationToken = default)
         where TEntity : class, IDynamoDbEntity, new()
-        => await EntityExecuteAsyncExtensions.UpdateAsync(Update<TEntity>(request), cancellationToken);
+        => await EntityExecuteAsyncExtensions.UpdateAsync(Update<TEntity>(request), cancellationToken).ConfigureAwait(false);
 
     #endregion
 
@@ -240,7 +240,7 @@ internal class GenericTable : IDynamoDbTable
     /// <param name="cancellationToken">A cancellation token.</param>
     public async Task DeleteAsync<TEntity>(DeleteItemRequest request, CancellationToken cancellationToken = default)
         where TEntity : class, IDynamoDbEntity, new()
-        => await EntityExecuteAsyncExtensions.DeleteAsync(Delete<TEntity>(request), cancellationToken);
+        => await EntityExecuteAsyncExtensions.DeleteAsync(Delete<TEntity>(request), cancellationToken).ConfigureAwait(false);
 
     #endregion
 
@@ -301,7 +301,7 @@ internal class GenericTable : IDynamoDbTable
     /// <returns>A list of hydrated entities.</returns>
     public async Task<List<TEntity>> QueryAsync<TEntity>(QueryRequest request, CancellationToken cancellationToken = default)
         where TEntity : class, IDynamoDbEntity
-        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Query<TEntity>(request), cancellationToken);
+        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Query<TEntity>(request), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Creates a Scan operation builder configured with a pre-built SDK request.
@@ -321,7 +321,7 @@ internal class GenericTable : IDynamoDbTable
     /// <returns>A list of hydrated entities.</returns>
     public async Task<List<TEntity>> ScanAsync<TEntity>(ScanRequest request, CancellationToken cancellationToken = default)
         where TEntity : class, IDynamoDbEntity
-        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Scan<TEntity>(request), cancellationToken);
+        => await Requests.Extensions.EntityExecuteAsyncExtensions.ToListAsync(Scan<TEntity>(request), cancellationToken).ConfigureAwait(false);
 
     #endregion
 }

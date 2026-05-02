@@ -133,12 +133,12 @@ public partial class Product
     public string Category { get; set; } = string.Empty;
 
     // GSI partition key
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 
     // GSI sort key
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("created_date")]
     public DateTime CreatedDate { get; set; }
 
@@ -168,7 +168,7 @@ public partial class Customer
     public string Pk { get; set; } = string.Empty;
 
     // Computed with custom format
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("gsi1_pk")]
     [Computed(nameof(Status), Format = "STATUS#{0}")]
     public string StatusIndexPk { get; set; } = string.Empty;
@@ -553,10 +553,10 @@ await DynamoDbTransactions.Write
 2. **Leverage GSIs for Access Patterns**
    ```csharp
    // Support queries by status and date
-   [GlobalSecondaryIndex("StatusDateIndex", IsPartitionKey = true)]
+   [GsiPartitionKey("StatusDateIndex")]
    public string Status { get; set; }
    
-   [GlobalSecondaryIndex("StatusDateIndex", IsSortKey = true)]
+   [GsiSortKey("StatusDateIndex")]
    public DateTime CreatedDate { get; set; }
    ```
 
@@ -585,7 +585,7 @@ await DynamoDbTransactions.Write
 2. **Use Projection for GSIs**
    ```csharp
    // Only project necessary attributes to GSI
-   [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+   [GsiPartitionKey("StatusIndex")]
    [QueryableAttribute(AvailableInIndexes = new[] { "StatusIndex" })]
    public string Status { get; set; }
    ```

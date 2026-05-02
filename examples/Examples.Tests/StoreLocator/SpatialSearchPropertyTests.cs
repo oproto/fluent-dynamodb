@@ -206,9 +206,9 @@ public class SpatialSearchPropertyTests
                 var hasLocationCoarseProp = locationCoarseProp != null;
 
                 // Verify GSI attributes are present
-                var locationGsi = locationProp?.GetCustomAttribute<GlobalSecondaryIndexAttribute>();
-                var locationMediumGsi = locationMediumProp?.GetCustomAttribute<GlobalSecondaryIndexAttribute>();
-                var locationCoarseGsi = locationCoarseProp?.GetCustomAttribute<GlobalSecondaryIndexAttribute>();
+                var locationGsi = locationProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationMediumGsi = locationMediumProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationCoarseGsi = locationCoarseProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
 
                 var hasCorrectGsis = locationGsi?.IndexName == "s2-index-fine" &&
                                      locationMediumGsi?.IndexName == "s2-index-medium" &&
@@ -285,9 +285,9 @@ public class SpatialSearchPropertyTests
                 var hasLocationCoarseProp = locationCoarseProp != null;
 
                 // Verify GSI attributes are present
-                var locationGsi = locationProp?.GetCustomAttribute<GlobalSecondaryIndexAttribute>();
-                var locationMediumGsi = locationMediumProp?.GetCustomAttribute<GlobalSecondaryIndexAttribute>();
-                var locationCoarseGsi = locationCoarseProp?.GetCustomAttribute<GlobalSecondaryIndexAttribute>();
+                var locationGsi = locationProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationMediumGsi = locationMediumProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationCoarseGsi = locationCoarseProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
 
                 var hasCorrectGsis = locationGsi?.IndexName == "h3-index-fine" &&
                                      locationMediumGsi?.IndexName == "h3-index-medium" &&

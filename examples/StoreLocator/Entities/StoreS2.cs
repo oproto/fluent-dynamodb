@@ -53,7 +53,7 @@ public partial class StoreS2
     /// Fine precision index for nearby searches (radius ≤ 2km).
     /// The S2 cell token is automatically computed by the source generator and used as the GSI partition key.
     /// </summary>
-    [GlobalSecondaryIndex("s2-index-fine", IsPartitionKey = true)]
+    [GsiPartitionKey("s2-index-fine")]
     [DynamoDbAttribute("s2_cell_l14", SpatialIndexType = SpatialIndexType.S2, S2Level = 14)]
     [StoreCoordinates(LatitudeAttributeName = "lat", LongitudeAttributeName = "lon")]
     public GeoLocation Location { get; set; }
@@ -62,7 +62,7 @@ public partial class StoreS2
     /// Gets or sets the store location with S2 encoding at level 12 (~1.1km cell size).
     /// Medium precision index for city-level searches (radius 2-10km).
     /// </summary>
-    [GlobalSecondaryIndex("s2-index-medium", IsPartitionKey = true)]
+    [GsiPartitionKey("s2-index-medium")]
     [DynamoDbAttribute("s2_cell_l12", SpatialIndexType = SpatialIndexType.S2, S2Level = 12)]
     public GeoLocation LocationMedium { get; set; }
 
@@ -70,7 +70,7 @@ public partial class StoreS2
     /// Gets or sets the store location with S2 encoding at level 10 (~4.5km cell size).
     /// Coarse precision index for regional searches (radius > 10km).
     /// </summary>
-    [GlobalSecondaryIndex("s2-index-coarse", IsPartitionKey = true)]
+    [GsiPartitionKey("s2-index-coarse")]
     [DynamoDbAttribute("s2_cell_l10", SpatialIndexType = SpatialIndexType.S2, S2Level = 10)]
     public GeoLocation LocationCoarse { get; set; }
 

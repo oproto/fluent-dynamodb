@@ -30,7 +30,7 @@ namespace Oproto.FluentDynamoDb.ApiConsistencyTests.Indexes;
 /// [DynamoDbTable("products")]
 /// public partial class Product
 /// {
-///     [GlobalSecondaryIndex("gsi1", IsPartitionKey = true, Name = "CategoryIndex")]
+///     [GsiPartitionKey("gsi1", Name = "CategoryIndex")]
 ///     [UseProjection(typeof(ProductProjection))]
 ///     [DynamoDbAttribute("gsi1pk")]
 ///     public string CategoryId { get; set; }

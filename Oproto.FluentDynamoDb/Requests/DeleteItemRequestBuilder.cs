@@ -457,10 +457,10 @@ public class DeleteItemRequestBuilder<TEntity> :
         // Check if we have blob reference keys to clean up
         if (_blobReferenceKeys != null && _blobReferenceKeys.Count > 0 && _options.BlobStorageStrategy != null)
         {
-            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
-        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<DeleteItemResponse> ExecuteWithBlobStorageAsync(
@@ -470,8 +470,8 @@ public class DeleteItemRequestBuilder<TEntity> :
         return await BlobStorageHelper.ExecuteDeleteWithBlobStrategyAsync<TEntity, DeleteItemResponse>(
             _blobReferenceKeys!,
             _options,
-            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
-            cancellationToken);
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<DeleteItemResponse> ExecuteDynamoDbOperationAsync(
@@ -495,7 +495,7 @@ public class DeleteItemRequestBuilder<TEntity> :
         
         try
         {
-            var response = await _dynamoDbClient.DeleteItemAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

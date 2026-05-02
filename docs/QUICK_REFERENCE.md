@@ -88,11 +88,11 @@ public string UserId { get; set; } = string.Empty;
 ### Global Secondary Index
 
 ```csharp
-[GlobalSecondaryIndex("IndexName", IsPartitionKey = true)]
+[GsiPartitionKey("IndexName")]
 [DynamoDbAttribute("gsi-pk")]
 public string GsiPartitionKey { get; set; } = string.Empty;
 
-[GlobalSecondaryIndex("IndexName", IsSortKey = true)]
+[GsiSortKey("IndexName")]
 [DynamoDbAttribute("gsi-sk")]
 public string GsiSortKey { get; set; } = string.Empty;
 ```
@@ -120,8 +120,7 @@ public partial class User
 }
 
 // GSI-specific discriminator
-[GlobalSecondaryIndex("StatusIndex",
-    IsPartitionKey = true,
+[GsiPartitionKey("StatusIndex",
     DiscriminatorProperty = "GSI1SK",
     DiscriminatorPattern = "USER#*")]
 [DynamoDbAttribute("status")]
@@ -838,11 +837,11 @@ var response = await DynamoDbTransactions.Get
 ### Define GSI
 
 ```csharp
-[GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+[GsiPartitionKey("StatusIndex")]
 [DynamoDbAttribute("status")]
 public string Status { get; set; } = string.Empty;
 
-[GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+[GsiSortKey("StatusIndex")]
 [DynamoDbAttribute("createdAt")]
 public DateTime CreatedAt { get; set; }
 ```

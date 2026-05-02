@@ -5,7 +5,7 @@ namespace Oproto.FluentDynamoDb.Attributes;
 /// This is an opt-in validation for GSIs that project only specific attributes.
 /// </summary>
 /// <remarks>
-/// When applied to a property marked with [GlobalSecondaryIndex], this attribute
+/// When applied to a property marked with [GsiPartitionKey], this attribute
 /// indicates that the GSI projects only a subset of attributes and queries should
 /// use the specified projection model type.
 /// 

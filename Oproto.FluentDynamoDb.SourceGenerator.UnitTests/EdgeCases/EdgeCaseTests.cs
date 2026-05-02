@@ -393,7 +393,7 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string ItemId { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""ComplexGSI"", IsPartitionKey = true, KeyFormat = ""status#{0}#region#{1}"")]
+        [GsiPartitionKey(""ComplexGSI"")]
         [DynamoDbAttribute(""gsi_pk"")]
         public string Status { get; set; } = string.Empty;
         
@@ -630,14 +630,31 @@ namespace Oproto.FluentDynamoDb.Attributes
         public string? Separator { get; set; } = ""#"";
     }
 
-    [AttributeUsage(AttributeTargets.Property)]
-    public class GlobalSecondaryIndexAttribute : Attribute
+    [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+    public class GsiPartitionKeyAttribute : Attribute
     {
         public string IndexName { get; }
-        public bool IsPartitionKey { get; set; }
-        public bool IsSortKey { get; set; }
-        public string? KeyFormat { get; set; }
-        public GlobalSecondaryIndexAttribute(string indexName) => IndexName = indexName;
+        public string? Name { get; set; }
+        public string? DiscriminatorProperty { get; set; }
+        public string? DiscriminatorValue { get; set; }
+        public string? DiscriminatorPattern { get; set; }
+        public GsiPartitionKeyAttribute(string indexName) => IndexName = indexName;
+    }
+
+    [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+    public class GsiSortKeyAttribute : Attribute
+    {
+        public string IndexName { get; }
+        public string? Name { get; set; }
+        public GsiSortKeyAttribute(string indexName) => IndexName = indexName;
+    }
+
+    [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+    public class LsiSortKeyAttribute : Attribute
+    {
+        public string IndexName { get; }
+        public string? Name { get; set; }
+        public LsiSortKeyAttribute(string indexName) => IndexName = indexName;
     }
 
     [AttributeUsage(AttributeTargets.Property)]

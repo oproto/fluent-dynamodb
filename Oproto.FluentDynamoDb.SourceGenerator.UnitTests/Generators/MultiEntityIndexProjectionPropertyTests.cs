@@ -239,13 +239,12 @@ public class MultiEntityIndexProjectionPropertyTests
                     PropertyName = "GsiPk",
                     PropertyType = "string",
                     AttributeName = "gsi1pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = indexName,
-                            IsPartitionKey = true,
-                            ProjectionType = ProjectionType.All
+ProjectionType = ProjectionType.All
                         }
                     }
                 }
@@ -338,9 +337,9 @@ public class MultiEntityIndexProjectionPropertyTests
                     PropertyName = "LsiSk",
                     PropertyType = "string",
                     AttributeName = "lsi1sk",
-                    LocalSecondaryIndexes = new[]
+                    LsiSortKeys = new[]
                     {
-                        new LocalSecondaryIndexModel
+                        new LsiSortKeyModel
                         {
                             IndexName = indexName,
                             ProjectionType = ProjectionType.All
@@ -439,13 +438,12 @@ public class MultiEntityIndexProjectionPropertyTests
                     PropertyName = "GsiPk",
                     PropertyType = "string",
                     AttributeName = "gsi1pk",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = indexName,
-                            IsPartitionKey = true,
-                            ProjectionType = ProjectionType.All
+ProjectionType = ProjectionType.All
                         }
                     }
                 }

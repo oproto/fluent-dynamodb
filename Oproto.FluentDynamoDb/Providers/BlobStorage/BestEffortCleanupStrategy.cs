@@ -72,7 +72,7 @@ public sealed class BestEffortCleanupStrategy : IBlobStorageStrategy
                     prop.Data,
                     options,
                     prop.ExistingReferenceKey,
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
 
                 referenceKeys[prop.PropertyName] = key;
 
@@ -91,7 +91,7 @@ public sealed class BestEffortCleanupStrategy : IBlobStorageStrategy
                     prop.PropertyName);
 
                 // Clean up any blobs we already uploaded before re-throwing
-                await CleanupUploadedBlobsAsync(referenceKeys, cancellationToken);
+                await CleanupUploadedBlobsAsync(referenceKeys, cancellationToken).ConfigureAwait(false);
 
                 throw new BlobStorageException(
                     $"Failed to upload blob for property '{prop.PropertyName}'",
@@ -138,7 +138,7 @@ public sealed class BestEffortCleanupStrategy : IBlobStorageStrategy
             "Attempting to clean up {Count} orphaned blob(s) after DynamoDB write failure",
             context.UploadedReferenceKeys.Count);
 
-        await CleanupUploadedBlobsAsync(context.UploadedReferenceKeys, cancellationToken);
+        await CleanupUploadedBlobsAsync(context.UploadedReferenceKeys, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -168,7 +168,7 @@ public sealed class BestEffortCleanupStrategy : IBlobStorageStrategy
         {
             try
             {
-                await _provider.DeleteAsync(referenceKey, cancellationToken);
+                await _provider.DeleteAsync(referenceKey, cancellationToken).ConfigureAwait(false);
 
                 _logger?.LogDebug(
                     LogEventIds.BlobDeleteSuccess,
@@ -195,7 +195,7 @@ public sealed class BestEffortCleanupStrategy : IBlobStorageStrategy
         {
             try
             {
-                await _provider.DeleteAsync(referenceKey, cancellationToken);
+                await _provider.DeleteAsync(referenceKey, cancellationToken).ConfigureAwait(false);
 
                 _logger?.LogDebug(
                     LogEventIds.BlobCleanupSuccess,

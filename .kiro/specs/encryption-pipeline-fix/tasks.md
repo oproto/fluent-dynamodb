@@ -1,0 +1,148 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Encryption-Only Entity Pipeline Failures
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the three interconnected pipeline failures for encryption-only entities
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases for each defect:
+    - Defect 1.1: `HydratorGenerator.RequiresHydrator()` returns `false` for an entity with `[Encrypted]` properties but no blob storage
+    - Defect 1.2: `ToDynamoDbAsync(entity, blobProvider: null)` throws `ArgumentNullException` for encryption-only entities
+    - Defect 1.3: `PutItemRequestBuilder.WithItem(encryptedEntity)` throws `NotSupportedException` from sync `ToDynamoDb` stub
+  - **Bug Condition from design**: `isBugCondition(input) = hasEncrypted AND NOT hasBlobStorage AND operation IN [Put, Get, Query, Scan]`
+  - **Expected Behavior assertions** (from design Property 1):
+    - `HydratorGenerator.RequiresHydrator()` returns `true` for encryption-only entities (validates hydrator generation for read path)
+    - `ToDynamoDbAsync` accepts null `blobProvider` for encryption-only entities without throwing
+    - `PutItemRequestBuilder.WithItem()` does not throw `NotSupportedException` for encrypted entities (defers serialization)
+    - Hydrator registry contains a hydrator for encryption-only entity types
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found:
+    - `RequiresHydrator()` returns `false` → no hydrator generated → read path fails
+    - `ToDynamoDbAsync` null guard throws `ArgumentNullException` → write path fails even with async context
+    - `WithItem()` calls sync `ToDynamoDb` → throws `NotSupportedException` → write path fails at configuration time
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Encrypted and Blob-Only Entity Behavior
+  - **IMPORTANT**: Follow observation-first methodology
+  - **GOAL**: Capture baseline behavior of all non-bug-condition entity types on UNFIXED code to prevent regressions
+  - **Non-bug condition** (cases where `isBugCondition` returns false): entities with no encrypted properties, entities with blob storage only, entities with both blob+encrypted, update operations, delete operations
+  - **Observation-first methodology**:
+    - Observe: Plain entity (no encryption, no blob) → `ToDynamoDb`/`FromDynamoDb` used synchronously, no hydrator in registry
+    - Observe: Blob-only entity → hydrator IS generated, `ToDynamoDbAsync`/`FromDynamoDbAsync` called with required non-null `IBlobStorageProvider`
+    - Observe: Blob+encrypted entity → hydrator IS generated, both providers passed to async methods
+    - Observe: `PutItemRequestBuilder.WithItem(plainEntity)` → serializes synchronously at configuration time via `ToDynamoDb`, `_req.Item` populated immediately
+    - Observe: `GetItemAsync` for plain entity without blob → deserializes synchronously via `FromDynamoDb`, hydrator registry not consulted
+  - Write property-based tests capturing observed behavior patterns (from Preservation Requirements in design):
+    - For all plain entities (no encryption, no blob): `RequiresHydrator()` returns `false`, sync serialization path used
+    - For all blob-only entities: `RequiresHydrator()` returns `true`, `blobProvider` parameter remains non-nullable and required
+    - For all blob+encrypted entities: `RequiresHydrator()` returns `true`, both providers used
+    - For all non-encrypted entities: `WithItem()` serializes synchronously, `_req.Item` is populated immediately
+    - For all non-encrypted entities without blob: `GetItemAsync` uses sync `FromDynamoDb` without hydrator lookup
+  - Property-based testing generates many entity configurations for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 3. Fix encryption pipeline for encryption-only entities
+
+  - [x] 3.1 Extend HydratorGenerator.RequiresHydrator() to check IsEncrypted
+    - In `Oproto.FluentDynamoDb.SourceGenerator/Generators/HydratorGenerator.cs`
+    - Change `RequiresHydrator()` from `entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true)` to also include `entity.Properties.Any(p => p.Security?.IsEncrypted == true)`
+    - Update `GenerateHydrator()` to handle encryption-only entities: when entity has encryption but no blob storage, generated hydrator should pass `null` for `blobProvider` when delegating to `FromDynamoDbAsync`/`ToDynamoDbAsync`
+    - Ensure blob-only and blob+encrypted entities continue to generate hydrators with non-null blobProvider
+    - **NOTE**: Source generator changes require `dotnet build-server shutdown` before testing
+    - _Bug_Condition: isBugCondition(input) where entity has [Encrypted] but no blob storage → RequiresHydrator() returns false_
+    - _Expected_Behavior: RequiresHydrator() returns true for any entity with [Encrypted] properties_
+    - _Preservation: Blob-only and blob+encrypted entities continue to generate hydrators as before_
+    - _Requirements: 1.1, 2.1_
+
+  - [x] 3.2 Make blobProvider nullable in MapperGenerator for encryption-only entities
+    - In `Oproto.FluentDynamoDb.SourceGenerator/Generators/MapperGenerator.cs`
+    - In `GenerateToDynamoDbAsyncMethod`: when entity has encrypted properties but no blob storage, generate `IBlobStorageProvider? blobProvider` (nullable) and remove the null guard
+    - Apply same change to `GenerateFromDynamoDbSingleAsyncMethod` and `GenerateFromDynamoDbMultiAsyncMethod`
+    - When entity has blob storage (with or without encryption), keep `IBlobStorageProvider blobProvider` as non-nullable with null guard
+    - **NOTE**: Source generator changes require `dotnet build-server shutdown` before testing
+    - _Bug_Condition: ToDynamoDbAsync(entity, blobProvider: null) throws ArgumentNullException for encryption-only entities_
+    - _Expected_Behavior: ToDynamoDbAsync accepts null blobProvider for encryption-only entities_
+    - _Preservation: Blob-storage entities retain non-nullable blobProvider with null guard_
+    - _Requirements: 1.2, 2.2_
+
+  - [x] 3.3 Make blobProvider nullable in IAsyncEntityHydrator interface
+    - In `Oproto.FluentDynamoDb/Hydration/IAsyncEntityHydrator.cs`
+    - Change `IBlobStorageProvider blobProvider` to `IBlobStorageProvider? blobProvider` in all three methods: `HydrateAsync` (single), `HydrateAsync` (multi), `SerializeAsync`
+    - This allows encryption-only hydrators to be called without a blob provider
+    - _Bug_Condition: Hydrator interface requires non-null blobProvider, preventing encryption-only usage_
+    - _Expected_Behavior: Interface accepts nullable blobProvider_
+    - _Preservation: Existing blob-storage hydrator implementations continue to receive non-null blobProvider from callers_
+    - _Requirements: 2.1, 2.2_
+
+  - [x] 3.4 Defer serialization in PutItemRequestBuilder.WithItem() for encrypted entities
+    - In `Oproto.FluentDynamoDb/Requests/PutItemRequestBuilder.cs`
+    - Change `WithItem(TEntity entity)` to store entity reference (`_entity = entity`) without calling `TEntity.ToDynamoDb(entity, _options)` when the entity has a hydrator registered (indicating async serialization needed)
+    - For non-encrypted entities (no hydrator), continue to serialize synchronously at configuration time
+    - In `ToPutItemRequest()`: if `_req.Item` is null and entity requires async serialization, throw `InvalidOperationException` indicating async execution is required
+    - _Bug_Condition: WithItem() calls sync ToDynamoDb → throws NotSupportedException for encrypted entities_
+    - _Expected_Behavior: WithItem() defers serialization; async execution resolves via hydrator_
+    - _Preservation: Non-encrypted entities continue to serialize synchronously at configuration time_
+    - _Requirements: 1.3, 2.3, 3.4_
+
+  - [x] 3.5 Add async serialization resolution in EntityExecuteAsyncExtensions.PutAsync
+    - In `Oproto.FluentDynamoDb/Requests/Extensions/EntityExecuteAsyncExtensions.cs`
+    - Before calling `builder.ToPutItemRequest()`, check if the builder has a deferred entity needing async serialization
+    - If so, resolve hydrator from `builder.GetOptions().HydratorRegistry` and call `SerializeAsync` to populate the item dictionary
+    - Also update `ToDynamoDbResponseAsync` in `PutItemRequestBuilder` to handle deferred serialization
+    - _Bug_Condition: No async serialization path exists in PutAsync for encrypted entities_
+    - _Expected_Behavior: PutAsync resolves deferred serialization via hydrator registry before building request_
+    - _Preservation: Non-encrypted entity PutAsync continues to work unchanged_
+    - _Requirements: 2.3, 3.4_
+
+  - [x] 3.6 Handle deferred serialization in Transaction and Batch builders
+    - Follow Option A from design: store builder reference, resolve item in `ExecuteAsync`
+    - In `DynamoDbTransactions` (TransactionWriteBuilder): store `PutItemRequestBuilder` references (similar to existing `_updateBuilders` pattern for encryption), resolve deferred items via hydrator `SerializeAsync` during `ExecuteAsync` before building the transaction request
+    - In `DynamoDbBatch` (BatchWriteBuilder): same pattern — store builder references, resolve deferred items during `ExecuteAsync`
+    - Ensure `ITransactablePutBuilder.GetItem()` throws if item not yet serialized and async resolution is needed
+    - _Bug_Condition: Transaction/Batch builders call GetItem() synchronously, which fails for deferred encrypted entities_
+    - _Expected_Behavior: Transaction/Batch ExecuteAsync resolves deferred items before building requests_
+    - _Preservation: Non-encrypted entity transaction/batch operations continue to work unchanged_
+    - _Requirements: 2.3_
+
+  - [x] 3.7 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Encryption-Only Entity Pipeline Failures
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior for encryption-only entities
+    - When this test passes, it confirms:
+      - `HydratorGenerator.RequiresHydrator()` returns `true` for encryption-only entities
+      - `ToDynamoDbAsync` accepts null `blobProvider` for encryption-only entities
+      - `PutItemRequestBuilder.WithItem()` defers serialization without throwing
+      - Hydrator registry contains hydrator for encryption-only entity types
+    - **NOTE**: Run `dotnet build-server shutdown` before testing to pick up source generator changes
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [x] 3.8 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Encrypted and Blob-Only Entity Behavior
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all preservation tests still pass after fix:
+      - Plain entities use sync path without hydrators
+      - Blob-only entities use async path with required blobProvider
+      - Blob+encrypted entities use combined async path
+      - Non-encrypted `WithItem()` serializes synchronously
+      - Non-encrypted `GetItemAsync` deserializes synchronously
+    - **NOTE**: Run `dotnet build-server shutdown` before testing to pick up source generator changes
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run `dotnet build-server shutdown` to clear cached source generators
+  - Run `dotnet build` to verify all projects compile
+  - Run `dotnet test` to verify all tests pass (both new and existing)
+  - Ensure bug condition exploration test (task 1) now PASSES
+  - Ensure preservation property tests (task 2) still PASS
+  - Ensure all existing unit tests continue to pass
+  - Ask the user if questions arise

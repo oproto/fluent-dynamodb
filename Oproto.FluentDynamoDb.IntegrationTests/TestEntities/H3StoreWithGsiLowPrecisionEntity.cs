@@ -33,7 +33,7 @@ public partial class H3StoreWithGsiLowPrecisionEntity : IDynamoDbEntity
     /// H3 cell index for the location - GSI partition key.
     /// This is the H3 index at resolution 5 (~8km cells) for large-area searches.
     /// </summary>
-    [GlobalSecondaryIndex("h3-location-index", IsPartitionKey = true)]
+    [GsiPartitionKey("h3-location-index")]
     [DynamoDbAttribute("h3_cell", SpatialIndexType = SpatialIndexType.H3, H3Resolution = 5)]
     public GeoLocation Location { get; set; }
     

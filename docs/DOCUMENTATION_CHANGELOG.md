@@ -57,6 +57,224 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-04-30]
+
+### Index Attribute Redesign — Breaking API Change
+
+**Category:** Pattern Update
+
+**Summary:** All documentation files referencing `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` have been updated to use the new `[GsiPartitionKey]`, `[GsiSortKey]`, and `[LsiSortKey]` attributes. This is a breaking API change — the old attributes have been removed entirely.
+
+**Reason:** The old `[GlobalSecondaryIndex]` attribute required `IsPartitionKey = true` or `IsSortKey = true` boolean flags, which were error-prone. The new attributes encode the key role and index type directly in the attribute name, making misconfiguration impossible. New diagnostic codes DYNDB120–DYNDB127 have been added for compile-time validation of index attribute configurations.
+
+### File: docs/advanced-topics/GlobalSecondaryIndexes.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+[DynamoDbAttribute("status")]
+public string Status { get; set; } = string.Empty;
+
+[GlobalSecondaryIndex("status-index", IsSortKey = true)]
+[DynamoDbAttribute("createdAt")]
+public DateTime CreatedAt { get; set; }
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("status-index")]
+[DynamoDbAttribute("status")]
+public string Status { get; set; } = string.Empty;
+
+[GsiSortKey("status-index")]
+[DynamoDbAttribute("createdAt")]
+public DateTime CreatedAt { get; set; }
+```
+
+**Reason:** Replaced `[GlobalSecondaryIndex]` with `[GsiPartitionKey]` and `[GsiSortKey]`. Replaced `[LocalSecondaryIndex]` with `[LsiSortKey]`.
+
+### File: docs/reference/AttributeReference.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("index-name", IsPartitionKey = true)]
+[LocalSecondaryIndex("index-name")]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("index-name")]
+[GsiSortKey("index-name")]
+[LsiSortKey("index-name")]
+```
+
+**Reason:** Replaced `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` sections with `[GsiPartitionKey]`, `[GsiSortKey]`, and `[LsiSortKey]` sections.
+
+### File: docs/QUICK_REFERENCE.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("gsi1")]
+```
+
+**Reason:** Updated GSI/LSI attribute examples to new syntax.
+
+### File: docs/DeveloperGuide.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("status-index")]
+```
+
+**Reason:** Updated index attribute examples to new syntax.
+
+### File: docs/reference/AdoptionGuide.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("gsi1")]
+```
+
+**Reason:** Updated index attribute examples to new syntax.
+
+### File: docs/reference/Troubleshooting.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("index-name", IsPartitionKey = true)]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("index-name")]
+```
+
+**Reason:** Updated index attribute examples to new syntax.
+
+### File: docs/core-features/EntityDefinition.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("gsi1")]
+```
+
+**Reason:** Updated GSI/LSI attribute examples to new syntax.
+
+### File: docs/getting-started/FirstEntity.md, docs/getting-started/SingleEntityTables.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("status-index")]
+```
+
+**Reason:** Updated getting-started examples to new index attribute syntax.
+
+### File: docs/advanced-topics/MultiEntityTables.md, docs/advanced-topics/Discriminators.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("gsi1", IsPartitionKey = true, DiscriminatorProperty = "entityType")]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("gsi1", DiscriminatorProperty = "entityType")]
+```
+
+**Reason:** Updated multi-entity and discriminator examples to new syntax. Discriminator properties remain on `[GsiPartitionKey]`.
+
+### File: docs/advanced-topics/SchemaValidation.md, docs/advanced-topics/TableCreation.md
+
+**Before:**
+```csharp
+[GlobalSecondaryIndex("gsi1", IsPartitionKey = true)]
+[LocalSecondaryIndex("lsi1")]
+```
+
+**After:**
+```csharp
+[GsiPartitionKey("gsi1")]
+[LsiSortKey("lsi1")]
+```
+
+**Reason:** Updated schema validation and table creation examples. Added new diagnostic codes DYNDB120–DYNDB127 for index attribute validation.
+
+## [2026-03-31]
+
+### File: docs/advanced-topics/FieldLevelSecurity.md
+
+**Category:** API Correction
+
+**Before:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true,
+    DefaultCacheTtlSeconds = 300,  // 5 minutes
+    MaxMessagesPerDataKey = 100,
+    MaxBytesPerDataKey = 100 * 1024 * 1024  // 100 MB
+};
+```
+
+**After:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true
+};
+```
+
+**Reason:** Removed `DefaultCacheTtlSeconds`, `MaxMessagesPerDataKey`, `MaxBytesPerDataKey`, and `CacheEntryCapacity` properties from `AwsEncryptionSdkOptions`. The AWS Encryption SDK for .NET does not support data key caching, so these properties were non-functional. Since the API is unreleased, they were removed entirely rather than deprecated. The `AwsEncryptionSdkOptions` API reference section was also updated to reflect the current class shape. The `EncryptedAttribute.CacheTtlSeconds` doc comment was updated to remove the reference to the deleted `AwsEncryptionSdkOptions.DefaultCacheTtlSeconds`. Troubleshooting section updated to remove suggestion to increase `DefaultCacheTtlSeconds`.
+
+### File: docs/core-features/Configuration.md
+
+**Category:** API Correction
+
+**Before:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true,
+    DefaultCacheTtlSeconds = 300,
+    MaxMessagesPerDataKey = 1000
+};
+```
+
+**After:**
+```csharp
+var encryptorOptions = new AwsEncryptionSdkOptions
+{
+    EnableCaching = true
+};
+```
+
+**Reason:** Same as above — removed references to deleted `AwsEncryptionSdkOptions` properties.
+
 ## [2026-01-20]
 
 ### Fresh Start - External Sources Synchronized

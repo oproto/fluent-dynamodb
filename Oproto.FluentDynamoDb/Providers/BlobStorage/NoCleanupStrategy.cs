@@ -68,7 +68,7 @@ public sealed class NoCleanupStrategy : IBlobStorageStrategy
                 prop.Data,
                 options,
                 prop.ExistingReferenceKey,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
 
             referenceKeys[prop.PropertyName] = key;
         }

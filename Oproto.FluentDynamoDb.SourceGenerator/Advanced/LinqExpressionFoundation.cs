@@ -145,35 +145,8 @@ internal static class LinqExpressionFoundation
         sb.AppendLine("            };");
         sb.AppendLine();
 
-        // Generate queryable properties
-        var queryableProperties = entity.Properties.Where(p => p.Queryable != null).ToArray();
-        if (queryableProperties.Length > 0)
-        {
-            sb.AppendLine("            /// <summary>");
-            sb.AppendLine("            /// Properties that support efficient querying operations.");
-            sb.AppendLine("            /// </summary>");
-            sb.AppendLine("            public static readonly Dictionary<string, QueryablePropertyInfo> QueryableProperties = new()");
-            sb.AppendLine("            {");
-
-            foreach (var property in queryableProperties)
-            {
-                var operations = string.Join(", ", property.Queryable!.SupportedOperations.Select(op => $"DynamoDbOperation.{op}"));
-                var indexes = property.Queryable.AvailableInIndexes != null
-                    ? string.Join(", ", property.Queryable.AvailableInIndexes.Select(idx => $"\"{idx}\""))
-                    : "";
-
-                sb.AppendLine($"                {{ \"{property.PropertyName}\", new QueryablePropertyInfo");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    PropertyName = \"{property.PropertyName}\",");
-                sb.AppendLine($"                    AttributeName = \"{property.AttributeName}\",");
-                sb.AppendLine($"                    SupportedOperations = new[] {{ {operations} }},");
-                sb.AppendLine($"                    AvailableInIndexes = new[] {{ {indexes} }}");
-                sb.AppendLine("                }},");
-            }
-
-            sb.AppendLine("            };");
-        }
-        else
+        // Queryable properties are now derived from key attributes at runtime
+        // via the generated PropertyMetadata.SupportedOperations array.
         {
             sb.AppendLine("            /// <summary>");
             sb.AppendLine("            /// Properties that support efficient querying operations.");

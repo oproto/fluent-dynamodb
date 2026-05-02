@@ -274,7 +274,7 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
         
         try
         {
-            var response = await _dynamoDbClient.GetItemAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

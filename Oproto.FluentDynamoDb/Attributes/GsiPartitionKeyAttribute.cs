@@ -4,10 +4,11 @@ using Oproto.FluentDynamoDb.Metadata;
 namespace Oproto.FluentDynamoDb.Attributes;
 
 /// <summary>
-/// Marks a property as part of a Global Secondary Index (GSI).
+/// Marks a property as the partition key for a Global Secondary Index (GSI).
+/// The key role is encoded in the attribute name, eliminating the need for boolean flags.
 /// </summary>
-[AttributeUsage(AttributeTargets.Property)]
-public class GlobalSecondaryIndexAttribute : Attribute
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+public class GsiPartitionKeyAttribute : Attribute
 {
     /// <summary>
     /// Gets the name of the Global Secondary Index.
@@ -20,26 +21,35 @@ public class GlobalSecondaryIndexAttribute : Attribute
     /// </summary>
     /// <example>
     /// <code>
-    /// [GlobalSecondaryIndex("gsi1", Name = "StatusIndex", IsPartitionKey = true)]
+    /// [GsiPartitionKey("status-index", Name = "StatusIndex")]
     /// // Generates: table.StatusIndex.Query&lt;T&gt;()
     /// </code>
     /// </example>
     public string? Name { get; set; }
 
     /// <summary>
-    /// Gets or sets whether this property is the partition key for the GSI.
+    /// Gets or sets the DynamoDB projection type for this index.
+    /// Defaults to <see cref="Metadata.ProjectionType.All"/>.
     /// </summary>
-    public bool IsPartitionKey { get; set; }
-
-    /// <summary>
-    /// Gets or sets whether this property is the sort key for the GSI.
-    /// </summary>
-    public bool IsSortKey { get; set; }
-
-    /// <summary>
-    /// Gets or sets the key format pattern for composite keys.
-    /// </summary>
-    public string? KeyFormat { get; set; }
+    /// <remarks>
+    /// <para>
+    /// This property is metadata only and reflects the actual DynamoDB index configuration.
+    /// It does not affect query behavior - use <c>[UseProjection]</c> or <c>WithProjection()</c>
+    /// to control what attributes are returned from queries.
+    /// </para>
+    /// <para>
+    /// When set to <see cref="Metadata.ProjectionType.KeysOnly"/>, a read-only projection record
+    /// is auto-generated containing the GSI keys and base table keys.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// [GsiPartitionKey("status-index", ProjectionType = ProjectionType.KeysOnly)]
+    /// [DynamoDbAttribute("status")]
+    /// public string Status { get; set; }
+    /// </code>
+    /// </example>
+    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
 
     /// <summary>
     /// Gets or sets the GSI-specific discriminator property name.
@@ -52,7 +62,7 @@ public class GlobalSecondaryIndexAttribute : Attribute
     /// </remarks>
     /// <example>
     /// <code>
-    /// [GlobalSecondaryIndex("StatusIndex",
+    /// [GsiPartitionKey("StatusIndex",
     ///     DiscriminatorProperty = "GSI1SK",
     ///     DiscriminatorPattern = "USER#*")]
     /// </code>
@@ -72,34 +82,10 @@ public class GlobalSecondaryIndexAttribute : Attribute
     public string? DiscriminatorPattern { get; set; }
 
     /// <summary>
-    /// Gets or sets the DynamoDB projection type for this index.
-    /// Defaults to <see cref="Metadata.ProjectionType.All"/>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This property is metadata only and reflects the actual DynamoDB index configuration.
-    /// It does not affect query behavior - use <c>[UseProjection]</c> or <c>WithProjection()</c>
-    /// to control what attributes are returned from queries.
-    /// </para>
-    /// <para>
-    /// When set to <see cref="Metadata.ProjectionType.KeysOnly"/>, a read-only projection record
-    /// is auto-generated containing the GSI keys and base table keys.
-    /// </para>
-    /// </remarks>
-    /// <example>
-    /// <code>
-    /// [GlobalSecondaryIndex("status-index", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
-    /// [DynamoDbAttribute("status")]
-    /// public string Status { get; set; }
-    /// </code>
-    /// </example>
-    public ProjectionType ProjectionType { get; set; } = ProjectionType.All;
-
-    /// <summary>
-    /// Initializes a new instance of the GlobalSecondaryIndexAttribute class.
+    /// Initializes a new instance of the <see cref="GsiPartitionKeyAttribute"/> class.
     /// </summary>
     /// <param name="indexName">The name of the Global Secondary Index.</param>
-    public GlobalSecondaryIndexAttribute(string indexName)
+    public GsiPartitionKeyAttribute(string indexName)
     {
         IndexName = indexName;
     }

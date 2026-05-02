@@ -546,7 +546,7 @@ public class UpdateItemRequestBuilder<TEntity> :
                     plaintext,
                     param.PropertyName ?? param.AttributeName ?? "unknown",
                     encryptionContext,
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
 
                 // Replace with encrypted value (as binary)
                 request.ExpressionAttributeValues[param.ParameterName] = new AttributeValue
@@ -604,7 +604,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     {
         // Create a temporary request to encrypt parameters
         var request = ToUpdateItemRequest();
-        await EncryptParametersAsync(request, cancellationToken);
+        await EncryptParametersAsync(request, cancellationToken).ConfigureAwait(false);
         
         // Update the internal attribute values with encrypted values
         if (request.ExpressionAttributeValues != null)
@@ -641,16 +641,16 @@ public class UpdateItemRequestBuilder<TEntity> :
         // Encrypt parameters if needed (for expression-based Set() with encrypted properties)
         if (_expressionContext != null && _expressionContext.ParameterMetadata.Any(p => p.RequiresEncryption))
         {
-            await EncryptParametersAsync(request, cancellationToken);
+            await EncryptParametersAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
         // Check if we have blob properties to upload
         if (_blobPropertyContexts != null && _blobPropertyContexts.Count > 0 && _options.BlobStorageStrategy != null)
         {
-            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
-        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<UpdateItemResponse> ExecuteWithBlobStorageAsync(
@@ -667,7 +667,7 @@ public class UpdateItemRequestBuilder<TEntity> :
         try
         {
             // Step 1: Upload blobs before DynamoDB write
-            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken);
+            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken).ConfigureAwait(false);
             
             // Step 2: Update request with reference keys
             foreach (var prop in _blobPropertyContexts!)
@@ -687,17 +687,17 @@ public class UpdateItemRequestBuilder<TEntity> :
             UpdateItemResponse response;
             try
             {
-                response = await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+                response = await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 // Step 4a: Handle DynamoDB write failure
-                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken);
+                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken).ConfigureAwait(false);
                 throw;
             }
             
             // Step 4b: Handle DynamoDB write success
-            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken);
+            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken).ConfigureAwait(false);
             
             return response;
         }
@@ -733,7 +733,7 @@ public class UpdateItemRequestBuilder<TEntity> :
         
         try
         {
-            var response = await _dynamoDbClient.UpdateItemAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.UpdateItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {
