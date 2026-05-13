@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Amazon.KeyManagementService;
 using AWS.Cryptography.EncryptionSDK;
 using AWS.Cryptography.MaterialProviders;
 using Oproto.FluentDynamoDb.Providers.Encryption;
@@ -25,6 +26,7 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
 {
     private readonly IKmsKeyResolver _keyResolver;
     private readonly AwsEncryptionSdkOptions _options;
+    private readonly IAmazonKeyManagementService _kmsClient;
     
     // New SDK clients
     private readonly MaterialProviders _materialProviders;
@@ -59,10 +61,12 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
     /// </remarks>
     public AwsEncryptionSdkFieldEncryptor(
         IKmsKeyResolver keyResolver,
-        AwsEncryptionSdkOptions? options = null)
+        AwsEncryptionSdkOptions? options = null,
+        IAmazonKeyManagementService? kmsClient = null)
     {
         _keyResolver = keyResolver ?? throw new ArgumentNullException(nameof(keyResolver));
         _options = options ?? new AwsEncryptionSdkOptions();
+        _kmsClient = kmsClient ?? new AmazonKeyManagementServiceClient();
         
         // Initialize SDK clients
         _materialProviders = new MaterialProviders(new MaterialProvidersConfig());
@@ -100,7 +104,8 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
             // When caching is disabled, create a new keyring for each operation
             return _materialProviders.CreateAwsKmsKeyring(new CreateAwsKmsKeyringInput
             {
-                KmsKeyId = keyArn
+                KmsKeyId = keyArn,
+                KmsClient = _kmsClient
             });
         }
 
@@ -113,7 +118,8 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         return _keyringCache.GetOrAdd(cacheKey, _ =>
             _materialProviders.CreateAwsKmsKeyring(new CreateAwsKmsKeyringInput
             {
-                KmsKeyId = keyArn
+                KmsKeyId = keyArn,
+                KmsClient = _kmsClient
             }));
     }
 

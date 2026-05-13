@@ -447,12 +447,18 @@ internal static class LoggingCodeGenerator
         sb.AppendLine($"                    {sensitiveFieldsExpression});");
         sb.AppendLine();
         
+        // Format the redacted item as a readable string
+        sb.AppendLine("                var formattedItem = redactedItem != null");
+        sb.AppendLine("                    ? string.Join(\", \", redactedItem.Select(kvp => $\"{kvp.Key}={kvp.Value.S ?? kvp.Value.N ?? (kvp.Value.B != null ? \"[BINARY]\" : \"[NULL]\")}\"))");
+        sb.AppendLine("                    : \"(null)\";");
+        sb.AppendLine();
+        
         // Generate logging call
         sb.AppendLine($"                options.Logger.Log{logLevel}({eventId},");
         sb.AppendLine($"                    \"{message}\",");
         
-        // Add item as first argument
-        sb.Append($"                    redactedItem");
+        // Add formatted item as first argument
+        sb.Append($"                    formattedItem");
         
         // Add additional arguments
         foreach (var arg in additionalArgs)

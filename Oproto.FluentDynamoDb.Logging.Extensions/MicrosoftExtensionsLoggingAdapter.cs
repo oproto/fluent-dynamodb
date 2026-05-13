@@ -38,8 +38,8 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     {
         if (_logger.IsEnabled(MelLogLevel.Trace))
         {
-            _logger.Log(MelLogLevel.Trace, new EventId(eventId), new LogState(message, args), null, 
-                (state, ex) => state.Format());
+            _logger.Log(MelLogLevel.Trace, new EventId(eventId), message, null, 
+                (state, ex) => FormatNamedPlaceholders(state, args));
         }
     }
 
@@ -52,8 +52,8 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     {
         if (_logger.IsEnabled(MelLogLevel.Debug))
         {
-            _logger.Log(MelLogLevel.Debug, new EventId(eventId), new LogState(message, args), null, 
-                (state, ex) => state.Format());
+            _logger.Log(MelLogLevel.Debug, new EventId(eventId), message, null, 
+                (state, ex) => FormatNamedPlaceholders(state, args));
         }
     }
 
@@ -66,8 +66,8 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     {
         if (_logger.IsEnabled(MelLogLevel.Information))
         {
-            _logger.Log(MelLogLevel.Information, new EventId(eventId), new LogState(message, args), null, 
-                (state, ex) => state.Format());
+            _logger.Log(MelLogLevel.Information, new EventId(eventId), message, null, 
+                (state, ex) => FormatNamedPlaceholders(state, args));
         }
     }
 
@@ -80,8 +80,8 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     {
         if (_logger.IsEnabled(MelLogLevel.Warning))
         {
-            _logger.Log(MelLogLevel.Warning, new EventId(eventId), new LogState(message, args), null, 
-                (state, ex) => state.Format());
+            _logger.Log(MelLogLevel.Warning, new EventId(eventId), message, null, 
+                (state, ex) => FormatNamedPlaceholders(state, args));
         }
     }
 
@@ -94,8 +94,8 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     {
         if (_logger.IsEnabled(MelLogLevel.Error))
         {
-            _logger.Log(MelLogLevel.Error, new EventId(eventId), new LogState(message, args), null, 
-                (state, ex) => state.Format());
+            _logger.Log(MelLogLevel.Error, new EventId(eventId), message, null, 
+                (state, ex) => FormatNamedPlaceholders(state, args));
         }
     }
 
@@ -108,8 +108,8 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     {
         if (_logger.IsEnabled(MelLogLevel.Error))
         {
-            _logger.Log(MelLogLevel.Error, new EventId(eventId), new LogState(message, args), exception, 
-                (state, ex) => state.Format());
+            _logger.Log(MelLogLevel.Error, new EventId(eventId), message, exception, 
+                (state, ex) => FormatNamedPlaceholders(state, args));
         }
     }
 
@@ -122,8 +122,8 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     {
         if (_logger.IsEnabled(MelLogLevel.Critical))
         {
-            _logger.Log(MelLogLevel.Critical, new EventId(eventId), new LogState(message, args), exception, 
-                (state, ex) => state.Format());
+            _logger.Log(MelLogLevel.Critical, new EventId(eventId), message, exception, 
+                (state, ex) => FormatNamedPlaceholders(state, args));
         }
     }
 
@@ -146,39 +146,47 @@ public class MicrosoftExtensionsLoggingAdapter : IDynamoDbLogger
     }
 
     /// <summary>
-    /// Helper class to encapsulate log state for structured logging.
-    /// This ensures that structured logging parameters are properly preserved
-    /// and that ILogger scopes flow through correctly.
+    /// Formats a message template with named placeholders (e.g., {EntityType}) by replacing
+    /// them positionally with the provided args array.
     /// </summary>
-    private readonly struct LogState
+    private static string FormatNamedPlaceholders(string message, object[] args)
     {
-        private readonly string _message;
-        private readonly object[] _args;
+        if (args == null || args.Length == 0)
+            return message;
 
-        public LogState(string message, object[] args)
+        var result = new System.Text.StringBuilder();
+        int argIndex = 0;
+
+        for (int i = 0; i < message.Length; i++)
         {
-            _message = message;
-            _args = args;
+            if (message[i] == '{' && i + 1 < message.Length && message[i + 1] != '{')
+            {
+                var end = message.IndexOf('}', i + 1);
+                if (end > i && argIndex < args.Length)
+                {
+                    result.Append(args[argIndex]?.ToString() ?? "null");
+                    argIndex++;
+                    i = end;
+                    continue;
+                }
+            }
+            else if (message[i] == '{' && i + 1 < message.Length && message[i + 1] == '{')
+            {
+                // Escaped brace {{
+                result.Append('{');
+                i++;
+                continue;
+            }
+            else if (message[i] == '}' && i + 1 < message.Length && message[i + 1] == '}')
+            {
+                // Escaped brace }}
+                result.Append('}');
+                i++;
+                continue;
+            }
+            result.Append(message[i]);
         }
 
-        public string Format()
-        {
-            if (_args == null || _args.Length == 0)
-            {
-                return _message;
-            }
-
-            try
-            {
-                return string.Format(_message, _args);
-            }
-            catch
-            {
-                // If formatting fails, return the original message
-                return _message;
-            }
-        }
-
-        public override string ToString() => Format();
+        return result.ToString();
     }
 }

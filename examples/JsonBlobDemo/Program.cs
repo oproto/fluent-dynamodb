@@ -132,7 +132,6 @@ static FluentDynamoDbOptions CreateOptions(SerializerType serializerType)
         SerializerType.SystemTextJsonAot => options.WithSystemTextJson(DocumentJsonContext.Default),
         SerializerType.SystemTextJsonReflection => options.WithSystemTextJson(new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false
         }),
         SerializerType.NewtonsoftJson => options.WithNewtonsoftJson(new JsonSerializerSettings

@@ -202,6 +202,11 @@ public static class LogEventIds
     public const int MappingError = 9000;
     
     /// <summary>
+    /// An encrypted field was skipped during deserialization due to DecryptionFailureMode.SkipFields.
+    /// </summary>
+    public const int EncryptionFieldSkipped = 9001;
+    
+    /// <summary>
     /// Event ID for errors during type conversion operations.
     /// </summary>
     public const int ConversionError = 9010;

@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable DecryptionFailureMode for Encrypted Fields** - Configurable `DecryptionFailureMode` for `[Encrypted]` fields during deserialization (`FromDynamoDbAsync`). Supports `Throw` (default, backward-compatible) and `SkipFields` (leaves encrypted properties at CLR default when decryption fails due to access denied or missing encryptor). Integrity failures (invalid ciphertext, key mismatch, context validation) always throw regardless of mode. Write operations (`ToDynamoDbAsync`) remain unaffected.
+  - New `DecryptionFailureMode` enum with `Throw` and `SkipFields` members
+  - New `WithDecryptionFailureMode()` builder method on `FluentDynamoDbOptions`
+  - New `EncryptionFailureClassifier` static helper for failure classification
+  - Source generator emits conditional error handling in generated `FromDynamoDbAsync` code
+  - Warning-level logging for skipped fields with entity type, property name, and reason
+  - _Requirements: 1.1-1.3, 2.1-2.4, 3.1-3.3, 4.1-4.3, 5.1-5.2, 6.1-6.3, 7.1-7.4, 8.1-8.3_
+  
+  **Usage:**
+  ```csharp
+  // Default behavior (backward compatible) — throws on any decryption failure
+  var options = new FluentDynamoDbOptions()
+      .WithEncryption(encryptor);
+  
+  // STS downscoping scenario — skip fields when access is denied
+  var options = new FluentDynamoDbOptions()
+      .WithEncryption(encryptor)
+      .WithDecryptionFailureMode(DecryptionFailureMode.SkipFields);
+  
+  // No encryptor at all — read non-encrypted fields only
+  var options = new FluentDynamoDbOptions()
+      .WithDecryptionFailureMode(DecryptionFailureMode.SkipFields);
+  ```
+
 - **String CompareTo Support in Lambda Expressions** - Added support for `string.CompareTo()` method in lambda expressions for string range comparisons
   - Enables intuitive string comparison syntax: `x => x.SortKey.CompareTo("2024-01-01") >= 0`
   - Translates to DynamoDB comparison operators: `#attr >= :p0`

@@ -57,6 +57,38 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-05-09]
+
+### New Feature: DecryptionFailureMode Configuration
+
+**Category:** Pattern Update
+
+**Summary:** Added documentation for the new `DecryptionFailureMode` feature, which allows configuring how the library handles decryption failures for `[Encrypted]` fields during `FromDynamoDbAsync` operations. This enables STS downscoping scenarios where a service needs to read non-encrypted fields without KMS decrypt permissions.
+
+### File: docs/advanced-topics/FieldEncryption.md
+
+**Before:**
+```csharp
+// No DecryptionFailureMode option existed
+// Decryption failures always threw exceptions
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor);
+```
+
+**After:**
+```csharp
+// New: Configure failure mode for graceful degradation
+var options = new FluentDynamoDbOptions()
+    .WithEncryption(encryptor)
+    .WithDecryptionFailureMode(DecryptionFailureMode.SkipFields);
+
+// Read-only access without encryptor — encrypted fields skipped
+var readOnlyOptions = new FluentDynamoDbOptions()
+    .WithDecryptionFailureMode(DecryptionFailureMode.SkipFields);
+```
+
+**Reason:** New feature addition. The `DecryptionFailureMode` enum (`Throw`, `SkipFields`) and `WithDecryptionFailureMode()` builder method on `FluentDynamoDbOptions` enable configurable decryption failure handling. In `SkipFields` mode, recoverable failures (no encryptor, access denied) leave encrypted properties at CLR defaults and log a warning, while integrity failures (invalid ciphertext, key mismatch) always throw regardless of mode. Write operations (`ToDynamoDbAsync`) are unaffected.
+
 ## [2026-04-30]
 
 ### Index Attribute Redesign — Breaking API Change

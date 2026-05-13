@@ -547,6 +547,211 @@ public class SpatialSearchPropertyTests
     }
 
     /// <summary>
+    /// **Feature: geohash-demo-fix, Property 2: Preservation** - S2 Entity GSI Attributes Unchanged
+    /// **Validates: Requirements 3.1, 3.2, 3.6**
+    /// 
+    /// For all valid GeoLocation inputs, the StoreS2 entity GSI partition key attributes
+    /// SHALL remain on Location, LocationMedium, and LocationCoarse with the correct index names
+    /// (s2-index-fine, s2-index-medium, s2-index-coarse). This ensures the GeoHash fix does not
+    /// alter S2 spatial query behavior.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property Preservation_S2EntityGsiAttributes_Unchanged()
+    {
+        return Prop.ForAll(
+            GenerateValidLocation(),
+            location =>
+            {
+                // Create a StoreS2 entity with the generated location
+                var store = new StoreS2
+                {
+                    StoreId = Guid.NewGuid().ToString(),
+                    Category = "retail",
+                    Location = location,
+                    LocationMedium = location,
+                    LocationCoarse = location,
+                    Name = "Test Store",
+                    Address = "123 Test St"
+                };
+
+                var s2Type = typeof(StoreS2);
+
+                // Verify Location has [GsiPartitionKey("s2-index-fine")]
+                var locationProp = s2Type.GetProperty("Location");
+                var locationGsi = locationProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationCorrect = locationGsi != null && locationGsi.IndexName == "s2-index-fine";
+
+                // Verify LocationMedium has [GsiPartitionKey("s2-index-medium")]
+                var locationMediumProp = s2Type.GetProperty("LocationMedium");
+                var locationMediumGsi = locationMediumProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationMediumCorrect = locationMediumGsi != null && locationMediumGsi.IndexName == "s2-index-medium";
+
+                // Verify LocationCoarse has [GsiPartitionKey("s2-index-coarse")]
+                var locationCoarseProp = s2Type.GetProperty("LocationCoarse");
+                var locationCoarseGsi = locationCoarseProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationCoarseCorrect = locationCoarseGsi != null && locationCoarseGsi.IndexName == "s2-index-coarse";
+
+                // Verify entity can be constructed with valid location data
+                var entityValid = store.Location.Latitude == location.Latitude &&
+                                  store.Location.Longitude == location.Longitude &&
+                                  store.LocationMedium.Latitude == location.Latitude &&
+                                  store.LocationCoarse.Latitude == location.Latitude;
+
+                return (locationCorrect && locationMediumCorrect && locationCoarseCorrect && entityValid)
+                    .ToProperty()
+                    .Label($"Location: ({location.Latitude:F4}, {location.Longitude:F4})")
+                    .Label($"Location [GsiPartitionKey(\"s2-index-fine\")]: {locationCorrect}")
+                    .Label($"LocationMedium [GsiPartitionKey(\"s2-index-medium\")]: {locationMediumCorrect}")
+                    .Label($"LocationCoarse [GsiPartitionKey(\"s2-index-coarse\")]: {locationCoarseCorrect}")
+                    .Label($"Entity valid: {entityValid}");
+            });
+    }
+
+    /// <summary>
+    /// **Feature: geohash-demo-fix, Property 2: Preservation** - H3 Entity GSI Attributes Unchanged
+    /// **Validates: Requirements 3.1, 3.2, 3.6**
+    /// 
+    /// For all valid GeoLocation inputs, the StoreH3 entity GSI partition key attributes
+    /// SHALL remain on Location, LocationMedium, and LocationCoarse with the correct index names
+    /// (h3-index-fine, h3-index-medium, h3-index-coarse). This ensures the GeoHash fix does not
+    /// alter H3 spatial query behavior.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property Preservation_H3EntityGsiAttributes_Unchanged()
+    {
+        return Prop.ForAll(
+            GenerateValidLocation(),
+            location =>
+            {
+                // Create a StoreH3 entity with the generated location
+                var store = new StoreH3
+                {
+                    StoreId = Guid.NewGuid().ToString(),
+                    Category = "retail",
+                    Location = location,
+                    LocationMedium = location,
+                    LocationCoarse = location,
+                    Name = "Test Store",
+                    Address = "123 Test St"
+                };
+
+                var h3Type = typeof(StoreH3);
+
+                // Verify Location has [GsiPartitionKey("h3-index-fine")]
+                var locationProp = h3Type.GetProperty("Location");
+                var locationGsi = locationProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationCorrect = locationGsi != null && locationGsi.IndexName == "h3-index-fine";
+
+                // Verify LocationMedium has [GsiPartitionKey("h3-index-medium")]
+                var locationMediumProp = h3Type.GetProperty("LocationMedium");
+                var locationMediumGsi = locationMediumProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationMediumCorrect = locationMediumGsi != null && locationMediumGsi.IndexName == "h3-index-medium";
+
+                // Verify LocationCoarse has [GsiPartitionKey("h3-index-coarse")]
+                var locationCoarseProp = h3Type.GetProperty("LocationCoarse");
+                var locationCoarseGsi = locationCoarseProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationCoarseCorrect = locationCoarseGsi != null && locationCoarseGsi.IndexName == "h3-index-coarse";
+
+                // Verify entity can be constructed with valid location data
+                var entityValid = store.Location.Latitude == location.Latitude &&
+                                  store.Location.Longitude == location.Longitude &&
+                                  store.LocationMedium.Latitude == location.Latitude &&
+                                  store.LocationCoarse.Latitude == location.Latitude;
+
+                return (locationCorrect && locationMediumCorrect && locationCoarseCorrect && entityValid)
+                    .ToProperty()
+                    .Label($"Location: ({location.Latitude:F4}, {location.Longitude:F4})")
+                    .Label($"Location [GsiPartitionKey(\"h3-index-fine\")]: {locationCorrect}")
+                    .Label($"LocationMedium [GsiPartitionKey(\"h3-index-medium\")]: {locationMediumCorrect}")
+                    .Label($"LocationCoarse [GsiPartitionKey(\"h3-index-coarse\")]: {locationCoarseCorrect}")
+                    .Label($"Entity valid: {entityValid}");
+            });
+    }
+
+    /// <summary>
+    /// **Feature: geohash-demo-fix, Property 2: Preservation** - S2 and H3 Precision Selection Unchanged
+    /// **Validates: Requirements 3.1, 3.2, 3.6**
+    /// 
+    /// For all positive radii, S2 precision selection returns Level 14 for ≤2km, Level 12 for ≤10km,
+    /// Level 10 for >10km; and H3 precision selection returns Resolution 9 for ≤2km, Resolution 7
+    /// for ≤10km, Resolution 5 for >10km. This ensures the GeoHash fix does not alter S2/H3
+    /// precision selection logic.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property Preservation_S2AndH3PrecisionSelection_Unchanged()
+    {
+        return Prop.ForAll(
+            GeneratePositiveRadius(),
+            radius =>
+            {
+                // S2 precision selection
+                var s2Level = StoresS2Table.SelectS2Level(radius);
+                var s2FineCorrect = radius <= 2.0 ? s2Level == 14 : true;
+                var s2MediumCorrect = radius > 2.0 && radius <= 10.0 ? s2Level == 12 : true;
+                var s2CoarseCorrect = radius > 10.0 ? s2Level == 10 : true;
+                var s2Correct = s2FineCorrect && s2MediumCorrect && s2CoarseCorrect;
+
+                // H3 precision selection
+                var h3Resolution = StoresH3Table.SelectH3Resolution(radius);
+                var h3FineCorrect = radius <= 2.0 ? h3Resolution == 9 : true;
+                var h3MediumCorrect = radius > 2.0 && radius <= 10.0 ? h3Resolution == 7 : true;
+                var h3CoarseCorrect = radius > 10.0 ? h3Resolution == 5 : true;
+                var h3Correct = h3FineCorrect && h3MediumCorrect && h3CoarseCorrect;
+
+                return (s2Correct && h3Correct)
+                    .ToProperty()
+                    .Label($"Radius: {radius:F2}km")
+                    .Label($"S2: Level={s2Level}, Fine={s2FineCorrect}, Medium={s2MediumCorrect}, Coarse={s2CoarseCorrect}")
+                    .Label($"H3: Res={h3Resolution}, Fine={h3FineCorrect}, Medium={h3MediumCorrect}, Coarse={h3CoarseCorrect}");
+            });
+    }
+
+    /// <summary>
+    /// **Feature: geohash-demo-fix, Property 1: Bug Condition** - GeoHash GSI Key Schema Inversion
+    /// **Validates: Requirements 1.4, 2.4**
+    /// 
+    /// For the StoreGeoHash entity, the Category property SHALL have [GsiPartitionKey("geohash-index")]
+    /// and the Location property SHALL have [GsiSortKey("geohash-index")], ensuring the GSI key schema
+    /// supports BETWEEN range queries on the geohash cell.
+    /// 
+    /// This test is EXPECTED TO FAIL on unfixed code because:
+    /// - Location currently has [GsiPartitionKey("geohash-index")] instead of [GsiSortKey("geohash-index")]
+    /// - Category currently has no GSI attribute
+    /// Failure confirms the bug exists.
+    /// </summary>
+    [Property(MaxTest = 1)]
+    public Property GeoHashGsiKeySchema_CategoryIsPartitionKey_LocationIsSortKey()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Constant(true)),
+            _ =>
+            {
+                var storeGeoHashType = typeof(StoreGeoHash);
+                var categoryProp = storeGeoHashType.GetProperty("Category");
+                var locationProp = storeGeoHashType.GetProperty("Location");
+
+                // 1. Category property should have [GsiPartitionKey("geohash-index")]
+                var categoryGsiPk = categoryProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var categoryHasGsiPartitionKey = categoryGsiPk != null && categoryGsiPk.IndexName == "geohash-index";
+
+                // 2. Location property should have [GsiSortKey("geohash-index")]
+                var locationGsiSk = locationProp?.GetCustomAttribute<GsiSortKeyAttribute>();
+                var locationHasGsiSortKey = locationGsiSk != null && locationGsiSk.IndexName == "geohash-index";
+
+                // 3. Location property should NOT have [GsiPartitionKey("geohash-index")]
+                var locationGsiPk = locationProp?.GetCustomAttribute<GsiPartitionKeyAttribute>();
+                var locationDoesNotHaveGsiPartitionKey = locationGsiPk == null ||
+                    locationGsiPk.IndexName != "geohash-index";
+
+                return (categoryHasGsiPartitionKey && locationHasGsiSortKey && locationDoesNotHaveGsiPartitionKey)
+                    .ToProperty()
+                    .Label($"Category has [GsiPartitionKey(\"geohash-index\")]: {categoryHasGsiPartitionKey}")
+                    .Label($"Location has [GsiSortKey(\"geohash-index\")]: {locationHasGsiSortKey}")
+                    .Label($"Location does NOT have [GsiPartitionKey(\"geohash-index\")]: {locationDoesNotHaveGsiPartitionKey}");
+            });
+    }
+
+    /// <summary>
     /// Helper method to calculate a destination point given a start point, distance, and bearing.
     /// Uses the Haversine formula inverse.
     /// </summary>

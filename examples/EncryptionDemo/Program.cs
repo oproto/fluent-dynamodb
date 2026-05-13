@@ -2,13 +2,14 @@
 // This example shows how to use [Encrypted] and [Sensitive] attributes with FluentDynamoDb
 
 using Amazon.DynamoDBv2.Model;
-using EncryptionDemo;
 using EncryptionDemo.Entities;
 using Examples.Shared;
+using Microsoft.Extensions.Logging;
 using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Encryption.Kms;
 using Oproto.FluentDynamoDb.Hydration;
-using Oproto.FluentDynamoDb.Logging;
+using Oproto.FluentDynamoDb.Logging.Extensions;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
 // Alias for the generated table class
@@ -59,8 +60,21 @@ else
 // Register the source-generated hydrator for async encryption serialization
 DefaultEntityHydratorRegistry.Instance.RegisterSecureRecordHydrator();
 
+// Configure logging via Microsoft.Extensions.Logging
+using var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+    builder.AddSimpleConsole(options =>
+    {
+        options.SingleLine = true;
+        options.TimestampFormat = "HH:mm:ss.fff ";
+        options.IncludeScopes = false;
+    });
+});
+var melLogger = loggerFactory.CreateLogger("FluentDynamoDb");
+var logger = new MicrosoftExtensionsLoggingAdapter(melLogger);
+
 // Configure FluentDynamoDbOptions with logger and optional encryptor
-var logger = new ConsoleLogger(LogLevel.Debug);
 var optionsBuilder = new FluentDynamoDbOptions()
     .WithLogger(logger);
 
@@ -103,8 +117,8 @@ while (true)
         "List All Records",
         "View Record Details",
         "Delete Record",
-        "Show Logging Demo",
         "Round-Trip Encryption Demo",
+        "SkipFields Mode Demo (read without KMS key)",
         "Exit");
 
     try
@@ -124,10 +138,10 @@ while (true)
                 await DeleteRecordAsync(table);
                 break;
             case 5:
-                ShowLoggingDemo(logger);
+                await RunRoundTripDemoAsync(table, client, encryptionConfigured);
                 break;
             case 6:
-                await RunRoundTripDemoAsync(table, client, encryptionConfigured);
+                await RunSkipFieldsDemoAsync(table, client, encryptionConfigured);
                 break;
             case 7:
                 ConsoleHelpers.ShowInfo("Goodbye!");
@@ -329,34 +343,6 @@ static async Task DeleteRecordAsync(SecureRecordsTable table)
 }
 
 /// <summary>
-/// Demonstrates logging behavior with sensitive data redaction.
-/// </summary>
-static void ShowLoggingDemo(ConsoleLogger logger)
-{
-    ConsoleHelpers.ShowSection("Logging Demo");
-    
-    Console.WriteLine();
-    Console.WriteLine("  This demo shows how the ConsoleLogger displays different log levels:");
-    Console.WriteLine();
-    
-    logger.LogTrace(0, "This is a TRACE message - most verbose level");
-    logger.LogDebug(0, "This is a DEBUG message - for development");
-    logger.LogInformation(0, "This is an INFO message - general flow");
-    logger.LogWarning(0, "This is a WARNING message - something unexpected");
-    logger.LogError(0, "This is an ERROR message - operation failed");
-    
-    Console.WriteLine();
-    Console.WriteLine("  Key points about sensitive data logging:");
-    Console.WriteLine("  ─────────────────────────────────────────");
-    Console.WriteLine("  • [Sensitive] attribute: Values show as [REDACTED] in logs");
-    Console.WriteLine("  • [Encrypted] attribute: Values are encrypted before storage");
-    Console.WriteLine("  • Both can be combined for maximum protection");
-    Console.WriteLine("  • Actual values are always stored in DynamoDB");
-    Console.WriteLine("  • Log redaction prevents accidental exposure in log files");
-    Console.WriteLine();
-}
-
-/// <summary>
 /// Truncates a string to the specified maximum length.
 /// </summary>
 static string TruncateString(string value, int maxLength)
@@ -495,6 +481,159 @@ static async Task RunRoundTripDemoAsync(SecureRecordsTable table, Amazon.DynamoD
     // Step 5: Clean up
     Console.WriteLine();
     ConsoleHelpers.ShowInfo("Step 5: Cleaning up demo record...");
+    await table.SecureRecords.DeleteAsync(recordId);
+    ConsoleHelpers.ShowSuccess("Demo record deleted.");
+    Console.WriteLine();
+}
+
+/// <summary>
+/// Demonstrates DecryptionFailureMode.SkipFields: stores a record with encryption,
+/// then reads it back without an encryptor configured — encrypted fields are gracefully
+/// skipped (left at CLR default) while non-encrypted fields load normally.
+/// </summary>
+static async Task RunSkipFieldsDemoAsync(SecureRecordsTable table, Amazon.DynamoDBv2.IAmazonDynamoDB client, bool encryptionConfigured)
+{
+    ConsoleHelpers.ShowSection("DecryptionFailureMode.SkipFields Demo");
+
+    Console.WriteLine();
+    Console.WriteLine("  This demo shows how a service can read non-encrypted fields from an");
+    Console.WriteLine("  entity even when it lacks access to the KMS key (STS downscoping).");
+    Console.WriteLine();
+
+    const string recordId = "demo-skip-fields-001";
+
+    // Step 1: Store a record (with encryption if available, or raw if not)
+    ConsoleHelpers.ShowInfo("Step 1: Storing a record with encrypted fields...");
+
+    if (encryptionConfigured)
+    {
+        // Use the main table (which has encryption configured) to store
+        var record = new SecureRecord
+        {
+            Id = recordId,
+            Label = "SkipFields Demo Record",
+            Email = "skipfields@example.com",
+            SocialSecurityNumber = "987-65-4321",
+            CreditCardNumber = "5500-0000-0000-0004",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await table.Put<SecureRecord>().WithItem(record).PutAsync();
+        ConsoleHelpers.ShowSuccess("Record stored with encrypted SSN and credit card.");
+    }
+    else
+    {
+        // No encryption configured — store raw data to simulate the scenario
+        ConsoleHelpers.ShowInfo("No KMS key configured. Storing raw binary data to simulate encrypted fields...");
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = recordId },
+            ["label"] = new AttributeValue { S = "SkipFields Demo Record" },
+            ["email"] = new AttributeValue { S = "skipfields@example.com" },
+            ["ssn"] = new AttributeValue { B = new MemoryStream(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 }) },
+            ["creditCard"] = new AttributeValue { B = new MemoryStream(new byte[] { 0x0A, 0x0B, 0x0C, 0x0D }) },
+            ["createdAt"] = new AttributeValue { S = DateTime.UtcNow.ToString("O") }
+        };
+        await client.PutItemAsync(new PutItemRequest { TableName = TableName, Item = item });
+        ConsoleHelpers.ShowSuccess("Record stored with simulated encrypted binary fields.");
+    }
+
+    // Step 2: Read with full encryption (if available) — shows working decryption
+    if (encryptionConfigured)
+    {
+        Console.WriteLine();
+        ConsoleHelpers.ShowInfo("Step 2: Reading with full encryption access (normal path)...");
+        Console.WriteLine("─".PadRight(60, '─'));
+        var fullRecord = await table.SecureRecords.Get(recordId).GetItemAsync();
+        Console.WriteLine("─".PadRight(60, '─'));
+
+        if (fullRecord != null)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  Full-access read (all fields decrypted):");
+            Console.WriteLine($"  Label:       {fullRecord.Label}");
+            Console.WriteLine($"  Email:       {fullRecord.Email}");
+            Console.WriteLine($"  SSN:         {fullRecord.SocialSecurityNumber}");
+            Console.WriteLine($"  Credit Card: {fullRecord.CreditCardNumber}");
+            ConsoleHelpers.ShowSuccess("All fields populated — decryption succeeded.");
+        }
+    }
+    else
+    {
+        Console.WriteLine();
+        ConsoleHelpers.ShowInfo("Step 2: Skipped (no encryption configured to show full-access read).");
+    }
+
+    // Step 3: Read with SkipFields mode and NO encryptor — simulates STS downscoping
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Step 3: Reading with DecryptionFailureMode.SkipFields (no encryptor)...");
+    Console.WriteLine();
+    Console.WriteLine("  Simulating a service that has NO KMS access (STS downscoped role).");
+    Console.WriteLine("  Encrypted fields will be skipped; non-encrypted fields load normally.");
+    Console.WriteLine();
+
+    // Create a new table instance with SkipFields mode and NO encryptor
+    using var skipFieldsLoggerFactory = LoggerFactory.Create(builder =>
+    {
+        builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+        builder.AddSimpleConsole(options =>
+        {
+            options.SingleLine = true;
+            options.TimestampFormat = "HH:mm:ss.fff ";
+            options.IncludeScopes = false;
+        });
+    });
+    var skipFieldsLogger = new MicrosoftExtensionsLoggingAdapter(
+        skipFieldsLoggerFactory.CreateLogger("FluentDynamoDb.SkipFields"));
+
+    var skipFieldsOptions = new FluentDynamoDbOptions()
+        .WithLogger(skipFieldsLogger)
+        .WithDecryptionFailureMode(DecryptionFailureMode.SkipFields);
+        // Note: NO .WithEncryption() call — encrypted fields will be skipped
+
+    var skipFieldsTable = new SecureRecordsTable(client, TableName, skipFieldsOptions);
+
+    Console.WriteLine("─".PadRight(60, '─'));
+    var skippedRecord = await skipFieldsTable.SecureRecords.Get(recordId).GetItemAsync();
+    Console.WriteLine("─".PadRight(60, '─'));
+
+    if (skippedRecord != null)
+    {
+        Console.WriteLine();
+        Console.WriteLine("  SkipFields read (no encryptor — encrypted fields at CLR default):");
+        Console.WriteLine($"  Label:       {skippedRecord.Label}");
+        Console.WriteLine($"  Email:       {skippedRecord.Email}");
+        Console.WriteLine($"  SSN:         \"{skippedRecord.SocialSecurityNumber}\" (CLR default — skipped)");
+        Console.WriteLine($"  Credit Card: \"{skippedRecord.CreditCardNumber}\" (CLR default — skipped)");
+        Console.WriteLine();
+
+        var nonEncryptedFieldsLoaded = !string.IsNullOrEmpty(skippedRecord.Label) 
+                                       && !string.IsNullOrEmpty(skippedRecord.Email);
+        var encryptedFieldsSkipped = string.IsNullOrEmpty(skippedRecord.SocialSecurityNumber) 
+                                     && string.IsNullOrEmpty(skippedRecord.CreditCardNumber);
+
+        if (nonEncryptedFieldsLoaded && encryptedFieldsSkipped)
+        {
+            ConsoleHelpers.ShowSuccess("Non-encrypted fields loaded. Encrypted fields gracefully skipped.");
+        }
+        else if (nonEncryptedFieldsLoaded)
+        {
+            ConsoleHelpers.ShowWarning("Non-encrypted fields loaded, but encrypted fields were not skipped as expected.");
+        }
+        else
+        {
+            ConsoleHelpers.ShowError("Unexpected result — check the log output above.");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("  Notice the Warning log above: \"Skipped encrypted field...\"");
+        Console.WriteLine("  This is the SkipFields mode in action — the service can still");
+        Console.WriteLine("  work with Label, Email, and CreatedAt without KMS access.");
+    }
+
+    // Step 4: Clean up
+    Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Step 4: Cleaning up demo record...");
     await table.SecureRecords.DeleteAsync(recordId);
     ConsoleHelpers.ShowSuccess("Demo record deleted.");
     Console.WriteLine();

@@ -19,8 +19,18 @@ var options = new FluentDynamoDbOptions()
     .WithLogger(logger)
     .WithBlobStorage(new S3BlobProvider(...))
     .WithEncryption(new AwsEncryptionSdkFieldEncryptor(...))
+    .WithDecryptionFailureMode(DecryptionFailureMode.SkipFields)
     .UseConsistentRead(true);
 ```
+
+### DecryptionFailureMode
+
+Controls how `FromDynamoDbAsync` handles decryption failures for `[Encrypted]` fields. Write operations always throw regardless of this setting.
+
+| Value | Behavior |
+|-------|----------|
+| `DecryptionFailureMode.Throw` (default) | Any decryption failure throws an exception |
+| `DecryptionFailureMode.SkipFields` | Recoverable failures (no encryptor, access denied) leave property at CLR default and log a warning; integrity failures (corrupted ciphertext, wrong key) always throw |
 
 ## Entity Definition
 

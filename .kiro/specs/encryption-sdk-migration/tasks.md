@@ -162,7 +162,7 @@
     - Provide workarounds if possible
     - _Requirements: 5.3, 5.4_
 
-- [~] 13. Pluggable data key cache (REMOVED)
+- [ ] 13. Pluggable data key cache (REMOVED)
   - **Status**: Feature removed from this spec
   - **Reason**: AWS Encryption SDK for .NET handles data key generation internally and does not expose hooks for injecting cached data keys
   - **Impact**: Implementing custom envelope encryption would break interoperability with other AWS Encryption SDK implementations (Java, Python, JavaScript)

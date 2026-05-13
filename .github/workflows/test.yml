@@ -9,7 +9,9 @@ on:
   workflow_call:
 
 env:
-  DOTNET_VERSION: '8.0.x'
+  DOTNET_VERSION: |
+    8.0.x
+    10.0.x
   JAVA_VERSION: '17'
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
