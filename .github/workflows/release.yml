@@ -197,7 +197,7 @@ jobs:
               # Extract and check the nuspec file for dependency version
               NUSPEC_FILE="./temp-${pkg}/Oproto.FluentDynamoDb.${pkg}.nuspec"
               if [ -f "$NUSPEC_FILE" ] && grep -q "Oproto.FluentDynamoDb" "$NUSPEC_FILE"; then
-                DEP_VERSION=$(grep -A 1 'id="Oproto.FluentDynamoDb"' "$NUSPEC_FILE" | grep version | sed 's/.*version="\([^"]*\)".*/\1/' || echo "not-found")
+                DEP_VERSION=$(grep 'id="Oproto.FluentDynamoDb"' "$NUSPEC_FILE" | sed 's/.*version="\([^"]*\)".*/\1/' || echo "not-found")
                 echo "  Found dependency: Oproto.FluentDynamoDb version $DEP_VERSION"
                 
                 if [ "$DEP_VERSION" != "$VERSION" ] && [ "$DEP_VERSION" != "not-found" ]; then
