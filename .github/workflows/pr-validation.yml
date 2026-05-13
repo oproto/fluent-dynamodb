@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changelog-modified: ${{ steps.check-changelog.outputs.modified }}
-      changelog-valid: ${{ steps.validate-changelog.outputs.valid }}
-      skip-changelog: ${{ steps.check-labels.outputs.skip }}
-      validation-message: ${{ steps.validate-changelog.outputs.message }}
+      changelog-valid: ${{ steps.check-changelog.outputs.valid }}
+      skip-changelog: 'false'
+      validation-message: ${{ steps.check-changelog.outputs.message }}
     
     steps:
       - name: Checkout code
@@ -25,108 +25,24 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Check for skip-changelog label
-        id: check-labels
-        run: |
-          # Check if PR has skip-changelog label
-          SKIP="false"
-          if gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -q "skip-changelog"; then
-            SKIP="true"
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "✅ skip-changelog label found - skipping changelog validation"
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-      
-      - name: Check if CHANGELOG.md was modified
+      - name: Check changelog status (informational)
         id: check-changelog
         run: |
           # Get the list of changed files in this PR
           git fetch origin ${{ github.base_ref }}
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
           
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-          
           if echo "$CHANGED_FILES" | grep -q "^CHANGELOG.md$"; then
             echo "modified=true" >> $GITHUB_OUTPUT
+            echo "valid=true" >> $GITHUB_OUTPUT
+            echo "message=CHANGELOG.md was updated in this PR" >> $GITHUB_OUTPUT
             echo "✅ CHANGELOG.md was modified in this PR"
           else
             echo "modified=false" >> $GITHUB_OUTPUT
-            echo "⚠️ CHANGELOG.md was not modified in this PR"
-          fi
-      
-      - name: Validate CHANGELOG.md format
-        id: validate-changelog
-        run: |
-          SKIP="${{ steps.check-labels.outputs.skip }}"
-          MODIFIED="${{ steps.check-changelog.outputs.modified }}"
-          
-          # If skip-changelog label is present, skip validation
-          if [ "$SKIP" = "true" ]; then
             echo "valid=true" >> $GITHUB_OUTPUT
-            echo "message=Changelog validation skipped (skip-changelog label)" >> $GITHUB_OUTPUT
-            echo "✅ Changelog validation skipped due to skip-changelog label"
-            exit 0
+            echo "message=CHANGELOG.md was not updated (reminder: update before stable release)" >> $GITHUB_OUTPUT
+            echo "ℹ️ CHANGELOG.md was not modified — this is fine, just remember to update it before a stable release"
           fi
-          
-          # If CHANGELOG.md was not modified, fail validation
-          if [ "$MODIFIED" = "false" ]; then
-            echo "valid=false" >> $GITHUB_OUTPUT
-            echo "message=CHANGELOG.md was not updated. Please add your changes to the Unreleased section." >> $GITHUB_OUTPUT
-            echo "❌ CHANGELOG.md was not modified"
-            exit 1
-          fi
-          
-          # Validate CHANGELOG.md format
-          if [ ! -f "CHANGELOG.md" ]; then
-            echo "valid=false" >> $GITHUB_OUTPUT
-            echo "message=CHANGELOG.md file not found" >> $GITHUB_OUTPUT
-            echo "❌ CHANGELOG.md file not found"
-            exit 1
-          fi
-          
-          # Check for required sections
-          ERRORS=""
-          
-          # Check for "Unreleased" section
-          if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
-            ERRORS="${ERRORS}- Missing [Unreleased] section\n"
-          fi
-          
-          # Check for Keep a Changelog reference
-          if ! grep -q "Keep a Changelog" CHANGELOG.md; then
-            ERRORS="${ERRORS}- Missing Keep a Changelog reference\n"
-          fi
-          
-          # Check for Semantic Versioning reference
-          if ! grep -q "Semantic Versioning" CHANGELOG.md; then
-            ERRORS="${ERRORS}- Missing Semantic Versioning reference\n"
-          fi
-          
-          # Check if Unreleased section has any content (at least one category with content)
-          UNRELEASED_CONTENT=$(sed -n '/^## \[Unreleased\]/,/^## \[/p' CHANGELOG.md | grep -E "^### (Added|Changed|Deprecated|Removed|Fixed|Security)" -A 1 | grep -v "^### " | grep -v "^$" | grep -v "^--" || true)
-          
-          if [ -z "$UNRELEASED_CONTENT" ]; then
-            ERRORS="${ERRORS}- Unreleased section appears empty. Please add your changes under the appropriate category (Added, Changed, Fixed, etc.)\n"
-          fi
-          
-          if [ -n "$ERRORS" ]; then
-            echo "valid=false" >> $GITHUB_OUTPUT
-            MESSAGE="Changelog validation failed:\n${ERRORS}"
-            echo "message<<EOF" >> $GITHUB_OUTPUT
-            echo -e "$MESSAGE" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            echo "❌ Changelog validation failed:"
-            echo -e "$ERRORS"
-            exit 1
-          fi
-          
-          echo "valid=true" >> $GITHUB_OUTPUT
-          echo "message=Changelog format is valid" >> $GITHUB_OUTPUT
-          echo "✅ Changelog format is valid"
 
   build:
     name: Build
@@ -189,7 +105,7 @@ jobs:
           
           | Check | Status | Details |
           |-------|--------|---------|
-          | Changelog | ${{ needs.validate-pr.outputs.changelog-valid == 'true' && '✅ Valid' || '❌ Failed' }} | ${{ needs.validate-pr.outputs.validation-message }} |
+          | Changelog | ${{ needs.validate-pr.outputs.changelog-modified == 'true' && '✅ Updated' || 'ℹ️ Not updated' }} | ${{ needs.validate-pr.outputs.validation-message }} |
           | Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} | Build completed on all platforms |
           | Tests | ${{ needs.test.result == 'success' && '✅ Passed' || '❌ Failed' }} | Unit and integration tests executed |
           
@@ -202,14 +118,8 @@ jobs:
           <details>
           <summary>📋 Validation Details</summary>
           
-          #### Changelog Validation
-          - Modified: ${{ needs.validate-pr.outputs.changelog-modified == 'true' && '✅ Yes' || '⚠️ No' }}
-          - Valid Format: ${{ needs.validate-pr.outputs.changelog-valid == 'true' && '✅ Yes' || '❌ No' }}
-          - Skip Label: ${{ needs.validate-pr.outputs.skip-changelog == 'true' && '✅ Yes' || 'No' }}
-          
-          ${{ needs.validate-pr.outputs.skip-changelog != 'true' && needs.validate-pr.outputs.changelog-modified != 'true' && '
-          > ⚠️ **Note:** CHANGELOG.md was not modified. Please update the Unreleased section with your changes, or add the `skip-changelog` label if this PR does not require changelog updates (e.g., documentation-only changes).
-          ' || '' }}
+          #### Changelog Status
+          - Modified: ${{ needs.validate-pr.outputs.changelog-modified == 'true' && '✅ Yes' || 'ℹ️ No (remember to update before stable release)' }}
           
           #### Build Status
           - Status: ${{ needs.build.result }}

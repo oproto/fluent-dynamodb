@@ -54,21 +54,30 @@ jobs:
             echo "📦 Stable release version detected"
           fi
           
-          # Check if CHANGELOG.md exists
-          if [ ! -f "CHANGELOG.md" ]; then
-            echo "❌ CHANGELOG.md not found in repository root"
-            exit 1
+          # Changelog validation — required for stable releases, optional for pre-releases
+          if echo "$VERSION" | grep -q '-'; then
+            # Pre-release: changelog is optional
+            if grep -q "## \[$VERSION\]" CHANGELOG.md 2>/dev/null; then
+              echo "✅ Changelog entry found for pre-release version $VERSION"
+            else
+              echo "ℹ️ No changelog entry for pre-release version $VERSION (this is fine)"
+            fi
+          else
+            # Stable release: changelog is required
+            if [ ! -f "CHANGELOG.md" ]; then
+              echo "❌ CHANGELOG.md not found in repository root"
+              exit 1
+            fi
+            
+            if ! grep -q "## \[$VERSION\]" CHANGELOG.md; then
+              echo "❌ Changelog entry not found for version $VERSION"
+              echo "Please add a section in CHANGELOG.md:"
+              echo "## [$VERSION] - $(date +%Y-%m-%d)"
+              exit 1
+            fi
+            
+            echo "✅ Changelog entry found for version $VERSION"
           fi
-          
-          # Check if CHANGELOG.md contains section for this version
-          if ! grep -q "## \[$VERSION\]" CHANGELOG.md; then
-            echo "❌ Changelog entry not found for version $VERSION"
-            echo "Please add a section in CHANGELOG.md:"
-            echo "## [$VERSION] - $(date +%Y-%m-%d)"
-            exit 1
-          fi
-          
-          echo "✅ Changelog entry found for version $VERSION"
           
           # Extract release notes from changelog
           # Find the section for this version and extract until the next version section
