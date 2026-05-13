@@ -86,6 +86,14 @@ public sealed class FluentDynamoDbOptions
     public ReturnValue? DefaultReturnValues { get; private init; }
 
     /// <summary>
+    /// Gets the encryption failure mode for decryption operations.
+    /// Controls whether decryption failures throw or skip fields.
+    /// Default: Throw.
+    /// </summary>
+    public DecryptionFailureMode DecryptionFailureMode { get; private init; } 
+        = DecryptionFailureMode.Throw;
+
+    /// <summary>
     /// Creates a new options instance with the specified logger.
     /// </summary>
     /// <param name="logger">The logger to use. If null, uses NoOpLogger.Instance.</param>
@@ -261,6 +269,14 @@ public sealed class FluentDynamoDbOptions
         => CloneWith(defaultReturnValues: value);
 
     /// <summary>
+    /// Creates a new options instance with the specified encryption failure mode.
+    /// </summary>
+    /// <param name="mode">The decryption failure mode to use.</param>
+    /// <returns>A new FluentDynamoDbOptions instance with the specified decryption failure mode.</returns>
+    public FluentDynamoDbOptions WithDecryptionFailureMode(DecryptionFailureMode mode)
+        => CloneWith(encryptionFailureMode: mode);
+
+    /// <summary>
     /// Creates a clone of this options instance with the specified overrides.
     /// </summary>
     private FluentDynamoDbOptions CloneWith(
@@ -275,6 +291,7 @@ public sealed class FluentDynamoDbOptions
         ReturnConsumedCapacity? defaultReturnConsumedCapacity = null,
         ReturnItemCollectionMetrics? defaultReturnItemCollectionMetrics = null,
         ReturnValue? defaultReturnValues = null,
+        DecryptionFailureMode? encryptionFailureMode = null,
         bool setJsonSerializer = false,
         bool setBlobStorageProvider = false,
         bool setBlobStorageStrategy = false)
@@ -291,7 +308,8 @@ public sealed class FluentDynamoDbOptions
             DefaultConsistentRead = defaultConsistentRead ?? DefaultConsistentRead,
             DefaultReturnConsumedCapacity = defaultReturnConsumedCapacity ?? DefaultReturnConsumedCapacity,
             DefaultReturnItemCollectionMetrics = defaultReturnItemCollectionMetrics ?? DefaultReturnItemCollectionMetrics,
-            DefaultReturnValues = defaultReturnValues ?? DefaultReturnValues
+            DefaultReturnValues = defaultReturnValues ?? DefaultReturnValues,
+            DecryptionFailureMode = encryptionFailureMode ?? DecryptionFailureMode
         };
     }
 }

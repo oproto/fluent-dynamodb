@@ -56,7 +56,15 @@ public static class EntityExecuteAsyncExtensions
             if (response.Item == null || !T.MatchesEntity(response.Item))
                 return null;
 
-            return T.FromDynamoDb<T>(response.Item, builder.GetOptions());
+            // Check if a hydrator is registered (required for entities with encrypted/blob properties)
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                return await hydrator.HydrateAsync(response.Item, null, options, cancellationToken).ConfigureAwait(false);
+            }
+
+            return T.FromDynamoDb<T>(response.Item, options);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -186,8 +194,17 @@ public static class EntityExecuteAsyncExtensions
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
             var options = builder.GetOptions();
-            var entityItems = items
-                .Where(T.MatchesEntity)
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
+
+            // Check if a hydrator is registered (required for entities with encrypted/blob properties)
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, null, options, cancellationToken));
+                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
+            }
+
+            var entityItems = matchingItems
                 .Select(item => T.FromDynamoDb<T>(item, options))
                 .ToList();
 
@@ -745,8 +762,17 @@ public static class EntityExecuteAsyncExtensions
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
             var options = builder.GetOptions();
-            var entityItems = items
-                .Where(T.MatchesEntity)
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
+
+            // Check if a hydrator is registered (required for entities with encrypted/blob properties)
+            var hydrator = options.HydratorRegistry.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, null, options, cancellationToken));
+                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
+            }
+
+            var entityItems = matchingItems
                 .Select(item => T.FromDynamoDb<T>(item, options))
                 .ToList();
 

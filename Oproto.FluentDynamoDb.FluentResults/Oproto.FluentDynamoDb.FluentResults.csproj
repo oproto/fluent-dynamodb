@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -30,13 +30,10 @@
         <!-- During development, use ProjectReference for easy debugging -->
         <!-- During pack, this becomes a PackageReference with the same version -->
         <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj">
-            <SetTargetFramework>TargetFramework=net8.0</SetTargetFramework>
-            <!-- This ensures the packed NuGet dependency uses the same version -->
             <PrivateAssets>none</PrivateAssets>
             <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
         </ProjectReference>
         <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj">
-            <SetTargetFramework>TargetFramework=net8.0</SetTargetFramework>
             <PrivateAssets>none</PrivateAssets>
             <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
         </ProjectReference>

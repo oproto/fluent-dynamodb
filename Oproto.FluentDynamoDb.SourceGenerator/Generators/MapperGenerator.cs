@@ -251,6 +251,19 @@ internal static class MapperGenerator
         sb.Append(LoggingCodeGenerator.GenerateToDynamoDbExitLogging(entity.ClassName, "item"));
         sb.AppendLine();
         
+        // Generate redacted item logging for entities with sensitive fields
+        var hasSensitiveFields = entity.Properties.Any(p => p.Security?.IsSensitive == true);
+        if (hasSensitiveFields)
+        {
+            sb.Append(LoggingCodeGenerator.GenerateItemLoggingWithRedaction(
+                "Debug",
+                "LogEventIds.MappingToDynamoDbComplete",
+                $"{entity.ClassName} attributes: {{Attributes}}",
+                "item",
+                $"{entity.ClassName}SecurityMetadata.SensitiveFields"));
+            sb.AppendLine();
+        }
+        
         sb.AppendLine("                return item;");
         sb.AppendLine("            }");
         sb.AppendLine("            catch (Exception ex)");
@@ -442,6 +455,18 @@ internal static class MapperGenerator
         // Generate exit logging
         sb.Append(LoggingCodeGenerator.GenerateToDynamoDbExitLogging(entity.ClassName, "item"));
         sb.AppendLine();
+        
+        // Generate redacted item logging for entities with sensitive fields
+        if (entity.Properties.Any(p => p.Security?.IsSensitive == true))
+        {
+            sb.Append(LoggingCodeGenerator.GenerateItemLoggingWithRedaction(
+                "Debug",
+                "LogEventIds.MappingToDynamoDbComplete",
+                $"{entity.ClassName} attributes: {{Attributes}}",
+                "item",
+                $"{entity.ClassName}SecurityMetadata.SensitiveFields"));
+            sb.AppendLine();
+        }
         
         sb.AppendLine("                return item;");
         sb.AppendLine("            }");
@@ -4612,17 +4637,38 @@ internal static class MapperGenerator
         sb.AppendLine("                    }");
         sb.AppendLine("                    catch (Exception ex)");
         sb.AppendLine("                    {");
-        sb.AppendLine($"                        throw DynamoDbMappingException.PropertyConversionFailed(");
-        sb.AppendLine($"                            typeof({entity.ClassName}),");
-        sb.AppendLine($"                            \"{propertyName}\",");
-        sb.AppendLine($"                            {propertyName.ToLowerInvariant()}Value,");
-        sb.AppendLine($"                            typeof({GetTypeForMetadata(property.PropertyType)}),");
-        sb.AppendLine("                            ex);");
+        sb.AppendLine($"                        if (options?.DecryptionFailureMode == DecryptionFailureMode.SkipFields");
+        sb.AppendLine($"                            && !EncryptionFailureClassifier.IsIntegrityFailure(ex))");
+        sb.AppendLine("                        {");
+        sb.AppendLine($"                            // Recoverable failure in SkipFields mode — leave at default");
+        sb.AppendLine($"                            options?.Logger?.LogWarning(LogEventIds.EncryptionFieldSkipped,");
+        sb.AppendLine($"                                \"Skipped encrypted field {{FieldName}} for {{EntityType}}: {{Reason}}\",");
+        sb.AppendLine($"                                \"{propertyName}\", \"{entity.ClassName}\", ex.Message);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        else");
+        sb.AppendLine("                        {");
+        sb.AppendLine($"                            throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                                typeof({entity.ClassName}),");
+        sb.AppendLine($"                                \"{propertyName}\",");
+        sb.AppendLine($"                                {propertyName.ToLowerInvariant()}Value,");
+        sb.AppendLine($"                                typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                                ex);");
+        sb.AppendLine("                        }");
         sb.AppendLine("                    }");
         sb.AppendLine("                }");
         sb.AppendLine("                else");
         sb.AppendLine("                {");
-        sb.AppendLine($"                    throw new InvalidOperationException(\"Property {propertyName} is marked with [Encrypted] but no IFieldEncryptor is configured. Add the Oproto.FluentDynamoDb.Encryption.Kms package and configure encryption.\");");
+        sb.AppendLine($"                    // No encryptor configured");
+        sb.AppendLine($"                    if (options?.DecryptionFailureMode == DecryptionFailureMode.SkipFields)");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        options?.Logger?.LogWarning(LogEventIds.EncryptionFieldSkipped,");
+        sb.AppendLine($"                            \"Skipped encrypted field {{FieldName}} for {{EntityType}}: {{Reason}}\",");
+        sb.AppendLine($"                            \"{propertyName}\", \"{entity.ClassName}\", \"No IFieldEncryptor configured\");");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    else");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        throw new InvalidOperationException(\"Property {propertyName} is marked with [Encrypted] but no IFieldEncryptor is configured.\");");
+        sb.AppendLine("                    }");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
     }

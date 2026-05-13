@@ -1,7 +1,7 @@
 # Technology Stack
 
 ## Framework & Runtime
-- **.NET 8.0**: Target framework for both main library and tests
+- **.NET 8.0 / .NET 10.0**: Multi-targeted framework for both main library and tests
 - **C# 12**: Latest language features with nullable reference types enabled
 - **AOT Compatible**: Library is trimmer-safe and AOT-compatible
 

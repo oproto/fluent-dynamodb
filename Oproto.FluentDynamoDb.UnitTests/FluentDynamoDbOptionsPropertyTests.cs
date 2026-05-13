@@ -315,6 +315,89 @@ public class FluentDynamoDbOptionsPropertyTests
                     .Label($"Table with explicit default options should use NoOpLogger.Instance. UsesNoOpLogger: {usesNoOpLogger}");
             });
     }
+    
+    /// <summary>
+    /// **Feature: encryption-failure-modes, Property: Default DecryptionFailureMode is Throw**
+    /// *For any* newly created FluentDynamoDbOptions instance, the DecryptionFailureMode
+    /// property SHALL default to DecryptionFailureMode.Throw.
+    /// **Validates: Requirements 2.1, 2.2**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property DecryptionFailureMode_DefaultValue_IsThrow()
+    {
+        return Prop.ForAll(
+            Arb.Default.Bool(),
+            _ =>
+            {
+                // Arrange & Act
+                var options = new FluentDynamoDbOptions();
+                
+                // Assert
+                var defaultIsThrow = options.DecryptionFailureMode == DecryptionFailureMode.Throw;
+                
+                return defaultIsThrow.ToProperty()
+                    .Label($"Default DecryptionFailureMode should be Throw. " +
+                           $"Actual: {options.DecryptionFailureMode}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: encryption-failure-modes, Property: WithDecryptionFailureMode returns new instance without modifying original**
+    /// *For any* DecryptionFailureMode value, calling WithDecryptionFailureMode SHALL return a new
+    /// FluentDynamoDbOptions instance with the specified mode, without modifying the original instance.
+    /// **Validates: Requirements 2.2, 2.3**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property WithDecryptionFailureMode_ReturnsNewInstance_WithoutModifyingOriginal()
+    {
+        return Prop.ForAll(
+            Gen.Elements(DecryptionFailureMode.Throw, DecryptionFailureMode.SkipFields).ToArbitrary(),
+            mode =>
+            {
+                // Arrange
+                var original = new FluentDynamoDbOptions();
+                var originalMode = original.DecryptionFailureMode;
+                
+                // Act
+                var modified = original.WithDecryptionFailureMode(mode);
+                
+                // Assert
+                var originalUnchanged = original.DecryptionFailureMode == originalMode;
+                var newHasCorrectMode = modified.DecryptionFailureMode == mode;
+                var differentInstances = !ReferenceEquals(original, modified);
+                
+                return (originalUnchanged && newHasCorrectMode && differentInstances).ToProperty()
+                    .Label($"WithDecryptionFailureMode should return new instance without modifying original. " +
+                           $"OriginalUnchanged: {originalUnchanged}, NewHasCorrectMode: {newHasCorrectMode}, DifferentInstances: {differentInstances}");
+            });
+    }
+    
+    /// <summary>
+    /// **Feature: encryption-failure-modes, Property: Round-trip setting and reading DecryptionFailureMode**
+    /// *For any* DecryptionFailureMode value, setting the mode via WithDecryptionFailureMode and reading
+    /// it back SHALL yield the same value.
+    /// **Validates: Requirements 2.1, 2.3**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property WithDecryptionFailureMode_RoundTrip_YieldsSameValue()
+    {
+        return Prop.ForAll(
+            Gen.Elements(DecryptionFailureMode.Throw, DecryptionFailureMode.SkipFields).ToArbitrary(),
+            mode =>
+            {
+                // Arrange
+                var options = new FluentDynamoDbOptions();
+                
+                // Act
+                var modified = options.WithDecryptionFailureMode(mode);
+                
+                // Assert
+                var roundTripCorrect = modified.DecryptionFailureMode == mode;
+                
+                return roundTripCorrect.ToProperty()
+                    .Label($"Round-trip should yield same value. Set: {mode}, Got: {modified.DecryptionFailureMode}");
+            });
+    }
 }
 
 /// <summary>

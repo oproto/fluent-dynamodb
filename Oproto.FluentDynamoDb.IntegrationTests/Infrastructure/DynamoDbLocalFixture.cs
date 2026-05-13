@@ -71,13 +71,25 @@ public class DynamoDbLocalFixture : IAsyncLifetime
     
     public async Task DisposeAsync()
     {
-        // Only stop DynamoDB Local if we started it
-        if (_startedByFixture && _dynamoDbProcess != null && !_dynamoDbProcess.HasExited)
+        // Only stop DynamoDB Local if we started it AND no other test processes might be using it.
+        // In multi-target scenarios (net8.0;net10.0), multiple test processes share the same
+        // DynamoDB Local instance. Killing it while another TFM's tests are still running
+        // causes "Connection Refused" errors.
+        // 
+        // In CI, the workflow handles cleanup. Locally, the process stays alive until manually
+        // stopped or the machine restarts (it's in-memory, so no disk cleanup needed).
+        var shouldStop = _startedByFixture 
+                         && _dynamoDbProcess != null 
+                         && !_dynamoDbProcess.HasExited
+                         && Environment.GetEnvironmentVariable("DYNAMODB_LOCAL_KEEP_ALIVE") == null
+                         && Environment.GetEnvironmentVariable("DYNAMODB_LOCAL_PATH") == null; // CI sets this
+        
+        if (shouldStop)
         {
             try
             {
                 Console.WriteLine("[DynamoDB Local] Stopping process...");
-                _dynamoDbProcess.Kill();
+                _dynamoDbProcess!.Kill();
                 await _dynamoDbProcess.WaitForExitAsync();
                 Console.WriteLine("[DynamoDB Local] Stopped successfully");
             }
@@ -85,6 +97,10 @@ public class DynamoDbLocalFixture : IAsyncLifetime
             {
                 Console.WriteLine($"[DynamoDB Local] Warning: Failed to stop process: {ex.Message}");
             }
+        }
+        else if (_startedByFixture)
+        {
+            Console.WriteLine("[DynamoDB Local] Keeping process alive (CI or multi-target mode)");
         }
         
         Client?.Dispose();

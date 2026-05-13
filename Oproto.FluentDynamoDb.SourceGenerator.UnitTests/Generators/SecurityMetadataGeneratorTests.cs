@@ -60,7 +60,7 @@ public class SecurityMetadataGeneratorTests
             "should generate code in the correct namespace");
         result.Should().Contain("internal static class TestEntitySecurityMetadata",
             "should generate security metadata class with correct name");
-        result.Should().Contain("private static readonly HashSet<string> SensitiveFields = new()",
+        result.Should().Contain("internal static readonly HashSet<string> SensitiveFields = new()",
             "should generate HashSet for sensitive fields");
         result.Should().Contain("\"email\",",
             "should include email attribute in sensitive fields");

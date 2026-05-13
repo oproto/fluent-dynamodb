@@ -53,7 +53,7 @@ internal static class SecurityMetadataGenerator
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// Set of DynamoDB attribute names that are marked as sensitive.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine("        private static readonly HashSet<string> SensitiveFields = new()");
+        sb.AppendLine("        internal static readonly HashSet<string> SensitiveFields = new()");
         sb.AppendLine("        {");
 
         foreach (var property in sensitiveProperties)

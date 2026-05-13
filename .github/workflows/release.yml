@@ -94,19 +94,25 @@ jobs:
           echo "Version: $VERSION"
           echo "Pre-release: $(echo "$VERSION" | grep -q '-' && echo 'Yes' || echo 'No')"
 
+  run-tests:
+    name: Run Tests
+    uses: ./.github/workflows/test.yml
+
   build-packages:
     name: Build NuGet Packages
     runs-on: ubuntu-latest
-    needs: validate-tag
+    needs: [validate-tag, run-tests]
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
       
-      - name: Setup .NET 8.0
+      - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            10.0.x
       
       - name: Restore dependencies
         run: dotnet restore
@@ -124,8 +130,8 @@ jobs:
             /maxcpucount:1 \
             -p:Version=$VERSION \
             -p:PackageVersion=$VERSION \
-            -p:AssemblyVersion=$VERSION \
-            -p:FileVersion=$VERSION \
+            -p:AssemblyVersion=${VERSION%%-*} \
+            -p:FileVersion=${VERSION%%-*} \
             -p:InformationalVersion=$VERSION
       
       - name: Pack NuGet packages
@@ -134,42 +140,31 @@ jobs:
           echo "Packing version: $VERSION"
           
           # Pack all packable projects
-          # Don't use --no-build to ensure version is applied correctly
-          # ProjectReferences will automatically become PackageReferences with matching versions
-          dotnet pack Oproto.FluentDynamoDb/Oproto.FluentDynamoDb.csproj \
-            --configuration Release \
-            --output ./packages \
-            -p:Version=$VERSION
+          PROJECTS=(
+            "Oproto.FluentDynamoDb/Oproto.FluentDynamoDb.csproj"
+            "Oproto.FluentDynamoDb.BlobStorage.S3/Oproto.FluentDynamoDb.BlobStorage.S3.csproj"
+            "Oproto.FluentDynamoDb.Encryption.Kms/Oproto.FluentDynamoDb.Encryption.Kms.csproj"
+            "Oproto.FluentDynamoDb.FluentResults/Oproto.FluentDynamoDb.FluentResults.csproj"
+            "Oproto.FluentDynamoDb.Geospatial/Oproto.FluentDynamoDb.Geospatial.csproj"
+            "Oproto.FluentDynamoDb.Logging.Extensions/Oproto.FluentDynamoDb.Logging.Extensions.csproj"
+            "Oproto.FluentDynamoDb.NewtonsoftJson/Oproto.FluentDynamoDb.NewtonsoftJson.csproj"
+            "Oproto.FluentDynamoDb.Streams/Oproto.FluentDynamoDb.Streams.csproj"
+            "Oproto.FluentDynamoDb.SystemTextJson/Oproto.FluentDynamoDb.SystemTextJson.csproj"
+          )
           
-          dotnet pack Oproto.FluentDynamoDb.BlobStorage.S3/Oproto.FluentDynamoDb.BlobStorage.S3.csproj \
-            --configuration Release \
-            --output ./packages \
-            -p:Version=$VERSION
+          for project in "${PROJECTS[@]}"; do
+            echo "📦 Packing: $project"
+            dotnet pack "$project" \
+              --configuration Release \
+              --no-build \
+              --output ./packages \
+              -p:Version=$VERSION \
+              -p:PackageVersion=$VERSION
+          done
           
-          dotnet pack Oproto.FluentDynamoDb.Encryption.Kms/Oproto.FluentDynamoDb.Encryption.Kms.csproj \
-            --configuration Release \
-            --output ./packages \
-            -p:Version=$VERSION
-          
-          dotnet pack Oproto.FluentDynamoDb.FluentResults/Oproto.FluentDynamoDb.FluentResults.csproj \
-            --configuration Release \
-            --output ./packages \
-            -p:Version=$VERSION
-          
-          dotnet pack Oproto.FluentDynamoDb.Logging.Extensions/Oproto.FluentDynamoDb.Logging.Extensions.csproj \
-            --configuration Release \
-            --output ./packages \
-            -p:Version=$VERSION
-          
-          dotnet pack Oproto.FluentDynamoDb.NewtonsoftJson/Oproto.FluentDynamoDb.NewtonsoftJson.csproj \
-            --configuration Release \
-            --output ./packages \
-            -p:Version=$VERSION
-          
-          dotnet pack Oproto.FluentDynamoDb.SystemTextJson/Oproto.FluentDynamoDb.SystemTextJson.csproj \
-            --configuration Release \
-            --output ./packages \
-            -p:Version=$VERSION
+          echo ""
+          echo "📦 Packages created:"
+          ls -lh ./packages/*.nupkg
       
       - name: Validate package dependencies
         run: |
@@ -177,7 +172,18 @@ jobs:
           echo "📦 Validating package dependencies for version: $VERSION"
           
           # Check packages with dependencies on Oproto.FluentDynamoDb
-          for pkg in BlobStorage.S3 Encryption.Kms FluentResults Logging.Extensions; do
+          DEPENDENT_PACKAGES=(
+            "BlobStorage.S3"
+            "Encryption.Kms"
+            "FluentResults"
+            "Geospatial"
+            "Logging.Extensions"
+            "NewtonsoftJson"
+            "Streams"
+            "SystemTextJson"
+          )
+          
+          for pkg in "${DEPENDENT_PACKAGES[@]}"; do
             PACKAGE_FILE="./packages/Oproto.FluentDynamoDb.${pkg}.${VERSION}.nupkg"
             if [ -f "$PACKAGE_FILE" ]; then
               echo "Checking $pkg package..."
@@ -259,7 +265,7 @@ jobs:
             if [ -f "$package" ]; then
               PACKAGE_NAME=$(basename "$package")
               PACKAGE_ID=$(echo "$PACKAGE_NAME" | sed "s/\.$VERSION\.nupkg//")
-              PACKAGE_SIZE=$(stat -f%z "$package" 2>/dev/null || stat -c%s "$package")
+              PACKAGE_SIZE=$(stat -c%s "$package")
               PACKAGE_SHA256=$(sha256sum "$package" | awk '{print $1}')
               
               # Find corresponding symbols package
@@ -355,9 +361,9 @@ jobs:
           for package in ./packages/*.nupkg; do
             if [ -f "$package" ]; then
               PACKAGE_NAME=$(basename "$package")
-              PACKAGE_SIZE=$(stat -f%z "$package" 2>/dev/null || stat -c%s "$package")
-              PACKAGE_SIZE_MB=$(echo "scale=2; $PACKAGE_SIZE / 1024 / 1024" | bc)
-              echo "- \`$PACKAGE_NAME\` (${PACKAGE_SIZE_MB} MB)" >> $GITHUB_STEP_SUMMARY
+              PACKAGE_SIZE=$(stat -c%s "$package")
+              PACKAGE_SIZE_KB=$(echo "scale=1; $PACKAGE_SIZE / 1024" | bc)
+              echo "- \`$PACKAGE_NAME\` (${PACKAGE_SIZE_KB} KB)" >> $GITHUB_STEP_SUMMARY
             fi
           done
           
@@ -365,7 +371,98 @@ jobs:
           echo "## 📝 Release Notes" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "${{ needs.validate-tag.outputs.release-notes }}" >> $GITHUB_STEP_SUMMARY
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-packages, create-release]
+    environment: nuget-production
+    
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: nuget-packages
+          path: ./packages
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      
+      - name: Push packages to NuGet.org
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          echo "🚀 Publishing packages for version: $VERSION"
+          echo ""
+          
+          FAILED=0
+          
+          for package in ./packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              echo "Publishing: $PACKAGE_NAME"
+              
+              if dotnet nuget push "$package" \
+                --api-key ${{ secrets.NUGET_API_KEY }} \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate \
+                --timeout 300; then
+                echo "  ✅ Published: $PACKAGE_NAME"
+              else
+                echo "  ❌ Failed: $PACKAGE_NAME"
+                FAILED=$((FAILED + 1))
+              fi
+              echo ""
+            fi
+          done
+          
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ $FAILED package(s) failed to publish"
+            exit 1
+          fi
+          
+          echo "✅ All packages published successfully"
+      
+      - name: Push symbol packages
+        run: |
+          echo "🔍 Publishing symbol packages..."
+          
+          for package in ./packages/*.snupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              echo "Publishing symbols: $PACKAGE_NAME"
+              
+              dotnet nuget push "$package" \
+                --api-key ${{ secrets.NUGET_API_KEY }} \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate \
+                --timeout 300 || echo "  ⚠️  Symbol push failed (non-fatal): $PACKAGE_NAME"
+            fi
+          done
+          
+          echo "✅ Symbol publishing complete"
+      
+      - name: Publish summary
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          
+          echo "# 🚀 NuGet Publish Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** https://www.nuget.org" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Published Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          for package in ./packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              PACKAGE_ID=$(echo "$PACKAGE_NAME" | sed "s/\.$VERSION\.nupkg//")
+              echo "- [\`$PACKAGE_ID\`](https://www.nuget.org/packages/$PACKAGE_ID/$VERSION)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 [View Release](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)" >> $GITHUB_STEP_SUMMARY
+          echo "⏱️ Packages may take a few minutes to appear on nuget.org after publishing." >> $GITHUB_STEP_SUMMARY

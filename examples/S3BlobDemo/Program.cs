@@ -43,6 +43,9 @@ var keyPrefix = Console.ReadLine()?.Trim();
 if (string.IsNullOrEmpty(keyPrefix))
     keyPrefix = null;
 
+Console.Write("Enter AWS region (e.g., us-east-1, or press Enter to use AWS_REGION env var): ");
+var regionInput = Console.ReadLine()?.Trim();
+
 Console.Write("Enter AWS profile name (optional, press Enter for default credentials): ");
 var profileName = Console.ReadLine()?.Trim();
 
@@ -50,7 +53,16 @@ var profileName = Console.ReadLine()?.Trim();
 IAmazonS3 s3Client;
 try
 {
-    s3Client = CreateS3Client(profileName);
+    s3Client = CreateS3Client(profileName, regionInput);
+    
+    // If this is an account-regional namespace bucket, configure the client
+    // to send the required x-amz-bucket-namespace header on all requests
+    if (S3Extensions.IsAccountRegionalBucket(bucketName))
+    {
+        s3Client.ConfigureForAccountRegionalBucket();
+        ConsoleHelpers.ShowInfo("Detected account-regional namespace bucket - configured namespace header");
+    }
+    
     ConsoleHelpers.ShowSuccess("S3 client created successfully");
 }
 catch (Exception ex)
@@ -59,19 +71,27 @@ catch (Exception ex)
     return;
 }
 
-// Verify bucket access
-ConsoleHelpers.ShowInfo("Verifying S3 bucket access...");
-try
+// Verify bucket access (skip for account-regional namespace buckets - SDK doesn't fully support them yet)
+if (S3Extensions.IsAccountRegionalBucket(bucketName))
 {
-    await s3Client.EnsureBucketExistsAsync(bucketName);
-    ConsoleHelpers.ShowSuccess($"Bucket '{bucketName}' is accessible");
+    ConsoleHelpers.ShowInfo("Skipping bucket verification for account-regional namespace bucket (SDK limitation)");
+    ConsoleHelpers.ShowInfo("If the bucket doesn't exist, you'll see errors when uploading.");
 }
-catch (Exception ex)
+else
 {
-    ConsoleHelpers.ShowError(ex, "Failed to access S3 bucket");
-    ConsoleHelpers.ShowWarning("Make sure the bucket exists and you have appropriate permissions.");
-    ConsoleHelpers.ShowWarning("Required permissions: s3:PutObject, s3:GetObject, s3:DeleteObject, s3:HeadObject");
-    return;
+    ConsoleHelpers.ShowInfo("Verifying S3 bucket access...");
+    try
+    {
+        await s3Client.EnsureBucketExistsAsync(bucketName);
+        ConsoleHelpers.ShowSuccess($"Bucket '{bucketName}' is accessible");
+    }
+    catch (Exception ex)
+    {
+        ConsoleHelpers.ShowError(ex, "Failed to access S3 bucket");
+        ConsoleHelpers.ShowWarning("Make sure the bucket exists and you have appropriate permissions.");
+        ConsoleHelpers.ShowWarning("Required permissions: s3:PutObject, s3:GetObject, s3:DeleteObject, s3:HeadObject");
+        return;
+    }
 }
 
 // Initialize DynamoDB Local connection
@@ -157,19 +177,33 @@ while (true)
 /// <summary>
 /// Creates an S3 client with the specified profile or default credentials.
 /// </summary>
-static IAmazonS3 CreateS3Client(string? profileName)
+static IAmazonS3 CreateS3Client(string? profileName, string? regionName)
 {
+    var region = !string.IsNullOrEmpty(regionName) 
+        ? Amazon.RegionEndpoint.GetBySystemName(regionName) 
+        : null;
+
     if (!string.IsNullOrEmpty(profileName))
     {
         var chain = new CredentialProfileStoreChain();
         if (chain.TryGetAWSCredentials(profileName, out var credentials))
         {
+            if (region != null)
+                return new AmazonS3Client(credentials, region);
+            
+            // Try to get region from profile
+            if (chain.TryGetProfile(profileName, out var profile) && profile.Region != null)
+                return new AmazonS3Client(credentials, profile.Region);
+            
             return new AmazonS3Client(credentials);
         }
         throw new InvalidOperationException($"AWS profile '{profileName}' not found.");
     }
     
     // Use default credential chain (environment variables, IAM role, etc.)
+    if (region != null)
+        return new AmazonS3Client(region);
+    
     return new AmazonS3Client();
 }
 
@@ -565,6 +599,7 @@ static string TruncateString(string? value, int maxLength)
 
 /// <summary>
 /// Extension method to verify S3 bucket exists and is accessible.
+/// Uses HeadBucket which works with both global and account-regional namespace buckets.
 /// </summary>
 static class S3Extensions
 {
@@ -572,15 +607,59 @@ static class S3Extensions
     {
         try
         {
-            await s3Client.GetBucketLocationAsync(bucketName);
+            var request = new Amazon.S3.Model.HeadBucketRequest { BucketName = bucketName };
+            await s3Client.HeadBucketAsync(request);
         }
-        catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket")
+        catch (Amazon.S3.AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             throw new InvalidOperationException($"S3 bucket '{bucketName}' does not exist.", ex);
         }
-        catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "AccessDenied")
+        catch (Amazon.S3.AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
             throw new InvalidOperationException($"Access denied to S3 bucket '{bucketName}'. Check your IAM permissions.", ex);
+        }
+        catch (Amazon.S3.AmazonS3Exception ex) when (ex.ErrorCode == "BucketAlreadyOwnedByYou")
+        {
+            // Account-regional namespace buckets return this on HeadBucket with the namespace header.
+            // This confirms the bucket exists and we own it — treat as success.
+        }
+        catch (Amazon.S3.AmazonS3Exception ex) when (ex.Message.Contains("account-regional namespace", StringComparison.OrdinalIgnoreCase) 
+                                                      || ex.Message.Contains("x-amz-bucket-namespace", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Bucket '{bucketName}' is an account-regional namespace bucket. " +
+                "Please update AWSSDK.S3 to the latest version which supports account-regional namespace buckets, " +
+                "or use a global namespace bucket for this demo.", ex);
+        }
+    }
+    
+    /// <summary>
+    /// Detects if a bucket name follows the account-regional namespace convention (ends with -an suffix
+    /// and contains an AWS account ID and region in the name).
+    /// Pattern: {prefix}-{12-digit-account-id}-{region}-an
+    /// </summary>
+    public static bool IsAccountRegionalBucket(string bucketName)
+    {
+        return bucketName.EndsWith("-an", StringComparison.Ordinal) 
+               && System.Text.RegularExpressions.Regex.IsMatch(bucketName, @"-\d{12}-[a-z]{2}(-[a-z]+-\d+)?-an$");
+    }
+    
+    /// <summary>
+    /// Registers an event handler on the S3 client to inject the x-amz-bucket-namespace header
+    /// for account-regional namespace buckets. This is needed until the AWS SDK natively supports
+    /// account-regional namespace buckets.
+    /// </summary>
+    public static void ConfigureForAccountRegionalBucket(this IAmazonS3 s3Client)
+    {
+        if (s3Client is AmazonS3Client concreteClient)
+        {
+            concreteClient.BeforeRequestEvent += (sender, args) =>
+            {
+                if (args is Amazon.Runtime.WebServiceRequestEventArgs wsArgs)
+                {
+                    wsArgs.Headers["x-amz-bucket-namespace"] = "account-regional";
+                }
+            };
         }
     }
 }

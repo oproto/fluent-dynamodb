@@ -16,7 +16,7 @@ namespace StoreLocator.Entities;
 /// <list type="bullet">
 /// <item><description>Partition Key (pk): StoreId - unique identifier for each store</description></item>
 /// <item><description>Sort Key (sk): Category - allows grouping stores by type</description></item>
-/// <item><description>GSI (geohash-index): PK=geohash_cell, SK=pk - enables spatial queries</description></item>
+/// <item><description>GSI (geohash-index): PK=sk (Category), SK=geohash_cell (Location) - enables BETWEEN range queries on geohash cells scoped by category</description></item>
 /// </list>
 /// <para>
 /// <strong>GeoHash Precision:</strong>
@@ -39,17 +39,21 @@ public partial class StoreGeoHash
     public string StoreId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the store category - main table sort key.
+    /// Gets or sets the store category - main table sort key and GSI partition key.
+    /// Used as the GSI partition key for geohash-index, enabling category-scoped spatial queries
+    /// (e.g., category = "retail" AND geohash_cell BETWEEN min AND max).
     /// </summary>
     [SortKey]
+    [GsiPartitionKey("geohash-index")]
     [DynamoDbAttribute("sk")]
     public string Category { get; set; } = "retail";
 
     /// <summary>
     /// Gets or sets the store location with GeoHash encoding at precision 7 (~76m accuracy).
-    /// The GeoHash cell is automatically computed by the source generator and used as the GSI partition key.
+    /// The GeoHash cell is automatically computed by the source generator and used as the GSI sort key,
+    /// enabling BETWEEN range queries for spatial proximity searches scoped by category.
     /// </summary>
-    [GsiPartitionKey("geohash-index")]
+    [GsiSortKey("geohash-index")]
     [DynamoDbAttribute("geohash_cell", GeoHashPrecision = 7)]
     [StoreCoordinates(LatitudeAttributeName = "lat", LongitudeAttributeName = "lon")]
     public GeoLocation Location { get; set; }

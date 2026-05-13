@@ -1323,7 +1323,7 @@ internal static class TableGenerator
         sb.AppendLine($"        /// </summary>");
         sb.AppendLine($"        /// <returns>A ScanRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
         sb.AppendLine($"        {modifier} ScanRequestBuilder<{entity.ClassName}> Scan() =>");
-        sb.AppendLine($"            new ScanRequestBuilder<{entity.ClassName}>(_table.DynamoDbClient).ForTable(_table.Name);");
+        sb.AppendLine($"            new ScanRequestBuilder<{entity.ClassName}>(_table.DynamoDbClient, _table.Options).ForTable(_table.Name);");
         sb.AppendLine();
         
         // Expression-based Scan(string, params object[]) method
@@ -2337,7 +2337,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
         sb.AppendLine($"    public ScanRequestBuilder<{entity.ClassName}> Scan() =>");
-        sb.AppendLine($"        new ScanRequestBuilder<{entity.ClassName}>(DynamoDbClient).ForTable(Name);");
+        sb.AppendLine($"        new ScanRequestBuilder<{entity.ClassName}>(DynamoDbClient, Options).ForTable(Name);");
         sb.AppendLine();
 
         // Expression-based Scan(string, params object[]) method

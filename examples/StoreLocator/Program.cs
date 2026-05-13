@@ -140,7 +140,7 @@ async Task EnsureTablesExistAsync()
         "sk",
         new List<GlobalSecondaryIndex>
         {
-            CreateGsi("geohash-index", "geohash_cell", "pk")
+            CreateGsi("geohash-index", "sk", "geohash_cell")
         });
     if (created1) ConsoleHelpers.ShowSuccess($"Created table '{GeoHashTableName}'");
 
@@ -213,10 +213,24 @@ async Task<List<string>> ValidateGSIsAsync()
     
     try
     {
-        // Check GeoHash table GSI
+        // Check GeoHash table GSI existence and key schema
         var geoHashDescription = await client.DescribeTableAsync(GeoHashTableName);
-        var geoHashGsis = geoHashDescription.Table.GlobalSecondaryIndexes?.Select(g => g.IndexName).ToList() ?? new List<string>();
-        if (!geoHashGsis.Contains("geohash-index")) issues.Add("GeoHash table missing geohash-index");
+        var geoHashGsiList = geoHashDescription.Table.GlobalSecondaryIndexes ?? new List<GlobalSecondaryIndexDescription>();
+        var geohashGsi = geoHashGsiList.FirstOrDefault(g => g.IndexName == "geohash-index");
+        if (geohashGsi == null)
+        {
+            issues.Add("GeoHash table missing geohash-index");
+        }
+        else
+        {
+            // Validate key schema: PK should be "sk" (Category), SK should be "geohash_cell" (Location)
+            var gsiPk = geohashGsi.KeySchema.FirstOrDefault(k => k.KeyType == KeyType.HASH)?.AttributeName;
+            var gsiSk = geohashGsi.KeySchema.FirstOrDefault(k => k.KeyType == KeyType.RANGE)?.AttributeName;
+            if (gsiPk != "sk" || gsiSk != "geohash_cell")
+            {
+                issues.Add($"GeoHash geohash-index has wrong key schema: PK={gsiPk}, SK={gsiSk} (expected PK=sk, SK=geohash_cell)");
+            }
+        }
     }
     catch (ResourceNotFoundException)
     {
@@ -442,10 +456,10 @@ async Task SearchGeoHashAsync()
     
     var startTime = DateTime.UtcNow;
     
-    // PREFERRED: Using lambda expression with WithinDistanceKilometers on the GSI
-    // The expression translator converts this to a BETWEEN query on the geohash_cell attribute
+    // PREFERRED: Using lambda expression with category equality (GSI PK) and WithinDistanceKilometers (GSI SK)
+    // The expression translator converts this to: category = "retail" AND geohash_cell BETWEEN <min> AND <max>
     var results = await geoHashTable.GeohashIndex.Query<StoreGeoHash>()
-        .Where<StoreGeoHash>(x => x.Location.WithinDistanceKilometers(center, radius))
+        .Where<StoreGeoHash>(x => x.Category == "retail" && x.Location.WithinDistanceKilometers(center, radius))
         .ToListAsync();
     
     var elapsed = DateTime.UtcNow - startTime;
@@ -597,7 +611,7 @@ async Task CompareAllAsync()
     // GeoHash search - uses lambda expression with WithinDistanceKilometers
     var startGeoHash = DateTime.UtcNow;
     var geoHashRawResults = await geoHashTable.GeohashIndex.Query<StoreGeoHash>()
-        .Where<StoreGeoHash>(x => x.Location.WithinDistanceKilometers(center, radius))
+        .Where<StoreGeoHash>(x => x.Category == "retail" && x.Location.WithinDistanceKilometers(center, radius))
         .ToListAsync();
     var elapsedGeoHash = DateTime.UtcNow - startGeoHash;
     lastGeoHashQueryCount = 1; // GeoHash always uses a single BETWEEN query
@@ -717,6 +731,7 @@ async Task CompareAllAsync()
     }
     
     Console.WriteLine();
+    ConsoleHelpers.ShowInfo("Note: GeoHash queries are scoped to a single category (\"retail\") via the GSI partition key, while S2/H3 queries span all categories using cell-based partition keys.");
     ConsoleHelpers.ShowInfo("Note: Query counts vary based on cell covering algorithms and precision levels.");
 }
 

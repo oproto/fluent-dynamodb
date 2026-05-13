@@ -22,6 +22,7 @@ This directory contains all CI/CD workflows and configuration documentation for 
 
 ### CI/CD Guides
 - **[CI_CD_GUIDE.md](./CI_CD_GUIDE.md)** - Comprehensive CI/CD pipeline documentation
+- **[RELEASE_PROCESS.md](./RELEASE_PROCESS.md)** - How to publish releases to NuGet.org
 
 ## 🔧 Workflows
 
