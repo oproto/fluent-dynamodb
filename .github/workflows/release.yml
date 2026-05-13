@@ -123,7 +123,9 @@ jobs:
       - name: Build all projects
         run: |
           VERSION="${{ needs.validate-tag.outputs.version }}"
-          echo "Building with version: $VERSION"
+          # Strip pre-release suffix for AssemblyVersion/FileVersion (only accepts major.minor.build.revision)
+          NUMERIC_VERSION="${VERSION%%-*}"
+          echo "Building with version: $VERSION (assembly version: $NUMERIC_VERSION)"
           
           # Build all projects with the same version
           # This ensures ProjectReferences will use the correct version when packed
@@ -133,8 +135,8 @@ jobs:
             /maxcpucount:1 \
             -p:Version=$VERSION \
             -p:PackageVersion=$VERSION \
-            -p:AssemblyVersion=$VERSION \
-            -p:FileVersion=$VERSION \
+            -p:AssemblyVersion=$NUMERIC_VERSION \
+            -p:FileVersion=$NUMERIC_VERSION \
             -p:InformationalVersion=$VERSION
       
       - name: Pack NuGet packages
