@@ -31,7 +31,7 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Simple table wrapper for testing spatial queries (used in skipped tests).
     /// </summary>
-    private class S2StoreTable : DynamoDbTableBase
+    private class S2StoreTable : GenericTable
     {
         public S2StoreTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)
@@ -49,7 +49,7 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
     /// Table wrapper for GSI-based S2 spatial queries with low precision (level 10).
     /// Supports multiple stores per S2 cell via GSI and large search radii.
     /// </summary>
-    private class S2StoreWithGsiLowPrecisionTable : DynamoDbTableBase
+    private class S2StoreWithGsiLowPrecisionTable : GenericTable
     {
         public DynamoDbIndex S2LocationIndex { get; }
         
@@ -70,7 +70,7 @@ public class S2PerformanceIntegrationTests : IntegrationTestBase
     /// Table wrapper for GSI-based spatial queries.
     /// Supports multiple stores per S2 cell via GSI.
     /// </summary>
-    private class S2StoreWithGsiTable : DynamoDbTableBase
+    private class S2StoreWithGsiTable : GenericTable
     {
         public DynamoDbIndex S2LocationIndex { get; }
         

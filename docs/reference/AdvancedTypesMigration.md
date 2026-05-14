@@ -190,12 +190,17 @@ public class ProductMigrationService
         
         while (hasMore)
         {
-            var response = await _table.Products.Scan()
-                .WithExclusiveStartKey(lastKey)
-                .Take(100)
-                .ToListAsync();
+            var scan = _table.Products.Scan()
+                .Take(100);
             
-            foreach (var product in response.Items)
+            if (lastKey != null)
+            {
+                scan = scan.WithExclusiveStartKey(lastKey);
+            }
+            
+            var products = await scan.ToListAsync();
+            
+            foreach (var product in products)
             {
                 if (await MigrateProductAsync(product))
                 {
@@ -203,7 +208,8 @@ public class ProductMigrationService
                 }
             }
             
-            lastKey = response.LastEvaluatedKey;
+            // Access pagination key via builder.Response
+            lastKey = scan.Response?.LastEvaluatedKey;
             hasMore = lastKey != null && lastKey.Count > 0;
             
             Console.WriteLine($"Migrated {migratedCount} products...");
@@ -351,7 +357,7 @@ Only update if the new attribute doesn't exist:
 await _table.Products.Update(productId)
     .Set(x => new { Tags = newTags })
     .Where(x => x.Tags.AttributeNotExists())
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ## Common Migration Scenarios
@@ -438,7 +444,7 @@ public async Task AddTtlToExistingSessions(SessionTable table, TimeSpan sessionD
         {
             await table.Sessions.Update(session.SessionId)
                 .Set(x => new { ExpiresAt = DateTime.UtcNow.Add(sessionDuration) })
-                .ExecuteAsync();
+                .UpdateAsync();
         }
     }
 }
@@ -481,7 +487,7 @@ public async Task MigrateToS3(DocumentTable table, Document document, IBlobStora
         // Optionally remove old attribute
         await table.Documents.Update(document.DocumentId)
             .Remove(x => x.ContentOld)
-            .ExecuteAsync();
+            .UpdateAsync();
     }
 }
 ```

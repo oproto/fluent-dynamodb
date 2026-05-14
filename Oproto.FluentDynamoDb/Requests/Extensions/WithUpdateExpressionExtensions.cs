@@ -377,6 +377,574 @@ public static class WithUpdateExpressionExtensions
         return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
     }
 
+    #region Shared Helper Methods
 
+    /// <summary>
+    /// Gets the DynamoDB attribute name from a member expression.
+    /// </summary>
+    /// <param name="member">The member expression.</param>
+    /// <returns>The DynamoDB attribute name.</returns>
+    private static string GetAttributeNameFromMember(MemberExpression member)
+    {
+        // Check for [DynamoDbAttribute] attribute
+        var dynamoDbAttr = member.Member.GetCustomAttributes(typeof(DynamoDbAttributeAttribute), true)
+            .FirstOrDefault() as DynamoDbAttributeAttribute;
+
+        if (dynamoDbAttr != null && !string.IsNullOrEmpty(dynamoDbAttr.AttributeName))
+        {
+            return dynamoDbAttr.AttributeName;
+        }
+
+        // Default to lowercase property name (camelCase convention)
+        var propertyName = member.Member.Name;
+        return char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
+    }
+
+    #endregion
+
+    #region Set Operations (Requirements 5.1, 5.2, 5.3, 5.4, 5.5)
+
+    /// <summary>
+    /// Adds a single element to a set using DynamoDB's ADD action.
+    /// Generates an ADD expression (e.g., ADD #categories :v0).
+    /// </summary>
+    /// <typeparam name="T">The type of the builder implementing IWithUpdateExpression.</typeparam>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The builder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="value">The value to add to the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when setSelector is null.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>
+    /// Translates to: ADD #attr :val
+    /// Where :val is a set containing the single element.
+    /// </para>
+    /// 
+    /// <para><strong>DynamoDB Behavior:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>If the attribute doesn't exist, it is created with the specified element</description></item>
+    /// <item><description>If the attribute exists, the element is added to the existing set</description></item>
+    /// <item><description>Duplicate elements are automatically handled by DynamoDB (sets don't allow duplicates)</description></item>
+    /// </list>
+    /// 
+    /// <para><strong>Supported Set Types:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>HashSet&lt;string&gt; - String sets (SS)</description></item>
+    /// <item><description>HashSet&lt;int&gt;, HashSet&lt;long&gt;, HashSet&lt;decimal&gt;, HashSet&lt;double&gt; - Number sets (NS)</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Add single category
+    /// await table.Items.Update(itemId)
+    ///     .AddToSet(x => x.Categories, "electronics")
+    ///     .UpdateAsync();
+    /// // Translates to: ADD #categories :v0
+    /// // Where :v0 = { SS: ["electronics"] }
+    /// 
+    /// // Add to numeric set
+    /// await table.Items.Update(itemId)
+    ///     .AddToSet(x => x.Scores, 100)
+    ///     .UpdateAsync();
+    /// // Translates to: ADD #scores :v0
+    /// // Where :v0 = { NS: ["100"] }
+    /// </code>
+    /// </example>
+    [GenerateWrapper(RequiresSpecialization = true, SpecializationNotes = "Fixes TEntity generic parameter to the builder's entity type")]
+    public static T AddToSet<T, TEntity, TElement>(
+        this IWithUpdateExpression<T> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        TElement value,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the value as a set
+        var valuePlaceholder = CaptureSetValueForAdd(new[] { value }, builder.GetAttributeValueHelper());
+
+        // Build ADD expression
+        var updateExpression = $"ADD {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Adds a single element to a set using DynamoDB's ADD action for UpdateItemRequestBuilder.
+    /// This overload provides better type inference for update operations.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="value">The value to add to the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public static UpdateItemRequestBuilder<TEntity> AddToSet<TEntity, TElement>(
+        this UpdateItemRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        TElement value,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IDynamoDbEntity, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the value as a set
+        var valuePlaceholder = CaptureSetValueForAdd(new[] { value }, builder.GetAttributeValueHelper());
+
+        // Build ADD expression
+        var updateExpression = $"ADD {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Adds multiple elements to a set using DynamoDB's ADD action.
+    /// Generates an ADD expression (e.g., ADD #categories :v0).
+    /// </summary>
+    /// <typeparam name="T">The type of the builder implementing IWithUpdateExpression.</typeparam>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The builder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="values">The values to add to the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when setSelector or values is null.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>
+    /// Translates to: ADD #attr :val
+    /// Where :val is a set containing all the specified elements.
+    /// </para>
+    /// 
+    /// <para><strong>DynamoDB Behavior:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>If the attribute doesn't exist, it is created with the specified elements</description></item>
+    /// <item><description>If the attribute exists, the elements are added to the existing set (set union)</description></item>
+    /// <item><description>Duplicate elements are automatically handled by DynamoDB</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Add multiple categories
+    /// await table.Items.Update(itemId)
+    ///     .AddToSet(x => x.Categories, new[] { "electronics", "sale" })
+    ///     .UpdateAsync();
+    /// // Translates to: ADD #categories :v0
+    /// // Where :v0 = { SS: ["electronics", "sale"] }
+    /// 
+    /// // Add multiple scores
+    /// await table.Items.Update(itemId)
+    ///     .AddToSet(x => x.Scores, new[] { 100, 200, 300 })
+    ///     .UpdateAsync();
+    /// // Translates to: ADD #scores :v0
+    /// // Where :v0 = { NS: ["100", "200", "300"] }
+    /// </code>
+    /// </example>
+    [GenerateWrapper(RequiresSpecialization = true, SpecializationNotes = "Fixes TEntity generic parameter to the builder's entity type")]
+    public static T AddToSet<T, TEntity, TElement>(
+        this IWithUpdateExpression<T> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        IEnumerable<TElement> values,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+        if (values == null)
+            throw new ArgumentNullException(nameof(values));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the values as a set
+        var valuePlaceholder = CaptureSetValueForAdd(values, builder.GetAttributeValueHelper());
+
+        // Build ADD expression
+        var updateExpression = $"ADD {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Adds multiple elements to a set using DynamoDB's ADD action for UpdateItemRequestBuilder.
+    /// This overload provides better type inference for update operations.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="values">The values to add to the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public static UpdateItemRequestBuilder<TEntity> AddToSet<TEntity, TElement>(
+        this UpdateItemRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        IEnumerable<TElement> values,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IDynamoDbEntity, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+        if (values == null)
+            throw new ArgumentNullException(nameof(values));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the values as a set
+        var valuePlaceholder = CaptureSetValueForAdd(values, builder.GetAttributeValueHelper());
+
+        // Build ADD expression
+        var updateExpression = $"ADD {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Removes a single element from a set using DynamoDB's DELETE action.
+    /// Generates a DELETE expression (e.g., DELETE #categories :v0).
+    /// </summary>
+    /// <typeparam name="T">The type of the builder implementing IWithUpdateExpression.</typeparam>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The builder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="value">The value to remove from the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when setSelector is null.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>
+    /// Translates to: DELETE #attr :val
+    /// Where :val is a set containing the single element to remove.
+    /// </para>
+    /// 
+    /// <para><strong>DynamoDB Behavior:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Only works with set types (SS, NS, BS)</description></item>
+    /// <item><description>Removes only the specified element from the set</description></item>
+    /// <item><description>If the element doesn't exist in the set, the operation succeeds without error</description></item>
+    /// <item><description>If the attribute doesn't exist, the operation succeeds without error</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Remove single category
+    /// await table.Items.Update(itemId)
+    ///     .DeleteFromSet(x => x.Categories, "clearance")
+    ///     .UpdateAsync();
+    /// // Translates to: DELETE #categories :v0
+    /// // Where :v0 = { SS: ["clearance"] }
+    /// 
+    /// // Remove from numeric set
+    /// await table.Items.Update(itemId)
+    ///     .DeleteFromSet(x => x.Scores, 50)
+    ///     .UpdateAsync();
+    /// // Translates to: DELETE #scores :v0
+    /// // Where :v0 = { NS: ["50"] }
+    /// </code>
+    /// </example>
+    [GenerateWrapper(RequiresSpecialization = true, SpecializationNotes = "Fixes TEntity generic parameter to the builder's entity type")]
+    public static T DeleteFromSet<T, TEntity, TElement>(
+        this IWithUpdateExpression<T> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        TElement value,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the value as a set
+        var valuePlaceholder = CaptureSetValueForDelete(new[] { value }, builder.GetAttributeValueHelper());
+
+        // Build DELETE expression
+        var updateExpression = $"DELETE {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Removes a single element from a set using DynamoDB's DELETE action for UpdateItemRequestBuilder.
+    /// This overload provides better type inference for update operations.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="value">The value to remove from the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public static UpdateItemRequestBuilder<TEntity> DeleteFromSet<TEntity, TElement>(
+        this UpdateItemRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        TElement value,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IDynamoDbEntity, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the value as a set
+        var valuePlaceholder = CaptureSetValueForDelete(new[] { value }, builder.GetAttributeValueHelper());
+
+        // Build DELETE expression
+        var updateExpression = $"DELETE {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Removes multiple elements from a set using DynamoDB's DELETE action.
+    /// Generates a DELETE expression (e.g., DELETE #categories :v0).
+    /// </summary>
+    /// <typeparam name="T">The type of the builder implementing IWithUpdateExpression.</typeparam>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The builder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="values">The values to remove from the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when setSelector or values is null.</exception>
+    /// <remarks>
+    /// <para><strong>DynamoDB Translation:</strong></para>
+    /// <para>
+    /// Translates to: DELETE #attr :val
+    /// Where :val is a set containing all the elements to remove.
+    /// </para>
+    /// 
+    /// <para><strong>DynamoDB Behavior:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Only works with set types (SS, NS, BS)</description></item>
+    /// <item><description>Removes all specified elements from the set (set difference)</description></item>
+    /// <item><description>Elements that don't exist in the set are ignored</description></item>
+    /// <item><description>If the attribute doesn't exist, the operation succeeds without error</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Remove multiple categories
+    /// await table.Items.Update(itemId)
+    ///     .DeleteFromSet(x => x.Categories, new[] { "clearance", "discontinued" })
+    ///     .UpdateAsync();
+    /// // Translates to: DELETE #categories :v0
+    /// // Where :v0 = { SS: ["clearance", "discontinued"] }
+    /// 
+    /// // Remove multiple scores
+    /// await table.Items.Update(itemId)
+    ///     .DeleteFromSet(x => x.Scores, new[] { 50, 75 })
+    ///     .UpdateAsync();
+    /// // Translates to: DELETE #scores :v0
+    /// // Where :v0 = { NS: ["50", "75"] }
+    /// </code>
+    /// </example>
+    [GenerateWrapper(RequiresSpecialization = true, SpecializationNotes = "Fixes TEntity generic parameter to the builder's entity type")]
+    public static T DeleteFromSet<T, TEntity, TElement>(
+        this IWithUpdateExpression<T> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        IEnumerable<TElement> values,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+        if (values == null)
+            throw new ArgumentNullException(nameof(values));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the values as a set
+        var valuePlaceholder = CaptureSetValueForDelete(values, builder.GetAttributeValueHelper());
+
+        // Build DELETE expression
+        var updateExpression = $"DELETE {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Removes multiple elements from a set using DynamoDB's DELETE action for UpdateItemRequestBuilder.
+    /// This overload provides better type inference for update operations.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type being updated.</typeparam>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="builder">The UpdateItemRequestBuilder instance.</param>
+    /// <param name="setSelector">Lambda expression selecting the set property (e.g., x => x.Categories).</param>
+    /// <param name="values">The values to remove from the set.</param>
+    /// <param name="metadata">Optional entity metadata for property validation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public static UpdateItemRequestBuilder<TEntity> DeleteFromSet<TEntity, TElement>(
+        this UpdateItemRequestBuilder<TEntity> builder,
+        Expression<Func<TEntity, HashSet<TElement>>> setSelector,
+        IEnumerable<TElement> values,
+        EntityMetadata? metadata = null)
+        where TEntity : class, IDynamoDbEntity, IEntityMetadataProvider
+    {
+        if (setSelector == null)
+            throw new ArgumentNullException(nameof(setSelector));
+        if (values == null)
+            throw new ArgumentNullException(nameof(values));
+
+        // Extract the document path from the set selector
+        var documentPath = ExtractPropertyPath(setSelector.Body, builder.GetAttributeNameHelper());
+
+        // Capture the values as a set
+        var valuePlaceholder = CaptureSetValueForDelete(values, builder.GetAttributeValueHelper());
+
+        // Build DELETE expression
+        var updateExpression = $"DELETE {documentPath} {valuePlaceholder}";
+
+        return builder.SetUpdateExpression(updateExpression, UpdateExpressionSource.ExpressionBased);
+    }
+
+    /// <summary>
+    /// Extracts the document path from a property expression.
+    /// </summary>
+    /// <param name="expression">The expression body (e.g., x.Categories or x.Metadata.Tags).</param>
+    /// <param name="attributeNames">The attribute name helper for registering placeholders.</param>
+    /// <returns>The document path string.</returns>
+    private static string ExtractPropertyPath(
+        Expression expression,
+        AttributeNameInternal attributeNames)
+    {
+        var pathBuilder = new DocumentPathBuilder(attributeNames);
+        var segments = new List<string>();
+
+        // Walk the expression tree from leaf to root
+        var current = expression;
+        while (current != null)
+        {
+            switch (current)
+            {
+                case MemberExpression member:
+                    // Property access: x.Categories or x.Metadata
+                    var attributeName = GetAttributeNameFromMember(member);
+                    segments.Insert(0, attributeName);
+                    current = member.Expression;
+                    break;
+
+                case ParameterExpression:
+                    // Reached the root parameter (x)
+                    current = null;
+                    break;
+
+                default:
+                    throw new UnsupportedExpressionException(
+                        $"Unsupported expression type in set property path: {current.NodeType}. " +
+                        "Expected property access.",
+                        current);
+            }
+        }
+
+        // Build the document path from segments
+        foreach (var segment in segments)
+        {
+            pathBuilder.AddProperty(segment, segment);
+        }
+
+        return pathBuilder.Build();
+    }
+
+    /// <summary>
+    /// Captures values for ADD set operations.
+    /// </summary>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="values">The values to capture.</param>
+    /// <param name="attributeValues">The attribute value helper.</param>
+    /// <returns>The value placeholder (e.g., ":v0").</returns>
+    private static string CaptureSetValueForAdd<TElement>(IEnumerable<TElement> values, AttributeValueInternal attributeValues)
+    {
+        var placeholder = $":v{attributeValues.AttributeValues.Count}";
+        var attributeValue = ConvertToSetAttributeValue(values);
+        attributeValues.AttributeValues[placeholder] = attributeValue;
+        return placeholder;
+    }
+
+    /// <summary>
+    /// Captures values for DELETE set operations.
+    /// </summary>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="values">The values to capture.</param>
+    /// <param name="attributeValues">The attribute value helper.</param>
+    /// <returns>The value placeholder (e.g., ":v0").</returns>
+    private static string CaptureSetValueForDelete<TElement>(IEnumerable<TElement> values, AttributeValueInternal attributeValues)
+    {
+        var placeholder = $":v{attributeValues.AttributeValues.Count}";
+        var attributeValue = ConvertToSetAttributeValue(values);
+        attributeValues.AttributeValues[placeholder] = attributeValue;
+        return placeholder;
+    }
+
+    /// <summary>
+    /// Converts values to a DynamoDB set AttributeValue (SS or NS).
+    /// </summary>
+    /// <typeparam name="TElement">The type of the set element.</typeparam>
+    /// <param name="values">The values to convert.</param>
+    /// <returns>The AttributeValue representing the set.</returns>
+    private static Amazon.DynamoDBv2.Model.AttributeValue ConvertToSetAttributeValue<TElement>(IEnumerable<TElement> values)
+    {
+        var valueList = values.ToList();
+        
+        if (valueList.Count == 0)
+        {
+            throw new ArgumentException("Cannot create a set with zero elements. DynamoDB sets must contain at least one element.", nameof(values));
+        }
+
+        var elementType = typeof(TElement);
+
+        // String set
+        if (elementType == typeof(string))
+        {
+            return new Amazon.DynamoDBv2.Model.AttributeValue
+            {
+                SS = valueList.Cast<string>().ToList()
+            };
+        }
+
+        // Numeric sets
+        if (elementType == typeof(int) || elementType == typeof(long) || 
+            elementType == typeof(decimal) || elementType == typeof(double) ||
+            elementType == typeof(float) || elementType == typeof(short) ||
+            elementType == typeof(byte) || elementType == typeof(uint) ||
+            elementType == typeof(ulong) || elementType == typeof(ushort) ||
+            elementType == typeof(sbyte))
+        {
+            return new Amazon.DynamoDBv2.Model.AttributeValue
+            {
+                NS = valueList.Select(v => Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture)!).ToList()
+            };
+        }
+
+        // For other types, try to convert to string set
+        return new Amazon.DynamoDBv2.Model.AttributeValue
+        {
+            SS = valueList.Select(v => v?.ToString() ?? string.Empty).ToList()
+        };
+    }
+
+    #endregion
 
 }

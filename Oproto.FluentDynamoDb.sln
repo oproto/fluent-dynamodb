@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-#
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb", "Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj", "{988B3792-D039-496B-99D7-5362FC913AF0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oproto.FluentDynamoDb.UnitTests", "Oproto.FluentDynamoDb.UnitTests\Oproto.FluentDynamoDb.UnitTests.csproj", "{950913A4-B4B1-42B0-97B3-FDBE7B692004}"
@@ -77,6 +77,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "S3BlobDemo", "examples\S3BlobDemo\S3BlobDemo.csproj", "{11AF8708-5283-4110-9608-516CF0956175}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JsonBlobDemo", "examples\JsonBlobDemo\JsonBlobDemo.csproj", "{B300222E-1319-4FE7-AB03-37CDBC00361D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicTableDemo", "examples\DynamicTableDemo\DynamicTableDemo.csproj", "{0C3E5E76-9798-4883-B161-E098B85D2BE4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -224,6 +226,10 @@ Global
 		{B300222E-1319-4FE7-AB03-37CDBC00361D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B300222E-1319-4FE7-AB03-37CDBC00361D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B300222E-1319-4FE7-AB03-37CDBC00361D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C3E5E76-9798-4883-B161-E098B85D2BE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C3E5E76-9798-4883-B161-E098B85D2BE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C3E5E76-9798-4883-B161-E098B85D2BE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C3E5E76-9798-4883-B161-E098B85D2BE4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E69E2710-6FE5-4BFB-8028-4A13D115C405} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
@@ -237,5 +243,6 @@ Global
 		{A5890908-146C-46A1-BAEB-7F414BED0C7D} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
 		{11AF8708-5283-4110-9608-516CF0956175} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
 		{B300222E-1319-4FE7-AB03-37CDBC00361D} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
+		{0C3E5E76-9798-4883-B161-E098B85D2BE4} = {B66906C2-85C7-4CE1-951F-A2730F99BB39}
 	EndGlobalSection
 EndGlobal

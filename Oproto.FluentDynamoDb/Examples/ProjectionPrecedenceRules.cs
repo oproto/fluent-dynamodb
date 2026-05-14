@@ -43,7 +43,7 @@ namespace Oproto.FluentDynamoDb.Examples;
 /// </remarks>
 public class ProjectionPrecedenceRulesExamples
 {
-    public class Transaction
+    public class Transaction : Entities.IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public decimal Amount { get; set; }
@@ -51,9 +51,18 @@ public class ProjectionPrecedenceRulesExamples
         public DateTime CreatedDate { get; set; }
         public string Description { get; set; } = string.Empty;
         public Dictionary<string, string> Metadata { get; set; } = new();
+        
+        // IDynamoDbEntity implementation
+        public static Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => new();
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : Entities.IReadOnlyEntity => throw new NotImplementedException();
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => throw new NotImplementedException();
+        public static string GetPartitionKey(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => string.Empty;
+        public static bool MatchesEntity(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => false;
+        public static Metadata.EntityMetadata GetEntityMetadata() => new();
+        public static bool RequiresWriteTransaction => false;
     }
 
-    public class TransactionSummary
+    public class TransactionSummary : Entities.IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public decimal Amount { get; set; }
@@ -61,13 +70,27 @@ public class ProjectionPrecedenceRulesExamples
         
         // Simulating generated projection metadata
         public static string ProjectionExpression => "id, amount, status";
+        
+        // IDynamoDbEntity implementation
+        public static Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => new();
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : Entities.IReadOnlyEntity => throw new NotImplementedException();
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => throw new NotImplementedException();
+        public static string GetPartitionKey(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => string.Empty;
+        public static bool MatchesEntity(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => false;
+        public static Metadata.EntityMetadata GetEntityMetadata() => new();
+        public static bool RequiresWriteTransaction => false;
     }
 
-    public class TransactionsTable : DynamoDbTableBase
+    public class TransactionsTable : IDynamoDbTable
     {
-        public TransactionsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+        public TransactionsTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Index with manual projection configured
         public DynamoDbIndex StatusIndexWithProjection => new DynamoDbIndex(
@@ -228,11 +251,16 @@ public class ProjectionPrecedenceRulesExamples
     /// - Have fine-grained control over specific indexes
     /// </para>
     /// </remarks>
-    public class TableWithManualOverride : DynamoDbTableBase
+    public class TableWithManualOverride : IDynamoDbTable
     {
-        public TableWithManualOverride(IAmazonDynamoDB client) : base(client, "Transactions")
+        public TableWithManualOverride(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Manual index definition overrides any generated one
         // If the source generator would create a StatusIndex property,
@@ -315,11 +343,16 @@ public class ProjectionPrecedenceRulesExamples
         /// This ensures all queries through an index use the same projection
         /// unless explicitly overridden.
         /// </summary>
-        public class ConsistentDefaultsTable : DynamoDbTableBase
+        public class ConsistentDefaultsTable : IDynamoDbTable
         {
-            public ConsistentDefaultsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+            public ConsistentDefaultsTable(IAmazonDynamoDB client)
             {
+                DynamoDbClient = client;
+                Name = "Transactions";
             }
+
+            public IAmazonDynamoDB DynamoDbClient { get; }
+            public string Name { get; }
 
             // Set a sensible default projection at the index level
             public DynamoDbIndex StatusIndex => new DynamoDbIndex(
@@ -390,11 +423,16 @@ public class ProjectionPrecedenceRulesExamples
         /// Practice 4: Document precedence in your table class.
         /// Make it clear which projections are defaults and which can be overridden.
         /// </summary>
-        public class WellDocumentedTable : DynamoDbTableBase
+        public class WellDocumentedTable : IDynamoDbTable
         {
-            public WellDocumentedTable(IAmazonDynamoDB client) : base(client, "Transactions")
+            public WellDocumentedTable(IAmazonDynamoDB client)
             {
+                DynamoDbClient = client;
+                Name = "Transactions";
             }
+
+            public IAmazonDynamoDB DynamoDbClient { get; }
+            public string Name { get; }
 
             /// <summary>
             /// StatusIndex with standard projection for most queries.

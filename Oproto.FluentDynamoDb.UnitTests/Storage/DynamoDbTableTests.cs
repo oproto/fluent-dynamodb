@@ -4,21 +4,56 @@ using AwesomeAssertions;
 using NSubstitute;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Requests;
+using Oproto.FluentDynamoDb.Requests.Extensions;
 using Oproto.FluentDynamoDb.Storage;
 using Oproto.FluentDynamoDb.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 
+/// <summary>
+/// Tests for table operations using IDynamoDbTable interface.
+/// These tests verify that request builders work correctly when created manually,
+/// which is the pattern used by source-generated table classes.
+/// </summary>
 public class DynamoDbTableTests
 {
-    public class TestTable(IAmazonDynamoDB client) : DynamoDbTableBase(client, "TestTable")
+    /// <summary>
+    /// Test table implementation that implements IDynamoDbTable directly.
+    /// This mirrors the pattern used by source-generated table classes.
+    /// </summary>
+    public class TestTable : IDynamoDbTable
     {
+        public TestTable(IAmazonDynamoDB client)
+        {
+            DynamoDbClient = client;
+            Name = "TestTable";
+            Options = new FluentDynamoDbOptions();
+        }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
+        protected FluentDynamoDbOptions Options { get; }
+
         public DynamoDbIndex Gsi1 => new DynamoDbIndex(this, "gsi1");
-        
-        // Override to test virtual method behavior - constraints are inherited from base
-        public override GetItemRequestBuilder<TEntity> Get<TEntity>() => base.Get<TEntity>();
-        public override UpdateItemRequestBuilder<TEntity> Update<TEntity>() => base.Update<TEntity>();
-        public override DeleteItemRequestBuilder<TEntity> Delete<TEntity>() => base.Delete<TEntity>();
+
+        // Methods that mirror source-generated table classes
+        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
+            => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public QueryRequestBuilder<TEntity> Query<TEntity>(string keyConditionExpression, params object[] values) where TEntity : class, IReadOnlyEntity
+            => WithConditionExpressionExtensions.Where(Query<TEntity>(), keyConditionExpression, values);
+
+        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
+            => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     }
     
     public class TestEntity : TestEntityBase
@@ -164,39 +199,6 @@ public class DynamoDbTableTests
         var put2 = table.Put<TestEntity>();
         
         put1.Should().NotBeSameAs(put2);
-    }
-
-    [Fact]
-    public void VirtualGetMethodCanBeOverridden()
-    {
-        var table = new TestTable(Substitute.For<IAmazonDynamoDB>());
-        var get = table.Get<TestEntity>();
-        
-        // Verify the method can be called and returns correct type
-        get.Should().NotBeNull();
-        get.Should().BeOfType<GetItemRequestBuilder<TestEntity>>();
-    }
-
-    [Fact]
-    public void VirtualUpdateMethodCanBeOverridden()
-    {
-        var table = new TestTable(Substitute.For<IAmazonDynamoDB>());
-        var update = table.Update<TestEntity>();
-        
-        // Verify the method can be called and returns correct type
-        update.Should().NotBeNull();
-        update.Should().BeOfType<UpdateItemRequestBuilder<TestEntity>>();
-    }
-
-    [Fact]
-    public void VirtualDeleteMethodCanBeOverridden()
-    {
-        var table = new TestTable(Substitute.For<IAmazonDynamoDB>());
-        var delete = table.Delete<TestEntity>();
-        
-        // Verify the method can be called and returns correct type
-        delete.Should().NotBeNull();
-        delete.Should().BeOfType<DeleteItemRequestBuilder<TestEntity>>();
     }
 
     [Fact]

@@ -128,13 +128,12 @@ public class KeysGeneratorTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "StatusIndex",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 },
                 new PropertyModel
@@ -142,13 +141,12 @@ public class KeysGeneratorTests
                     PropertyName = "CreatedDate",
                     AttributeName = "created_date",
                     PropertyType = "System.DateTime",
-                    GlobalSecondaryIndexes = new[]
-                    {
-                        new GlobalSecondaryIndexModel
+                    GsiSortKeys = new[]
+                        {
+                            new GsiSortKeyModel
                         {
                             IndexName = "StatusIndex",
-                            IsSortKey = true
-                        }
+}
                     }
                 }
             },
@@ -345,13 +343,12 @@ public class KeysGeneratorTests
                     AttributeName = "pk",
                     PropertyType = "string",
                     IsPartitionKey = true,
-                    GlobalSecondaryIndexes = new[]
+                    KeyFormat = new KeyFormatModel { Prefix = "custom", Separator = "_" },
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
-                            IndexName = "CustomIndex",
-                            IsPartitionKey = true,
-                            KeyFormat = "custom_{0}_suffix"
+                            IndexName = "CustomIndex"
                         }
                     }
                 }
@@ -380,7 +377,7 @@ public class KeysGeneratorTests
         result.Should().Contain("public static partial class CustomIndex",
             "should generate nested keys class for custom GSI");
         result.Should().Contain("var keyValue = \"custom_\" + id;",
-            "should parse custom format string 'custom_{0}_suffix' and generate concatenation with prefix 'custom_'");
+            "should use the specified prefix 'custom' with separator '_' for partition key format");
     }
 
     [Fact]
@@ -415,13 +412,12 @@ public class KeysGeneratorTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "StatusIndex",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 }
             },

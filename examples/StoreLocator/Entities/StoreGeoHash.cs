@@ -49,7 +49,7 @@ public partial class StoreGeoHash
     /// Gets or sets the store location with GeoHash encoding at precision 7 (~76m accuracy).
     /// The GeoHash cell is automatically computed by the source generator and used as the GSI partition key.
     /// </summary>
-    [GlobalSecondaryIndex("geohash-index", IsPartitionKey = true)]
+    [GsiPartitionKey("geohash-index")]
     [DynamoDbAttribute("geohash_cell", GeoHashPrecision = 7)]
     [StoreCoordinates(LatitudeAttributeName = "lat", LongitudeAttributeName = "lon")]
     public GeoLocation Location { get; set; }

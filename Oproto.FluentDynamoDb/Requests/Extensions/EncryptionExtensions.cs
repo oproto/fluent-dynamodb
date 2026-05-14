@@ -82,7 +82,7 @@ public static class EncryptionExtensions
     public static GetItemRequestBuilder<TEntity> WithEncryptionContext<TEntity>(
         this GetItemRequestBuilder<TEntity> builder,
         string context)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         _operationContext.Value = context;
         return builder;
@@ -107,7 +107,7 @@ public static class EncryptionExtensions
     public static QueryRequestBuilder<TEntity> WithEncryptionContext<TEntity>(
         this QueryRequestBuilder<TEntity> builder,
         string context)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         _operationContext.Value = context;
         return builder;
@@ -184,7 +184,7 @@ public static class EncryptionExtensions
     public static ScanRequestBuilder<TEntity> WithEncryptionContext<TEntity>(
         this ScanRequestBuilder<TEntity> builder,
         string context)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         _operationContext.Value = context;
         return builder;

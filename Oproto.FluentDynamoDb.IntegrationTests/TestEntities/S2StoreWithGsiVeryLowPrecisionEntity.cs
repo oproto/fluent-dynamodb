@@ -34,7 +34,7 @@ public partial class S2StoreWithGsiVeryLowPrecisionEntity : IDynamoDbEntity
     /// S2 cell token for the location - GSI partition key.
     /// This is the S2 token at level 8 (~18km cells) for very large-area searches (200km radius).
     /// </summary>
-    [GlobalSecondaryIndex("s2-location-index", IsPartitionKey = true)]
+    [GsiPartitionKey("s2-location-index")]
     [DynamoDbAttribute("s2_cell", SpatialIndexType = SpatialIndexType.S2, S2Level = 8)]
     public GeoLocation Location { get; set; }
     

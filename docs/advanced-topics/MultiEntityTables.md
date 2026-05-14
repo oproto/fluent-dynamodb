@@ -444,11 +444,11 @@ public partial class Order
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string StatusIndexPk { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime StatusIndexSk { get; set; }
 }
@@ -911,6 +911,139 @@ var lines = await table.GetOrderLinesAsync("customer123", "order456");
 **For complete examples including business logic encapsulation and library design patterns, see [Table Generation Customization](TableGenerationCustomization.md).**
 
 
+## Index Consolidation
+
+In multi-entity tables, indexes defined on any entity are consolidated onto the generated table class. This means you can define indexes on different entities and they will all be available on the table.
+
+### How Index Consolidation Works
+
+When multiple entities share a table, the source generator:
+1. Collects all index definitions from all entities
+2. Merges indexes with the same name if they have identical configurations
+3. Reports errors for conflicting index configurations
+4. Generates index properties on the table class for all valid indexes
+
+```csharp
+// Order entity with status index
+[DynamoDbTable("ecommerce", IsDefault = true)]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string OrderId { get; set; } = string.Empty;
+    
+    [GsiPartitionKey("status-index")]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+}
+
+// Customer entity with email index
+[DynamoDbTable("ecommerce")]
+public partial class Customer
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string SortKey { get; set; } = string.Empty;
+    
+    [GsiPartitionKey("email-index")]
+    [DynamoDbAttribute("email")]
+    public string Email { get; set; } = string.Empty;
+}
+
+// Both indexes are available on the generated table class
+var ordersByStatus = await table.StatusIndex.Query<Order>(x => x.Status == "pending").ToListAsync();
+var customersByEmail = await table.EmailIndex.Query<Customer>(x => x.Email == "user@example.com").ToListAsync();
+```
+
+### Index Consolidation Rules
+
+| Scenario | Behavior |
+|----------|----------|
+| Same index name, same configuration | Single index property generated |
+| Same index name, different partition key | FDDB053 diagnostic error |
+| Same index name, different sort key | FDDB054 diagnostic error |
+| Same index name, different type (GSI vs LSI) | FDDB055 diagnostic error |
+| Index on non-default entity only | Index property generated normally |
+
+### Shared Indexes Across Entities
+
+When multiple entities use the same index with identical configuration, a single index property is generated:
+
+```csharp
+// Both entities use the same GSI with identical configuration
+[DynamoDbTable("ecommerce", IsDefault = true)]
+public partial class Order
+{
+    [GsiPartitionKey("gsi1")]
+    [DynamoDbAttribute("gsi1pk")]
+    public string Gsi1Pk { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("ecommerce")]
+public partial class Customer
+{
+    [GsiPartitionKey("gsi1")]
+    [DynamoDbAttribute("gsi1pk")]
+    public string Gsi1Pk { get; set; } = string.Empty;
+}
+
+// Single index property generated, can query either entity type
+var orders = await table.Gsi1.Query<Order>(x => x.Gsi1Pk == "STATUS#pending").ToListAsync();
+var customers = await table.Gsi1.Query<Customer>(x => x.Gsi1Pk == "REGION#us-west").ToListAsync();
+```
+
+### Resolving Index Conflicts
+
+If you see FDDB053, FDDB054, or FDDB055 errors, ensure all entities using the same index name have:
+- The same partition key attribute
+- The same sort key attribute (if any)
+- The same index type (GSI or LSI)
+
+```csharp
+// ❌ Error FDDB053: Conflicting partition keys
+[DynamoDbTable("ecommerce", IsDefault = true)]
+public partial class Order
+{
+    [GsiPartitionKey("gsi1")]
+    [DynamoDbAttribute("status")]  // Different attribute
+    public string Status { get; set; }
+}
+
+[DynamoDbTable("ecommerce")]
+public partial class Customer
+{
+    [GsiPartitionKey("gsi1")]
+    [DynamoDbAttribute("email")]  // Different attribute - conflict!
+    public string Email { get; set; }
+}
+
+// ✅ Fix: Use different index names or same attribute
+[DynamoDbTable("ecommerce", IsDefault = true)]
+public partial class Order
+{
+    [GsiPartitionKey("status-index")]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; }
+}
+
+[DynamoDbTable("ecommerce")]
+public partial class Customer
+{
+    [GsiPartitionKey("email-index")]
+    [DynamoDbAttribute("email")]
+    public string Email { get; set; }
+}
+```
+
+
 ## Best Practices
 
 ### 1. Choose the Right Default Entity
@@ -999,11 +1132,11 @@ public partial class Order
     public string OrderId { get; set; } = string.Empty;
     
     // GSI for status-based queries
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
     
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("createdAt")]
     public DateTime CreatedAt { get; set; }
 }

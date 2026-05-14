@@ -463,7 +463,7 @@ public class InvoicePropertyTests
     /// <summary>
     /// Test table that uses a separate table name to avoid conflicts with the main application.
     /// </summary>
-    private class TestInvoiceTable : DynamoDbTableBase
+    private class TestInvoiceTable : GenericTable
     {
         public TestInvoiceTable(IAmazonDynamoDB client) : base(client, TestTableName)
         {

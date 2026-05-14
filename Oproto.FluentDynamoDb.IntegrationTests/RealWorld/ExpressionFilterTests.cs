@@ -1,3 +1,4 @@
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 using Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
@@ -364,7 +365,7 @@ public class ExpressionFilterTests : IntegrationTestBase
     #endregion
     
     // Helper class to create a table instance for query operations
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)
@@ -374,7 +375,7 @@ public class ExpressionFilterTests : IntegrationTestBase
         public ScanRequestBuilder<ComplexEntity> Scan() => 
             new ScanRequestBuilder<ComplexEntity>(DynamoDbClient).ForTable(Name);
         
-        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        public new ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity =>
             new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
     }
 }

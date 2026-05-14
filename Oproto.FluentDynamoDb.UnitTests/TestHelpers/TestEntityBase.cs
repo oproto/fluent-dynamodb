@@ -23,7 +23,7 @@ public class TestEntityBase : IDynamoDbEntity
         };
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
-        where TSelf : IDynamoDbEntity => (TSelf)(object)new TestEntityBase
+        where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntityBase
         {
             Id = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty,
             Name = item.TryGetValue("name", out var name) ? name.S : string.Empty

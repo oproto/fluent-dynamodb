@@ -56,7 +56,7 @@ namespace TestNamespace
             "should generate Put operation by default");
         tableCode.Should().Contain("Delete(string pk)",
             "should generate Delete operation by default");
-        tableCode.Should().Contain("Update(string pk)",
+        tableCode.Should().Contain("Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate Update operation by default");
     }
 
@@ -105,7 +105,7 @@ namespace TestNamespace
             "should still generate Query operation");
         tableCode.Should().Contain("Put()",
             "should still generate Put operation");
-        tableCode.Should().Contain("Update(string pk)",
+        tableCode.Should().Contain("Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should still generate Update operation");
     }
 
@@ -261,7 +261,7 @@ namespace TestNamespace
         var tableCode = tableFiles[0].SourceText.ToString();
         
         // Update operation should be private
-        tableCode.Should().Contain("private OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("private OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate private Update operation with entity-specific builder when Modifier = Private");
     }
 
@@ -315,7 +315,7 @@ namespace TestNamespace
             "should not generate Delete operation when Generate = false");
         
         // Operations not configured should use default (public, except Scan which is not currently implemented)
-        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate public Update operation with entity-specific builder (default)");
     }
 
@@ -362,7 +362,7 @@ namespace TestNamespace
             "should generate internal Put operation when All flag is used");
         tableCode.Should().Contain("internal DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate internal Delete operation when All flag is used");
-        tableCode.Should().Contain("internal OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("internal OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate internal Update operation with entity-specific builder when All flag is used");
     }
 
@@ -411,7 +411,7 @@ namespace TestNamespace
             "should generate public Put operation (default)");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate public Delete operation (default)");
-        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate public Update operation with entity-specific builder (default)");
     }
 
@@ -459,7 +459,7 @@ namespace TestNamespace
         // Write operations should be protected
         tableCode.Should().Contain("protected PutItemRequestBuilder<Order> Put()",
             "should generate protected Put operation");
-        tableCode.Should().Contain("protected OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("protected OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate protected Update operation with entity-specific builder");
         
         // Delete should be public (default)
@@ -662,7 +662,7 @@ namespace TestNamespace
             "should generate public Put operation by default");
         tableCode.Should().Contain("public DeleteItemRequestBuilder<Order> Delete(string pk)",
             "should generate public Delete operation by default");
-        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk)",
+        tableCode.Should().Contain("public OrderUpdateBuilder Update(string pk, KeyCondition keyCondition = KeyCondition.None)",
             "should generate public Update operation with entity-specific builder by default");
     }
 

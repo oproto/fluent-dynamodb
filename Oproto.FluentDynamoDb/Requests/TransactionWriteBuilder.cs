@@ -25,6 +25,7 @@ public class TransactionWriteBuilder
 {
     private readonly List<TransactWriteItem> _items = new();
     private readonly List<ITransactableUpdateBuilder> _updateBuilders = new(); // Store update builders for encryption
+    private readonly List<(int itemIndex, Func<CancellationToken, Task> resolver)> _deferredPutResolvers = new(); // Store deferred put builders for encryption
     private IAmazonDynamoDB? _client;
     private IAmazonDynamoDB? _explicitClient;
     private ReturnConsumedCapacity? _returnConsumedCapacity;
@@ -52,19 +53,54 @@ public class TransactionWriteBuilder
         InferClientIfNeeded(builder);
         InferOptionsIfNeeded(builder);
         
-        var item = new TransactWriteItem
-        {
-            Put = new Put
-            {
-                TableName = ((ITransactablePutBuilder)builder).GetTableName(),
-                Item = ((ITransactablePutBuilder)builder).GetItem(),
-                ConditionExpression = ((ITransactablePutBuilder)builder).GetConditionExpression(),
-                ExpressionAttributeNames = ((ITransactablePutBuilder)builder).GetExpressionAttributeNames(),
-                ExpressionAttributeValues = ((ITransactablePutBuilder)builder).GetExpressionAttributeValues()
-            }
-        };
+        var putBuilder = (ITransactablePutBuilder)builder;
         
-        _items.Add(item);
+        if (builder.HasDeferredEntity)
+        {
+            // Deferred serialization: store placeholder and resolve during ExecuteAsync
+            var itemIndex = _items.Count;
+            var item = new TransactWriteItem
+            {
+                Put = new Put
+                {
+                    TableName = putBuilder.GetTableName(),
+                    ConditionExpression = putBuilder.GetConditionExpression(),
+                    ExpressionAttributeNames = putBuilder.GetExpressionAttributeNames(),
+                    ExpressionAttributeValues = putBuilder.GetExpressionAttributeValues()
+                }
+            };
+            _items.Add(item);
+            
+            _deferredPutResolvers.Add((itemIndex, async (ct) =>
+            {
+                var options = builder.GetOptions();
+                var hydrator = options.HydratorRegistry?.GetHydrator<TEntity>();
+                var entity = builder.GetDeferredEntity();
+                if (hydrator != null && entity != null)
+                {
+                    var blobProvider = options.BlobStorageProvider;
+                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct).ConfigureAwait(false);
+                    builder.SetResolvedItem(serialized);
+                    _items[itemIndex].Put.Item = serialized;
+                }
+            }));
+        }
+        else
+        {
+            var item = new TransactWriteItem
+            {
+                Put = new Put
+                {
+                    TableName = putBuilder.GetTableName(),
+                    Item = putBuilder.GetItem(),
+                    ConditionExpression = putBuilder.GetConditionExpression(),
+                    ExpressionAttributeNames = putBuilder.GetExpressionAttributeNames(),
+                    ExpressionAttributeValues = putBuilder.GetExpressionAttributeValues()
+                }
+            };
+            _items.Add(item);
+        }
+        
         return this;
     }
 
@@ -393,7 +429,7 @@ public class TransactionWriteBuilder
                 // Encrypt parameters for all update builders
                 foreach (var updateBuilder in _updateBuilders)
                 {
-                    await updateBuilder.EncryptParametersIfNeededAsync(cancellationToken);
+                    await updateBuilder.EncryptParametersIfNeededAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 // Rebuild update items after encryption to get encrypted attribute values
@@ -454,6 +490,15 @@ public class TransactionWriteBuilder
             }
         }
 
+        // Resolve deferred put operations (encrypted entities) before building request
+        if (_deferredPutResolvers.Count > 0)
+        {
+            foreach (var (_, resolver) in _deferredPutResolvers)
+            {
+                await resolver(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         var request = new TransactWriteItemsRequest
         {
             TransactItems = _items,
@@ -473,7 +518,7 @@ public class TransactionWriteBuilder
             {
                 foreach (var blobContext in _blobWriteContexts)
                 {
-                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken);
+                    var result = await strategy.OnBeforeDynamoDbWriteAsync(blobContext, cancellationToken).ConfigureAwait(false);
                     blobContext.UploadedReferenceKeys = result.ReferenceKeys;
                     uploadedContexts.Add(blobContext);
                     
@@ -487,12 +532,12 @@ public class TransactionWriteBuilder
             {
                 foreach (var deleteContext in _blobDeleteContexts)
                 {
-                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken);
+                    await strategy.OnBeforeDynamoDbDeleteAsync(deleteContext, cancellationToken).ConfigureAwait(false);
                 }
             }
 
             // Step 3: Execute transaction
-            var response = await effectiveClient.TransactWriteItemsAsync(request, cancellationToken);
+            var response = await effectiveClient.TransactWriteItemsAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (response == null)
             {
@@ -504,12 +549,12 @@ public class TransactionWriteBuilder
             {
                 foreach (var blobContext in uploadedContexts)
                 {
-                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken);
+                    await strategy.OnAfterDynamoDbWriteSuccessAsync(blobContext, cancellationToken).ConfigureAwait(false);
                 }
                 
                 foreach (var deleteContext in _blobDeleteContexts)
                 {
-                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken);
+                    await strategy.OnAfterDynamoDbDeleteSuccessAsync(deleteContext, cancellationToken).ConfigureAwait(false);
                 }
             }
             
@@ -544,7 +589,7 @@ public class TransactionWriteBuilder
                 {
                     try
                     {
-                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken);
+                        await strategy.OnAfterDynamoDbWriteFailureAsync(blobContext, ex, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {

@@ -7,7 +7,1040 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-13
+
 ### Added
+
+- **String CompareTo Support in Lambda Expressions** - Added support for `string.CompareTo()` method in lambda expressions for string range comparisons
+  - Enables intuitive string comparison syntax: `x => x.SortKey.CompareTo("2024-01-01") >= 0`
+  - Translates to DynamoDB comparison operators: `#attr >= :p0`
+  - Supports all comparison operators: `>`, `>=`, `<`, `<=`, `==`, `!=`
+  - Works in both key conditions and filter expressions
+  
+  **Usage:**
+  ```csharp
+  // String range query on sort key
+  var orders = await table.Orders.Query()
+      .Where(x => x.CustomerId == customerId && x.OrderDate.CompareTo("2024-01-01") >= 0)
+      .ToListAsync();
+  
+  // Combined range (alternative to Between)
+  var orders = await table.Orders.Query()
+      .Where(x => x.CustomerId == customerId && 
+             x.OrderDate.CompareTo("2024-01-01") >= 0 && 
+             x.OrderDate.CompareTo("2024-12-31") <= 0)
+      .ToListAsync();
+  ```
+
+- **DateOnly and TimeOnly Serialization** - Native serialization support for .NET 6+ `DateOnly` and `TimeOnly` types
+  - **DateOnly Serialization**: Automatically serializes to ISO 8601 date format (`yyyy-MM-dd`) as DynamoDB string attribute
+  - **TimeOnly Serialization**: Automatically serializes to ISO 8601 time format (`HH:mm:ss.fffffff`) as DynamoDB string attribute
+  - **UpdateExpressionTranslator Support**: Both types work in lambda-based update and filter expressions
+  - **Collection Support**: `List<DateOnly>` and `List<TimeOnly>` are fully supported
+  - **Custom Format Strings**: Use `[DynamoDbAttribute(Format = "...")]` to specify custom formats
+  - **Nullable Support**: `DateOnly?` and `TimeOnly?` handle null values correctly
+  - **Round-Trip Consistency**: Serializing then deserializing produces equivalent values
+  - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.2, 4.1-4.4, 5.1-5.4_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("Events")]
+  public partial class Event
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string Pk { get; set; } = string.Empty;
+      
+      // Default ISO 8601 format: "2024-12-28"
+      [DynamoDbAttribute("eventDate")]
+      public DateOnly EventDate { get; set; }
+      
+      // Custom format: "12/28/2024"
+      [DynamoDbAttribute("displayDate", Format = "MM/dd/yyyy")]
+      public DateOnly DisplayDate { get; set; }
+      
+      // Default ISO 8601 format: "14:30:45.1234567"
+      [DynamoDbAttribute("startTime")]
+      public TimeOnly StartTime { get; set; }
+      
+      // Custom format: "2:30 PM"
+      [DynamoDbAttribute("displayTime", Format = "h:mm tt")]
+      public TimeOnly DisplayTime { get; set; }
+      
+      // Collections are supported
+      [DynamoDbAttribute("availableDates")]
+      public List<DateOnly> AvailableDates { get; set; } = new();
+  }
+  
+  // Use in update expressions
+  await table.Events.Update(eventId)
+      .Set(x => new EventUpdateModel { EventDate = new DateOnly(2024, 12, 31) })
+      .UpdateAsync();
+  
+  // Use in filter expressions
+  var events = await table.Events.Query(x => x.Pk == pk)
+      .WithFilter(x => x.EventDate > new DateOnly(2024, 1, 1))
+      .ToListAsync();
+  ```
+
+- **IfNotExists with Arithmetic** - Support for combining `IfNotExists()` with arithmetic operations in update expressions
+  - Enables counter patterns with non-zero default values: `x.Count.IfNotExists(100) + 1`
+  - Generates DynamoDB expression: `SET #count = if_not_exists(#count, :default) + :increment`
+  - Supports both addition and subtraction operators
+  - Works with all numeric types (int, long, decimal, etc.)
+  
+  **Usage:**
+  ```csharp
+  // Initialize counter to 100 if missing, then increment
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Count = x.Count.IfNotExists(100) + 1 })
+      .UpdateAsync();
+  
+  // Decrement with default
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Balance = x.Balance.IfNotExists(1000m) - 50m })
+      .UpdateAsync();
+  ```
+
+- **Key Condition Shortcuts** - Simplified conditional patterns for Put, Update, and Delete operations
+  - New `KeyCondition` enum with `None`, `MustExist`, and `MustNotExist` values
+  - New `IfExists()` and `IfNotExists()` builder methods on `PutItemRequestBuilder`, `UpdateItemRequestBuilder`, and `DeleteItemRequestBuilder`
+  - New `WithKeyCondition(KeyCondition)` builder method for explicit enum-based configuration
+  - Automatically generates `attribute_exists()` or `attribute_not_exists()` conditions for key attributes
+  - Supports both simple (PK only) and composite (PK + SK) key entities
+  - Combines with existing `Where()` clauses using AND
+  - Optional `KeyCondition` parameter on generated convenience methods (`PutAsync`, `Update`, `DeleteAsync`)
+  - Works within transactions and batch operations
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.3, 4.1-4.3, 5.1-5.4, 6.1-6.4, 7.1-7.4, 8.1-8.4, 9.1-9.3, 10.1-10.3_
+  
+  **Usage:**
+  ```csharp
+  // Create only (fail if exists)
+  await table.Users.Put(user).IfNotExists().PutAsync();
+  await table.Users.PutAsync(user, KeyCondition.MustNotExist);
+  
+  // Update existing only (prevent upsert)
+  await table.Users.Update(pk, sk, KeyCondition.MustExist)
+      .Set(x => new UserUpdateModel { Name = newName })
+      .UpdateAsync();
+  
+  // Delete only if exists
+  await table.Users.Delete(pk).IfExists().DeleteAsync();
+  await table.Users.DeleteAsync(pk, KeyCondition.MustExist);
+  
+  // Combine with additional conditions
+  await table.Users.Update(pk, sk)
+      .IfExists()
+      .Set(x => new UserUpdateModel { Status = "active" })
+      .Where(x => x.Status == "pending")
+      .UpdateAsync();
+  ```
+
+- **Automatic Index Projections** - Enhanced GSI/LSI generation with automatic projection type support
+  - **Automatic Entity Projections for Single-Entity Tables**: Indexes in single-entity tables automatically use the entity type as the default projection, enabling non-generic `Query()` methods
+    - Single-entity tables generate `DynamoDbIndex<TEntity>` instead of `DynamoDbIndex`
+    - Non-generic `Query()` methods return the entity type directly
+    - Multi-entity tables preserve existing behavior with `DynamoDbIndex`
+  - **ProjectionType Property on Index Attributes**: New `ProjectionType` property on `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` attributes
+    - `ProjectionType.All` (default): All attributes projected
+    - `ProjectionType.KeysOnly`: Auto-generates keys-only projection record
+    - `ProjectionType.Include`: Use with `[UseProjection]` for custom projection
+    - Metadata used by schema validation and table creation
+  - **Auto-Generated Keys Only Projection Records**: When `ProjectionType = KeysOnly` is specified, a read-only projection record is automatically generated
+    - Record named `{IndexPropertyName}KeysProjection`
+    - Contains GSI/LSI keys AND base table keys
+    - Implements `IReadOnlyEntity<TSelf>` interface
+    - Includes `FromDynamoDb` method and `ProjectionExpression` property
+    - `GetPartitionKey()`/`GetSortKey()` return base table keys for entity lookup
+  - **New Diagnostic Warnings**:
+    - `FDDB070`: Warning when `ProjectionType = Include` but no `ProjectedProperties` defined
+    - `FDDB072`: Warning when `ProjectionType = KeysOnly` combined with `[UseProjection]` (UseProjection takes precedence)
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.9, 4.1-4.5, 5.1-5.4, 6.1-6.3_
+  
+  **Usage:**
+  ```csharp
+  // Single-entity table: automatic entity projection
+  [DynamoDbTable("orders")]
+  public partial class Order
+  {
+      [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+      [SortKey] [DynamoDbAttribute("sk")] public string Sk { get; set; } = string.Empty;
+      
+      [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+      [DynamoDbAttribute("status")] public string Status { get; set; } = string.Empty;
+  }
+  
+  // Generated: DynamoDbIndex<Order> StatusIndex
+  var orders = await table.StatusIndex.Query(x => x.Status == "pending").ToListAsync();
+  
+  // Keys Only projection: auto-generates projection record
+  [GlobalSecondaryIndex("CategoryIndex", IsPartitionKey = true, ProjectionType = ProjectionType.KeysOnly)]
+  [DynamoDbAttribute("category")] public string Category { get; set; } = string.Empty;
+  
+  // Query returns CategoryIndexKeysProjection, use to batch-get full entities
+  var keys = await table.CategoryIndex.Query(x => x.Category == "electronics").ToListAsync();
+  var orders = await DynamoDbBatch.Get.Add(keys.Select(k => table.Orders.Get(k.Pk, k.Sk))).ExecuteAsync();
+  ```
+
+- **List Index API Consistency and Dynamic Index Support** - Unified API for list index operations with dynamic index evaluation
+  - **New `SetAt` Extension Method**: Update list elements at specific indices using consistent extension method pattern
+    - `x.Tags.SetAt(0, "updated")` → `SET #tags[0] = :v0`
+    - Works with nested lists: `x.Metadata.Keywords.SetAt(0, "value")`
+    - Supports chaining multiple SetAt calls: `x.Tags.SetAt(0, "a").SetAt(1, "b")` → `SET #tags[0] = :v0, #tags[1] = :v1`
+  - **New `RemoveAt` Extension Method**: Remove list elements at specific indices using consistent extension method pattern
+    - `x.Tags.RemoveAt(2)` → `REMOVE #tags[2]`
+    - Works with nested lists: `x.Metadata.Keywords.RemoveAt(1)`
+  - **Dynamic Index Support**: Use variables, method calls, and property access as list indices (evaluated at translation time)
+    - Variable index: `int idx = GetIndex(); .Set(x => x.Tags.SetAt(idx, "value"))`
+    - Method call index: `.Set(x => x.Tags.SetAt(GetTargetIndex(), "value"))`
+    - Property access index: `.Set(x => x.Tags.SetAt(config.Index, "value"))`
+    - Works in filter expressions: `int i = 0; .WithFilter(x => x.Tags[i] == "featured")`
+    - Works in condition expressions: `.Where(x => x.Tags[index] == "expected")`
+  - **Index Validation**: Negative indices throw `ArgumentOutOfRangeException` at translation time
+  - **Entity Parameter Rejection**: Indices referencing the entity parameter throw `UnsupportedExpressionException`
+  - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.6_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.Expressions;
+  
+  // SetAt with constant index
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.SetAt(0, "updated"))
+      .UpdateAsync();
+  
+  // SetAt with dynamic index
+  int index = GetIndexToUpdate();
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.SetAt(index, "updated"))
+      .UpdateAsync();
+  
+  // Chained SetAt operations
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.SetAt(0, "first").SetAt(1, "second"))
+      .UpdateAsync();
+  
+  // RemoveAt
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.RemoveAt(2))
+      .UpdateAsync();
+  
+  // Dynamic index in filter
+  int idx = 0;
+  var items = await table.Items.Query(x => x.Category == category)
+      .WithFilter(x => x.Tags[idx] == "featured")
+      .ToListAsync();
+  ```
+
+- **Nested Map and List Lambda Expression Support** - Full lambda expression support for nested object properties, list indexing, and collection operations
+  - **Nested Property Access in Filters/Conditions**: Query nested map properties using lambda expressions in `.WithFilter()` and `.Where()` on Put/Update/Delete operations
+    - Single-level: `.WithFilter(x => x.Address.City == "Seattle")`
+    - Multi-level: `.WithFilter(x => x.ShippingAddress.Country.Code == "US")`
+    - Works with all comparison operators and logical operators
+  - **List Index Access in Filters/Conditions**: Filter on specific list elements by index
+    - Direct index: `.WithFilter(x => x.Tags[0] == "featured")`
+    - Nested list: `.WithFilter(x => x.Metadata.Keywords[0] == "sale")`
+    - Object in list: `.WithFilter(x => x.LineItems[0].ProductId == productId)`
+  - **Nested Property Updates**: Partially update nested objects without replacing the entire map
+    - Single property: `.Set(x => new CustomerUpdateModel { ShippingAddress = new AddressUpdateModel { City = "Portland" } })`
+    - Multiple properties in single expression
+    - Multi-level nesting support
+    - Combined with top-level updates
+  - **List Operations**: New extension methods for list manipulation in update expressions
+    - `Append<T>(item)` - Add element to end of list
+    - `Prepend<T>(item)` - Add element to beginning of list
+    - `AppendRange<T>(items)` - Add multiple elements to end
+    - `PrependRange<T>(items)` - Add multiple elements to beginning
+    - `Set(x => x.List[index], value)` - Update element at specific index
+    - `Remove(x => x.List[index])` - Remove element at specific index
+    - Works with nested lists: `.Set(x => x.Metadata.Keywords.Append("sale"))`
+  - **Set Operations**: New builder methods for DynamoDB set manipulation
+    - `Add(x => x.SetProperty, value)` - Add element to set
+    - `Add(x => x.SetProperty, values[])` - Add multiple elements
+    - `Delete(x => x.SetProperty, value)` - Remove element from set
+    - `Delete(x => x.SetProperty, values[])` - Remove multiple elements
+    - Supports `HashSet<string>`, `HashSet<int>`, and other set types
+  - **Source Generator Enhancement**: Automatically generates nested `*UpdateModel` types for entities with `[DynamoDbMap]` properties
+  - _Requirements: 1.1-1.6, 2.1-2.4, 3.1-3.5, 4.1-4.6, 5.1-5.5, 6.1-6.4_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.Expressions;
+  
+  // Filter on nested property
+  var customers = await table.Customers.Query(x => x.CustomerId == tenantId)
+      .WithFilter(x => x.ShippingAddress.City == "Seattle")
+      .ToListAsync();
+  
+  // Update nested property
+  await table.Customers.Update(customerId)
+      .Set(x => new CustomerUpdateModel 
+      { 
+          ShippingAddress = new AddressUpdateModel { City = "Portland" } 
+      })
+      .UpdateAsync();
+  
+  // List operations
+  await table.Items.Update(itemId)
+      .Set(x => x.Tags.Append("new-tag"))
+      .UpdateAsync();
+  
+  // Set operations
+  await table.Items.Update(itemId)
+      .Add(x => x.Categories, "electronics")
+      .UpdateAsync();
+  ```
+
+### Changed
+
+- **BREAKING: Index attribute API redesigned** — `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` have been removed and replaced with three self-describing attributes: `[GsiPartitionKey]`, `[GsiSortKey]`, and `[LsiSortKey]`. The key role (partition key vs sort key) and index type (GSI vs LSI) are now encoded directly in the attribute name, eliminating the error-prone `IsPartitionKey = true` / `IsSortKey = true` boolean flags.
+  - `[GlobalSecondaryIndex("index-name", IsPartitionKey = true)]` → `[GsiPartitionKey("index-name")]`
+  - `[GlobalSecondaryIndex("index-name", IsSortKey = true)]` → `[GsiSortKey("index-name")]`
+  - `[LocalSecondaryIndex("index-name")]` → `[LsiSortKey("index-name")]`
+  - All three attributes support optional `Name` and `ProjectionType` properties
+  - `[GsiPartitionKey]` additionally supports `DiscriminatorProperty`, `DiscriminatorValue`, and `DiscriminatorPattern`
+  - When both `[GsiPartitionKey]` and `[GsiSortKey]` specify `Name` or `ProjectionType` for the same index, the `[GsiPartitionKey]` values take precedence
+  - New diagnostic codes DYNDB120–DYNDB127 for index attribute validation:
+    - DYNDB120: GSI sort key without partition key
+    - DYNDB121: Duplicate GSI partition keys for same index
+    - DYNDB122: Duplicate GSI sort keys for same index
+    - DYNDB123: Duplicate LSI sort keys for same index
+    - DYNDB124: Empty/whitespace index name on `[GsiPartitionKey]`
+    - DYNDB125: Empty/whitespace index name on `[GsiSortKey]`
+    - DYNDB126: Empty/whitespace index name on `[LsiSortKey]`
+    - DYNDB127: Same index name used as both GSI and LSI
+  
+  **Migration — GSI with partition key only:**
+  ```csharp
+  // Before
+  [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  
+  // After
+  [GsiPartitionKey("status-index")]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  ```
+  
+  **Migration — GSI with partition key and sort key:**
+  ```csharp
+  // Before
+  [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  
+  [GlobalSecondaryIndex("status-index", IsSortKey = true)]
+  [DynamoDbAttribute("createdAt")]
+  public DateTime CreatedAt { get; set; }
+  
+  // After
+  [GsiPartitionKey("status-index")]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; } = string.Empty;
+  
+  [GsiSortKey("status-index")]
+  [DynamoDbAttribute("createdAt")]
+  public DateTime CreatedAt { get; set; }
+  ```
+  
+  **Migration — LSI sort key:**
+  ```csharp
+  // Before
+  [LocalSecondaryIndex("lsi1")]
+  [DynamoDbAttribute("updatedAt")]
+  public DateTime UpdatedAt { get; set; }
+  
+  // After
+  [LsiSortKey("lsi1")]
+  [DynamoDbAttribute("updatedAt")]
+  public DateTime UpdatedAt { get; set; }
+  ```
+
+- **ExpressionCache bounded to 1024 entries** - The expression translation cache now has a configurable maximum size (default: 1024) to prevent unbounded memory growth in long-running applications. When the limit is reached, the cache is cleared and repopulates naturally. A new `ExpressionCache(int maxSize)` constructor overload and `MaxSize` property are available for customization.
+
+- **DYNDB023 string property heuristic removed** - The source generator no longer emits DYNDB023 performance warnings for `string` properties named "Description", "Content", or "Body". The heuristic produced too many false positives. Warnings for `byte[]`, complex collections, and nested complex objects remain.
+
+- **`[Queryable]` attribute removed** - The deprecated `[Queryable]` attribute has been removed as promised in the v0.9 deprecation notice. Query capabilities are now exclusively derived from `[PartitionKey]` and `[SortKey]` attributes. The `DynamoDbOperation` enum remains available for use in generated `PropertyMetadata`. The DYNDB113 diagnostic warning is also removed since the attribute no longer exists.
+
+- **System.Text.Json minimum version raised to 8.0.5** - The lower bound of the `System.Text.Json` dependency range was raised from `[8.0.0,11.0.0)` to `[8.0.5,11.0.0)` to exclude versions with known high-severity vulnerabilities (GHSA-8g4q-xg66-9fp4, GHSA-hh2w-p6rv-4g7w). Consumers using System.Text.Json 8.0.0 through 8.0.4 will need to update.
+
+- **ConfigureAwait(false) applied to all library async calls** - All `await` calls across all library projects and source-generated code now use `.ConfigureAwait(false)`. This prevents potential deadlocks when the library is consumed from environments with a `SynchronizationContext` (WPF, WinForms, Blazor WASM). No API changes; this is a behavioral improvement.
+
+### Fixed
+
+- **Source generator hydrator nullability mismatch (CS8767)** - The generated `IAsyncEntityHydrator<T>` implementations now emit `IBlobStorageProvider?` (nullable) for the `blobProvider` parameter, matching the interface declaration. This eliminates CS8767 warnings in consumer projects using encryption-only entities without blob storage.
+
+- **Local Method Evaluation in Update Expressions** - Fixed `UnsupportedExpressionException` when using local method calls like `.ToString()`, `.ToUpper()`, `.Trim()` in update expressions
+  - Previously, method calls that don't reference the entity parameter (e.g., `TransactionStatus.Active.ToString()`, `myVar.Trim().ToUpper()`) would throw an exception
+  - Now correctly evaluates these method calls at translation time and treats them as simple value assignments
+  - Supports enum `.ToString()`, numeric `.ToString()`, `Guid.ToString()`, and chained string methods
+  - Consistent with existing behavior in filter/query expressions (`ExpressionTranslator`)
+  - _Requirements: US-1, US-2, US-3, US-4, US-5_
+  
+  **Before (broken):**
+  ```csharp
+  // This would throw UnsupportedExpressionException
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Status = TransactionStatus.Active.ToString() })
+      .UpdateAsync();
+  ```
+  
+  **After (fixed):**
+  ```csharp
+  // Now works correctly - generates SET #status = :p0 where :p0 = "Active"
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Status = TransactionStatus.Active.ToString() })
+      .UpdateAsync();
+  
+  // Also works with captured variables and chained methods
+  var name = "  John Doe  ";
+  await table.Users.Update(userId)
+      .Set(x => new UserUpdateModel { Name = name.Trim().ToUpper() })
+      .UpdateAsync();
+  // Generates SET #name = :p0 where :p0 = "JOHN DOE"
+  ```
+
+- **Hydration Architecture Consolidation** - Fixed composite entity assembly bug where `[RelatedEntity]` collections fail to populate when child entities have `[DynamoDbMap]` properties
+  - **Root Cause Fix**: Removed `MatchesEntity()` check from `GenerateRelatedEntityCollectionMapping` - related entity mapping now relies solely on sort key pattern matching
+  - **Consolidated Hydration Paths**: Extracted shared property deserialization logic into `GeneratePropertyDeserialization` helper method, ensuring consistent behavior across single-item, multi-item, and async hydration paths
+  - **Recursive Composite Entity Assembly**: Child entities with their own `[RelatedEntity]` properties are now recursively assembled, supporting arbitrary nesting depth
+  - **Graceful Error Handling**: Related entity deserialization failures are logged as warnings and skipped rather than throwing exceptions
+  - **New Log Event IDs**: Added `RelatedEntityDeserializationFailed` (1001) and `NoPrimaryEntityFound` (1002) for improved diagnostics
+  - **Backward Compatible**: Existing patterns with `[JsonBlob]`, entities without `[DynamoDbMap]`, and existing `[RelatedEntity]` configurations continue to work unchanged
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.2, 5.1-5.4, 6.1-6.4, 7.1-7.5, 8.1-8.4_
+  
+  **Before (broken):**
+  ```csharp
+  // Child entity with DynamoDbMap property
+  [DynamoDbTable("invoices")]
+  public partial class InvoiceLine
+  {
+      [DynamoDbMap]
+      [DynamoDbAttribute("metadata")]
+      public LineMetadata Metadata { get; set; } = new();
+  }
+  
+  // Parent with RelatedEntity collection
+  [DynamoDbTable("invoices", IsDefault = true)]
+  public partial class Invoice
+  {
+      [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+      public List<InvoiceLine> Lines { get; set; } = new();
+  }
+  
+  // ToCompositeEntityAsync would return empty Lines collection
+  var invoice = await table.Invoices.Query()
+      .Where(x => x.Pk == pk)
+      .ToCompositeEntityAsync<Invoice>();
+  // invoice.Lines was empty!
+  ```
+  
+  **After (fixed):**
+  ```csharp
+  // Same entity definitions now work correctly
+  var invoice = await table.Invoices.Query()
+      .Where(x => x.Pk == pk)
+      .ToCompositeEntityAsync<Invoice>();
+  // invoice.Lines is correctly populated with all matching child entities
+  // Each InvoiceLine.Metadata is properly deserialized
+  ```
+
+- **DynamoDbMap Multi-Item Deserialization** - Fixed source generator to correctly deserialize `[DynamoDbMap]` properties in composite entity (multi-item) scenarios
+  - Previously, the `GeneratePrimaryEntityIdentification` method in the source generator was missing the `ComplexType.IsMap` check, causing incorrect deserialization of nested map types
+  - The generated multi-item `FromDynamoDb` code now correctly uses the nested type's `FromDynamoDb` method instead of attempting to use `Enum.Parse`
+  - Affects entities with `[DynamoDbMap]` properties that also use `[RelatedEntity]` for composite entity patterns
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+- **RelatedEntity Collection Warning Suppression** - Fixed false DYNDB023 performance warnings for `[RelatedEntity]` collections
+  - Properties marked with `[RelatedEntity]` attribute no longer trigger DYNDB023 performance warnings
+  - Added `IsRelatedEntity` flag to `PropertyModel` to track RelatedEntity properties
+  - The `EntityAnalyzer.CheckPropertyPerformance` method now skips performance checks for RelatedEntity properties
+  - DYNDB023 warnings continue to be reported for complex collection types without `[RelatedEntity]` attribute
+  - _Requirements: 4.1, 4.3, 4.4_
+
+- **Central Package Management** - Implemented NuGet Central Package Management for easier version management
+  - All package versions are now defined in `Directory.Packages.props`
+  - Individual `.csproj` files no longer specify version attributes on `PackageReference` elements
+  - Updated package version ranges to support .NET 10.x:
+    - `System.Text.Json`: `[8.0.0,11.0.0)`
+    - `Microsoft.Extensions.Logging.Abstractions`: `[8.0.0,11.0.0)`
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.1, 5.2, 5.4, 5.5_
+
+- **Complex Conditional OR Pattern in Filter Expressions** - Fixed an issue where complex nested OR patterns with multiple conditional clauses would incorrectly apply filters when they should be skipped
+  - Pattern like `skipFlag || (condA && filter1) || (condB && filter2)` now correctly skips all filters when `skipFlag` is true
+  - Previously, when combining OR patterns with AND patterns (e.g., `skipAll || (hasValue && x.Attr.AttributeExists()) || (!hasValue && x.Attr.AttributeNotExists())`), one of the entity filters would incorrectly be applied even when `skipAll` was true
+  - Root cause: Empty string was used to represent "skip" for both OR and AND patterns, but these have different semantics when combined in complex expressions
+  - Fix introduces distinct sentinel values for OR-skip vs AND-skip that are handled correctly when combining expressions
+
+- **Nullable Property NULL Handling** - Fixed an issue where nullable properties (e.g., `DateTime?`, `int?`, `decimal?`) would throw a conversion error when reading back records where `null` was stored
+  - DynamoDB represents null values as `{ NULL: true }` which is a valid attribute
+  - Previously, the generated `FromDynamoDb` code would find the attribute but fail when trying to parse the non-existent value
+  - Error message was: "Failed to convert DynamoDB attribute 'PropertyName' to Type. Attribute type: Null"
+  - Now properly checks for `NULL == true` before attempting to parse nullable properties
+  - Affects all nullable value types: `DateTime?`, `int?`, `long?`, `decimal?`, `double?`, `float?`, `bool?`, `Guid?`, etc.
+
+### Added
+
+- **Multi-Entity Index Consolidation** - Indexes defined on any entity in a multi-entity table are now consolidated and available on the generated table class
+  - Indexes from all entities sharing a table are collected and merged
+  - Multiple entities defining the same index with identical configuration generate a single index property
+  - Indexes defined on non-default entities are now properly generated
+  - New diagnostics for conflicting index configurations:
+    - `FDDB053`: Conflicting partition keys on same index name
+    - `FDDB054`: Conflicting sort keys on same index name
+    - `FDDB055`: Conflicting index types (GSI vs LSI) on same index name
+  - Index documentation includes all referencing entities
+  - Full backward compatibility with existing single-entity and multi-entity tables
+  - _Requirements: 1.1-1.3, 2.1-2.4, 3.1-3.4, 4.1-4.3, 5.1-5.3, 6.1-6.3_
+  
+  **Usage:**
+  ```csharp
+  // Multi-entity table with indexes on different entities
+  [DynamoDbTable("shared-table", IsDefault = true)]
+  public partial class Order
+  {
+      [GlobalSecondaryIndex("status-index", IsPartitionKey = true)]
+      [DynamoDbAttribute("status")]
+      public string Status { get; set; }
+  }
+  
+  [DynamoDbTable("shared-table")]
+  public partial class Customer
+  {
+      [GlobalSecondaryIndex("email-index", IsPartitionKey = true)]
+      [DynamoDbAttribute("email")]
+      public string Email { get; set; }
+  }
+  
+  // Both indexes are available on the generated table class
+  var ordersByStatus = await table.StatusIndex.Query<Order>()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  
+  var customersByEmail = await table.EmailIndex.Query<Customer>()
+      .Where(x => x.Email == "user@example.com")
+      .ToListAsync();
+  ```
+
+- **Conditional Filter Expressions** - Support for natural `||` and `&&` patterns with local boolean conditions in filter expressions
+  - `(localCondition || x.Property == value)` - skip filter when local condition is true
+  - `(localCondition && x.Property == value)` - include filter only when local condition is true
+  - Works with method calls like `string.IsNullOrWhiteSpace()`, negations (`!flag`), and compound expressions
+  - Local conditions are evaluated at translation time, not sent to DynamoDB
+  - OR between two entity conditions throws `UnsupportedExpressionException` (DynamoDB limitation)
+  - _Requirements: 1.1-1.3, 2.1-2.3, 3.1-3.3, 4.1-4.3, 5.1-5.3, 6.1-6.3, 7.1-7.3_
+  
+  **Usage:**
+  ```csharp
+  // Optional filter based on parameter presence
+  var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+      .WithFilter(x => string.IsNullOrWhiteSpace(status) || x.Status == status)
+      .ToListAsync();
+  
+  // Feature flag controlled filter
+  var items = await table.Items.Query(x => x.Key == key)
+      .WithFilter(x => enableDateFilter && x.Date > minDate)
+      .ToListAsync();
+  
+  // Multiple optional filters
+  var results = await table.Orders.Query(x => x.CustomerId == customerId)
+      .WithFilter(x => (skipStatusFilter || x.Status == status) && (skipDateFilter || x.Date > minDate))
+      .ToListAsync();
+  ```
+
+- **Custom Index Property Naming** - New `Name` property on `[GlobalSecondaryIndex]` and `[LocalSecondaryIndex]` attributes for customizing generated index property names
+  - Specify `Name = "StatusIndex"` to generate `table.StatusIndex` instead of derived name from DynamoDB index name
+  - When not specified, property name is derived from DynamoDB index name using PascalCase conversion (e.g., `"status-index"` → `StatusIndex`)
+  - Multi-entity tables: when only one entity specifies a `Name`, it applies to all entities sharing that index
+  - _Requirements: 1.1, 1.2, 1.3, 1.5_
+  
+  **Usage:**
+  ```csharp
+  // Custom index property name
+  [GlobalSecondaryIndex("status-index", Name = "StatusIndex", IsPartitionKey = true)]
+  [DynamoDbAttribute("status")]
+  public string Status { get; set; }
+  
+  // Generated: table.StatusIndex.Query<T>()
+  var orders = await table.StatusIndex.Query<Order>()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  ```
+
+- **Type-Based Table Class References** - New constructor overload on `[DynamoDbTable]` accepting `Type` for compile-time safe table class references
+  - Use `[DynamoDbTable(typeof(MyTableClass))]` instead of string-based table names
+  - Provides refactoring support and compile-time validation
+  - Referenced type must be declared as `partial` class
+  - String-based `[DynamoDbTable("name")]` continues to work unchanged
+  - _Requirements: 4.1, 4.2, 4.4, 4.5_
+  
+  **Usage:**
+  ```csharp
+  // Define your table class as partial
+  public partial class OrdersTable { }
+  
+  // Reference it in entity definition
+  [DynamoDbTable(typeof(OrdersTable))]
+  public partial class Order
+  {
+      // Entity properties...
+  }
+  ```
+
+- **Enhanced Typed Index Classes** - Generated index classes now inherit from `DynamoDbIndex` and provide consistent Query builder methods
+  - Index classes are generated as `partial` for extensibility
+  - Generic `Query<T>()` methods with lambda, format string, and key+filter overloads
+  - Non-generic `Query()` methods when projection type is defined
+  - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2_
+  
+  **Usage:**
+  ```csharp
+  // Generic query methods
+  var orders = await table.StatusIndex.Query<Order>()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  
+  // With key and filter expressions
+  var filtered = await table.StatusIndex.Query<Order>(
+      x => x.Status == "active",
+      x => x.Amount > 100)
+      .ToListAsync();
+  
+  // Non-generic when projection type defined
+  var projected = await table.StatusIndex.Query()
+      .Where(x => x.Status == "pending")
+      .ToListAsync();
+  ```
+
+- **New Diagnostic Codes** - Compile-time validation for index and table configurations
+  - `FDDB050` (Error): Conflicting index `Name` values across entities sharing a table
+  - `FDDB051` (Error): Type-based table reference must be a partial class
+  - `FDDB052` (Warning): Index `Name` specified on multiple entities (informational)
+  - _Requirements: 1.4, 4.3, 5.2_
+
+- **Projection Interface Enhancement** - Projections now implement `IReadOnlyEntity<TSelf>` for seamless `QueryRequestBuilder` compatibility
+  - New `IReadOnlyEntity<TSelf>` interface as base for both projections and full entities
+  - `IDynamoDbEntity<TSelf>` now inherits from `IReadOnlyEntity<TSelf>` (backward compatible)
+  - Generated projections implement both `IProjectionModel<TSelf>` and `IReadOnlyEntity<TSelf>`
+  - Projections inherit metadata from source entity (table name, partition key, sort key)
+  - `QueryRequestBuilder<T>` constraint updated to `where T : class, IReadOnlyEntity<T>`
+  - Existing entity types continue to work without modification due to interface inheritance
+  - Projections work with standard `ToListAsync()` - projection expression is automatically applied
+  - Non-generic `Query()` methods on `DynamoDbIndex<TDefault>` for projection-typed indexes
+  - New diagnostic codes for projection configuration errors:
+    - `FDDB060` (Error): Projection source entity not found
+    - `FDDB061` (Error): Metadata inheritance failure
+    - `FDDB062` (Error): Projection interface violation (projection used in write context)
+  - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.5, 4.1-4.5, 5.1-5.5, 6.1-6.5, 7.1-7.5, 8.1-8.5_
+  
+  **Interface Hierarchy:**
+  ```
+  IEntityMetadataProvider
+          │
+          ▼
+    IReadOnlyEntity<TSelf>  ◄── Projections implement this
+          │
+          ▼
+    IDynamoDbEntity<TSelf>  ◄── Full entities implement this
+  ```
+  
+  **Usage:**
+  ```csharp
+  // Define a projection for an entity
+  [DynamoDbProjection(typeof(Order))]
+  public partial class OrderSummary
+  {
+      [DynamoDbAttribute("orderId")]
+      public string OrderId { get; set; } = string.Empty;
+
+      [DynamoDbAttribute("status")]
+      public string Status { get; set; } = string.Empty;
+
+      [DynamoDbAttribute("totalAmount")]
+      public decimal TotalAmount { get; set; }
+  }
+  
+  // Define an index with default projection type
+  public DynamoDbIndex<OrderSummary> StatusIndex => 
+      new DynamoDbIndex<OrderSummary>(this, "status-index", OrderSummary.ProjectionExpression);
+  
+  // Query the index - non-generic Query() uses OrderSummary automatically
+  var results = await table.StatusIndex.Query().Where(x => x.Status == "pending").ToListAsync();
+  var results = await table.StatusIndex.Query("status = {0}", "pending").ToListAsync();
+  
+  // Projections are read-only - write operations fail at compile time
+  // ❌ await table.Put(orderSummary).PutAsync();  // Won't compile
+  // ✅ await table.Put(order).PutAsync();         // Use source entity
+  ```
+
+- **Dynamic Fields Enhancements** - Extended `DynamicFieldCollection` with prefix-based accessors, typed Map operations, and bulk Set/Remove operations for efficient handling of sparse attribute patterns
+  - **Prefix-Based Field Discovery**: `GetFieldNamesByPrefix(prefix)` returns all field names matching a prefix pattern (e.g., `"c_"` for children)
+  - **Prefix-Based Field Retrieval**: 
+    - `GetByPrefix(prefix)` returns `Dictionary<string, AttributeValue>` with full keys
+    - `GetByPrefixWithStrippedKeys(prefix)` returns dictionary with prefix stripped from keys
+  - **Prefix-Based Field Removal**: `RemoveByPrefix(prefix)` removes all matching fields and returns count removed
+  - **Typed Map Getter**: `GetMap<T>(fieldName)` deserializes Map fields to `[DynamoDbEntity]` types using `IReadOnlyEntity.FromDynamoDb<T>()`
+  - **Typed Map Setter**: `SetMap<T>(fieldName, entity)` serializes `[DynamoDbEntity]` types to Map fields using `IDynamoDbEntity.ToDynamoDb()`
+  - **Prefix-Based Typed Map Retrieval**:
+    - `GetMapsByPrefix<T>(prefix)` returns `Dictionary<string, T>` of typed entities with full keys
+    - `GetMapsByPrefixWithStrippedKeys<T>(prefix)` returns dictionary with prefix stripped from keys
+  - **Bulk Set Operations**:
+    - `SetMany(fields)` sets multiple `AttributeValue` fields at once
+    - `SetManyWithPrefix(prefix, fields)` prepends prefix to each key before setting
+    - `SetMapsWithPrefix<T>(prefix, entities)` serializes and sets multiple typed entities with prefix
+  - **Bulk Remove Operations**: `RemoveMany(fieldNames)` removes multiple fields and returns count removed
+  - **Change Tracking Integration**: All operations integrate with existing change tracking for update expression support
+  - **AOT Compatible**: Uses static abstract interface methods, no reflection
+  - _Requirements: 1.1-1.4, 2.1-2.5, 3.1-3.4, 4.1-4.5, 5.1-5.5, 6.1-6.6, 7.1-7.4, 8.1-8.5, 9.1-9.4, 10.1-10.4_
+  
+  **Usage - Sparse Attribute Pattern (BalanceTreeNode):**
+  ```csharp
+  // Entity with dynamic fields for children (c_{id}) and transactions (t_{id})
+  [DynamoDbTable("BalanceTree")]
+  [EnableDynamicFields]
+  public partial class TreeNode
+  {
+      [PartitionKey] [DynamoDbAttribute("pk")] public string Pk { get; set; } = string.Empty;
+      [SortKey] [DynamoDbAttribute("sk")] public string Sk { get; set; } = string.Empty;
+      [DynamoDbAttribute("v")] public int Version { get; set; }
+  }
+  
+  // Nested entity for child references
+  [DynamoDbEntity]
+  public partial class ChildReference
+  {
+      [DynamoDbAttribute("subtotal")] public decimal Subtotal { get; set; }
+  }
+  
+  // Read all children as typed entities
+  var node = await table.TreeNodes.Get(pk, sk).GetItemAsync();
+  var children = node.DynamicFields.GetMapsByPrefixWithStrippedKeys<ChildReference>("c_");
+  foreach (var (childId, child) in children)
+      Console.WriteLine($"Child {childId}: {child.Subtotal}");
+  
+  // Add multiple children at once
+  node.DynamicFields.SetMapsWithPrefix("c_", new Dictionary<string, ChildReference>
+  {
+      ["child1"] = new ChildReference { Subtotal = 500m },
+      ["child2"] = new ChildReference { Subtotal = 300m }
+  });
+  
+  // Remove all old children
+  node.DynamicFields.RemoveByPrefix("old_");
+  
+  // Save with optimistic locking
+  await table.TreeNodes.Update(pk, sk)
+      .Set(x => new TreeNodeUpdateModel
+      {
+          Version = x.Version + 1,
+          DynamicFields = node.DynamicFields.ChangesOnly()
+      })
+      .Where(x => x.Version == node.Version)
+      .UpdateAsync();
+  ```
+
+### Changed
+
+- **Empty Conditional Expression Handling** - Conditional filter/condition expressions that resolve to all-skip conditions now gracefully execute without a filter instead of throwing "Invalid FilterExpression: The expression can not be empty" error
+  - When all conditional clauses evaluate to skip (e.g., `x => true || x.Status == status`), the operation executes without a filter/condition
+  - Applies to `SetFilterExpression` on `QueryRequestBuilder` and `ScanRequestBuilder`
+  - Applies to `SetConditionExpression` on `PutItemRequestBuilder`, `UpdateItemRequestBuilder`, and `DeleteItemRequestBuilder`
+  - Eliminates the need to wrap `.WithFilter()` calls in conditional checks when using conditional filter patterns
+  - _Requirements: 1.1-1.4, 2.1-2.3, 3.1-3.3, 4.1-4.4_
+  
+  **Usage:**
+  ```csharp
+  // Safe to use even when all conditions might skip
+  var orders = await table.Orders.Query(x => x.CustomerId == customerId)
+      .WithFilter(x => 
+          (string.IsNullOrWhiteSpace(status) || x.Status == status) &&
+          (string.IsNullOrWhiteSpace(category) || x.Category == category))
+      .ToListAsync();
+  // If both status and category are null/empty, query executes without filter
+  ```
+
+- **Consistent Null Handling in Update Expressions** - **BREAKING CHANGE**: `null` in conditional expressions now consistently sets DynamoDB NULL instead of skipping the update
+  - **Before**: `flag ? value : null` would skip the property update when `flag` was false
+  - **After**: `flag ? value : null` sets the property to DynamoDB NULL type when `flag` is false
+  - **New `NoUpdate()` Method**: Use `x.Property.NoUpdate()` to explicitly skip updating a property
+  - **Migration**: Replace `flag ? value : null` with `flag ? value : x.Property.NoUpdate()` for skip behavior
+  - _Requirements: 1.1-1.4, 2.1-2.6, 3.1-3.3, 4.1-4.2_
+  
+  **Migration Example:**
+  ```csharp
+  // Before (v0.x): null in false branch skipped the update
+  .Set(x => new UserUpdateModel 
+  { 
+      Name = shouldUpdate ? newName : null  // Skipped when !shouldUpdate
+  })
+  
+  // After (v1.0): null sets DynamoDB NULL, use NoUpdate() to skip
+  .Set(x => new UserUpdateModel 
+  { 
+      Name = shouldUpdate ? newName : x.Name.NoUpdate()  // Skipped when !shouldUpdate
+  })
+  
+  // Setting to NULL (new explicit behavior)
+  .Set(x => new UserUpdateModel 
+  { 
+      MiddleName = null  // Sets attribute to DynamoDB NULL type
+  })
+  ```
+  
+  **Null vs NoUpdate() vs Remove():**
+  | Method | DynamoDB Result | Use Case |
+  |--------|-----------------|----------|
+  | `= null` | SET attr = NULL | Set attribute to DynamoDB NULL type |
+  | `.NoUpdate()` | No operation | Skip updating this property conditionally |
+  | `.Remove()` | REMOVE attr | Delete the attribute entirely |
+
+- **PaginationExtensions.GetEncodedPaginationToken()** - Updated to support `QueryOperationResponse` and `ScanOperationResponse` types
+  - New overload for `QueryOperationResponse` - use via `builder.Response?.GetEncodedPaginationToken()`
+  - New overload for `ScanOperationResponse` - use via `builder.Response?.GetEncodedPaginationToken()`
+  - New overload for raw AWS SDK `ScanResponse` for direct SDK usage
+  - Existing `QueryResponse` overload retained for backward compatibility
+  - All overloads return empty string when `LastEvaluatedKey` is null or empty
+  
+  **Usage:**
+  ```csharp
+  // Query pagination (recommended)
+  var query = table.Users.Query().Where(x => x.TenantId == tenantId).Take(25);
+  var users = await query.ToListAsync();
+  var nextToken = query.Response?.GetEncodedPaginationToken() ?? string.Empty;
+  
+  // Scan pagination
+  var scan = table.Logs.Scan().Take(100);
+  var logs = await scan.ToListAsync();
+  var nextToken = scan.Response?.GetEncodedPaginationToken() ?? string.Empty;
+  ```
+
+### Added
+
+- **Comprehensive FluentResults API Integration** - Complete Result<T> pattern alternative to traditional async/exception-based API
+  - New `GetItemAsyncResult()`, `PutAsyncResult()`, `UpdateAsyncResult()`, `DeleteAsyncResult()` extension methods for all CRUD operations
+  - New `ToListAsyncResult()`, `ToCompositeEntityAsyncResult()`, `ToCompositeEntityListAsyncResult()` for query and scan operations
+  - New `ExecuteAsyncResult()` for batch operations (`BatchGetBuilder`, `BatchWriteBuilder`, `BatchPartiQLBuilder`)
+  - New `ExecuteAsyncResult()` for transaction operations (`TransactionWriteBuilder`, `TransactionGetBuilder`)
+  - New `ExecuteAndMapAsyncResult<T1,...,T8>()` tuple methods for batch get operations
+  - New `SpatialQueryAsyncResult()` for geospatial proximity and bounding box queries
+  - Comprehensive error type hierarchy with `DynamoDbError` base class and typed errors:
+    - Transaction errors: `TransactionCancelledError`, `TransactionConflictError`, `TransactionInProgressError`, `OptimisticLockingError`
+    - Configuration errors: `MissingClientError`, `ClientMismatchError`, `EmptyOperationError`, `OperationLimitExceededError`
+    - Mapping errors: `MappingError`, `DiscriminatorMismatchError`, `ProjectionValidationError`, `ExpressionTranslationError`
+    - Validation errors: `SchemaValidationError`, `EmptyCollectionError`, `FormatStringError`
+    - Storage errors: `BlobStorageError`, `EncryptionError`, `DecryptionError`
+    - Geospatial errors: `SpatialQueryError`, `InvalidCoordinatesError`, `InvalidBoundingBoxError`
+  - `DynamoDbErrors.FromException()` factory method maps all AWS SDK and library exceptions to typed errors
+  - `UnprocessedItemsWarning` and `BatchStatementErrorWarning` for partial success scenarios in batch operations
+  - All errors include `ErrorCode` property for programmatic error handling
+  - Cancellation tokens properly re-throw `OperationCanceledException` without wrapping
+  - _Requirements: 1.1-1.5, 2.1-2.7, 3.1-3.3, 4.1-4.5, 5.1-5.5, 6.1-6.5, 7.1-7.4, 10.1-10.3, 11.1-11.3, 12.1-12.2, 14.1-14.17, 16.1-16.3_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.FluentResults;
+  
+  // Traditional (throws exceptions)
+  var user = await table.Users.Get(userId).GetItemAsync();
+  
+  // FluentResults (returns Result<T>)
+  var result = await table.Users.Get(userId).GetItemAsyncResult();
+  if (result.IsSuccess)
+      var user = result.Value;
+  else
+      foreach (var error in result.Errors.OfType<DynamoDbError>())
+          Console.WriteLine($"[{error.ErrorCode}]: {error.Message}");
+  ```
+
+- **`[UseFluentResults]` Attribute** - Source generator attribute for opt-in FluentResults API generation
+  - Apply to entity classes to generate Result-returning convenience methods on entity accessors
+  - `HideGeneratedAsyncMethods` property (default: `true`) controls whether traditional async methods are suppressed
+  - Generated methods: `GetAsyncResult()`, `PutAsyncResult()`, `DeleteAsyncResult()`, `QueryAsyncResult()`
+  - _Requirements: 8.1-8.5, 9.1-9.5_
+  
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("Users")]
+  [UseFluentResults]
+  public partial class User { ... }
+  
+  // Generated convenience methods:
+  var result = await table.Users.GetAsyncResult(userId);
+  var result = await table.Users.PutAsyncResult(user);
+  var result = await table.Users.QueryAsyncResult(x => x.TenantId == tenantId);
+  ```
+
+- **Response metadata via `.Response` property** - Request builders now expose a `.Response` property after execution containing operation metadata. This keeps IntelliSense clean during request building while providing access to response details.
+  - `QueryOperationResponse` - LastEvaluatedKey, ScannedCount, ResultCount, ConsumedCapacity, HasMorePages
+  - `ScanOperationResponse` - LastEvaluatedKey, ScannedCount, ResultCount, ConsumedCapacity, HasMorePages
+  - `GetItemOperationResponse` - ConsumedCapacity, ResponseMetadata
+  - `PutItemOperationResponse` - ConsumedCapacity, ResponseMetadata, ItemCollectionMetrics
+  - `UpdateItemOperationResponse` - ConsumedCapacity, ResponseMetadata, ItemCollectionMetrics
+  - `DeleteItemOperationResponse` - ConsumedCapacity, ResponseMetadata, ItemCollectionMetrics
+  
+  **Usage:**
+  ```csharp
+  var builder = table.Query<User>().Where(x => x.Pk == tenantId);
+  var users = await builder.ToListAsync();
+  
+  // Access response metadata
+  var lastKey = builder.Response?.LastEvaluatedKey;
+  var scannedCount = builder.Response?.ScannedCount;
+  var hasMore = builder.Response?.HasMorePages ?? false;
+  ```
+
+- **DynamicEntity and DynamicTable** - Schema-less access to any DynamoDB table without defining entity classes
+  - New `DynamicEntity` class where all attributes are stored in `DynamicFields` collection
+  - New `DynamicTable` class for working with `DynamicEntity` instances
+  - `DynamicTableKeyOptions` for configuring partition key and sort key names/types
+  - Typed key methods (`GetAsync(string pk)`, `GetAsync(string pk, string sk)`, etc.) when key options configured
+  - Raw `AttributeValue` key methods always available for maximum flexibility
+  - Full Query and Scan support with lambda expressions using `DynamicFields` indexer
+  - Expression translator skips key validation for `DynamicEntity` to allow flexible key conditions
+  - Ideal for schema exploration, migration tools, and truly schema-less scenarios
+  - _Requirements: 5.1-5.8, 7.1-7.6, 8.1-8.6_
+  
+  **Usage:**
+  ```csharp
+  // Create DynamicTable with key configuration
+  var keyOptions = new DynamicTableKeyOptions
+  {
+      PartitionKeyName = "pk",
+      PartitionKeyType = ScalarAttributeType.S,
+      SortKeyName = "sk",
+      SortKeyType = ScalarAttributeType.S
+  };
+  var table = new DynamicTable(client, "my-table", keyOptions);
+  
+  // Get item with typed keys
+  var item = await table.GetAsync("USER#123", "PROFILE");
+  var name = item?.DynamicFields.GetString("name");
+  
+  // Query with lambda expressions
+  var items = await table.Query()
+      .Where(x => x.DynamicFields["pk"] == "USER#123")
+      .ToListAsync();
+  
+  // Put item
+  var entity = new DynamicEntity();
+  entity.DynamicFields.SetString("pk", "USER#456");
+  entity.DynamicFields.SetString("sk", "PROFILE");
+  entity.DynamicFields.SetString("name", "Jane Doe");
+  await table.PutAsync(entity);
+  ```
+
+- **PartiQL Support** - SQL-like query capability with entity hydration
+  - New `PartiQLRequestBuilder<TEntity>` following the same pattern as other request builders
+  - `ExecutePartiQL<TEntity>(statement, params)` method on table classes
+  - Format string placeholders with format specifiers (`{0}`, `{0:o}` for ISO 8601 dates)
+  - `ToListAsync()` for SELECT queries with entity hydration
+  - `ToCompoundEntityAsync()` for compound entity table results
+  - `ExecuteAsync()` for INSERT/UPDATE/DELETE statements
+  - `ToRequest()` to access underlying `ExecuteStatementRequest`
+  - Response metadata (`ResponseMetadata`, `ConsumedCapacity`) accessible after execution
+  - Batch PartiQL via `DynamoDbBatch.PartiQL` with `BatchPartiQLBuilder` and `BatchPartiQLResponse`
+  - `ExecuteAndMapAsync<T1>()` through `ExecuteAndMapAsync<T1...T8>()` tuple convenience methods
+  - _Requirements: 3.1-3.6_
+  
+  **Usage:**
+  ```csharp
+  // SELECT query with hydration
+  var users = await table.ExecutePartiQL<User>(
+      "SELECT * FROM Users WHERE pk = {0}",
+      "USER#123")
+      .ToListAsync();
+  
+  // SELECT with DateTime formatting
+  var recentOrders = await table.ExecutePartiQL<Order>(
+      "SELECT * FROM Orders WHERE pk = {0} AND created > {1:o}",
+      "ORDER#456", DateTime.UtcNow.AddDays(-7))
+      .ToListAsync();
+  
+  // INSERT/UPDATE/DELETE
+  await table.ExecutePartiQL<User>(
+      "UPDATE Users SET name = {0} WHERE pk = {1}",
+      "Jane Doe", "USER#123")
+      .ExecuteAsync();
+  
+  // Batch PartiQL
+  var (user, order) = await DynamoDbBatch.PartiQL
+      .Add(table.ExecutePartiQL<User>("SELECT * FROM Users WHERE pk = {0}", "USER#123"))
+      .Add(table.ExecutePartiQL<Order>("SELECT * FROM Orders WHERE pk = {0}", "ORDER#456"))
+      .ExecuteAndMapAsync<User, Order>();
+  ```
+
+- **Direct SDK Request Passing** - Accept native AWS SDK request objects with response hydration
+  - `WithRequest()` method on all request builders to inject pre-built SDK requests
+  - Table-level convenience methods: `Get(GetItemRequest)`, `Query(QueryRequest)`, `Scan(ScanRequest)`, etc.
+  - Async convenience methods: `GetAsync(GetItemRequest)`, `QueryAsync(QueryRequest)`, etc.
+  - Response metadata accessible on builder after execution
+  - `DynamoDbTransactions.WriteAsync(client, TransactWriteItemsRequest)` for direct transaction execution
+  - `DynamoDbTransactions.GetAsync(client, TransactGetItemsRequest)` for direct transaction gets
+  - `DynamoDbBatch.WriteAsync(client, BatchWriteItemRequest)` for direct batch writes
+  - `DynamoDbBatch.GetAsync(client, BatchGetItemRequest)` for direct batch gets
+  - _Requirements: 4.1-4.9_
+  
+  **Usage:**
+  ```csharp
+  // Inject pre-built SDK request
+  var sdkRequest = new GetItemRequest
+  {
+      TableName = "users",
+      Key = new Dictionary<string, AttributeValue>
+      {
+          ["pk"] = new AttributeValue { S = "USER#123" }
+      }
+  };
+  var user = await table.Users.GetAsync(sdkRequest);
+  
+  // Builder pattern for response metadata access
+  var builder = table.Users.Get(sdkRequest);
+  var user = await builder.GetItemAsync();
+  var capacity = builder.Response?.ConsumedCapacity;
+  
+  // Direct transaction execution
+  await DynamoDbTransactions.WriteAsync(client, existingTransactWriteRequest);
+  ```
+
+- **Table Creation from Metadata** - Create DynamoDB tables programmatically from entity metadata for integration testing
+  - New `TableCreator` class with `CreateAsync` and `BuildCreateTableRequest` methods
+  - New `TableCreationOptions` class for configuring billing mode, throughput, TTL, and wait behavior
+  - New `TableCreationResult` class with table information (TableName, TableArn, TableStatus, TtlEnabled)
+  - New `ProvisionedThroughputConfig` class for PROVISIONED billing mode configuration
+  - Source-generated static `CreateTableAsync` method on table classes
+  - Supports primary key (partition + optional sort key) configuration
+  - Supports Global Secondary Index (GSI) creation with projection types (ALL, KEYS_ONLY, INCLUDE)
+  - Supports Local Secondary Index (LSI) creation with projection types
+  - Supports TTL enablement when entity metadata defines TTL attribute
+  - Supports PAY_PER_REQUEST (default) and PROVISIONED billing modes
+  - Configurable wait-for-active behavior with timeout and polling interval
+  - Complements `ValidateSchemaAsync` for complete table lifecycle management
+  - _Requirements: 1.1-1.5, 2.1-2.6, 3.1-3.5, 4.1-4.3, 5.1-5.4, 6.1-6.2, 7.1-7.3_
+  
+  **Usage:**
+  ```csharp
+  using Oproto.FluentDynamoDb.Provisioning;
+  
+  // Using generated static method (recommended for integration tests)
+  var result = await UsersTable.CreateTableAsync(client, "test-users-table");
+  
+  // With options
+  var result = await UsersTable.CreateTableAsync(client, "test-users-table",
+      new TableCreationOptions
+      {
+          EnableTtl = true,
+          WaitForActive = true,
+          WaitTimeout = TimeSpan.FromSeconds(60)
+      });
+  
+  // Using TableCreator directly
+  var creator = new TableCreator();
+  var result = await creator.CreateAsync(client, "my-table", User.GetEntityMetadata());
+  
+  // Inspect request before execution
+  var request = creator.BuildCreateTableRequest("my-table", User.GetEntityMetadata());
+  ```
 
 - **Schema Validation** - Runtime validation of DynamoDB table schemas against entity metadata
   - New `ValidateSchemaAsync(IAmazonDynamoDB, SchemaValidationOptions?)` method generated on table classes
@@ -299,6 +1332,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 ### Changed
+- **DynamoDbTableBase Removed** - Table classes are now fully source-generated without inheritance
+  - Generated table classes no longer inherit from `DynamoDbTableBase`
+  - All functionality (Client, Name, Options, Query<T>, Get<T>, Put<T>, Update<T>, Delete<T>) is now generated directly
+  - Entity accessor visibility controlled by `[GenerateAccessors]` attribute
+  - Index accessors generated for all defined GSIs and LSIs
+  - **Breaking Change**: Code that directly references `DynamoDbTableBase` will no longer compile
+  - **No Migration Required**: Code using generated table classes continues to work unchanged
+  - _Requirements: 1.1-1.6_
+  
+  **Migration (only if directly referencing DynamoDbTableBase):**
+  ```csharp
+  // Before: Direct reference to base class (rare)
+  public void ProcessTable(DynamoDbTableBase table) { ... }
+  
+  // After: Use the generated table class directly
+  public void ProcessTable(UsersTable table) { ... }
+  // Or use duck typing / interfaces if needed
+  ```
+
 - **Logging Runtime Configuration** - Removed `DISABLE_DYNAMODB_LOGGING` conditional compilation in favor of runtime configuration
   - All `#if !DISABLE_DYNAMODB_LOGGING` preprocessor directives removed from source code
   - Logging is now controlled entirely via `FluentDynamoDbOptions.WithLogger()` at runtime
@@ -402,7 +1454,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **AwsEncryptionSdkOptions Data Key Caching Properties** - Removed non-functional properties from `AwsEncryptionSdkOptions`
+  - Removed `DefaultCacheTtlSeconds`, `MaxMessagesPerDataKey`, `MaxBytesPerDataKey`, and `CacheEntryCapacity`
+  - The AWS Encryption SDK for .NET does not support data key caching; these properties had no effect
+  - `EnableCaching` (keyring object caching) and `Algorithm` properties are retained
+  - `EncryptedAttribute.CacheTtlSeconds` and `FieldEncryptionContext.CacheTtlSeconds` on the core library interface are unchanged
+
 ### Fixed
+- **GeoHash Query Bug** - Fixed interpolated string bug in GeoHash BETWEEN queries
+  - Changed `$"geohash_cell BETWEEN {0} AND {1}"` to `"geohash_cell BETWEEN {0} AND {1}"` in StoreLocator example
+  - The `$` prefix caused `{0}` and `{1}` to be treated as literal text instead of format placeholders
+  - This resulted in "Invalid KeyConditionExpression" errors when executing GeoHash spatial queries
+  - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
 - **Documentation API Pattern Corrections** - Fixed incorrect batch and transaction operation examples across documentation
   - Corrected batch operation examples to use `DynamoDbBatch.Write` and `DynamoDbBatch.Get` static entry points instead of constructor-based patterns
   - Corrected transaction operation examples to use `DynamoDbTransactions.Write` and `DynamoDbTransactions.Get` static entry points instead of constructor-based patterns

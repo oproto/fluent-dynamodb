@@ -171,6 +171,123 @@ public partial class Order
 var order = new Order { Sk = Order.MetaSk };
 ```
 
+## GSI and LSI Index Attributes
+
+Use `[GsiPartitionKey]`, `[GsiSortKey]`, and `[LsiSortKey]` to declare Global Secondary Indexes and Local Secondary Indexes. The key role (partition key vs sort key) and index type (GSI vs LSI) are encoded in the attribute name.
+
+### GSI with Partition Key Only
+
+```csharp
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    // GSI partition key — index name is the required positional parameter
+    [GsiPartitionKey("status-index")]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+}
+```
+
+### GSI with Partition Key and Sort Key
+
+```csharp
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [GsiPartitionKey("status-date-index")]
+    [DynamoDbAttribute("status")]
+    public string Status { get; set; } = string.Empty;
+
+    [GsiSortKey("status-date-index")]
+    [DynamoDbAttribute("createdAt")]
+    public DateTime CreatedAt { get; set; }
+}
+```
+
+### LSI Sort Key
+
+LSIs share the base table's partition key. Only the sort key needs to be declared:
+
+```csharp
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [LsiSortKey("lsi-created")]
+    [DynamoDbAttribute("createdAt")]
+    public DateTime CreatedAt { get; set; }
+}
+```
+
+### Optional Properties
+
+All three attributes support optional `Name` and `ProjectionType` properties:
+
+```csharp
+// Custom generated property name for the index accessor
+[GsiPartitionKey("status-index", Name = "StatusIndex")]
+[DynamoDbAttribute("status")]
+public string Status { get; set; } = string.Empty;
+
+// Keys-only projection — auto-generates a projection record
+[GsiPartitionKey("gsi1", ProjectionType = ProjectionType.KeysOnly)]
+[DynamoDbAttribute("gsi1pk")]
+public string Gsi1Pk { get; set; } = string.Empty;
+```
+
+`[GsiPartitionKey]` also supports discriminator properties for multi-entity tables:
+
+```csharp
+[GsiPartitionKey("gsi1", DiscriminatorProperty = "entityType", DiscriminatorValue = "ORDER")]
+[DynamoDbAttribute("gsi1pk")]
+public string Gsi1Pk { get; set; } = string.Empty;
+```
+
+### Multi-Index Properties
+
+A single property can participate in multiple indexes using `AllowMultiple = true` (enabled by default):
+
+```csharp
+// Property is PK for gsi1 and SK for gsi2
+[GsiPartitionKey("gsi1")]
+[GsiSortKey("gsi2")]
+[DynamoDbAttribute("status")]
+public string Status { get; set; } = string.Empty;
+
+// Property is SK for both a GSI and an LSI
+[GsiSortKey("gsi1")]
+[LsiSortKey("lsi1")]
+[DynamoDbAttribute("createdAt")]
+public DateTime CreatedAt { get; set; }
+```
+
+### Precedence Rules
+
+When both `[GsiPartitionKey]` and `[GsiSortKey]` specify `Name` or `ProjectionType` for the same index, the `[GsiPartitionKey]` values take precedence. `[GsiSortKey]` values are used only as fallbacks.
+
+### Index Attribute Reference
+
+| Attribute | Key Role | Index Type | Required Parameter | Optional Properties |
+|-----------|----------|------------|-------------------|---------------------|
+| `[GsiPartitionKey]` | Partition key | GSI | `indexName` | `Name`, `ProjectionType`, `DiscriminatorProperty`, `DiscriminatorValue`, `DiscriminatorPattern` |
+| `[GsiSortKey]` | Sort key | GSI | `indexName` | `Name`, `ProjectionType` |
+| `[LsiSortKey]` | Sort key | LSI | `indexName` | `Name`, `ProjectionType` |
+
 ## Quick Reference
 
 | Pattern | Correct | Incorrect |
@@ -180,6 +297,9 @@ var order = new Order { Sk = Order.MetaSk };
 | Interface | Let source generator add it | `: IDynamoDbEntity` manually |
 | Key construction | `Entity.Keys.Pk(value)` | `Entity.CreatePk(value)` |
 | Key prefix | `[PartitionKey(Prefix = "X")]` | Manual string interpolation |
+| GSI partition key | `[GsiPartitionKey("index-name")]` | `[GlobalSecondaryIndex("name", IsPartitionKey = true)]` |
+| GSI sort key | `[GsiSortKey("index-name")]` | `[GlobalSecondaryIndex("name", IsSortKey = true)]` |
+| LSI sort key | `[LsiSortKey("index-name")]` | `[LocalSecondaryIndex("name")]` |
 
 ## Common Mistakes to Avoid
 
@@ -187,3 +307,4 @@ var order = new Order { Sk = Order.MetaSk };
 2. **Manual interface**: Never add `: IDynamoDbEntity` to your class declaration
 3. **Manual key methods**: Never write `CreatePk()` or `CreateSk()` methods - use the generated `Keys` class
 4. **Missing partial**: Always declare entity classes as `partial` to allow source generation
+5. **Old index attributes**: Do not use `[GlobalSecondaryIndex]` or `[LocalSecondaryIndex]` — these have been removed. Use `[GsiPartitionKey]`, `[GsiSortKey]`, and `[LsiSortKey]` instead

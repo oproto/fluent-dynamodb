@@ -14,6 +14,13 @@ public class DynamoDbTableAttribute : Attribute
     public string TableName { get; }
 
     /// <summary>
+    /// Gets the type of the table class to use for this entity.
+    /// When specified, the source generator will use this type as the table class
+    /// instead of generating a new one.
+    /// </summary>
+    public Type? TableType { get; }
+
+    /// <summary>
     /// Gets or sets the property name containing the discriminator (e.g., "entity_type", "SK", "PK").
     /// If null, no discriminator validation is performed.
     /// </summary>
@@ -141,7 +148,7 @@ public class DynamoDbTableAttribute : Attribute
     /// 
     /// // Generated table class will be in MyApp.Infrastructure.DynamoDb namespace:
     /// // namespace MyApp.Infrastructure.DynamoDb;
-    /// // public partial class OrdersTable : DynamoDbTableBase { ... }
+    /// // public partial class OrdersTable : IDynamoDbTable { ... }
     /// </code>
     /// </example>
     public string? Namespace { get; set; }
@@ -153,5 +160,40 @@ public class DynamoDbTableAttribute : Attribute
     public DynamoDbTableAttribute(string tableName)
     {
         TableName = tableName;
+        TableType = null;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the DynamoDbTableAttribute class with a type-safe table class reference.
+    /// </summary>
+    /// <param name="tableType">The type of the table class to use for this entity.</param>
+    /// <remarks>
+    /// <para>
+    /// Use this constructor when you want to reference an existing partial table class
+    /// instead of having the source generator create a new one. This provides compile-time
+    /// safety and refactoring support for table class references.
+    /// </para>
+    /// <para>
+    /// The referenced type must be declared as a partial class. The source generator will
+    /// emit a compile-time error if the type is not partial.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Define a partial table class
+    /// public partial class MyTable { }
+    /// 
+    /// // Reference it from an entity
+    /// [DynamoDbTable(typeof(MyTable))]
+    /// public partial class Order
+    /// {
+    ///     // Entity properties...
+    /// }
+    /// </code>
+    /// </example>
+    public DynamoDbTableAttribute(Type tableType)
+    {
+        TableType = tableType ?? throw new ArgumentNullException(nameof(tableType));
+        TableName = string.Empty; // Will be derived from the table type
     }
 }

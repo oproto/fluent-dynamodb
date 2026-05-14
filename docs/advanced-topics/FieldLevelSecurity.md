@@ -177,10 +177,7 @@ var keyResolver = new DefaultKmsKeyResolver(
 ```csharp
 var encryptorOptions = new AwsEncryptionSdkOptions
 {
-    EnableCaching = true,
-    DefaultCacheTtlSeconds = 300,  // 5 minutes
-    MaxMessagesPerDataKey = 100,
-    MaxBytesPerDataKey = 100 * 1024 * 1024  // 100 MB
+    EnableCaching = true
 };
 ```
 
@@ -220,8 +217,7 @@ var keyResolver = new DefaultKmsKeyResolver(
 // 3. Configure encryption options
 var encryptorOptions = new AwsEncryptionSdkOptions
 {
-    EnableCaching = true,
-    DefaultCacheTtlSeconds = 300
+    EnableCaching = true
 };
 
 // 4. Create encryptor
@@ -276,13 +272,13 @@ The encryption context is passed at runtime, not hardcoded in attributes:
 
 ```csharp
 // Option 1: Per-operation context (recommended - most explicit)
-await customerTable.PutItem(customerData)
+await customerTable.Put(customerData)
     .WithEncryptionContext("tenant-123")
-    .ExecuteAsync();
+    .PutAsync();
 
 // Option 2: Ambient context (for middleware scenarios)
 EncryptionContext.Current = "tenant-123";
-await customerTable.PutItem(customerData).ExecuteAsync();
+await customerTable.Put(customerData).PutAsync();
 ```
 
 ### Manual Encryption in Queries
@@ -382,7 +378,7 @@ EncryptionContext.Current = "tenant-123";
 
 // All encryption operations in this async flow use the context
 var encryptedValue = table.Encrypt(value, fieldName);
-await table.PutItem(entity).ExecuteAsync();
+await table.Put(entity).PutAsync();
 await table.Query<User>()
     .WithFilter<User>(x => x.EncryptedField == table.Encrypt(value, "EncryptedField"))
     .ToListAsync();
@@ -494,8 +490,8 @@ For middleware scenarios, use the ambient context:
 EncryptionContext.Current = httpContext.GetTenantId();
 
 // All operations in this async flow use the context
-await customerTable.PutItem(data).ExecuteAsync();
-await customerTable.GetItem("key").ExecuteAsync();
+await customerTable.Put(data).PutAsync();
+await customerTable.Get("key").GetItemAsync();
 
 // Context automatically cleared when request completes
 ```
@@ -670,27 +666,12 @@ Configuration options for the AWS Encryption SDK field encryptor:
 public class AwsEncryptionSdkOptions
 {
     /// <summary>
-    /// Enable data key caching (default: true).
-    /// Uses AWS Encryption SDK's CachingCryptoMaterialsManager.
+    /// Enable keyring caching (default: true).
+    /// Caches keyring objects to reduce creation overhead.
+    /// Note: The AWS Encryption SDK for .NET does not support data key caching.
+    /// Each encryption operation calls KMS to generate a new data key.
     /// </summary>
     public bool EnableCaching { get; set; } = true;
-    
-    /// <summary>
-    /// Default cache TTL for data keys (seconds).
-    /// Can be overridden per-field via EncryptedAttribute.
-    /// </summary>
-    public int DefaultCacheTtlSeconds { get; set; } = 300;
-    
-    /// <summary>
-    /// Maximum number of messages encrypted with a single data key.
-    /// AWS Encryption SDK best practice: limit reuse.
-    /// </summary>
-    public int MaxMessagesPerDataKey { get; set; } = 100;
-    
-    /// <summary>
-    /// Maximum bytes encrypted with a single data key.
-    /// </summary>
-    public long MaxBytesPerDataKey { get; set; } = 100 * 1024 * 1024; // 100 MB
     
     /// <summary>
     /// Algorithm suite to use (default: AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384).
@@ -730,8 +711,9 @@ public sealed class EncryptedAttribute : Attribute
 {
     /// <summary>
     /// Cache TTL for data keys (seconds) for this specific field.
-    /// Overrides AwsEncryptionSdkOptions.DefaultCacheTtlSeconds.
     /// Default: 300 (5 minutes)
+    /// Note: This value is passed via FieldEncryptionContext and may be used
+    /// by encryption providers that support data key caching.
     /// </summary>
     public int CacheTtlSeconds { get; set; } = 300;
 }
@@ -798,9 +780,9 @@ All encryption errors throw `FieldEncryptionException`:
 ```csharp
 try
 {
-    await table.PutItem(data)
+    await table.Put(data)
         .WithEncryptionContext("tenant-123")
-        .ExecuteAsync();
+        .PutAsync();
 }
 catch (FieldEncryptionException ex)
 {
@@ -921,9 +903,8 @@ var table = new SecretsTable(client, "secrets", options);
 
 **Solutions**:
 1. Enable caching: `EnableCaching = true`
-2. Increase cache TTL: `DefaultCacheTtlSeconds = 600`
-3. Reduce encrypted field count
-4. Monitor KMS API calls in CloudWatch
+2. Reduce encrypted field count
+3. Monitor KMS API calls in CloudWatch
 
 ---
 

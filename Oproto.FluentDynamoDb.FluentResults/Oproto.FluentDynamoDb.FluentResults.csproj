@@ -23,7 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="FluentResults" Version="[4.0.0,5.0.0)" />
+        <PackageReference Include="FluentResults" />
     </ItemGroup>
 
     <ItemGroup>
@@ -32,6 +32,11 @@
         <ProjectReference Include="..\Oproto.FluentDynamoDb\Oproto.FluentDynamoDb.csproj">
             <SetTargetFramework>TargetFramework=net8.0</SetTargetFramework>
             <!-- This ensures the packed NuGet dependency uses the same version -->
+            <PrivateAssets>none</PrivateAssets>
+            <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+        </ProjectReference>
+        <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj">
+            <SetTargetFramework>TargetFramework=net8.0</SetTargetFramework>
             <PrivateAssets>none</PrivateAssets>
             <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
         </ProjectReference>

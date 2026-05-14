@@ -6,6 +6,7 @@ using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Providers.Encryption;
+using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb.Expressions;
 
@@ -350,6 +351,9 @@ public class UpdateExpressionTranslator
                 case OperationType.Delete:
                     deleteOperations.Add(operation.Expression);
                     break;
+                case OperationType.Skip:
+                    // Property should be skipped - do not add any operation
+                    break;
             }
         }
 
@@ -377,6 +381,25 @@ public class UpdateExpressionTranslator
         string propertyName,
         ExpressionContext context)
     {
+        return ClassifyOperationWithPath(valueExpression, parameter, propertyName, context, Array.Empty<string>());
+    }
+
+    /// <summary>
+    /// Classifies an operation with support for nested property paths.
+    /// </summary>
+    /// <param name="valueExpression">The value expression to classify.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="propertyName">The property name being updated.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties (e.g., ["Address"] for Address.City).</param>
+    /// <returns>An operation representing the update.</returns>
+    private Operation ClassifyOperationWithPath(
+        Expression valueExpression,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
         // Unwrap Convert expressions (e.g., when assigning int to int?)
         var unwrapped = valueExpression;
         while (unwrapped is UnaryExpression unary && 
@@ -385,20 +408,261 @@ public class UpdateExpressionTranslator
             unwrapped = unary.Operand;
         }
 
-        // Check for method calls (Add, Remove, Delete, IfNotExists, etc.)
+        // Handle conditional expressions (ternary operator)
+        if (unwrapped is ConditionalExpression conditional)
+        {
+            return HandleConditionalUpdateWithPath(conditional, parameter, propertyName, context, pathPrefix);
+        }
+
+        // Check for nested MemberInitExpression (nested object initializer)
+        // e.g., ShippingAddress = new AddressUpdateModel { City = "Portland" }
+        if (unwrapped is MemberInitExpression nestedInit)
+        {
+            return TranslateNestedMemberInit(nestedInit, parameter, propertyName, context, pathPrefix);
+        }
+
+        // Check for method calls (Add, Remove, Delete, IfNotExists, NoUpdate, etc.)
         if (unwrapped is MethodCallExpression methodCall)
         {
-            return TranslateMethodCall(methodCall, parameter, propertyName, context);
+            // Check for NoUpdate() first - this signals the property should be skipped
+            if (IsNoUpdateMethodCall(methodCall))
+            {
+                return new Operation
+                {
+                    Type = OperationType.Skip,
+                    Expression = string.Empty
+                };
+            }
+            
+            return TranslateMethodCallWithPath(methodCall, parameter, propertyName, context, pathPrefix);
         }
 
         // Check for binary operations (arithmetic)
         if (unwrapped is BinaryExpression binary)
         {
-            return TranslateBinaryOperation(binary, parameter, propertyName, context);
+            return TranslateBinaryOperationWithPath(binary, parameter, propertyName, context, pathPrefix);
         }
 
         // Simple value assignment - SET operation
-        return TranslateSimpleSet(valueExpression, parameter, propertyName, context);
+        return TranslateSimpleSetWithPath(valueExpression, parameter, propertyName, context, pathPrefix);
+    }
+
+    /// <summary>
+    /// Handles conditional expressions (ternary operator) in update expressions.
+    /// </summary>
+    /// <param name="conditional">The conditional expression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="propertyName">The property being updated.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>An operation representing the update, or Skip if the property should be skipped via NoUpdate().</returns>
+    /// <remarks>
+    /// <para>
+    /// This method handles patterns like:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description><c>Property = flag ? value : null</c> - SET NULL when flag is false (consistent null handling)</description></item>
+    /// <item><description><c>Property = flag ? value : x.Property.NoUpdate()</c> - Skip property when flag is false</description></item>
+    /// <item><description><c>Property = flag ? valueA : valueB</c> - Use appropriate value based on flag</description></item>
+    /// </list>
+    /// <para>
+    /// The condition must not reference the entity parameter - it must be evaluable at translation time.
+    /// Null values in either branch will generate SET NULL operations. Use NoUpdate() to skip updates.
+    /// </para>
+    /// </remarks>
+    private Operation HandleConditionalUpdate(
+        ConditionalExpression conditional,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        return HandleConditionalUpdateWithPath(conditional, parameter, propertyName, context, Array.Empty<string>());
+    }
+
+    /// <summary>
+    /// Handles conditional expressions (ternary operator) in update expressions with path support.
+    /// </summary>
+    private Operation HandleConditionalUpdateWithPath(
+        ConditionalExpression conditional,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // The condition must not reference the entity parameter - it must be evaluable at translation time
+        if (ReferencesEntityParameter(conditional.Test, parameter))
+        {
+            throw new UnsupportedExpressionException(
+                "Conditional test cannot reference entity properties. " +
+                "Use captured variables or constants for the condition. " +
+                "Example: 'Property = flag ? value : null' is valid, " +
+                "but 'Property = x.SomeProperty ? valueA : valueB' is not.",
+                conditional);
+        }
+
+        // Evaluate the test condition at translation time
+        bool testResult;
+        try
+        {
+            var testValue = EvaluateExpression(conditional.Test);
+            testResult = testValue is bool b ? b : Convert.ToBoolean(testValue);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionTranslationException(
+                $"Failed to evaluate conditional test expression for property '{propertyName}': {ex.Message}",
+                conditional);
+        }
+
+        // Process the appropriate branch based on the condition result
+        // Note: null values in either branch will generate SET NULL operations (consistent null handling)
+        var branchToProcess = testResult ? conditional.IfTrue : conditional.IfFalse;
+        return ClassifyOperationWithPath(branchToProcess, parameter, propertyName, context, pathPrefix);
+    }
+
+    /// <summary>
+    /// Translates a nested MemberInitExpression to multiple SET operations.
+    /// </summary>
+    /// <param name="nestedInit">The nested MemberInitExpression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="propertyName">The property name being updated.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties.</param>
+    /// <returns>An operation containing all nested SET expressions combined.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method handles nested object initializers like:
+    /// </para>
+    /// <code>
+    /// ShippingAddress = new AddressUpdateModel { City = "Portland", State = "OR" }
+    /// </code>
+    /// <para>
+    /// Which generates: SET #address.#city = :v0, #address.#state = :v1
+    /// </para>
+    /// <para>
+    /// Multi-level nesting is also supported:
+    /// </para>
+    /// <code>
+    /// ShippingAddress = new AddressUpdateModel { Country = new CountryUpdateModel { Code = "US" } }
+    /// </code>
+    /// <para>
+    /// Which generates: SET #address.#country.#code = :v0
+    /// </para>
+    /// </remarks>
+    private Operation TranslateNestedMemberInit(
+        MemberInitExpression nestedInit,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // Build the new path prefix including this property
+        var currentPath = pathPrefix.Append(propertyName).ToArray();
+        
+        // Collect all SET operations from nested bindings
+        var setOperations = new List<string>();
+        
+        foreach (var binding in nestedInit.Bindings)
+        {
+            if (binding is not MemberAssignment assignment)
+            {
+                throw new UnsupportedExpressionException(
+                    $"Only property assignments are supported in nested update expressions. Found: {binding.BindingType}",
+                    nestedInit);
+            }
+            
+            var nestedPropertyName = assignment.Member.Name;
+            var nestedValueExpression = assignment.Expression;
+            
+            // Recursively classify the operation with the updated path
+            var operation = ClassifyOperationWithPath(nestedValueExpression, parameter, nestedPropertyName, context, currentPath);
+            
+            // Only SET operations are supported for nested updates
+            // ADD, REMOVE, DELETE operations on nested properties would require different handling
+            if (operation.Type == OperationType.Set)
+            {
+                setOperations.Add(operation.Expression);
+            }
+            else if (operation.Type == OperationType.Skip)
+            {
+                // Skip this property
+                continue;
+            }
+            else
+            {
+                throw new UnsupportedExpressionException(
+                    $"Only SET operations are supported for nested property updates. " +
+                    $"Property '{nestedPropertyName}' in path '{string.Join(".", currentPath)}' uses operation type '{operation.Type}'.",
+                    nestedInit);
+            }
+        }
+        
+        // If no operations were generated (all skipped), return Skip
+        if (setOperations.Count == 0)
+        {
+            return new Operation
+            {
+                Type = OperationType.Skip,
+                Expression = string.Empty
+            };
+        }
+        
+        // Return a combined SET operation
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = string.Join(", ", setOperations)
+        };
+    }
+
+    /// <summary>
+    /// Checks if a method call expression is a call to the NoUpdate() extension method.
+    /// </summary>
+    /// <param name="methodCall">The method call expression to check.</param>
+    /// <returns>True if the method call is NoUpdate(), false otherwise.</returns>
+    /// <remarks>
+    /// <para>
+    /// The NoUpdate() method is an extension method on UpdateExpressionProperty&lt;T&gt; that signals
+    /// the property should not be updated. When detected, the translator returns a Skip operation,
+    /// leaving the existing value unchanged in DynamoDB.
+    /// </para>
+    /// </remarks>
+    private bool IsNoUpdateMethodCall(MethodCallExpression methodCall)
+    {
+        return methodCall.Method.Name == "NoUpdate" &&
+               methodCall.Method.DeclaringType == typeof(UpdateExpressionPropertyExtensions);
+    }
+
+    /// <summary>
+    /// Checks if an expression references the entity parameter.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <param name="entityParameter">The entity parameter to look for.</param>
+    /// <returns>True if the expression references the entity parameter, false otherwise.</returns>
+    private bool ReferencesEntityParameter(Expression expression, ParameterExpression entityParameter)
+    {
+        var visitor = new EntityParameterReferenceVisitor(entityParameter);
+        visitor.Visit(expression);
+        return visitor.ContainsReference;
+    }
+
+    private class EntityParameterReferenceVisitor : ExpressionVisitor
+    {
+        private readonly ParameterExpression _entityParameter;
+        public bool ContainsReference { get; private set; }
+
+        public EntityParameterReferenceVisitor(ParameterExpression entityParameter)
+        {
+            _entityParameter = entityParameter;
+        }
+
+        protected override Expression VisitParameter(ParameterExpression node)
+        {
+            if (node == _entityParameter)
+            {
+                ContainsReference = true;
+            }
+            return base.VisitParameter(node);
+        }
     }
 
     private Operation TranslateSimpleSet(
@@ -407,14 +671,31 @@ public class UpdateExpressionTranslator
         string propertyName,
         ExpressionContext context)
     {
-        // Validate property is not a key
-        ValidateNotKeyProperty(propertyName, context, valueExpression);
+        return TranslateSimpleSetWithPath(valueExpression, parameter, propertyName, context, Array.Empty<string>());
+    }
 
-        // Get property metadata
-        var propertyMetadata = GetPropertyMetadata(propertyName, context);
+    private Operation TranslateSimpleSetWithPath(
+        Expression valueExpression,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // Validate property is not a key (only for top-level properties)
+        if (pathPrefix.Length == 0)
+        {
+            ValidateNotKeyProperty(propertyName, context, valueExpression);
+        }
+
+        // Get property metadata (only available for top-level properties)
+        PropertyMetadata? propertyMetadata = null;
+        if (pathPrefix.Length == 0)
+        {
+            propertyMetadata = GetPropertyMetadata(propertyName, context);
+        }
         
-        // Get attribute name
-        var attributeName = GetAttributeName(propertyName, context, valueExpression);
+        // Get attribute name with path support
+        var attributeName = GetAttributeNameWithPath(propertyName, context, pathPrefix, valueExpression);
         
         // Evaluate the value expression
         var value = EvaluateExpression(valueExpression);
@@ -458,13 +739,21 @@ public class UpdateExpressionTranslator
                 binary);
         }
 
+        // Check if left side is an IfNotExists method call - common pattern for counters with non-zero defaults
+        // e.g., x.Count.IfNotExists(100) + 1 => SET #count = if_not_exists(#count, :default) + :increment
+        if (IsIfNotExistsMethodCall(binary.Left, parameter))
+        {
+            return TranslateIfNotExistsWithArithmetic(binary, parameter, propertyName, context);
+        }
+
         // Check if left side is UpdateExpressionProperty access
         if (!IsUpdateExpressionPropertyAccess(binary.Left, parameter))
         {
             throw new UnsupportedExpressionException(
-                $"Left side of arithmetic operation must be an UpdateExpressionProperty access (e.g., x.PropertyName). " +
+                $"Left side of arithmetic operation must be an UpdateExpressionProperty access (e.g., x.PropertyName) " +
+                $"or an IfNotExists call (e.g., x.PropertyName.IfNotExists(0)). " +
                 $"Found: {binary.Left.NodeType}. " +
-                $"Example: x.Count + 5 (where x is the UpdateExpressions parameter).",
+                $"Examples: x.Count + 5, x.Count.IfNotExists(0) + 1",
                 binary);
         }
 
@@ -516,13 +805,220 @@ public class UpdateExpressionTranslator
         };
     }
 
+    /// <summary>
+    /// Checks if an expression is an IfNotExists method call on an UpdateExpressionProperty.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <returns>True if the expression is x.Property.IfNotExists(defaultValue); otherwise, false.</returns>
+    private bool IsIfNotExistsMethodCall(Expression expression, ParameterExpression parameter)
+    {
+        // Unwrap Convert expressions
+        var unwrapped = expression;
+        while (unwrapped is UnaryExpression unary && 
+               (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            unwrapped = unary.Operand;
+        }
+
+        if (unwrapped is not MethodCallExpression methodCall)
+            return false;
+
+        if (methodCall.Method.Name != "IfNotExists")
+            return false;
+
+        // For extension methods, Arguments[0] is the 'this' parameter (the property itself)
+        if (methodCall.Arguments.Count < 1)
+            return false;
+
+        // Check that the 'this' argument is a property access on the parameter
+        return IsUpdateExpressionPropertyAccess(methodCall.Arguments[0], parameter);
+    }
+
+    /// <summary>
+    /// Translates an IfNotExists call combined with arithmetic to DynamoDB syntax.
+    /// </summary>
+    /// <param name="binary">The binary expression (e.g., x.Count.IfNotExists(0) + 1).</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="propertyName">The property name being updated.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>An operation representing SET #attr = if_not_exists(#attr, :default) +/- :value.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method handles the common counter pattern where you want to initialize a counter
+    /// to a non-zero default value if it doesn't exist, then perform arithmetic on it.
+    /// </para>
+    /// <para>
+    /// Example: <c>x.Count.IfNotExists(100) + 1</c> generates:
+    /// <c>SET #count = if_not_exists(#count, :p0) + :p1</c>
+    /// where :p0 = 100 (default) and :p1 = 1 (increment)
+    /// </para>
+    /// <para>
+    /// For simple zero-default counters, consider using <c>x.Count.Add(1)</c> instead,
+    /// which generates a DynamoDB ADD operation that automatically initializes to 0.
+    /// </para>
+    /// </remarks>
+    private Operation TranslateIfNotExistsWithArithmetic(
+        BinaryExpression binary,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        // Unwrap Convert expressions from the left side
+        var leftUnwrapped = binary.Left;
+        while (leftUnwrapped is UnaryExpression unary && 
+               (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            leftUnwrapped = unary.Operand;
+        }
+
+        var methodCall = (MethodCallExpression)leftUnwrapped;
+
+        // Get property metadata
+        var propertyMetadata = GetPropertyMetadata(propertyName, context);
+        
+        // Validate property type is numeric
+        if (propertyMetadata != null && !IsNumericType(propertyMetadata.PropertyType))
+        {
+            throw new UnsupportedExpressionException(
+                $"Arithmetic operations are only supported on numeric properties. " +
+                $"Property '{propertyName}' (DynamoDB attribute: '{propertyMetadata.AttributeName}') has type '{propertyMetadata.PropertyType.Name}'. " +
+                $"Supported numeric types: byte, short, int, long, float, double, decimal and their nullable variants.",
+                binary);
+        }
+        
+        // Get attribute name
+        var attributeName = GetAttributeName(propertyName, context, binary);
+        
+        // Get the default value from IfNotExists (Arguments[1] is the default value)
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                $"IfNotExists() method requires a default value argument. " +
+                $"Example: x.Count.IfNotExists(0) + 1",
+                "IfNotExists",
+                methodCall);
+        }
+        
+        var defaultValueArg = methodCall.Arguments[1];
+        var defaultValue = EvaluateExpression(defaultValueArg);
+        
+        // Validate the default value is numeric
+        if (defaultValue != null && !IsNumericType(defaultValue.GetType()))
+        {
+            throw new UnsupportedExpressionException(
+                $"Default value in IfNotExists() must be numeric when used with arithmetic. " +
+                $"Found type: {defaultValue.GetType().Name}.",
+                binary);
+        }
+        
+        // Apply format if specified
+        if (propertyMetadata?.Format != null && defaultValue != null)
+        {
+            defaultValue = ApplyFormat(defaultValue, propertyMetadata.Format, propertyName);
+        }
+        
+        // Capture the default value
+        var defaultPlaceholder = CaptureValue(defaultValue, context, propertyMetadata);
+        
+        // Evaluate the right side value (the arithmetic operand)
+        var incrementValue = EvaluateExpression(binary.Right);
+        
+        // Validate the increment value is numeric
+        if (incrementValue != null && !IsNumericType(incrementValue.GetType()))
+        {
+            throw new UnsupportedExpressionException(
+                $"Right side of arithmetic operation must evaluate to a numeric value. " +
+                $"Found type: {incrementValue.GetType().Name}.",
+                binary);
+        }
+        
+        // Apply format if specified
+        if (propertyMetadata?.Format != null && incrementValue != null)
+        {
+            incrementValue = ApplyFormat(incrementValue, propertyMetadata.Format, propertyName);
+        }
+        
+        // Capture the increment value
+        var incrementPlaceholder = CaptureValue(incrementValue, context, propertyMetadata);
+        
+        // Build SET expression: #attr = if_not_exists(#attr, :default) +/- :increment
+        var op = binary.NodeType == ExpressionType.Add ? "+" : "-";
+        var expression = $"{attributeName} = if_not_exists({attributeName}, {defaultPlaceholder}) {op} {incrementPlaceholder}";
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    private Operation TranslateBinaryOperationWithPath(
+        BinaryExpression binary,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // For nested properties, arithmetic operations are not supported
+        // (would require tracking the nested property reference in the expression)
+        if (pathPrefix.Length > 0)
+        {
+            throw new UnsupportedExpressionException(
+                $"Arithmetic operations are not supported for nested properties. " +
+                $"Property path: '{string.Join(".", pathPrefix)}.{propertyName}'. " +
+                $"Use simple value assignment instead.",
+                binary);
+        }
+        
+        // Delegate to the non-path version for top-level properties
+        return TranslateBinaryOperation(binary, parameter, propertyName, context);
+    }
+
     private Operation TranslateMethodCall(
         MethodCallExpression methodCall,
         ParameterExpression parameter,
         string propertyName,
         ExpressionContext context)
     {
+        return TranslateMethodCallWithPath(methodCall, parameter, propertyName, context, Array.Empty<string>());
+    }
+
+    private Operation TranslateMethodCallWithPath(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
         var methodName = methodCall.Method.Name;
+        
+        // Check if this is a list operation extension method from UpdateExpressionPropertyExtensions
+        // These methods are called on the UpdateExpressionProperty<List<T>>, so we need to extract the path from Arguments[0]
+        if (IsListOperationExtensionMethodOnList(methodCall))
+        {
+            return TranslateListOperationExtensionMethod(methodCall, parameter, context, pathPrefix, propertyName);
+        }
+        
+        // Check if the method call references the entity parameter
+        // If it doesn't, it's a local method call that can be evaluated at translation time
+        // Examples: TransactionStatus.Active.ToString(), myVar.Trim().ToUpper(), guid.ToString()
+        if (!ReferencesEntityParameter(methodCall, parameter))
+        {
+            // Evaluate the method call and treat it as a simple value assignment
+            return TranslateSimpleSetWithPath(methodCall, parameter, propertyName, context, pathPrefix);
+        }
+        
+        // For nested properties, only certain methods are supported
+        if (pathPrefix.Length > 0)
+        {
+            throw new UnsupportedExpressionException(
+                $"Method '{methodName}' is not supported for nested properties. " +
+                $"Property path: '{string.Join(".", pathPrefix)}.{propertyName}'. " +
+                $"Use simple value assignment for nested properties.",
+                methodName,
+                methodCall);
+        }
         
         return methodName switch
         {
@@ -532,11 +1028,15 @@ public class UpdateExpressionTranslator
             "IfNotExists" => TranslateIfNotExistsFunction(methodCall, parameter, propertyName, context),
             "ListAppend" => TranslateListAppendFunction(methodCall, parameter, propertyName, context),
             "ListPrepend" => TranslateListPrependFunction(methodCall, parameter, propertyName, context),
+            "Append" => TranslateAppendFunction(methodCall, parameter, propertyName, context),
+            "Prepend" => TranslatePrependFunction(methodCall, parameter, propertyName, context),
+            "AppendRange" => TranslateAppendRangeFunction(methodCall, parameter, propertyName, context),
+            "PrependRange" => TranslatePrependRangeFunction(methodCall, parameter, propertyName, context),
             "SetDynamicField" => TranslateSetDynamicFieldOperation(methodCall, parameter, context),
             "RemoveDynamicField" => TranslateRemoveDynamicFieldOperation(methodCall, parameter, context),
             _ => throw new UnsupportedExpressionException(
                 $"Method '{methodName}' is not supported in update expressions. " +
-                $"Supported methods: Add, Remove, Delete, IfNotExists, ListAppend, ListPrepend, SetDynamicField, RemoveDynamicField.",
+                $"Supported methods: Add, Remove, Delete, IfNotExists, ListAppend, ListPrepend, Append, Prepend, AppendRange, PrependRange, SetDynamicField, RemoveDynamicField.",
                 methodName,
                 methodCall)
         };
@@ -917,6 +1417,838 @@ public class UpdateExpressionTranslator
         };
     }
 
+    /// <summary>
+    /// Translates an Append method call on UpdateExpressionProperty&lt;List&lt;T&gt;&gt; to DynamoDB list_append.
+    /// </summary>
+    private Operation TranslateAppendFunction(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        // Validate property is not a key
+        ValidateNotKeyProperty(propertyName, context, methodCall);
+        
+        // Get attribute name
+        var attributeName = GetAttributeName(propertyName, context, methodCall);
+        
+        // Get property metadata
+        var propertyMetadata = GetPropertyMetadata(propertyName, context);
+        
+        // Get the item to append
+        // For extension methods, Arguments[0] is the 'this' parameter (the property itself)
+        // and Arguments[1] is the actual first argument (the item to append)
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                $"Append() method requires an item to append. " +
+                $"Example: x.Tags.Append(\"new-tag\").",
+                "Append",
+                methodCall);
+        }
+        
+        var valueArg = methodCall.Arguments[1];
+        var value = EvaluateExpression(valueArg);
+        
+        // Wrap single item in a list for list_append
+        value = WrapInList(value);
+        
+        // Capture the value
+        var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
+        
+        // Build SET expression with list_append function
+        var expression = $"{attributeName} = list_append({attributeName}, {valuePlaceholder})";
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Translates a Prepend method call on UpdateExpressionProperty&lt;List&lt;T&gt;&gt; to DynamoDB list_append.
+    /// </summary>
+    private Operation TranslatePrependFunction(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        // Validate property is not a key
+        ValidateNotKeyProperty(propertyName, context, methodCall);
+        
+        // Get attribute name
+        var attributeName = GetAttributeName(propertyName, context, methodCall);
+        
+        // Get property metadata
+        var propertyMetadata = GetPropertyMetadata(propertyName, context);
+        
+        // Get the item to prepend
+        // For extension methods, Arguments[0] is the 'this' parameter (the property itself)
+        // and Arguments[1] is the actual first argument (the item to prepend)
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                $"Prepend() method requires an item to prepend. " +
+                $"Example: x.Tags.Prepend(\"priority-tag\").",
+                "Prepend",
+                methodCall);
+        }
+        
+        var valueArg = methodCall.Arguments[1];
+        var value = EvaluateExpression(valueArg);
+        
+        // Wrap single item in a list for list_append
+        value = WrapInList(value);
+        
+        // Capture the value
+        var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
+        
+        // Build SET expression with list_append function (reversed order for prepend)
+        var expression = $"{attributeName} = list_append({valuePlaceholder}, {attributeName})";
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Translates an AppendRange method call on UpdateExpressionProperty&lt;List&lt;T&gt;&gt; to DynamoDB list_append.
+    /// </summary>
+    private Operation TranslateAppendRangeFunction(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        // Validate property is not a key
+        ValidateNotKeyProperty(propertyName, context, methodCall);
+        
+        // Get attribute name
+        var attributeName = GetAttributeName(propertyName, context, methodCall);
+        
+        // Get property metadata
+        var propertyMetadata = GetPropertyMetadata(propertyName, context);
+        
+        // Get the items to append
+        // For extension methods, Arguments[0] is the 'this' parameter (the property itself)
+        // and Arguments[1] is the actual first argument (the items to append)
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                $"AppendRange() method requires items to append. " +
+                $"Example: x.Tags.AppendRange(new[] {{ \"tag1\", \"tag2\" }}).",
+                "AppendRange",
+                methodCall);
+        }
+        
+        var valueArg = methodCall.Arguments[1];
+        var value = EvaluateExpression(valueArg);
+        
+        // Convert to list if needed
+        value = ConvertToList(value);
+        
+        // Capture the value
+        var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
+        
+        // Build SET expression with list_append function
+        var expression = $"{attributeName} = list_append({attributeName}, {valuePlaceholder})";
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Translates a PrependRange method call on UpdateExpressionProperty&lt;List&lt;T&gt;&gt; to DynamoDB list_append.
+    /// </summary>
+    private Operation TranslatePrependRangeFunction(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        string propertyName,
+        ExpressionContext context)
+    {
+        // Validate property is not a key
+        ValidateNotKeyProperty(propertyName, context, methodCall);
+        
+        // Get attribute name
+        var attributeName = GetAttributeName(propertyName, context, methodCall);
+        
+        // Get property metadata
+        var propertyMetadata = GetPropertyMetadata(propertyName, context);
+        
+        // Get the items to prepend
+        // For extension methods, Arguments[0] is the 'this' parameter (the property itself)
+        // and Arguments[1] is the actual first argument (the items to prepend)
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                $"PrependRange() method requires items to prepend. " +
+                $"Example: x.Tags.PrependRange(new[] {{ \"tag1\", \"tag2\" }}).",
+                "PrependRange",
+                methodCall);
+        }
+        
+        var valueArg = methodCall.Arguments[1];
+        var value = EvaluateExpression(valueArg);
+        
+        // Convert to list if needed
+        value = ConvertToList(value);
+        
+        // Capture the value
+        var valuePlaceholder = CaptureValue(value, context, propertyMetadata);
+        
+        // Build SET expression with list_append function (reversed order for prepend)
+        var expression = $"{attributeName} = list_append({valuePlaceholder}, {attributeName})";
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Checks if a method call is a list operation extension method.
+    /// </summary>
+    /// <param name="methodCall">The method call expression to check.</param>
+    /// <returns>True if the method is from UpdateExpressionPropertyExtensions or ListOperationExtensions.</returns>
+    /// <remarks>
+    /// <para>
+    /// The first operation in a chain uses UpdateExpressionPropertyExtensions (on UpdateExpressionProperty&lt;List&lt;T&gt;&gt;).
+    /// Subsequent chained operations use ListOperationExtensions (on List&lt;T&gt;, the return type).
+    /// </para>
+    /// </remarks>
+    private static bool IsListOperationExtensionMethodOnList(MethodCallExpression methodCall)
+    {
+        var methodName = methodCall.Method.Name;
+        if (methodName is not ("Append" or "Prepend" or "AppendRange" or "PrependRange" or "SetAt" or "RemoveAt"))
+            return false;
+        
+        // Check if the method is from UpdateExpressionPropertyExtensions (first operation in chain)
+        // or ListOperationExtensions (subsequent chained operations on List<T>)
+        var declaringType = methodCall.Method.DeclaringType;
+        return declaringType?.Name == nameof(UpdateExpressionPropertyExtensions) ||
+               declaringType?.Name == nameof(ListOperationExtensions);
+    }
+
+    /// <summary>
+    /// Checks if a method name is a list operation extension method.
+    /// </summary>
+    /// <param name="methodName">The method name to check.</param>
+    /// <returns>True if the method is a list operation extension method.</returns>
+    private static bool IsListOperationExtensionMethod(string methodName)
+    {
+        return methodName is "Append" or "Prepend" or "AppendRange" or "PrependRange" or "SetAt" or "RemoveAt";
+    }
+
+    /// <summary>
+    /// Validates that a list operation is not chained with an incompatible operation.
+    /// DynamoDB does not allow multiple operations on overlapping document paths in a single update expression.
+    /// </summary>
+    /// <param name="listExpression">The expression representing the list (Arguments[0] of the method call).</param>
+    /// <param name="currentOperation">The name of the current operation being translated.</param>
+    /// <param name="sourceExpression">The source expression for error reporting.</param>
+    /// <exception cref="UnsupportedExpressionException">Thrown when overlapping operations are detected.</exception>
+    /// <remarks>
+    /// <para><strong>Allowed Chaining:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Multiple SetAt calls with different indices: x.Tags.SetAt(0, "a").SetAt(1, "b")</description></item>
+    /// </list>
+    /// <para><strong>Disallowed Chaining:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>SetAt + Append/Prepend: overlapping paths (index access + whole list)</description></item>
+    /// <item><description>SetAt + RemoveAt: overlapping paths (SET + REMOVE on same attribute)</description></item>
+    /// <item><description>Append/Prepend + RemoveAt: overlapping paths</description></item>
+    /// <item><description>Any combination that mixes index operations with whole-list operations</description></item>
+    /// </list>
+    /// </remarks>
+    private static void ValidateNoOverlappingListOperations(
+        Expression listExpression,
+        string currentOperation,
+        Expression sourceExpression)
+    {
+        // Check if the list expression is another list operation method call
+        if (listExpression is not MethodCallExpression chainedCall)
+            return;
+
+        // Check if it's a list operation extension method (from either class)
+        var declaringType = chainedCall.Method.DeclaringType;
+        if (declaringType?.Name != nameof(ListOperationExtensions) &&
+            declaringType?.Name != nameof(UpdateExpressionPropertyExtensions))
+            return;
+
+        var chainedMethodName = chainedCall.Method.Name;
+        
+        // SetAt can only be chained with other SetAt calls (handled separately in CollectChainedSetAtOperations)
+        // All other combinations are disallowed
+        
+        // Determine the type of the current operation
+        var isCurrentIndexOperation = currentOperation is "SetAt" or "RemoveAt";
+        var isCurrentWholeListOperation = currentOperation is "Append" or "Prepend" or "AppendRange" or "PrependRange";
+        
+        // Determine the type of the chained operation
+        var isChainedIndexOperation = chainedMethodName is "SetAt" or "RemoveAt";
+        var isChainedWholeListOperation = chainedMethodName is "Append" or "Prepend" or "AppendRange" or "PrependRange";
+        
+        // SetAt chained with SetAt is allowed (handled by CollectChainedSetAtOperations)
+        if (currentOperation == "SetAt" && chainedMethodName == "SetAt")
+            return;
+        
+        // All other combinations are disallowed due to DynamoDB's overlapping document path restriction
+        string errorMessage;
+        
+        if (isCurrentIndexOperation && isChainedWholeListOperation)
+        {
+            // e.g., x.Tags.Append("a").SetAt(0, "b") or x.Tags.Append("a").RemoveAt(0)
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           $"The {chainedMethodName}() operation modifies the entire list while {currentOperation}() targets a specific index. " +
+                           "Use separate update operations instead.";
+        }
+        else if (isCurrentWholeListOperation && isChainedIndexOperation)
+        {
+            // e.g., x.Tags.SetAt(0, "a").Append("b") or x.Tags.RemoveAt(0).Append("b")
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           $"The {currentOperation}() operation modifies the entire list while {chainedMethodName}() targets a specific index. " +
+                           "Use separate update operations instead.";
+        }
+        else if (isCurrentWholeListOperation && isChainedWholeListOperation)
+        {
+            // e.g., x.Tags.Append("a").Prepend("b")
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           "Both operations modify the entire list. " +
+                           "Use separate update operations instead.";
+        }
+        else if (currentOperation == "RemoveAt" && chainedMethodName == "SetAt")
+        {
+            // e.g., x.Tags.SetAt(0, "a").RemoveAt(1)
+            errorMessage = "Cannot chain RemoveAt() with SetAt() on the same list. " +
+                           "DynamoDB does not allow SET and REMOVE operations on overlapping document paths. " +
+                           "Use separate update operations instead.";
+        }
+        else if (currentOperation == "SetAt" && chainedMethodName == "RemoveAt")
+        {
+            // e.g., x.Tags.RemoveAt(0).SetAt(1, "a")
+            errorMessage = "Cannot chain SetAt() with RemoveAt() on the same list. " +
+                           "DynamoDB does not allow SET and REMOVE operations on overlapping document paths. " +
+                           "Use separate update operations instead.";
+        }
+        else
+        {
+            // Generic fallback for any other combination
+            errorMessage = $"Cannot chain {currentOperation}() with {chainedMethodName}() on the same list. " +
+                           "DynamoDB does not allow multiple operations on overlapping document paths. " +
+                           "Use separate update operations instead.";
+        }
+        
+        throw new UnsupportedExpressionException(errorMessage, sourceExpression);
+    }
+
+    /// <summary>
+    /// Translates a list operation extension method call (Append, Prepend, AppendRange, PrependRange).
+    /// These methods are called on the list property itself, so we need to extract the path from Arguments[0].
+    /// </summary>
+    /// <param name="methodCall">The method call expression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties.</param>
+    /// <param name="propertyName">The property name (may be overridden by extracting from the method call).</param>
+    /// <returns>An operation representing the list operation.</returns>
+    /// <remarks>
+    /// <para>
+    /// List operation extension methods are called on the list property itself:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description><c>x.Tags.Append("item")</c> - top-level list</description></item>
+    /// <item><description><c>x.Metadata.Keywords.Append("sale")</c> - nested list</description></item>
+    /// </list>
+    /// <para>
+    /// For extension methods, Arguments[0] is the 'this' parameter (the list property)
+    /// and Arguments[1] is the item(s) to append/prepend.
+    /// </para>
+    /// </remarks>
+    private Operation TranslateListOperationExtensionMethod(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context,
+        string[] pathPrefix,
+        string propertyName)
+    {
+        var methodName = methodCall.Method.Name;
+        
+        // Handle SetAt and RemoveAt separately as they have different argument patterns
+        if (methodName == "SetAt")
+        {
+            return TranslateSetAtOperation(methodCall, parameter, context, pathPrefix);
+        }
+        
+        if (methodName == "RemoveAt")
+        {
+            return TranslateRemoveAtOperation(methodCall, parameter, context, pathPrefix);
+        }
+        
+        // For extension methods, Arguments[0] is the 'this' parameter (the list property)
+        // and Arguments[1] is the item(s) to append/prepend
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                $"{methodName}() method requires an item to {methodName.ToLowerInvariant()}. " +
+                $"Example: x.Tags.{methodName}(\"item\").",
+                methodName,
+                methodCall);
+        }
+        
+        // Extract the list property path from Arguments[0]
+        var listExpression = methodCall.Arguments[0];
+        
+        // Validate no overlapping list operations (e.g., x.Tags.SetAt(0, "a").Append("b") is not allowed)
+        ValidateNoOverlappingListOperations(listExpression, methodName, methodCall);
+        
+        var (listPath, listPropertyName) = ExtractListPropertyPath(listExpression, parameter, context);
+        
+        // Combine the path prefix with the extracted path
+        var fullPath = pathPrefix.Concat(listPath).ToArray();
+        
+        // Get the attribute name with the full path
+        var attributeName = GetAttributeNameWithPath(listPropertyName, context, fullPath, methodCall);
+        
+        // Get the value argument
+        var valueArg = methodCall.Arguments[1];
+        var value = EvaluateExpression(valueArg);
+        
+        // For single item methods (Append, Prepend), wrap the value in a list
+        if (methodName is "Append" or "Prepend")
+        {
+            value = WrapInList(value);
+        }
+        else
+        {
+            // For range methods (AppendRange, PrependRange), convert to list if needed
+            value = ConvertToList(value);
+        }
+        
+        // Capture the value
+        var valuePlaceholder = CaptureValue(value, context, null);
+        
+        // Build SET expression with list_append function
+        // For Append/AppendRange: list_append(#attr, :val) - adds to end
+        // For Prepend/PrependRange: list_append(:val, #attr) - adds to beginning
+        string expression;
+        if (methodName is "Append" or "AppendRange")
+        {
+            expression = $"{attributeName} = list_append({attributeName}, {valuePlaceholder})";
+        }
+        else // Prepend or PrependRange
+        {
+            expression = $"{attributeName} = list_append({valuePlaceholder}, {attributeName})";
+        }
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Translates a SetAt method call to a DynamoDB SET expression with list index.
+    /// Supports chained SetAt calls: x.Tags.SetAt(0, "a").SetAt(1, "b")
+    /// </summary>
+    /// <param name="methodCall">The SetAt method call expression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties.</param>
+    /// <returns>An operation representing the SET expression(s).</returns>
+    /// <remarks>
+    /// <para>
+    /// SetAt translates to: SET #attr[index] = :val
+    /// </para>
+    /// <para>
+    /// For extension methods:
+    /// - Arguments[0] is the 'this' parameter (the list property or another SetAt call)
+    /// - Arguments[1] is the index
+    /// - Arguments[2] is the value to set
+    /// </para>
+    /// <para>
+    /// Chained SetAt calls are supported:
+    /// x.Tags.SetAt(0, "a").SetAt(1, "b") generates: SET #tags[0] = :v0, #tags[1] = :v1
+    /// </para>
+    /// <para>
+    /// Duplicate indices in a chain will throw UnsupportedExpressionException.
+    /// </para>
+    /// </remarks>
+    private Operation TranslateSetAtOperation(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // SetAt has 3 arguments: list (this), index, value
+        if (methodCall.Arguments.Count < 3)
+        {
+            throw new UnsupportedExpressionException(
+                "SetAt() method requires an index and a value. " +
+                "Example: x.Tags.SetAt(0, \"updated\").",
+                "SetAt",
+                methodCall);
+        }
+        
+        // Collect all SetAt operations from the chain
+        var setAtOperations = CollectChainedSetAtOperations(methodCall, parameter, context);
+        
+        // Validate no duplicate indices
+        var indices = setAtOperations.Select(op => op.Index).ToList();
+        var duplicateIndices = indices.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+        if (duplicateIndices.Any())
+        {
+            throw new UnsupportedExpressionException(
+                $"Chained SetAt operations cannot have duplicate indices. " +
+                $"Duplicate index found: {duplicateIndices[0]}. " +
+                "Each SetAt in a chain must target a different index.",
+                methodCall);
+        }
+        
+        // Get the list property path from the base of the chain
+        var baseListExpression = setAtOperations[0].BaseListExpression;
+        var (listPath, listPropertyName) = ExtractListPropertyPath(baseListExpression, parameter, context);
+        
+        // Combine the path prefix with the extracted path
+        var fullPath = pathPrefix.Concat(listPath).ToArray();
+        
+        // Get the attribute name with the full path
+        var attributeName = GetAttributeNameWithPath(listPropertyName, context, fullPath, methodCall);
+        
+        // Build SET expressions for all operations in the chain
+        var expressions = new List<string>();
+        foreach (var op in setAtOperations)
+        {
+            // Capture the value
+            var valuePlaceholder = CaptureValue(op.Value, context, null);
+            
+            // Build SET expression: #attr[index] = :val
+            expressions.Add($"{attributeName}[{op.Index}] = {valuePlaceholder}");
+        }
+        
+        // Combine all expressions with comma separator
+        var combinedExpression = string.Join(", ", expressions);
+        
+        return new Operation
+        {
+            Type = OperationType.Set,
+            Expression = combinedExpression
+        };
+    }
+
+    /// <summary>
+    /// Represents a single SetAt operation in a chain.
+    /// </summary>
+    private class SetAtOperationInfo
+    {
+        public int Index { get; set; }
+        public object? Value { get; set; }
+        public Expression BaseListExpression { get; set; } = null!;
+    }
+
+    /// <summary>
+    /// Collects all SetAt operations from a chained expression.
+    /// Walks the chain from outermost to innermost, collecting index/value pairs.
+    /// </summary>
+    /// <param name="methodCall">The outermost SetAt method call.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>A list of SetAt operations with the base list expression.</returns>
+    private List<SetAtOperationInfo> CollectChainedSetAtOperations(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context)
+    {
+        var operations = new List<SetAtOperationInfo>();
+        var current = methodCall;
+        Expression? baseListExpression = null;
+        
+        while (current != null)
+        {
+            // Validate SetAt has correct number of arguments
+            if (current.Arguments.Count < 3)
+            {
+                throw new UnsupportedExpressionException(
+                    "SetAt() method requires an index and a value. " +
+                    "Example: x.Tags.SetAt(0, \"updated\").",
+                    "SetAt",
+                    current);
+            }
+            
+            // Get the index argument and evaluate it
+            var indexArg = current.Arguments[1];
+            var index = EvaluateIndexExpression(indexArg, parameter, current);
+            
+            // Validate index is non-negative
+            ValidateListIndex(index, indexArg);
+            
+            // Get the value argument
+            var valueArg = current.Arguments[2];
+            var value = EvaluateExpression(valueArg);
+            
+            // Add this operation to the list
+            operations.Add(new SetAtOperationInfo
+            {
+                Index = index,
+                Value = value
+            });
+            
+            // Check if Arguments[0] is another SetAt call (chained)
+            var listExpression = current.Arguments[0];
+            if (listExpression is MethodCallExpression chainedCall && 
+                chainedCall.Method.Name == "SetAt" &&
+                (chainedCall.Method.DeclaringType?.Name == nameof(ListOperationExtensions) ||
+                 chainedCall.Method.DeclaringType?.Name == nameof(UpdateExpressionPropertyExtensions)))
+            {
+                // Continue walking the chain
+                current = chainedCall;
+            }
+            else
+            {
+                // Validate no overlapping list operations before accepting as base expression
+                // This catches cases like x.Tags.Append("a").SetAt(0, "b")
+                ValidateNoOverlappingListOperations(listExpression, "SetAt", current);
+                
+                // This is the base list expression (e.g., x.Tags)
+                baseListExpression = listExpression;
+                current = null;
+            }
+        }
+        
+        // Set the base list expression on all operations
+        foreach (var op in operations)
+        {
+            op.BaseListExpression = baseListExpression!;
+        }
+        
+        // Reverse the list so operations are in the order they appear in the chain
+        // (innermost first, which is the natural order for DynamoDB)
+        operations.Reverse();
+        
+        return operations;
+    }
+
+    /// <summary>
+    /// Translates a RemoveAt method call to a DynamoDB REMOVE expression with list index.
+    /// </summary>
+    /// <param name="methodCall">The RemoveAt method call expression.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties.</param>
+    /// <returns>An operation representing the REMOVE expression.</returns>
+    /// <remarks>
+    /// <para>
+    /// RemoveAt translates to: REMOVE #attr[index]
+    /// </para>
+    /// <para>
+    /// For extension methods:
+    /// - Arguments[0] is the 'this' parameter (the list property)
+    /// - Arguments[1] is the index
+    /// </para>
+    /// </remarks>
+    private Operation TranslateRemoveAtOperation(
+        MethodCallExpression methodCall,
+        ParameterExpression parameter,
+        ExpressionContext context,
+        string[] pathPrefix)
+    {
+        // RemoveAt has 2 arguments: list (this), index
+        if (methodCall.Arguments.Count < 2)
+        {
+            throw new UnsupportedExpressionException(
+                "RemoveAt() method requires an index. " +
+                "Example: x.Tags.RemoveAt(2).",
+                "RemoveAt",
+                methodCall);
+        }
+        
+        // Extract the list property path from Arguments[0]
+        var listExpression = methodCall.Arguments[0];
+        
+        // Validate no overlapping list operations (e.g., x.Tags.SetAt(0, "a").RemoveAt(1) is not allowed)
+        ValidateNoOverlappingListOperations(listExpression, "RemoveAt", methodCall);
+        
+        var (listPath, listPropertyName) = ExtractListPropertyPath(listExpression, parameter, context);
+        
+        // Combine the path prefix with the extracted path
+        var fullPath = pathPrefix.Concat(listPath).ToArray();
+        
+        // Get the attribute name with the full path
+        var attributeName = GetAttributeNameWithPath(listPropertyName, context, fullPath, methodCall);
+        
+        // Get the index argument and evaluate it
+        var indexArg = methodCall.Arguments[1];
+        var index = EvaluateIndexExpression(indexArg, parameter, methodCall);
+        
+        // Validate index is non-negative
+        ValidateListIndex(index, indexArg);
+        
+        // Build REMOVE expression: #attr[index]
+        var expression = $"{attributeName}[{index}]";
+        
+        return new Operation
+        {
+            Type = OperationType.Remove,
+            Expression = expression
+        };
+    }
+
+    /// <summary>
+    /// Evaluates an index expression to get the integer value.
+    /// Supports constants, variables, property access, and method calls.
+    /// Throws if the expression references the entity parameter.
+    /// </summary>
+    /// <param name="indexExpr">The index expression to evaluate.</param>
+    /// <param name="entityParameter">The entity parameter to check for references.</param>
+    /// <param name="sourceExpression">The source expression for error reporting.</param>
+    /// <returns>The evaluated integer index value.</returns>
+    private int EvaluateIndexExpression(Expression indexExpr, ParameterExpression entityParameter, Expression sourceExpression)
+    {
+        // Fast path: constant expression
+        if (indexExpr is ConstantExpression constant && constant.Value is int constIndex)
+        {
+            return constIndex;
+        }
+        
+        // Check if expression references entity parameter
+        if (ReferencesEntityParameter(indexExpr, entityParameter))
+        {
+            throw new UnsupportedExpressionException(
+                "List index cannot reference the entity parameter. " +
+                "Use a local variable, property, or method call that doesn't depend on the entity. " +
+                "Example: int idx = GetIndex(); .Set(x => x.Tags.SetAt(idx, \"value\"))",
+                sourceExpression);
+        }
+        
+        // Evaluate the expression
+        try
+        {
+            var lambda = Expression.Lambda<Func<int>>(indexExpr);
+            var compiled = lambda.Compile();
+            return compiled();
+        }
+        catch (Exception ex)
+        {
+            throw new UnsupportedExpressionException(
+                $"Failed to evaluate list index expression: {ex.Message}. " +
+                "Ensure the index is a constant, variable, property, or method call that can be evaluated at translation time.",
+                sourceExpression);
+        }
+    }
+
+    /// <summary>
+    /// Validates that a list index is non-negative.
+    /// </summary>
+    /// <param name="index">The index value to validate.</param>
+    /// <param name="sourceExpr">The source expression for error reporting.</param>
+    private void ValidateListIndex(int index, Expression sourceExpr)
+    {
+        if (index < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                "index",
+                index,
+                $"List index must be non-negative. Got: {index}");
+        }
+    }
+
+    /// <summary>
+    /// Extracts the property path from a list expression.
+    /// </summary>
+    /// <param name="expression">The expression representing the list property.</param>
+    /// <param name="parameter">The update expressions parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>A tuple containing the path segments and the final property name.</returns>
+    private (string[] Path, string PropertyName) ExtractListPropertyPath(
+        Expression expression,
+        ParameterExpression parameter,
+        ExpressionContext context)
+    {
+        var pathSegments = new List<string>();
+        var current = expression;
+        
+        // Walk up the expression tree to collect all member accesses
+        while (current is MemberExpression memberExpr)
+        {
+            pathSegments.Insert(0, memberExpr.Member.Name);
+            current = memberExpr.Expression;
+        }
+        
+        // The last segment is the property name, the rest are the path
+        if (pathSegments.Count == 0)
+        {
+            throw new UnsupportedExpressionException(
+                "Could not extract property path from list expression. " +
+                "Expected a member access expression (e.g., x.Tags or x.Metadata.Keywords).",
+                expression);
+        }
+        
+        var propertyName = pathSegments[^1];
+        var path = pathSegments.Take(pathSegments.Count - 1).ToArray();
+        
+        return (path, propertyName);
+    }
+
+    /// <summary>
+    /// Wraps a single value in a list for list_append operations.
+    /// </summary>
+    /// <param name="value">The value to wrap.</param>
+    /// <returns>A list containing the single value.</returns>
+    private static object? WrapInList(object? value)
+    {
+        if (value == null)
+            return new List<object?> { null };
+        
+        var list = new List<object> { value };
+        return list;
+    }
+
+    /// <summary>
+    /// Converts a value to a list for list_append operations.
+    /// </summary>
+    /// <param name="value">The value to convert (array or enumerable).</param>
+    /// <returns>A list containing the values.</returns>
+    private static object? ConvertToList(object? value)
+    {
+        if (value == null)
+            return new List<object?>();
+        
+        if (value is Array array)
+        {
+            var list = new List<object>();
+            foreach (var item in array)
+            {
+                list.Add(item);
+            }
+            return list;
+        }
+        
+        // If it's already a list or enumerable, convert to List<object>
+        if (value is System.Collections.IEnumerable enumerable && value is not string)
+        {
+            var list = new List<object>();
+            foreach (var item in enumerable)
+            {
+                list.Add(item);
+            }
+            return list;
+        }
+        
+        // If it's a single value, wrap it in a list
+        return new List<object> { value };
+    }
+
     private Operation TranslateSetDynamicFieldOperation(
         MethodCallExpression methodCall,
         ParameterExpression parameter,
@@ -1231,6 +2563,76 @@ public class UpdateExpressionTranslator
         return attributeNamePlaceholder;
     }
 
+    /// <summary>
+    /// Gets the attribute name with path support for nested properties.
+    /// </summary>
+    /// <param name="propertyName">The property name.</param>
+    /// <param name="context">The expression context.</param>
+    /// <param name="pathPrefix">The path prefix for nested properties.</param>
+    /// <param name="expression">The expression for error reporting.</param>
+    /// <returns>The DynamoDB document path (e.g., "#address.#city").</returns>
+    private string GetAttributeNameWithPath(string propertyName, ExpressionContext context, string[] pathPrefix, Expression? expression = null)
+    {
+        // If no path prefix, use the simple version
+        if (pathPrefix.Length == 0)
+        {
+            return GetAttributeName(propertyName, context, expression);
+        }
+
+        // Build document path using DocumentPathBuilder
+        var pathBuilder = new DocumentPathBuilder(context.AttributeNames);
+        
+        // Add all path prefix segments
+        foreach (var segment in pathPrefix)
+        {
+            // For nested properties, we use the property name as the attribute name
+            // since we don't have metadata for nested types
+            // Convert to lowercase for DynamoDB convention (camelCase)
+            var attributeName = GetNestedAttributeName(segment, context);
+            pathBuilder.AddProperty(segment, attributeName);
+        }
+        
+        // Add the final property
+        var finalAttributeName = GetNestedAttributeName(propertyName, context);
+        pathBuilder.AddProperty(propertyName, finalAttributeName);
+        
+        return pathBuilder.Build();
+    }
+
+    /// <summary>
+    /// Gets the DynamoDB attribute name for a nested property.
+    /// </summary>
+    /// <param name="propertyName">The property name.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>The DynamoDB attribute name.</returns>
+    /// <remarks>
+    /// For nested properties, we first check if the property exists in the entity metadata
+    /// (for the root property). If not found, we convert the property name to lowercase
+    /// following DynamoDB naming conventions.
+    /// </remarks>
+    private string GetNestedAttributeName(string propertyName, ExpressionContext context)
+    {
+        // First, check if this property exists in entity metadata (for root properties)
+        if (context.EntityMetadata != null)
+        {
+            var propertyMetadata = context.EntityMetadata.Properties
+                .FirstOrDefault(p => p.PropertyName == propertyName);
+            
+            if (propertyMetadata != null)
+            {
+                return propertyMetadata.AttributeName;
+            }
+        }
+        
+        // For nested properties without metadata, convert to lowercase (camelCase convention)
+        // This matches the typical DynamoDB attribute naming convention
+        if (string.IsNullOrEmpty(propertyName))
+            return propertyName;
+        
+        // Convert first character to lowercase
+        return char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
+    }
+
     private bool IsUpdateExpressionPropertyAccess(Expression expression, ParameterExpression parameter)
     {
         // Check if this is a member access on the parameter (x.PropertyName)
@@ -1284,9 +2686,9 @@ public class UpdateExpressionTranslator
                 $"Property '{propertyName}' (DynamoDB attribute: '{attributeName}') is marked as encrypted but no IFieldEncryptor is configured. " +
                 $"To fix this issue: " +
                 $"1. Implement the IFieldEncryptor interface (e.g., using AWS KMS or another encryption provider). " +
-                $"2. Pass the encryptor to the DynamoDbTableBase constructor, or " +
+                $"2. Pass the encryptor via FluentDynamoDbOptions when creating the table, or " +
                 $"3. Set it in the DynamoDbOperationContext before executing update operations. " +
-                $"Example: new MyTable(dynamoDbClient, logger, blobProvider, fieldEncryptor). " +
+                $"Example: new FluentDynamoDbOptions().WithEncryption(fieldEncryptor). " +
                 $"Alternatively, use string-based update expressions with pre-encrypted values.",
                 propertyName,
                 attributeName,
@@ -1697,6 +3099,8 @@ public class UpdateExpressionTranslator
             decimal dec => new AttributeValue { N = dec.ToString(CultureInfo.InvariantCulture) },
             DateTime dt => new AttributeValue { S = dt.ToString("o", CultureInfo.InvariantCulture) },
             DateTimeOffset dto => new AttributeValue { S = dto.ToString("o", CultureInfo.InvariantCulture) },
+            DateOnly d => new AttributeValue { S = d.ToString("O", CultureInfo.InvariantCulture) },
+            TimeOnly t => new AttributeValue { S = t.ToString("O", CultureInfo.InvariantCulture) },
             Guid g => new AttributeValue { S = g.ToString() },
             Enum e => new AttributeValue { S = e.ToString() },
             _ => ConvertComplexType(value)
@@ -1917,7 +3321,8 @@ enum OperationType
     Set,
     Add,
     Remove,
-    Delete
+    Delete,
+    Skip
 }
 
 class Operation

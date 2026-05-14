@@ -1,3 +1,6 @@
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Requests;
 
 namespace Oproto.FluentDynamoDb;
@@ -164,4 +167,120 @@ public static class DynamoDbTransactions
     /// </code>
     /// </example>
     public static TransactionGetBuilder Get => new();
+
+    #region Direct SDK Request Support
+
+    /// <summary>
+    /// Executes a TransactWriteItemsRequest directly using the SDK client.
+    /// </summary>
+    /// <param name="client">The DynamoDB client.</param>
+    /// <param name="request">The pre-built TransactWriteItemsRequest.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>The transaction write response.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when client or request is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method allows executing a pre-built TransactWriteItemsRequest directly,
+    /// which is useful when you have existing SDK code or need full control over the request.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var request = new TransactWriteItemsRequest
+    /// {
+    ///     TransactItems = new List&lt;TransactWriteItem&gt;
+    ///     {
+    ///         new TransactWriteItem
+    ///         {
+    ///             Put = new Put
+    ///             {
+    ///                 TableName = "Users",
+    ///                 Item = userItem
+    ///             }
+    ///         }
+    ///     }
+    /// };
+    /// var response = await DynamoDbTransactions.WriteAsync(client, request);
+    /// </code>
+    /// </example>
+    public static async Task<TransactWriteItemsResponse> WriteAsync(
+        IAmazonDynamoDB client,
+        TransactWriteItemsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var response = await client.TransactWriteItemsAsync(request, cancellationToken).ConfigureAwait(false);
+
+        // Populate operation context
+        DynamoDbOperationContext.Current = new OperationContextData
+        {
+            OperationType = "TransactWriteItems",
+            ConsumedCapacity = response.ConsumedCapacity?.FirstOrDefault(),
+            ResponseMetadata = response.ResponseMetadata
+        };
+        DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
+
+        return response;
+    }
+
+    /// <summary>
+    /// Executes a TransactGetItemsRequest directly using the SDK client.
+    /// </summary>
+    /// <param name="client">The DynamoDB client.</param>
+    /// <param name="request">The pre-built TransactGetItemsRequest.</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
+    /// <returns>The transaction get response containing raw items.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when client or request is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method allows executing a pre-built TransactGetItemsRequest directly,
+    /// which is useful when you have existing SDK code or need full control over the request.
+    /// Results are returned as raw DynamoDB items in the response.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var request = new TransactGetItemsRequest
+    /// {
+    ///     TransactItems = new List&lt;TransactGetItem&gt;
+    ///     {
+    ///         new TransactGetItem
+    ///         {
+    ///             Get = new Get
+    ///             {
+    ///                 TableName = "Users",
+    ///                 Key = userKey
+    ///             }
+    ///         }
+    ///     }
+    /// };
+    /// var response = await DynamoDbTransactions.GetAsync(client, request);
+    /// var userItem = response.Responses[0].Item;
+    /// </code>
+    /// </example>
+    public static async Task<TransactGetItemsResponse> GetAsync(
+        IAmazonDynamoDB client,
+        TransactGetItemsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var response = await client.TransactGetItemsAsync(request, cancellationToken).ConfigureAwait(false);
+
+        // Populate operation context
+        DynamoDbOperationContext.Current = new OperationContextData
+        {
+            OperationType = "TransactGetItems",
+            ConsumedCapacity = response.ConsumedCapacity?.FirstOrDefault(),
+            ResponseMetadata = response.ResponseMetadata
+        };
+        DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
+
+        return response;
+    }
+
+    #endregion
 }

@@ -214,7 +214,7 @@ public static class WithConditionExpressionExtensions
         this QueryRequestBuilder<TEntity> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class, IEntityMetadataProvider
+        where TEntity : class, IReadOnlyEntity
     {
         // If metadata is not provided, get it from the entity type's generated GetEntityMetadata() method
         metadata ??= MetadataResolver.GetEntityMetadata<TEntity>();

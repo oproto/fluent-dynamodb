@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   validate-tag:
@@ -54,21 +55,30 @@ jobs:
             echo "📦 Stable release version detected"
           fi
           
-          # Check if CHANGELOG.md exists
-          if [ ! -f "CHANGELOG.md" ]; then
-            echo "❌ CHANGELOG.md not found in repository root"
-            exit 1
+          # Changelog validation — required for stable releases, optional for pre-releases
+          if echo "$VERSION" | grep -q '-'; then
+            # Pre-release: changelog is optional
+            if grep -q "## \[$VERSION\]" CHANGELOG.md 2>/dev/null; then
+              echo "✅ Changelog entry found for pre-release version $VERSION"
+            else
+              echo "ℹ️ No changelog entry for pre-release version $VERSION (this is fine)"
+            fi
+          else
+            # Stable release: changelog is required
+            if [ ! -f "CHANGELOG.md" ]; then
+              echo "❌ CHANGELOG.md not found in repository root"
+              exit 1
+            fi
+            
+            if ! grep -q "## \[$VERSION\]" CHANGELOG.md; then
+              echo "❌ Changelog entry not found for version $VERSION"
+              echo "Please add a section in CHANGELOG.md:"
+              echo "## [$VERSION] - $(date +%Y-%m-%d)"
+              exit 1
+            fi
+            
+            echo "✅ Changelog entry found for version $VERSION"
           fi
-          
-          # Check if CHANGELOG.md contains section for this version
-          if ! grep -q "## \[$VERSION\]" CHANGELOG.md; then
-            echo "❌ Changelog entry not found for version $VERSION"
-            echo "Please add a section in CHANGELOG.md:"
-            echo "## [$VERSION] - $(date +%Y-%m-%d)"
-            exit 1
-          fi
-          
-          echo "✅ Changelog entry found for version $VERSION"
           
           # Extract release notes from changelog
           # Find the section for this version and extract until the next version section
@@ -114,7 +124,9 @@ jobs:
       - name: Build all projects
         run: |
           VERSION="${{ needs.validate-tag.outputs.version }}"
-          echo "Building with version: $VERSION"
+          # Strip pre-release suffix for AssemblyVersion/FileVersion (only accepts major.minor.build.revision)
+          NUMERIC_VERSION="${VERSION%%-*}"
+          echo "Building with version: $VERSION (assembly version: $NUMERIC_VERSION)"
           
           # Build all projects with the same version
           # This ensures ProjectReferences will use the correct version when packed
@@ -124,8 +136,8 @@ jobs:
             /maxcpucount:1 \
             -p:Version=$VERSION \
             -p:PackageVersion=$VERSION \
-            -p:AssemblyVersion=$VERSION \
-            -p:FileVersion=$VERSION \
+            -p:AssemblyVersion=$NUMERIC_VERSION \
+            -p:FileVersion=$NUMERIC_VERSION \
             -p:InformationalVersion=$VERSION
       
       - name: Pack NuGet packages
@@ -170,6 +182,16 @@ jobs:
             --configuration Release \
             --output ./packages \
             -p:Version=$VERSION
+          
+          dotnet pack Oproto.FluentDynamoDb.Streams/Oproto.FluentDynamoDb.Streams.csproj \
+            --configuration Release \
+            --output ./packages \
+            -p:Version=$VERSION
+          
+          dotnet pack Oproto.FluentDynamoDb.Geospatial/Oproto.FluentDynamoDb.Geospatial.csproj \
+            --configuration Release \
+            --output ./packages \
+            -p:Version=$VERSION
       
       - name: Validate package dependencies
         run: |
@@ -186,7 +208,7 @@ jobs:
               # Extract and check the nuspec file for dependency version
               NUSPEC_FILE="./temp-${pkg}/Oproto.FluentDynamoDb.${pkg}.nuspec"
               if [ -f "$NUSPEC_FILE" ] && grep -q "Oproto.FluentDynamoDb" "$NUSPEC_FILE"; then
-                DEP_VERSION=$(grep -A 1 'id="Oproto.FluentDynamoDb"' "$NUSPEC_FILE" | grep version | sed 's/.*version="\([^"]*\)".*/\1/' || echo "not-found")
+                DEP_VERSION=$(grep 'id="Oproto.FluentDynamoDb"' "$NUSPEC_FILE" | sed 's/.*version="\([^"]*\)".*/\1/' || echo "not-found")
                 echo "  Found dependency: Oproto.FluentDynamoDb version $DEP_VERSION"
                 
                 if [ "$DEP_VERSION" != "$VERSION" ] && [ "$DEP_VERSION" != "not-found" ]; then
@@ -300,7 +322,7 @@ jobs:
           cat ./packages/package-manifest.json
       
       - name: Upload packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: nuget-packages
           path: ./packages/
@@ -314,7 +336,7 @@ jobs:
     
     steps:
       - name: Download package artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: nuget-packages
           path: ./packages
@@ -369,3 +391,108 @@ jobs:
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🔗 [View Release](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)" >> $GITHUB_STEP_SUMMARY
+
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-packages, create-release]
+    environment: production
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: nuget-packages
+          path: ./packages
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Get NuGet API key via Trusted Publishing
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push packages to NuGet.org
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          echo "🚀 Publishing packages for version: $VERSION"
+          echo ""
+
+          FAILED=0
+
+          for package in ./packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              echo "Publishing: $PACKAGE_NAME"
+
+              if dotnet nuget push "$package" \
+                --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate \
+                --timeout 300; then
+                echo "  ✅ Published: $PACKAGE_NAME"
+              else
+                echo "  ❌ Failed: $PACKAGE_NAME"
+                FAILED=$((FAILED + 1))
+              fi
+              echo ""
+            fi
+          done
+
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ $FAILED package(s) failed to publish"
+            exit 1
+          fi
+
+          echo "✅ All packages published successfully"
+
+      - name: Push symbol packages
+        run: |
+          echo "🔍 Publishing symbol packages..."
+
+          for package in ./packages/*.snupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              echo "Publishing symbols: $PACKAGE_NAME"
+
+              dotnet nuget push "$package" \
+                --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate \
+                --timeout 300 || echo "  ⚠️  Symbol push failed (non-fatal): $PACKAGE_NAME"
+            fi
+          done
+
+          echo "✅ Symbol publishing complete"
+
+      - name: Publish summary
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+
+          echo "# 🚀 NuGet Publish Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** https://www.nuget.org" >> $GITHUB_STEP_SUMMARY
+          echo "**Auth:** Trusted Publishing (OIDC)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Published Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          for package in ./packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              PACKAGE_ID=$(echo "$PACKAGE_NAME" | sed "s/\.$VERSION\.nupkg//")
+              echo "- [\`$PACKAGE_ID\`](https://www.nuget.org/packages/$PACKAGE_ID/$VERSION)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "⏱️ Packages may take a few minutes to appear on nuget.org after publishing." >> $GITHUB_STEP_SUMMARY

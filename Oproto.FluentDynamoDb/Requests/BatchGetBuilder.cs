@@ -43,7 +43,7 @@ public class BatchGetBuilder
     /// </code>
     /// </example>
     public BatchGetBuilder Add<TEntity>(GetItemRequestBuilder<TEntity> builder)
-        where TEntity : class
+        where TEntity : class, IReadOnlyEntity
     {
         InferClientIfNeeded(builder);
         
@@ -251,7 +251,7 @@ public class BatchGetBuilder
 
         try
         {
-            var response = await effectiveClient.BatchGetItemAsync(request, cancellationToken);
+            var response = await effectiveClient.BatchGetItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (response == null)
             {
@@ -311,7 +311,7 @@ public class BatchGetBuilder
         CancellationToken cancellationToken = default)
         where T1 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return response.GetItem<T1>(0);
     }
 
@@ -338,7 +338,7 @@ public class BatchGetBuilder
         where T1 : class, IDynamoDbEntity
         where T2 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (response.GetItem<T1>(0), response.GetItem<T2>(1));
     }
 
@@ -368,7 +368,7 @@ public class BatchGetBuilder
         where T2 : class, IDynamoDbEntity
         where T3 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0), 
             response.GetItem<T2>(1), 
@@ -388,7 +388,7 @@ public class BatchGetBuilder
         where T3 : class, IDynamoDbEntity
         where T4 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0), 
             response.GetItem<T2>(1), 
@@ -410,7 +410,7 @@ public class BatchGetBuilder
         where T4 : class, IDynamoDbEntity
         where T5 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0), 
             response.GetItem<T2>(1), 
@@ -434,7 +434,7 @@ public class BatchGetBuilder
         where T5 : class, IDynamoDbEntity
         where T6 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0), 
             response.GetItem<T2>(1), 
@@ -460,7 +460,7 @@ public class BatchGetBuilder
         where T6 : class, IDynamoDbEntity
         where T7 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0), 
             response.GetItem<T2>(1), 
@@ -488,7 +488,7 @@ public class BatchGetBuilder
         where T7 : class, IDynamoDbEntity
         where T8 : class, IDynamoDbEntity
     {
-        var response = await ExecuteAsync(client, cancellationToken);
+        var response = await ExecuteAsync(client, cancellationToken).ConfigureAwait(false);
         return (
             response.GetItem<T1>(0), 
             response.GetItem<T2>(1), 

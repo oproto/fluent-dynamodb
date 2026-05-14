@@ -1,0 +1,176 @@
+# Implementation Plan
+
+- [x] 1. Add Name property to index attributes
+  - [x] 1.1 Add `Name` property to `GlobalSecondaryIndexAttribute`
+    - Add optional `Name` property of type `string?`
+    - Add XML documentation explaining the property
+    - _Requirements: 1.1_
+  - [x] 1.2 Add `Name` property to `LocalSecondaryIndexAttribute`
+    - Add optional `Name` property of type `string?`
+    - Add XML documentation explaining the property
+    - _Requirements: 1.2_
+  - [x] 1.3 Write property test for custom name propagation
+    - **Property 1: Custom name exact propagation**
+    - **Validates: Requirements 1.1, 1.2**
+
+- [x] 2. Update source generator to parse Name property
+  - [x] 2.1 Update `IndexModel` to include `CustomName` and `ResolvedPropertyName` properties
+    - Add `CustomName` property to store the value from the attribute
+    - Add `ResolvedPropertyName` property for the final computed name
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 2.2 Update attribute analysis to extract `Name` property from GSI/LSI attributes
+    - Modify the attribute parsing logic in `DynamoDbSourceGenerator`
+    - Extract `Name` property value when present
+    - _Requirements: 1.1, 1.2_
+  - [x] 2.3 Implement PascalCase name derivation for indexes without custom names
+    - Create helper method to convert DynamoDB index names to valid C# identifiers
+    - Handle special characters (hyphens, underscores) by removing them and capitalizing
+    - _Requirements: 1.3_
+  - [x] 2.4 Write property test for name derivation
+    - **Property 2: Index name derivation to valid C# identifier**
+    - **Validates: Requirements 1.3, 6.1**
+
+- [x] 3. Implement index name conflict detection
+  - [x] 3.1 Add diagnostic descriptor for FDDB050 (conflicting index names)
+    - Add to `DiagnosticDescriptors` class
+    - Message: "Index '{0}' has conflicting Name values: '{1}' and '{2}'"
+    - Severity: Error
+    - _Requirements: 1.4, 5.2_
+  - [x] 3.2 Add diagnostic descriptor for FDDB052 (redundant name specification)
+    - Add to `DiagnosticDescriptors` class
+    - Message: "Index '{0}' has Name '{1}' specified on multiple entities"
+    - Severity: Warning
+    - _Requirements: 1.5_
+  - [x] 3.3 Implement index aggregation across entities sharing a table
+    - Create `AggregatedIndexModel` class
+    - Aggregate index definitions from all entities on the same table
+    - Detect and report conflicts
+    - _Requirements: 5.1, 5.2, 5.3_
+  - [x] 3.4 Implement single-name-wins logic
+    - When only one entity specifies a Name, use it for all
+    - When multiple entities specify the same Name, emit warning
+    - When multiple entities specify different Names, emit error
+    - _Requirements: 1.5_
+  - [x] 3.5 Write property test for conflict detection
+    - **Property 3: Conflicting name diagnostic emission**
+    - **Validates: Requirements 1.4, 5.2**
+  - [x] 3.6 Write property test for single name wins
+    - **Property 4: Single specified name wins**
+    - **Validates: Requirements 1.5**
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Update TableGenerator to generate typed index classes
+  - [x] 5.1 Modify `GenerateIndexProperties` to use resolved property names
+    - Use `ResolvedPropertyName` instead of sanitized index name
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 5.2 Update `GenerateTypedIndexClass` to inherit from `DynamoDbIndex`
+    - Change class declaration to inherit from `DynamoDbIndex`
+    - Update constructor to call base constructor
+    - Make class partial
+    - _Requirements: 3.1, 3.2_
+  - [x] 5.3 Generate generic Query builder methods
+    - `Query<T>()` - calls base.Query<T>()
+    - `Query<T>(Expression<Func<T, bool>>)` - calls Query<T>().Where()
+    - `Query<T>(string, params object[])` - calls base.Query<T>()
+    - `Query<T>(Expression, Expression)` - calls Query<T>().Where().WithFilter()
+    - _Requirements: 2.2, 2.3, 2.4, 2.5_
+  - [x] 5.4 Generate non-generic Query methods when projection type exists
+    - `Query()` - returns Query<TProjection>()
+    - `Query(Expression)` - returns Query<TProjection>(expression)
+    - `Query(Expression, Expression)` - returns Query<TProjection>(key, filter)
+    - _Requirements: 2.6, 2.7_
+  - [x] 5.5 Write property test for generated index class structure
+    - **Property 5: Generated index class is partial**
+    - **Property 6: Generated index class inherits DynamoDbIndex**
+    - **Validates: Requirements 3.1, 3.2**
+  - [x] 5.6 Write property test for Query builder methods
+    - **Property 7: Index class has generic Query builder methods**
+    - **Validates: Requirements 2.2, 2.3, 2.4, 2.5**
+  - [x] 5.7 Write property test for projection type Query methods
+    - **Property 8: Projection type enables non-generic Query**
+    - **Validates: Requirements 2.6**
+
+- [x] 6. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 7. Add type-based table reference support
+  - [x] 7.1 Add new constructor to `DynamoDbTableAttribute` accepting `Type`
+    - Add `TableType` property of type `Type?`
+    - Add constructor `DynamoDbTableAttribute(Type tableType)`
+    - Update existing constructor to set `TableType = null`
+    - _Requirements: 4.1_
+  - [x] 7.2 Update `EntityModel` to support type-based references
+    - Add `TableTypeName` property
+    - Add `IsTableTypeReference` boolean property
+    - _Requirements: 4.1_
+  - [x] 7.3 Update attribute analysis to handle type-based table references
+    - Detect when `typeof()` is used in the attribute
+    - Extract the type name
+    - _Requirements: 4.1_
+  - [x] 7.4 Add diagnostic descriptor for FDDB051 (non-partial table type)
+    - Add to `DiagnosticDescriptors` class
+    - Message: "Type '{0}' must be declared as partial when used in [DynamoDbTable(typeof({0}))]"
+    - Severity: Error
+    - _Requirements: 4.3_
+  - [x] 7.5 Implement partial class validation for type-based references
+    - Check if the referenced type is declared as partial
+    - Emit FDDB051 if not partial
+    - _Requirements: 4.2, 4.3_
+  - [x] 7.6 Update table class generation to use specified type name
+    - When `TableType` is set, use that type name instead of generating one
+    - _Requirements: 4.1_
+  - [x] 7.7 Write property test for type-based table reference validation (passed)
+    - **Property 9: Type-based table reference partial class validation**
+    - **Validates: Requirements 4.2, 4.3**
+
+- [x] 8. Ensure backward compatibility
+  - [x] 8.1 Verify string-based table references continue to work
+    - Run existing tests to ensure no regressions
+    - _Requirements: 6.2_
+  - [x] 8.2 Verify existing `DynamoDbIndex` and `DynamoDbIndex<T>` classes work
+    - Ensure base classes are not modified in breaking ways
+    - _Requirements: 6.3_
+  - [x] 8.3 Write property test for backward compatibility
+    - **Property 10: String-based table reference backward compatibility**
+    - **Validates: Requirements 4.4, 6.2**
+  - [x] 8.4 Write property test for index deduplication
+    - **Property 11: Index deduplication across entities**
+    - **Validates: Requirements 5.1, 5.3**
+
+- [ ] 9. Update API consistency tests
+  - [x] 9.1 Add API surface tests for new index class methods
+    - Test `Query<T>()` method exists
+    - Test `Query<T>(Expression)` method exists
+    - Test `Query<T>(string, params)` method exists
+    - Test `Query<T>(Expression, Expression)` method exists
+    - _Requirements: 2.2, 2.3, 2.4, 2.5_
+  - [x] 9.2 Add API surface tests for projection type methods
+    - Test non-generic `Query()` exists when projection type defined
+    - _Requirements: 2.6_
+
+- [x] 10. Update documentation
+  - [x] 10.1 Update steering document with new index patterns
+    - Add examples of custom index naming
+    - Add examples of type-based table references
+    - _Requirements: 1.1, 4.1_
+  - [x] 10.2 Update CHANGELOG.md
+    - Document new `Name` property on GSI/LSI attributes
+    - Document type-based table reference support
+    - Document new diagnostics (FDDB050, FDDB051, FDDB052)
+    - _Requirements: All_
+  - [x] 10.3 Update relevant documentation files
+    - Update `docs/SourceGeneratorGuide.md` with new index naming patterns
+    - Update `docs/reference/` files if index attribute documentation exists
+    - Update any entity definition examples that use GSI/LSI attributes
+    - _Requirements: 1.1, 1.2, 4.1_
+  - [x] 10.4 Update docs/DOCUMENTATION_CHANGELOG.md
+    - Add entry for new `Name` property documentation
+    - Add entry for type-based table reference documentation
+    - Add entry for new diagnostic codes documentation
+    - Follow the required entry format (Date, File Path, Before/After, Reason)
+    - _Requirements: All_
+
+- [x] 11. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

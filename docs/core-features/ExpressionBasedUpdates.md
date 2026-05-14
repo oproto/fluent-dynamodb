@@ -56,7 +56,7 @@ await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}, {UserFields.LoginCount} = {UserFields.LoginCount} + {{1}}", 
          "John Doe", 1)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Expression-Based (New)**
@@ -68,7 +68,7 @@ await table.Update()
         Name = "John Doe",
         LoginCount = x.LoginCount.Add(1)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ---
@@ -113,7 +113,7 @@ await usersTable.Update()
         Name = "John Doe",
         LoginCount = x.LoginCount.Add(1)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ---
@@ -183,7 +183,7 @@ await table.Update()
         Email = "john@example.com",
         Status = "active"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -204,7 +204,7 @@ await table.Update()
         Name = newName,
         UpdatedAt = timestamp
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Conditional Assignment with if_not_exists
@@ -216,7 +216,7 @@ await table.Update()
     {
         ViewCount = x.ViewCount.IfNotExists(0)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -240,7 +240,7 @@ await table.Update()
         LoginCount = x.LoginCount.Add(1),
         ViewCount = x.ViewCount.Add(5)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -257,7 +257,7 @@ await table.Update()
     {
         Credits = x.Credits.Add(-10)  // Subtract 10
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Add to Set
@@ -269,7 +269,7 @@ await table.Update()
     {
         Tags = x.Tags.Add("premium", "verified")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -302,7 +302,7 @@ await table.Update()
         LoginCount = x.LoginCount.Add(1),  // Works with int?
         Tags = x.Tags.Add("new-tag")  // Works with HashSet<string>?
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **How It Works:**
@@ -326,7 +326,7 @@ await table.Update()
     {
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -344,7 +344,7 @@ await table.Update()
         TempData = x.TempData.Remove(),
         CachedValue = x.CachedValue.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -373,7 +373,7 @@ await table.Update()
     {
         Tags = x.Tags.Delete("old-tag", "deprecated")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -392,7 +392,7 @@ await table.Update()
     {
         CategoryIds = x.CategoryIds.Delete(5, 10)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Nullable Property Support
@@ -414,7 +414,7 @@ await table.Update()
     {
         CategoryIds = x.CategoryIds.Delete(5, 10)  // Works with HashSet<int>?
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Important Notes
@@ -442,7 +442,7 @@ await table.Update()
         ViewCount = x.ViewCount.IfNotExists(0),
         CreatedAt = x.CreatedAt.IfNotExists(DateTime.UtcNow)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Use Cases:**
@@ -459,6 +459,48 @@ public int? ViewCount { get; set; }  // Nullable
 ViewCount = x.ViewCount.IfNotExists(0)
 ```
 
+### if_not_exists with Arithmetic
+
+Combines `IfNotExists()` with arithmetic for counter patterns with non-zero defaults:
+
+```csharp
+// Initialize to 100 if missing, then increment by 1
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        Count = x.Count.IfNotExists(100) + 1
+    })
+    .UpdateAsync();
+```
+
+**Generated Expression:**
+```
+SET #count = if_not_exists(#count, :p0) + :p1
+```
+Where `:p0` = 100 (default) and `:p1` = 1 (increment).
+
+**Behavior:**
+- If `Count` doesn't exist: sets to 101 (100 + 1)
+- If `Count` exists with value 50: sets to 51 (50 + 1)
+
+**Subtraction is also supported:**
+```csharp
+// Initialize balance to 1000 if missing, then deduct 50
+Balance = x.Balance.IfNotExists(1000m) - 50m
+```
+
+**Counter Pattern Comparison:**
+
+| Pattern | Use Case | Behavior if Missing |
+|---------|----------|---------------------|
+| `x.Count.Add(1)` | Simple counter | Creates with value 1 (ADD operation) |
+| `x.Count + 1` | Increment existing | Fails (attribute must exist) |
+| `x.Count.IfNotExists(0) + 1` | Counter with explicit zero default | Creates with value 1 |
+| `x.Count.IfNotExists(100) + 1` | Counter with non-zero default | Creates with value 101 |
+
+> **Tip:** For simple counters starting at zero, use `x.Count.Add(1)` which generates a DynamoDB `ADD` operation that automatically initializes missing attributes to 0.
+
 ### list_append
 
 Appends elements to the end of a list:
@@ -470,7 +512,7 @@ await table.Update()
     {
         History = x.History.ListAppend("login", "profile-view")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -498,7 +540,7 @@ await table.Update()
     {
         RecentActivity = x.RecentActivity.ListPrepend("new-event")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -531,7 +573,7 @@ await table.Update()
         Score = x.Score + 10,
         Balance = x.Balance + 50.00m
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -548,7 +590,7 @@ await table.Update()
     {
         Credits = x.Credits - 5
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Property-to-Property Arithmetic
@@ -562,7 +604,7 @@ await table.Update()
     {
         TotalScore = x.BaseScore + x.BonusScore
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -617,7 +659,7 @@ await table.Update()
         // REMOVE operations
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Generated Expression:**
@@ -640,7 +682,7 @@ await table.Update()
         // DELETE operations
         Tags = x.Tags.Delete("old-tag")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Complex Example
@@ -674,8 +716,190 @@ await table.Update()
         // REMOVE
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
+
+---
+
+## Conditional Updates
+
+Conditional expressions (ternary operators) allow you to selectively update properties based on runtime conditions. Use `NoUpdate()` to skip updating a property when a condition is false.
+
+### Skip Update with NoUpdate()
+
+Use `x.Property.NoUpdate()` to skip updating a property based on a runtime condition:
+
+```csharp
+var updateName = true;
+var updateEmail = false;
+var newName = "John Doe";
+var newEmail = "john@example.com";
+
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        // Updated because updateName is true
+        Name = updateName ? newName : x.Name.NoUpdate(),
+        
+        // Skipped because updateEmail is false
+        Email = updateEmail ? newEmail : x.Email.NoUpdate()
+    })
+    .UpdateAsync();
+
+// Generated Expression (Email is completely omitted):
+// SET #name = :p0
+```
+
+**Key Behavior:**
+- When condition is `true`: The value is set normally
+- When condition is `false` with `NoUpdate()`: The property is **skipped entirely**
+- No SET, ADD, or REMOVE operation is generated for skipped properties
+
+### Null Assignment Sets DynamoDB NULL
+
+Assigning `null` to a property sets it to DynamoDB's NULL type (not skip):
+
+```csharp
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        // Sets MiddleName to DynamoDB NULL type
+        MiddleName = null
+    })
+    .UpdateAsync();
+
+// Generated Expression:
+// SET #middle_name = :p0
+// Where :p0 = { NULL: true }
+```
+
+### Null vs NoUpdate() vs Remove()
+
+Understanding the difference between these three approaches is important:
+
+| Method | DynamoDB Result | Use Case |
+|--------|-----------------|----------|
+| `= null` | SET attr = NULL | Set attribute to DynamoDB NULL type |
+| `.NoUpdate()` | No operation | Skip updating this property conditionally |
+| `.Remove()` | REMOVE attr | Delete the attribute entirely |
+
+```csharp
+// null → SET NULL (attribute exists with NULL value)
+.Set(x => new UserUpdateModel { OptionalField = null })
+
+// NoUpdate() → Skip (attribute unchanged)
+.Set(x => new UserUpdateModel { Field = condition ? value : x.Field.NoUpdate() })
+
+// Remove() → REMOVE (attribute deleted)
+.Set(x => new UserUpdateModel { TempData = x.TempData.Remove() })
+```
+
+### Conditional Value Selection
+
+When both branches have non-null values, the appropriate value is selected:
+
+```csharp
+var isPremium = true;
+var premiumDiscount = 0.20m;
+var standardDiscount = 0.10m;
+
+await table.Update()
+    .WithKey(ProductFields.ProductId, ProductKeys.Pk("prod123"))
+    .Set(x => new ProductUpdateModel 
+    {
+        // Selects premiumDiscount (0.20) because isPremium is true
+        Discount = isPremium ? premiumDiscount : standardDiscount
+    })
+    .UpdateAsync();
+
+// Generated Expression:
+// SET #discount = :p0
+// Where :p0 = 0.20
+```
+
+### Practical Use Cases
+
+#### Optional Field Updates
+
+```csharp
+public async Task UpdateUser(string userId, string? newName, string? newEmail)
+{
+    await table.Update()
+        .WithKey(UserFields.UserId, UserKeys.Pk(userId))
+        .Set(x => new UserUpdateModel 
+        {
+            // Only update if new value provided
+            Name = newName != null ? newName : x.Name.NoUpdate(),
+            Email = newEmail != null ? newEmail : x.Email.NoUpdate(),
+            UpdatedAt = DateTime.UtcNow  // Always update timestamp
+        })
+        .UpdateAsync();
+}
+
+// Call with only name update:
+await UpdateUser("user123", "New Name", null);
+// Generated: SET #name = :p0, #updated_at = :p1
+// (Email is skipped)
+```
+
+#### Feature Flag Updates
+
+```csharp
+var enableNewFeature = GetFeatureFlag("new-scoring");
+
+await table.Update()
+    .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
+    .Set(x => new UserUpdateModel 
+    {
+        // Only update score if feature is enabled
+        Score = enableNewFeature ? x.Score.Add(10) : x.Score.NoUpdate(),
+        
+        // Always update login count
+        LoginCount = x.LoginCount.Add(1)
+    })
+    .UpdateAsync();
+```
+
+### Important Rules for Conditional Updates
+
+1. **Condition must not reference entity properties**
+   ```csharp
+   // ✗ Invalid: Condition references entity property
+   Name = x.IsAdmin ? "Admin" : "User"
+   
+   // ✓ Valid: Condition uses captured variable
+   var isAdmin = GetCurrentUserIsAdmin();
+   Name = isAdmin ? "Admin" : "User"
+   ```
+
+2. **Use NoUpdate() to skip, null sets NULL**
+   ```csharp
+   // Property is SKIPPED (not updated)
+   Name = flag ? newName : x.Name.NoUpdate()
+   
+   // Property is SET to NULL
+   Name = flag ? newName : null
+   
+   // To REMOVE a property, use Remove() explicitly
+   Name = x.Name.Remove()
+   ```
+
+3. **Both branches can use update operations**
+   ```csharp
+   // Valid: Different operations based on condition
+   Score = isPremium ? x.Score.Add(100) : x.Score.Add(10)
+   ```
+
+4. **NoUpdate() throws if called directly**
+   ```csharp
+   // ✗ Invalid: Direct call throws InvalidOperationException
+   var result = x.Name.NoUpdate();
+   
+   // ✓ Valid: Only use within update expressions
+   Name = condition ? value : x.Name.NoUpdate()
+   ```
 
 ---
 
@@ -708,7 +932,7 @@ await table.Update()
         BirthDate = new DateTime(1990, 5, 15),  // Formatted as "1990-05-15"
         LastLogin = DateTime.Now  // Formatted as "2024-03-15 14:30:00"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Numeric Formatting
@@ -736,7 +960,7 @@ await table.Update()
         Quantity = 42,  // Stored as "00042"
         Discount = 0.15m  // Stored as "15.0%"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Common Format Specifiers
@@ -767,13 +991,13 @@ Format strings are applied automatically during translation:
 Format strings work consistently across all operations:
 
 ```csharp
-// PutItem - formats on write
-await table.PutItem(new User 
+// Put - formats on write
+await table.Put(new User 
 { 
     UserId = "user123",
     CreatedAt = DateTime.UtcNow  // Formatted with "o"
 })
-.ExecuteAsync();
+.PutAsync();
 
 // UpdateItem - formats on write
 await table.Update()
@@ -782,13 +1006,13 @@ await table.Update()
     {
         CreatedAt = DateTime.UtcNow  // Formatted with "o"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // GetItem - parses on read
-var response = await table.Get()
+var user = await table.Get()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync();
-// response.Item.CreatedAt is parsed back to DateTime
+    .GetItemAsync();
+// user.CreatedAt is parsed back to DateTime
 ```
 
 ### Nullable Property Support
@@ -806,7 +1030,7 @@ await table.Update()
     {
         OptionalDate = DateTime.Now  // Formatted even though property is nullable
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ---
@@ -841,7 +1065,7 @@ public partial class User
 await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.SocialSecurityNumber} = {{0}}", "123-45-6789")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Planned Implementation
@@ -876,7 +1100,7 @@ await table.Update()
          "John Doe", "active")
     .Set($"ADD {UserFields.LoginCount} {{0}}", 1)
     .Set($"REMOVE {UserFields.TempData}")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### After: Expression-Based
@@ -891,7 +1115,7 @@ await table.Update()
         LoginCount = x.LoginCount.Add(1),
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ### Migration Steps
@@ -920,7 +1144,7 @@ await table.Update()
     })
     // String-based (still works)
     .Set($"SET {UserFields.LegacyField} = {{0}}", "value")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 ⚠️ **Note:** Mixing approaches in the same `.Set()` call is not supported. Use separate calls.
@@ -1040,7 +1264,7 @@ try
         {
             Name = x.Name.ToUpper()  // ❌ Method calls not supported
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (UnsupportedExpressionException ex)
 {
@@ -1061,7 +1285,7 @@ try
         {
             UserId = "new-id"  // ❌ Cannot update partition key
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (InvalidUpdateOperationException ex)
 {
@@ -1082,7 +1306,7 @@ try
         {
             NonExistentProperty = "value"  // ❌ Property not in entity
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (UnmappedPropertyException ex)
 {
@@ -1103,7 +1327,7 @@ try
         {
             SocialSecurityNumber = "123-45-6789"  // ❌ Encrypted property without encryptor
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (EncryptionRequiredException ex)
 {
@@ -1199,12 +1423,12 @@ builder.Set("SET #name = :name, #desc = :desc")
 
 ```csharp
 // ✅ Correct: Create new item with new key
-await table.PutItem(new User 
+await table.Put(new User 
 {
     UserId = "new-id",
     // ... other properties
 })
-.ExecuteAsync();
+.PutAsync();
 ```
 
 #### Issue: Format String Not Applied
@@ -1402,7 +1626,7 @@ try
     await table.Update()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
         .Set(x => new UserUpdateModel { Name = "John" })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 catch (InvalidUpdateOperationException ex)
 {
@@ -1447,12 +1671,12 @@ public async Task Update_GeneratesCorrectExpression()
             Name = "John",
             LoginCount = x.LoginCount.Add(1)
         })
-        .ExecuteAsync();
+        .UpdateAsync();
     
     // Assert - verify the update was applied correctly
     var response = await table.Get()
         .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-        .ExecuteAsync();
+        .UpdateAsync();
     
     Assert.Equal("John", response.Item.Name);
 }

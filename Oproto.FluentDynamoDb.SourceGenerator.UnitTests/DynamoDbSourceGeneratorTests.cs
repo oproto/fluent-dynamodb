@@ -99,11 +99,11 @@ namespace TestNamespace
         [DynamoDbAttribute(""pk"")]
         public string Id { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""TestGSI"", IsPartitionKey = true)]
+        [GsiPartitionKey(""TestGSI"")]
         [DynamoDbAttribute(""gsi_pk"")]
         public string GsiKey { get; set; } = string.Empty;
         
-        [GlobalSecondaryIndex(""TestGSI"", IsSortKey = true)]
+        [GsiSortKey(""TestGSI"")]
         [DynamoDbAttribute(""gsi_sk"")]
         public string GsiSort { get; set; } = string.Empty;
     }
@@ -302,7 +302,7 @@ namespace TestNamespace
         
         var tableCode = tableFiles[0].SourceText.ToString();
         tableCode.ShouldContainClass("MyAppTableTable");
-        tableCode.Should().Contain("public partial class MyAppTableTable : DynamoDbTableBase", 
+        tableCode.Should().Contain("public partial class MyAppTableTable : IDynamoDbTable", 
             "table class should be named after table name (my-app-table -> MyAppTableTable), not entity name (Order)");
         tableCode.Should().Contain("public MyAppTableTable(IAmazonDynamoDB client, string tableName)", 
             "constructor should use table class name and require tableName parameter");
@@ -349,7 +349,7 @@ namespace TestNamespace
         var tableCode = tableFiles[0].SourceText.ToString();
         // Table name "shared-table" should become "SharedTableTable" (split by hyphen, capitalize each part, append "Table")
         tableCode.ShouldContainClass("SharedTableTable");
-        tableCode.Should().Contain("public partial class SharedTableTable : DynamoDbTableBase", 
+        tableCode.Should().Contain("public partial class SharedTableTable : IDynamoDbTable", 
             "table class should be named after table name (shared-table -> SharedTableTable)");
     }
 

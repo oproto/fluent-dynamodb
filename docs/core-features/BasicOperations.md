@@ -444,6 +444,47 @@ await table.Users.Put(user)
 .Where(x => x.Status == "active")
 // Format string
 .Where($"{UserFields.Status} = {{0}}", "active")
+```
+
+### Key Condition Shortcuts
+
+For common patterns like "create only" or "update only", use the simplified `KeyCondition` enum or builder methods:
+
+```csharp
+// Create only (fail if item already exists)
+await table.Users.Put(user).IfNotExists().PutAsync();
+await table.Users.PutAsync(user, KeyCondition.MustNotExist);  // Convenience parameter
+
+// Update only (fail if item doesn't exist)
+await table.Users.Put(user).IfExists().PutAsync();
+await table.Users.PutAsync(user, KeyCondition.MustExist);  // Convenience parameter
+
+// Using WithKeyCondition for explicit control
+await table.Users.Put(user).WithKeyCondition(KeyCondition.MustNotExist).PutAsync();
+```
+
+**KeyCondition Enum Values:**
+
+| Value | Generated Condition | Use Case |
+|-------|---------------------|----------|
+| `KeyCondition.None` | No condition (default) | Standard put behavior |
+| `KeyCondition.MustExist` | `attribute_exists(pk) [AND attribute_exists(sk)]` | Update existing item only |
+| `KeyCondition.MustNotExist` | `attribute_not_exists(pk) [AND attribute_not_exists(sk)]` | Create new item only |
+
+**Combining with Other Conditions:**
+
+Key conditions can be combined with additional `Where()` clauses:
+
+```csharp
+// Create only AND check additional condition
+await table.Users.Put(user)
+    .IfNotExists()
+    .Where(x => x.Status == "pending")  // Additional condition
+    .PutAsync();
+// Generates: (attribute_not_exists(pk)) AND (status = :v0)
+```
+
+> **Note**: Key condition shortcuts automatically use the correct attribute names from entity metadata, supporting both simple (PK only) and composite (PK + SK) key entities.
 
 ### Put with Return Values
 
@@ -992,6 +1033,37 @@ await table.Users.Update("user123")
 
 > **Note**: Entity-specific builders maintain proper return types throughout the fluent chain, so you can call `Where()` and `Set()` in any order without losing type information.
 
+### Key Condition Shortcuts for Updates
+
+Use key condition shortcuts to prevent accidental upserts (creating new items when updating):
+
+```csharp
+// Prevent upsert - fail if item doesn't exist
+await table.Users.Update("user123", KeyCondition.MustExist)
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .UpdateAsync();
+
+// Builder method approach
+await table.Users.Update("user123")
+    .IfExists()
+    .Set(x => new UserUpdateModel { Name = "Jane Doe" })
+    .UpdateAsync();
+
+// Composite key with key condition
+await table.Orders.Update("customer123", "order456", KeyCondition.MustExist)
+    .Set(x => new OrderUpdateModel { Status = "shipped" })
+    .UpdateAsync();
+
+// Combine with additional conditions
+await table.Users.Update("user123")
+    .IfExists()
+    .Set(x => new UserUpdateModel { Status = "active" })
+    .Where(x => x.Status == "pending")  // Additional business logic condition
+    .UpdateAsync();
+```
+
+> **Note**: By default, DynamoDB Update operations create a new item if one doesn't exist (upsert behavior). Use `KeyCondition.MustExist` or `.IfExists()` to ensure you're only updating existing items.
+
 ### Update with Return Values
 
 Get attribute values before or after the update:
@@ -1102,6 +1174,28 @@ await table.Users.Delete("user123")
 ```
 
 > **Note**: Convenience methods don't support conditions. Use the builder pattern when you need conditional expressions.
+
+### Key Condition Shortcuts for Deletes
+
+Use key condition shortcuts to ensure you're deleting an existing item:
+
+```csharp
+// Fail if item doesn't exist
+await table.Users.Delete("user123").IfExists().DeleteAsync();
+await table.Users.DeleteAsync("user123", KeyCondition.MustExist);  // Convenience parameter
+
+// Composite key with key condition
+await table.Orders.Delete("customer123", "order456").IfExists().DeleteAsync();
+await table.Orders.DeleteAsync("customer123", "order456", KeyCondition.MustExist);
+
+// Combine with additional conditions
+await table.Users.Delete("user123")
+    .IfExists()
+    .Where(x => x.Status == "inactive")  // Additional business logic condition
+    .DeleteAsync();
+```
+
+> **Note**: By default, DynamoDB Delete operations succeed silently even if the item doesn't exist (idempotent). Use `KeyCondition.MustExist` or `.IfExists()` when you need to know if an item was actually deleted.
 
 ### Delete with Return Values
 

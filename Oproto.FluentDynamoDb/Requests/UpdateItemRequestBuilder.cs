@@ -53,6 +53,7 @@ public class UpdateItemRequestBuilder<TEntity> :
         _dynamoDbClient = dynamoDbClient;
         _options = options ?? new FluentDynamoDbOptions();
         _logger = _options.Logger;
+        _fieldEncryptor = _options.FieldEncryptor; // Automatically use encryptor from options
         
         // Apply default options
         if (_options.DefaultReturnConsumedCapacity is { } defaultConsumedCapacity)
@@ -79,6 +80,14 @@ public class UpdateItemRequestBuilder<TEntity> :
     private Expressions.ExpressionContext? _expressionContext;
     private IFieldEncryptor? _fieldEncryptor;
     private List<BlobPropertyContext>? _blobPropertyContexts;
+    private KeyCondition _keyCondition = KeyCondition.None;
+
+    /// <summary>
+    /// Gets the response metadata from the most recent UpdateItem execution.
+    /// This is populated by Primary API methods (UpdateAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public UpdateItemOperationResponse? Response { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -122,11 +131,19 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
+    /// If the expression is empty or whitespace (e.g., all conditional clauses evaluated to skip),
+    /// the method returns without setting the condition, allowing the operation to proceed unconditionally.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public UpdateItemRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
+        // Skip setting if expression is empty (all conditionals evaluated to skip)
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return this;
+        }
+        
         if (string.IsNullOrEmpty(_req.ConditionExpression))
         {
             _req.ConditionExpression = expression;
@@ -154,6 +171,112 @@ public class UpdateItemRequestBuilder<TEntity> :
     /// Gets the builder instance for method chaining.
     /// </summary>
     public UpdateItemRequestBuilder<TEntity> Self => this;
+
+    /// <summary>
+    /// Adds a condition that the item must already exist (all key attributes must exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustExist)</c>.
+    /// Use this to prevent upsert behavior - the update will fail if the item doesn't exist.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_exists(pk) AND attribute_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Update existing only (prevent upsert)
+    /// await table.Users.Update(userId)
+    ///     .IfExists()
+    ///     .Set(x => new UserUpdateModel { Name = "New Name" })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> IfExists()
+    {
+        _keyCondition = KeyCondition.MustExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a condition that the item must not already exist (key attributes must not exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustNotExist)</c>.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_not_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_not_exists(pk) AND attribute_not_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Create only via update (fail if exists)
+    /// await table.Users.Update(userId)
+    ///     .IfNotExists()
+    ///     .Set(x => new UserUpdateModel { Name = "New User" })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> IfNotExists()
+    {
+        _keyCondition = KeyCondition.MustNotExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the key condition for this operation.
+    /// </summary>
+    /// <param name="condition">The key condition to apply.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Using enum directly
+    /// await table.Users.Update(userId)
+    ///     .WithKeyCondition(KeyCondition.MustExist)
+    ///     .Set(x => new UserUpdateModel { Name = "New Name" })
+    ///     .UpdateAsync();
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> WithKeyCondition(KeyCondition condition)
+    {
+        _keyCondition = condition;
+        return this;
+    }
+
+    /// <summary>
+    /// Applies the key condition to the request's condition expression.
+    /// Called internally during request building.
+    /// </summary>
+    private void ApplyKeyCondition()
+    {
+        if (_keyCondition == KeyCondition.None) return;
+
+        var metadata = TEntity.GetEntityMetadata();
+        var pkAttrName = metadata.PartitionKeyAttributeName;
+        var skAttrName = metadata.SortKeyAttributeName;
+
+        string condition;
+        if (_keyCondition == KeyCondition.MustExist)
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_exists({pkAttrName})"
+                : $"attribute_exists({pkAttrName}) AND attribute_exists({skAttrName})";
+        }
+        else // MustNotExist
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_not_exists({pkAttrName})"
+                : $"attribute_not_exists({pkAttrName}) AND attribute_not_exists({skAttrName})";
+        }
+
+        // Combine with existing condition if present
+        if (string.IsNullOrEmpty(_req.ConditionExpression))
+        {
+            _req.ConditionExpression = condition;
+        }
+        else
+        {
+            _req.ConditionExpression = $"({condition}) AND ({_req.ConditionExpression})";
+        }
+    }
 
     /// <summary>
     /// Sets the expression context for this builder.
@@ -194,6 +317,47 @@ public class UpdateItemRequestBuilder<TEntity> :
     public UpdateItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built UpdateItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's execution and context population capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built UpdateItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new UpdateItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Key = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" }
+    ///     },
+    ///     UpdateExpression = "SET #name = :name",
+    ///     ExpressionAttributeNames = new Dictionary&lt;string, string&gt; { ["#name"] = "name" },
+    ///     ExpressionAttributeValues = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         [":name"] = new AttributeValue { S = "Jane Doe" }
+    ///     },
+    ///     ReturnValues = ReturnValue.ALL_NEW
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Update&lt;User&gt;().WithRequest(sdkRequest);
+    /// var user = await builder.UpdateAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public UpdateItemRequestBuilder<TEntity> WithRequest(UpdateItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 
@@ -302,6 +466,9 @@ public class UpdateItemRequestBuilder<TEntity> :
 
     public UpdateItemRequest ToUpdateItemRequest()
     {
+        // Apply key condition before building the request
+        ApplyKeyCondition();
+        
         if (_attrN.AttributeNames.Count > 0)
         {
             _req.ExpressionAttributeNames = _attrN.AttributeNames;
@@ -348,9 +515,9 @@ public class UpdateItemRequestBuilder<TEntity> :
                 $"Field encryption is required for properties [{propertyNames}] (DynamoDB attributes: [{attributeNames}]) but no IFieldEncryptor is configured. " +
                 $"To fix this issue: " +
                 $"1. Implement the IFieldEncryptor interface (e.g., using AWS KMS or another encryption provider). " +
-                $"2. Pass the encryptor to the DynamoDbTableBase constructor, or " +
+                $"2. Pass the encryptor via FluentDynamoDbOptions when creating the table, or " +
                 $"3. Set it in the DynamoDbOperationContext before executing update operations. " +
-                $"Example: new MyTable(dynamoDbClient, logger, blobProvider, fieldEncryptor)");
+                $"Example: new FluentDynamoDbOptions().WithEncryption(fieldEncryptor)");
         }
 
         foreach (var param in parametersRequiringEncryption)
@@ -379,7 +546,7 @@ public class UpdateItemRequestBuilder<TEntity> :
                     plaintext,
                     param.PropertyName ?? param.AttributeName ?? "unknown",
                     encryptionContext,
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
 
                 // Replace with encrypted value (as binary)
                 request.ExpressionAttributeValues[param.ParameterName] = new AttributeValue
@@ -421,7 +588,13 @@ public class UpdateItemRequestBuilder<TEntity> :
     string ITransactableUpdateBuilder.GetTableName() => _req.TableName;
     Dictionary<string, AttributeValue> ITransactableUpdateBuilder.GetKey() => _req.Key;
     string ITransactableUpdateBuilder.GetUpdateExpression() => _req.UpdateExpression;
-    string? ITransactableUpdateBuilder.GetConditionExpression() => _req.ConditionExpression;
+    string? ITransactableUpdateBuilder.GetConditionExpression()
+    {
+        // Apply key condition before returning the condition expression
+        // This ensures key conditions are included when the builder is used in transactions
+        ApplyKeyCondition();
+        return _req.ConditionExpression;
+    }
     Dictionary<string, string>? ITransactableUpdateBuilder.GetExpressionAttributeNames() => 
         _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
     Dictionary<string, AttributeValue>? ITransactableUpdateBuilder.GetExpressionAttributeValues() => 
@@ -431,7 +604,7 @@ public class UpdateItemRequestBuilder<TEntity> :
     {
         // Create a temporary request to encrypt parameters
         var request = ToUpdateItemRequest();
-        await EncryptParametersAsync(request, cancellationToken);
+        await EncryptParametersAsync(request, cancellationToken).ConfigureAwait(false);
         
         // Update the internal attribute values with encrypted values
         if (request.ExpressionAttributeValues != null)
@@ -468,16 +641,16 @@ public class UpdateItemRequestBuilder<TEntity> :
         // Encrypt parameters if needed (for expression-based Set() with encrypted properties)
         if (_expressionContext != null && _expressionContext.ParameterMetadata.Any(p => p.RequiresEncryption))
         {
-            await EncryptParametersAsync(request, cancellationToken);
+            await EncryptParametersAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
         // Check if we have blob properties to upload
         if (_blobPropertyContexts != null && _blobPropertyContexts.Count > 0 && _options.BlobStorageStrategy != null)
         {
-            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
-        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<UpdateItemResponse> ExecuteWithBlobStorageAsync(
@@ -494,7 +667,7 @@ public class UpdateItemRequestBuilder<TEntity> :
         try
         {
             // Step 1: Upload blobs before DynamoDB write
-            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken);
+            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken).ConfigureAwait(false);
             
             // Step 2: Update request with reference keys
             foreach (var prop in _blobPropertyContexts!)
@@ -514,17 +687,17 @@ public class UpdateItemRequestBuilder<TEntity> :
             UpdateItemResponse response;
             try
             {
-                response = await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+                response = await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 // Step 4a: Handle DynamoDB write failure
-                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken);
+                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken).ConfigureAwait(false);
                 throw;
             }
             
             // Step 4b: Handle DynamoDB write success
-            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken);
+            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken).ConfigureAwait(false);
             
             return response;
         }
@@ -560,7 +733,7 @@ public class UpdateItemRequestBuilder<TEntity> :
         
         try
         {
-            var response = await _dynamoDbClient.UpdateItemAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.UpdateItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

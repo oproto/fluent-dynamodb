@@ -257,9 +257,9 @@ public static string BuildPartitionKey(string tenantId, string orderId)
 }
 
 // Usage
-var response = await table.Get
+var item = await table.Get()
     .WithKey("pk", BuildPartitionKey("tenant123", "order456"))
-    .ExecuteAsync();
+    .GetItemAsync();
 ```
 
 ### Global Secondary Indexes
@@ -273,11 +273,11 @@ public partial class Product
     [DynamoDbAttribute("pk")]
     public string ProductId { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("created_date")]
     public DateTime CreatedDate { get; set; }
 }
@@ -299,11 +299,11 @@ public static class ProductFields
 }
 
 // Query GSI with manual constants
-var response = await table.Query<Product>()
+var products = await table.Query<Product>()
     .UsingIndex("StatusIndex")
     .Where($"{Product.Fields.Status} = :status")
     .WithValue(":status", "active")
-    .ExecuteAsync();
+    .ToListAsync();
 ```
 
 ## Migration Strategies
@@ -521,11 +521,11 @@ public static class ProductGSI
 }
 
 // After - generated constants
-[GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+[GsiPartitionKey("StatusIndex")]
 [DynamoDbAttribute("status")]
 public string Status { get; set; } = string.Empty;
 
-[GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+[GsiSortKey("StatusIndex")]
 [DynamoDbAttribute("created_date")]
 public DateTime CreatedDate { get; set; }
 

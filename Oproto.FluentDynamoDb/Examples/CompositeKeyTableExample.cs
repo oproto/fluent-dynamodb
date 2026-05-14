@@ -76,15 +76,17 @@ namespace Oproto.FluentDynamoDb.Examples;
 /// var order = response.ToEntity&lt;Order&gt;();
 /// </code>
 /// </example>
-public class OrdersTable : DynamoDbTableBase
+public class OrdersTable : IDynamoDbTable
 {
     /// <summary>
     /// Initializes a new instance of the OrdersTable.
     /// </summary>
     /// <param name="client">The DynamoDB client.</param>
     public OrdersTable(IAmazonDynamoDB client) 
-        : base(client, "Orders")
     {
+        DynamoDbClient = client;
+        Name = "Orders";
+        Options = new FluentDynamoDbOptions();
     }
 
     /// <summary>
@@ -93,9 +95,15 @@ public class OrdersTable : DynamoDbTableBase
     /// <param name="client">The DynamoDB client.</param>
     /// <param name="logger">Logger for DynamoDB operations.</param>
     public OrdersTable(IAmazonDynamoDB client, IDynamoDbLogger logger) 
-        : base(client, "Orders", logger)
     {
+        DynamoDbClient = client;
+        Name = "Orders";
+        Options = new FluentDynamoDbOptions().WithLogger(logger);
     }
+
+    public IAmazonDynamoDB DynamoDbClient { get; }
+    public string Name { get; }
+    protected FluentDynamoDbOptions Options { get; }
 
     /// <summary>
     /// Gets an order by customer ID (partition key) and order ID (sort key).
@@ -126,7 +134,7 @@ public class OrdersTable : DynamoDbTableBase
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
     public GetItemRequestBuilder<PlaceholderEntity> Get(string customerId, string orderId) => 
-        base.Get<PlaceholderEntity>().WithKey("customer_id", customerId, "order_id", orderId);
+        new GetItemRequestBuilder<PlaceholderEntity>(DynamoDbClient, Options).ForTable(Name).WithKey("customer_id", customerId, "order_id", orderId);
 
     /// <summary>
     /// Updates an order by customer ID (partition key) and order ID (sort key).
@@ -172,7 +180,7 @@ public class OrdersTable : DynamoDbTableBase
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
     public UpdateItemRequestBuilder<PlaceholderEntity> Update(string customerId, string orderId) => 
-        base.Update<PlaceholderEntity>().WithKey("customer_id", customerId, "order_id", orderId);
+        new UpdateItemRequestBuilder<PlaceholderEntity>(DynamoDbClient, Options).ForTable(Name).WithKey("customer_id", customerId, "order_id", orderId);
 
     /// <summary>
     /// Deletes an order by customer ID (partition key) and order ID (sort key).
@@ -207,7 +215,7 @@ public class OrdersTable : DynamoDbTableBase
     /// </example>
     // Note: In actual implementation, replace 'PlaceholderEntity' with your entity type
     public DeleteItemRequestBuilder<PlaceholderEntity> Delete(string customerId, string orderId) => 
-        base.Delete<PlaceholderEntity>().WithKey("customer_id", customerId, "order_id", orderId);
+        new DeleteItemRequestBuilder<PlaceholderEntity>(DynamoDbClient, Options).ForTable(Name).WithKey("customer_id", customerId, "order_id", orderId);
 
     /// <summary>
     /// Global Secondary Index for querying orders by status and creation date.

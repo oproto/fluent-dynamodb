@@ -283,7 +283,8 @@ public static User FromDynamoDb(Dictionary<string, AttributeValue> item)
 
 ```csharp
 // Scan all items and update with new format
-await foreach (var item in table.Scan().ExecuteAsync())
+var items = await table.Scan().ToListAsync();
+foreach (var item in items)
 {
     await table.Update()
         .WithKey("pk", item.PartitionKey)
@@ -291,7 +292,7 @@ await foreach (var item in table.Scan().ExecuteAsync())
         { 
             Price = item.Price  // Will be reformatted automatically
         })
-        .ExecuteAsync();
+        .UpdateAsync();
 }
 ```
 

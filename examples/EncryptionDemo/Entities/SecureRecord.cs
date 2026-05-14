@@ -72,10 +72,6 @@ public partial class SecureRecord
     /// This property is marked as [Encrypted] so it will be encrypted at rest
     /// using KMS before storing in DynamoDB.
     /// </summary>
-    /// <remarks>
-    /// Note: The AWS Encryption SDK integration is pending completion.
-    /// This demonstrates the intended API pattern.
-    /// </remarks>
     [Encrypted]
     [DynamoDbAttribute("ssn")]
     public string SocialSecurityNumber { get; set; } = string.Empty;
@@ -85,10 +81,6 @@ public partial class SecureRecord
     /// This property is marked with both [Encrypted] and [Sensitive] attributes,
     /// meaning it will be encrypted at rest AND redacted in log output.
     /// </summary>
-    /// <remarks>
-    /// Note: The AWS Encryption SDK integration is pending completion.
-    /// This demonstrates the intended API pattern.
-    /// </remarks>
     [Encrypted]
     [Sensitive]
     [DynamoDbAttribute("creditCard")]

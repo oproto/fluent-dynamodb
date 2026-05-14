@@ -422,7 +422,7 @@ public class ExpressionMixedTests : IntegrationTestBase
     #endregion
     
     // Helper class to create a table instance for query operations
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)
@@ -432,7 +432,7 @@ public class ExpressionMixedTests : IntegrationTestBase
         public ScanRequestBuilder<ComplexEntity> Scan() => 
             new ScanRequestBuilder<ComplexEntity>(DynamoDbClient).ForTable(Name);
         
-        public ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class =>
+        public new ScanRequestBuilder<TEntity> Scan<TEntity>() where TEntity : class, IReadOnlyEntity =>
             new ScanRequestBuilder<TEntity>(DynamoDbClient).ForTable(Name);
     }
 }

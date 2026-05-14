@@ -75,6 +75,15 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     private TEntity? _entity;
+    private bool _hasDeferredEntity;
+    private KeyCondition _keyCondition = KeyCondition.None;
+
+    /// <summary>
+    /// Gets the response metadata from the most recent PutItem execution.
+    /// This is populated by Primary API methods (PutAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public PutItemOperationResponse? Response { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -103,6 +112,29 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     public FluentDynamoDbOptions GetOptions() => _options;
 
     /// <summary>
+    /// Gets whether this builder has a deferred entity that requires async serialization.
+    /// When true, the entity must be serialized via the hydrator registry before building the request.
+    /// </summary>
+    public bool HasDeferredEntity => _hasDeferredEntity;
+
+    /// <summary>
+    /// Gets the deferred entity that needs async serialization, or null if no entity is deferred.
+    /// </summary>
+    /// <returns>The deferred entity, or null.</returns>
+    public TEntity? GetDeferredEntity() => _hasDeferredEntity ? _entity : null;
+
+    /// <summary>
+    /// Sets the serialized item dictionary after async serialization has been resolved.
+    /// Called by PutAsync and other async execution methods after resolving deferred serialization.
+    /// </summary>
+    /// <param name="item">The serialized DynamoDB attribute dictionary.</param>
+    public void SetResolvedItem(Dictionary<string, AttributeValue> item)
+    {
+        _req.Item = item;
+        _hasDeferredEntity = false;
+    }
+
+    /// <summary>
     /// Replaces the DynamoDB client used for executing this request.
     /// Used for tenant-specific STS credential scenarios where different clients
     /// are needed for different tenants or security contexts.
@@ -118,11 +150,19 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
+    /// If the expression is empty or whitespace (e.g., all conditional clauses evaluated to skip),
+    /// the method returns without setting the condition, allowing the operation to proceed unconditionally.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public PutItemRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
+        // Skip setting if expression is empty (all conditionals evaluated to skip)
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return this;
+        }
+        
         if (string.IsNullOrEmpty(_req.ConditionExpression))
         {
             _req.ConditionExpression = expression;
@@ -139,9 +179,141 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// </summary>
     public PutItemRequestBuilder<TEntity> Self => this;
 
+    /// <summary>
+    /// Adds a condition that the item must already exist (all key attributes must exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustExist)</c>.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_exists(pk) AND attribute_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Replace existing item only (fail if not exists)
+    /// await table.Users.Put(user).IfExists().PutAsync();
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> IfExists()
+    {
+        _keyCondition = KeyCondition.MustExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a condition that the item must not already exist (key attributes must not exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustNotExist)</c>.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_not_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_not_exists(pk) AND attribute_not_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Create only (fail if exists)
+    /// await table.Users.Put(user).IfNotExists().PutAsync();
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> IfNotExists()
+    {
+        _keyCondition = KeyCondition.MustNotExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the key condition for this operation.
+    /// </summary>
+    /// <param name="condition">The key condition to apply.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Using enum directly
+    /// await table.Users.Put(user).WithKeyCondition(KeyCondition.MustNotExist).PutAsync();
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> WithKeyCondition(KeyCondition condition)
+    {
+        _keyCondition = condition;
+        return this;
+    }
+
+    /// <summary>
+    /// Applies the key condition to the request's condition expression.
+    /// Called internally during request building.
+    /// </summary>
+    private void ApplyKeyCondition()
+    {
+        if (_keyCondition == KeyCondition.None) return;
+
+        var metadata = TEntity.GetEntityMetadata();
+        var pkAttrName = metadata.PartitionKeyAttributeName;
+        var skAttrName = metadata.SortKeyAttributeName;
+
+        string condition;
+        if (_keyCondition == KeyCondition.MustExist)
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_exists({pkAttrName})"
+                : $"attribute_exists({pkAttrName}) AND attribute_exists({skAttrName})";
+        }
+        else // MustNotExist
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_not_exists({pkAttrName})"
+                : $"attribute_not_exists({pkAttrName}) AND attribute_not_exists({skAttrName})";
+        }
+
+        // Combine with existing condition if present
+        if (string.IsNullOrEmpty(_req.ConditionExpression))
+        {
+            _req.ConditionExpression = condition;
+        }
+        else
+        {
+            _req.ConditionExpression = $"({condition}) AND ({_req.ConditionExpression})";
+        }
+    }
+
     public PutItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built PutItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's execution and context population capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built PutItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new PutItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Item = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" },
+    ///         ["name"] = new AttributeValue { S = "John Doe" }
+    ///     },
+    ///     ConditionExpression = "attribute_not_exists(pk)"
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Put&lt;User&gt;().WithRequest(sdkRequest);
+    /// await builder.PutAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> WithRequest(PutItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 
@@ -220,6 +392,9 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     /// <summary>
     /// Sets the item to put using an entity instance.
     /// The entity is automatically mapped to DynamoDB attributes using the generated mapper.
+    /// For entities with a registered hydrator (e.g., encrypted entities), serialization is
+    /// deferred to async execution time. For non-encrypted entities, serialization happens
+    /// synchronously at configuration time.
     /// </summary>
     /// <param name="entity">The entity instance to put.</param>
     /// <returns>The builder instance for method chaining.</returns>
@@ -234,7 +409,31 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     public PutItemRequestBuilder<TEntity> WithItem(TEntity entity)
     {
         _entity = entity;
-        _req.Item = TEntity.ToDynamoDb(entity, _options);
+
+        // Check if the entity has a hydrator registered (indicating async serialization is needed,
+        // e.g., for encrypted entities). If so, defer serialization to async execution time.
+        var hydrator = _options.HydratorRegistry?.GetHydrator<TEntity>();
+        if (hydrator != null)
+        {
+            // Defer serialization — async execution (PutAsync) will resolve via hydrator
+            _hasDeferredEntity = true;
+            return this;
+        }
+
+        // No hydrator registered — try synchronous serialization.
+        // For encrypted entities whose hydrator hasn't been registered yet,
+        // the generated ToDynamoDb stub throws NotSupportedException.
+        // Catch that and defer serialization to async execution time.
+        try
+        {
+            _req.Item = TEntity.ToDynamoDb(entity, _options);
+        }
+        catch (NotSupportedException)
+        {
+            // Entity requires async serialization (e.g., encryption) — defer to PutAsync
+            _hasDeferredEntity = true;
+        }
+
         return this;
     }
 
@@ -265,6 +464,18 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
 
     public PutItemRequest ToPutItemRequest()
     {
+        // Apply key condition before building the request
+        ApplyKeyCondition();
+
+        // If the entity requires async serialization (deferred) and hasn't been resolved yet,
+        // throw to indicate that async execution is required
+        if (_hasDeferredEntity && _req.Item == null)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' requires async serialization (e.g., encryption). " +
+                "Use PutAsync() or resolve the deferred entity via the hydrator registry before calling ToPutItemRequest().");
+        }
+        
         if (_attrN.AttributeNames.Count > 0)
         {
             _req.ExpressionAttributeNames = _attrN.AttributeNames;
@@ -278,8 +489,23 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
 
     // ITransactablePutBuilder implementation
     string ITransactablePutBuilder.GetTableName() => _req.TableName;
-    Dictionary<string, AttributeValue> ITransactablePutBuilder.GetItem() => _req.Item;
-    string? ITransactablePutBuilder.GetConditionExpression() => _req.ConditionExpression;
+    Dictionary<string, AttributeValue> ITransactablePutBuilder.GetItem()
+    {
+        if (_hasDeferredEntity && _req.Item == null)
+        {
+            throw new InvalidOperationException(
+                $"Entity '{typeof(TEntity).Name}' requires async serialization (e.g., encryption). " +
+                "Resolve the deferred entity via the hydrator registry before calling GetItem().");
+        }
+        return _req.Item;
+    }
+    string? ITransactablePutBuilder.GetConditionExpression()
+    {
+        // Apply key condition before returning the condition expression
+        // This ensures key conditions are included when the builder is used in transactions
+        ApplyKeyCondition();
+        return _req.ConditionExpression;
+    }
     Dictionary<string, string>? ITransactablePutBuilder.GetExpressionAttributeNames() => 
         _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
     Dictionary<string, AttributeValue>? ITransactablePutBuilder.GetExpressionAttributeValues() => 
@@ -305,16 +531,28 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
                 "outside of a transaction. Use DynamoDbTransactions.Write() to perform this operation.");
         }
         
+        // Resolve deferred async serialization for encrypted entities before building the request
+        if (_hasDeferredEntity)
+        {
+            var hydrator = _options.HydratorRegistry?.GetHydrator<TEntity>();
+            if (hydrator != null && _entity != null)
+            {
+                var blobProvider = _options.BlobStorageProvider;
+                var item = await hydrator.SerializeAsync(_entity, blobProvider, _options, cancellationToken).ConfigureAwait(false);
+                SetResolvedItem(item);
+            }
+        }
+        
         var request = ToPutItemRequest();
         
         // Check if we have an entity with blob storage properties and a strategy configured
         if (_entity != null && _options.BlobStorageStrategy != null && 
             BlobStorageHelper.HasBlobStorageProperties<TEntity>())
         {
-            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
-        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<PutItemResponse> ExecuteWithBlobStorageAsync(
@@ -325,8 +563,8 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
             _entity!,
             request.Item,
             _options,
-            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
-            cancellationToken);
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<PutItemResponse> ExecuteDynamoDbOperationAsync(
@@ -350,7 +588,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         
         try
         {
-            var response = await _dynamoDbClient.PutItemAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

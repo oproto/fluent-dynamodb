@@ -97,8 +97,9 @@ internal static class MapperGenerator
         }
         sb.AppendLine($"    /// </summary>");
 
-        // Class declaration - partial class with IDynamoDbEntity interface
-        sb.AppendLine($"    public partial class {entity.ClassName} : IDynamoDbEntity");
+        // Type declaration - partial class or record with IDynamoDbEntity interface
+        var typeKeyword = entity.IsRecord ? "record" : "class";
+        sb.AppendLine($"    public partial {typeKeyword} {entity.ClassName} : IDynamoDbEntity");
         sb.AppendLine("    {");
 
         // Generate dynamic fields support if enabled
@@ -137,6 +138,12 @@ internal static class MapperGenerator
         GenerateMatchesEntityMethod(sb, entity);
         GenerateGetEntityMetadataMethod(sb, entity);
         GenerateRequiresWriteTransactionProperty(sb, entity);
+
+        // Generate helper methods for recursive composite entity assembly if needed
+        if (entity.Relationships.Any(r => r.ChildEntityHasRelationships))
+        {
+            GenerateExtractSortKeyPrefixHelper(sb);
+        }
 
         // Generate nested Keys class (skip for nested entities)
         if (!entity.TableName?.StartsWith("_entity_") == true)
@@ -326,7 +333,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
         sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
         sb.AppendLine("        {");
         sb.AppendLine($"            throw new NotSupportedException(");
         sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
@@ -351,6 +358,10 @@ internal static class MapperGenerator
 
     private static void GenerateToDynamoDbAsyncMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncrypted = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        var isEncryptionOnly = hasEncrypted && !hasBlobStorage;
+
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// High-performance async conversion from entity to DynamoDB AttributeValue dictionary.");
@@ -368,7 +379,9 @@ internal static class MapperGenerator
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"        public static async Task<Dictionary<string, AttributeValue>> ToDynamoDbAsync<TSelf>(");
         sb.AppendLine("            TSelf entity,");
-        sb.AppendLine("            IBlobStorageProvider blobProvider,");
+        sb.AppendLine(isEncryptionOnly
+            ? "            IBlobStorageProvider? blobProvider,"
+            : "            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
         sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
@@ -381,9 +394,14 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (entity is not {entity.ClassName} typedEntity)");
         sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{entity.GetType().Name}}\", nameof(entity));");
         sb.AppendLine();
-        sb.AppendLine("            if (blobProvider == null)");
-        sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
-        sb.AppendLine();
+
+        // Only generate null guard for blobProvider when entity has blob storage properties
+        if (!isEncryptionOnly)
+        {
+            sb.AppendLine("            if (blobProvider == null)");
+            sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
+            sb.AppendLine();
+        }
 
         // Wrap entire mapping operation in try-catch
         sb.AppendLine("            try");
@@ -479,6 +497,13 @@ internal static class MapperGenerator
         if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyToAttributeValue(sb, property, entity);
+            return;
+        }
+
+        // Handle List<T> with [DynamoDbMap] - lists of nested entities
+        if (property.ComplexType?.IsListOfMaps == true)
+        {
+            GenerateListOfMapsPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
@@ -584,6 +609,13 @@ internal static class MapperGenerator
         if (property.ComplexType?.IsMap == true)
         {
             GenerateMapPropertyToAttributeValue(sb, property, entity);
+            return;
+        }
+
+        // Handle List<T> with [DynamoDbMap] - lists of nested entities
+        if (property.ComplexType?.IsListOfMaps == true)
+        {
+            GenerateListOfMapsPropertyToAttributeValue(sb, property, entity);
             return;
         }
 
@@ -754,7 +786,7 @@ internal static class MapperGenerator
             sb.AppendLine("                                bytes,");
             sb.AppendLine($"                                \"{propertyName}\",");
             sb.AppendLine("                                encryptionContext,");
-            sb.AppendLine("                                cancellationToken);");
+            sb.AppendLine("                                cancellationToken).ConfigureAwait(false);");
             sb.AppendLine();
             sb.AppendLine("                            // Step 3: Store encrypted data in blob storage");
             sb.AppendLine("                            using var stream = new MemoryStream(encryptedBytes);");
@@ -764,7 +796,7 @@ internal static class MapperGenerator
             sb.AppendLine("                            using var stream = new MemoryStream(bytes);");
         }
         
-        sb.AppendLine("                            var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken);");
+        sb.AppendLine("                            var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken).ConfigureAwait(false);");
         sb.AppendLine($"                            typedEntity.{escapedPropertyName}.SetReferenceKey(reference);");
         sb.AppendLine($"                            item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
         sb.AppendLine("                        }");
@@ -1242,6 +1274,46 @@ internal static class MapperGenerator
         }
     }
 
+    /// <summary>
+    /// Generates code for serializing a List&lt;T&gt; property with [DynamoDbMap] attribute.
+    /// Each element in the list is serialized as a DynamoDB Map using the element type's ToDynamoDb method.
+    /// </summary>
+    private static void GenerateListOfMapsPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var elementType = property.ComplexType?.ElementType ?? GetCollectionElementType(property.PropertyType);
+        var simpleElementType = GetSimpleTypeName(elementType);
+
+        sb.AppendLine($"            // Convert List<{simpleElementType}> with [DynamoDbMap] to DynamoDB List of Maps");
+        sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null && typedEntity.{escapedPropertyName}.Count > 0)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    var {propertyName.ToLowerInvariant()}List = new List<AttributeValue>();");
+        sb.AppendLine($"                    foreach (var element in typedEntity.{escapedPropertyName})");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        var elementMap = {simpleElementType}.ToDynamoDb(element);");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}List.Add(new AttributeValue {{ M = elementMap }});");
+        sb.AppendLine("                    }");
+        sb.AppendLine($"                    item[\"{attributeName}\"] = new AttributeValue {{ L = {propertyName.ToLowerInvariant()}List }};");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        new AttributeValue {{ L = new List<AttributeValue>() }},");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                        ex)");
+        sb.AppendLine($"                        .WithContext(\"CollectionType\", \"ListOfMaps\")");
+        sb.AppendLine($"                        .WithContext(\"ElementType\", \"{elementType}\")");
+        sb.AppendLine($"                        .WithContext(\"Operation\", \"ToDynamoDb\");");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+    }
+
     private static void GenerateCollectionPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
         var attributeName = property.AttributeName;
@@ -1363,9 +1435,17 @@ internal static class MapperGenerator
             "double" or "System.Double" => "new AttributeValue { N = x.ToString() }",
             "float" or "System.Single" => "new AttributeValue { N = x.ToString() }",
             "decimal" or "System.Decimal" => "new AttributeValue { N = x.ToString() }",
+            "ulong" or "System.UInt64" => "new AttributeValue { N = x.ToString() }",
+            "uint" or "System.UInt32" => "new AttributeValue { N = x.ToString() }",
+            "ushort" or "System.UInt16" => "new AttributeValue { N = x.ToString() }",
+            "byte" or "System.Byte" => "new AttributeValue { N = x.ToString() }",
+            "sbyte" or "System.SByte" => "new AttributeValue { N = x.ToString() }",
+            "short" or "System.Int16" => "new AttributeValue { N = x.ToString() }",
             "bool" or "System.Boolean" => "new AttributeValue { BOOL = x }",
             "DateTime" or "System.DateTime" => "new AttributeValue { S = x.ToString(\"O\") }",
             "DateTimeOffset" or "System.DateTimeOffset" => "new AttributeValue { S = x.ToString(\"O\") }",
+            "DateOnly" or "System.DateOnly" => "new AttributeValue { S = x.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }",
+            "TimeOnly" or "System.TimeOnly" => "new AttributeValue { S = x.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }",
             "Guid" or "System.Guid" => "new AttributeValue { S = x.ToString() }",
             "Ulid" or "System.Ulid" => "new AttributeValue { S = x.ToString() }",
             "byte[]" or "System.Byte[]" => "new AttributeValue { B = new MemoryStream(x) }",
@@ -1403,9 +1483,17 @@ internal static class MapperGenerator
             "double" or "System.Double" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
             "float" or "System.Single" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
             "decimal" or "System.Decimal" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
+            "ulong" or "System.UInt64" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
+            "uint" or "System.UInt32" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
+            "ushort" or "System.UInt16" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
+            "byte" or "System.Byte" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
+            "sbyte" or "System.SByte" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
+            "short" or "System.Int16" => $"new AttributeValue {{ N = {actualValue}.ToString() }}",
             "bool" or "System.Boolean" => $"new AttributeValue {{ BOOL = {actualValue} }}",
             "DateTime" or "System.DateTime" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\") }}",
             "DateTimeOffset" or "System.DateTimeOffset" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\") }}",
+            "DateOnly" or "System.DateOnly" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
+            "TimeOnly" or "System.TimeOnly" => $"new AttributeValue {{ S = {actualValue}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
             "Guid" or "System.Guid" => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             "Ulid" or "System.Ulid" => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             "byte[]" or "System.Byte[]" => $"new AttributeValue {{ B = new System.IO.MemoryStream({valueExpression}) }}",
@@ -1443,13 +1531,28 @@ internal static class MapperGenerator
         // For numeric types and other IFormattable types, apply format string
         if (baseType is "int" or "System.Int32" or "long" or "System.Int64" or 
             "double" or "System.Double" or "float" or "System.Single" or 
-            "decimal" or "System.Decimal")
+            "decimal" or "System.Decimal" or
+            "ulong" or "System.UInt64" or "uint" or "System.UInt32" or
+            "ushort" or "System.UInt16" or "byte" or "System.Byte" or
+            "sbyte" or "System.SByte" or "short" or "System.Int16")
         {
             return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
         }
 
         // For DateTimeOffset with format
         if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+        }
+
+        // For DateOnly with format
+        if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+        }
+
+        // For TimeOnly with format
+        if (baseType is "TimeOnly" or "System.TimeOnly")
         {
             return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
         }
@@ -1498,12 +1601,25 @@ internal static class MapperGenerator
         // Handle numeric types
         else if (baseType is "int" or "System.Int32" or "long" or "System.Int64" or 
                  "double" or "System.Double" or "float" or "System.Single" or 
-                 "decimal" or "System.Decimal")
+                 "decimal" or "System.Decimal" or
+                 "ulong" or "System.UInt64" or "uint" or "System.UInt32" or
+                 "ushort" or "System.UInt16" or "byte" or "System.Byte" or
+                 "sbyte" or "System.SByte" or "short" or "System.Int16")
         {
             sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
         }
         // Handle DateTimeOffset
         else if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+        }
+        // Handle DateOnly
+        else if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
+        }
+        // Handle TimeOnly
+        else if (baseType is "TimeOnly" or "System.TimeOnly")
         {
             sb.AppendLine($"                    var formatted = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture);");
         }
@@ -1668,6 +1784,36 @@ internal static class MapperGenerator
             sb.AppendLine($"                            $\"Common DateTimeOffset formats: 'o' (ISO 8601), 'yyyy-MM-dd HH:mm:ss zzz' (with timezone).\");");
             sb.AppendLine("                    }");
         }
+        // Handle DateOnly
+        else if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            sb.AppendLine($"                    if (DateOnly.TryParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse DateOnly value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"                            $\"Common DateOnly formats: 'o' (ISO 8601), 'yyyy-MM-dd' (ISO date), 'MM/dd/yyyy' (US format).\");");
+            sb.AppendLine("                    }");
+        }
+        // Handle TimeOnly
+        else if (baseType is "TimeOnly" or "System.TimeOnly")
+        {
+            sb.AppendLine($"                    if (TimeOnly.TryParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        throw new DynamoDbMappingException(");
+            sb.AppendLine($"                            $\"Failed to parse TimeOnly value '{{{valueExpression}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"                            $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"                            $\"Common TimeOnly formats: 'o' (ISO 8601), 'HH:mm:ss' (24-hour), 'h:mm tt' (12-hour with AM/PM).\");");
+            sb.AppendLine("                    }");
+        }
 
         sb.AppendLine("                }");
         sb.AppendLine("                catch (Exception ex) when (ex is not DynamoDbMappingException)");
@@ -1693,7 +1839,7 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <returns>A mapped entity instance.</returns>");
         sb.AppendLine("        /// <exception cref=\"ArgumentException\">Thrown when the type parameter doesn't match the entity type.</exception>");
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
-        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
         sb.AppendLine("        {");
         
         // Generate entry logging
@@ -1772,6 +1918,10 @@ internal static class MapperGenerator
 
     private static void GenerateFromDynamoDbSingleAsyncMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncrypted = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        var isEncryptionOnly = hasEncrypted && !hasBlobStorage;
+
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// High-performance async conversion from DynamoDB item to entity with minimal boxing and allocations.");
@@ -1789,7 +1939,9 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
         sb.AppendLine($"        public static async Task<TSelf> FromDynamoDbAsync<TSelf>(");
         sb.AppendLine("            Dictionary<string, AttributeValue> item,");
-        sb.AppendLine("            IBlobStorageProvider blobProvider,");
+        sb.AppendLine(isEncryptionOnly
+            ? "            IBlobStorageProvider? blobProvider,"
+            : "            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
         sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
@@ -1802,9 +1954,14 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (typeof(TSelf) != typeof({entity.ClassName}))");
         sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{typeof(TSelf).Name}}\");");
         sb.AppendLine();
-        sb.AppendLine("            if (blobProvider == null)");
-        sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
-        sb.AppendLine();
+
+        // Only generate null guard for blobProvider when entity has blob storage properties
+        if (!isEncryptionOnly)
+        {
+            sb.AppendLine("            if (blobProvider == null)");
+            sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
+            sb.AppendLine();
+        }
 
         // Wrap entire mapping operation in try-catch
         sb.AppendLine("            try");
@@ -1858,6 +2015,10 @@ internal static class MapperGenerator
 
     private static void GenerateFromDynamoDbMultiAsyncMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncrypted = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        var isEncryptionOnly = hasEncrypted && !hasBlobStorage;
+
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// Creates an entity instance from multiple DynamoDB items (composite entity support).");
@@ -1876,7 +2037,9 @@ internal static class MapperGenerator
         sb.AppendLine("        /// <exception cref=\"DynamoDbMappingException\">Thrown when mapping fails due to data conversion issues.</exception>");
         sb.AppendLine($"        public static async Task<TSelf> FromDynamoDbAsync<TSelf>(");
         sb.AppendLine("            IList<Dictionary<string, AttributeValue>> items,");
-        sb.AppendLine("            IBlobStorageProvider blobProvider,");
+        sb.AppendLine(isEncryptionOnly
+            ? "            IBlobStorageProvider? blobProvider,"
+            : "            IBlobStorageProvider blobProvider,");
         sb.AppendLine("            IFieldEncryptor? fieldEncryptor = null,");
         sb.AppendLine("            FluentDynamoDbOptions? options = null,");
         sb.AppendLine("            CancellationToken cancellationToken = default) where TSelf : IDynamoDbEntity");
@@ -1884,9 +2047,14 @@ internal static class MapperGenerator
         sb.AppendLine("            if (items == null || items.Count == 0)");
         sb.AppendLine($"                throw new ArgumentException(\"Items collection cannot be null or empty\", nameof(items));");
         sb.AppendLine();
-        sb.AppendLine("            if (blobProvider == null)");
-        sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
-        sb.AppendLine();
+
+        // Only generate null guard for blobProvider when entity has blob storage properties
+        if (!isEncryptionOnly)
+        {
+            sb.AppendLine("            if (blobProvider == null)");
+            sb.AppendLine("                throw new ArgumentNullException(nameof(blobProvider), \"Blob provider is required for entities with blob reference properties\");");
+            sb.AppendLine();
+        }
         sb.AppendLine("            try");
         sb.AppendLine("            {");
 
@@ -1894,12 +2062,12 @@ internal static class MapperGenerator
         {
             sb.AppendLine("                // Multi-item entity: combine all items into a single entity");
             sb.AppendLine("                // Note: Multi-item entities with blob references not yet fully supported");
-            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken);");
+            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken).ConfigureAwait(false);");
         }
         else
         {
             sb.AppendLine("                // Single-item entity: use the first item");
-            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken);");
+            sb.AppendLine("                return await FromDynamoDbAsync<TSelf>(items[0], blobProvider, fieldEncryptor, options, cancellationToken).ConfigureAwait(false);");
         }
 
         sb.AppendLine("            }");
@@ -1922,162 +2090,592 @@ internal static class MapperGenerator
 
     private static void GeneratePropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
+        // Delegate to the shared property deserialization method
+        // This ensures consistent behavior between single-item and multi-item FromDynamoDb methods
+        GeneratePropertyDeserializationShared(sb, property, entity, "item", "            ");
+    }
+
+    /// <summary>
+    /// Shared property deserialization logic that can be used by both single-item and multi-item
+    /// FromDynamoDb methods. This is the single source of truth for property deserialization.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append generated code to.</param>
+    /// <param name="property">The property model containing metadata about the property.</param>
+    /// <param name="entity">The entity model containing the property.</param>
+    /// <param name="itemVariableName">The variable name for the DynamoDB item dictionary (e.g., "item" or "primaryItem").</param>
+    /// <param name="indentation">The indentation string to use for generated code.</param>
+    private static void GeneratePropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
+    {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
+        var varName = propertyName.ToLowerInvariant() + "Value";
 
         // Handle GeoLocation properties (requires geospatial package)
         if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)
         {
-            GenerateGeoLocationPropertyFromAttributeValue(sb, property, entity);
+            GenerateGeoLocationPropertyDeserializationShared(sb, property, entity, itemVariableName, indentation);
             return;
         }
 
         // Handle TTL properties (Time-To-Live)
         if (property.ComplexType?.IsTtl == true)
         {
-            GenerateTtlPropertyFromAttributeValue(sb, property, entity);
+            GenerateTtlPropertyDeserializationShared(sb, property, entity, itemVariableName, indentation);
             return;
         }
 
         // Handle JSON blob properties
         if (property.ComplexType?.IsJsonBlob == true)
         {
-            GenerateJsonBlobPropertyFromAttributeValue(sb, property, entity);
+            GenerateJsonBlobPropertyDeserializationShared(sb, property, entity, itemVariableName, indentation);
             return;
         }
 
-        // Handle Map properties (Dictionary types)
+        // Handle Map properties (Dictionary types or nested entities)
         if (property.ComplexType?.IsMap == true)
         {
-            GenerateMapPropertyFromAttributeValue(sb, property, entity);
+            GenerateMapPropertyDeserializationShared(sb, property, entity, itemVariableName, indentation);
             return;
         }
 
+        // Handle List<T> with [DynamoDbMap] - lists of nested entities
+        if (property.ComplexType?.IsListOfMaps == true)
+        {
+            GenerateListOfMapsPropertyDeserializationShared(sb, property, entity, itemVariableName, indentation);
+            return;
+        }
+
+        // Handle collection properties
         if (property.IsCollection)
         {
-            GenerateCollectionPropertyFromAttributeValue(sb, property, entity);
+            GenerateCollectionPropertyDeserializationShared(sb, property, entity, itemVariableName, indentation);
             return;
         }
 
-        // Check if property has format string
-        // All types with format strings use GenerateFormattedPropertyDeserialization for consistent error handling
-        var hasFormatString = !string.IsNullOrEmpty(property.Format);
-        var needsFormattedDeserialization = hasFormatString;
-
-        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
-        sb.AppendLine("            {");
-        
-        // Use formatted deserialization if format string is present (non-DateTime types)
-        if (needsFormattedDeserialization)
-        {
-            GenerateFormattedPropertyDeserialization(sb, property, entity, $"{propertyName.ToLowerInvariant()}Value", propertyName);
-        }
-        else
-        {
-            sb.AppendLine("                try");
-            sb.AppendLine("                {");
-            sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
-            sb.AppendLine("                }");
-            sb.AppendLine("                catch (Exception ex)");
-            sb.AppendLine("                {");
-            sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
-            sb.AppendLine($"                        typeof({entity.ClassName}),");
-            sb.AppendLine($"                        \"{propertyName}\",");
-            sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
-            sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-            sb.AppendLine("                        ex);");
-            sb.AppendLine("                }");
-        }
-        
-        sb.AppendLine("            }");
+        // Handle primitive and simple types
+        GeneratePrimitivePropertyDeserializationShared(sb, property, entity, itemVariableName, indentation);
     }
 
-    private static void GeneratePropertyFromAttributeValueAsync(StringBuilder sb, PropertyModel property, EntityModel entity)
+    /// <summary>
+    /// Generates deserialization code for GeoLocation properties.
+    /// </summary>
+    private static void GenerateGeoLocationPropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
+    {
+        // Delegate to existing method with standard parameters for now
+        // This can be fully parameterized in a future iteration
+        GenerateGeoLocationPropertyFromAttributeValue(sb, property, entity);
+    }
+
+    /// <summary>
+    /// Generates deserialization code for TTL properties.
+    /// </summary>
+    private static void GenerateTtlPropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
+    {
+        // Delegate to existing method with standard parameters for now
+        GenerateTtlPropertyFromAttributeValue(sb, property, entity);
+    }
+
+    /// <summary>
+    /// Generates deserialization code for JsonBlob properties.
+    /// </summary>
+    private static void GenerateJsonBlobPropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
     {
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
+        var baseType = GetBaseType(property.PropertyType);
+        var varName = propertyName.ToLowerInvariant() + "Value";
 
+        sb.AppendLine($"{indentation}// Deserialize JSON blob property {propertyName}");
+        sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {varName}))");
+        sb.AppendLine($"{indentation}{{");
+        sb.AppendLine($"{indentation}    if (options?.JsonSerializer == null)");
+        sb.AppendLine($"{indentation}    {{");
+        sb.AppendLine($"{indentation}        throw new InvalidOperationException(");
+        sb.AppendLine($"{indentation}            \"Property '{propertyName}' has [JsonBlob] attribute but no JSON serializer is configured. \" +");
+        sb.AppendLine($"{indentation}            \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine();
+        sb.AppendLine($"{indentation}    try");
+        sb.AppendLine($"{indentation}    {{");
+        sb.AppendLine($"{indentation}        if ({varName}.S != null)");
+        sb.AppendLine($"{indentation}        {{");
+        sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = options.JsonSerializer.Deserialize<{baseType}>({varName}.S);");
+        sb.AppendLine($"{indentation}        }}");
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine($"{indentation}    catch (Exception ex)");
+        sb.AppendLine($"{indentation}    {{");
+        sb.AppendLine($"{indentation}        throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"{indentation}            typeof({entity.ClassName}),");
+        sb.AppendLine($"{indentation}            \"{propertyName}\",");
+        sb.AppendLine($"{indentation}            {varName},");
+        sb.AppendLine($"{indentation}            typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine($"{indentation}            ex)");
+        sb.AppendLine($"{indentation}            .WithContext(\"SerializerType\", \"RuntimeConfigured\")");
+        sb.AppendLine($"{indentation}            .WithContext(\"PropertyType\", \"{baseType}\")");
+        sb.AppendLine($"{indentation}            .WithContext(\"Operation\", \"JsonDeserialization\");");
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine($"{indentation}}}");
+    }
+
+    /// <summary>
+    /// Generates deserialization code for DynamoDbMap properties (nested entities or dictionaries).
+    /// </summary>
+    private static void GenerateMapPropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var propertyType = property.PropertyType;
+        var varName = propertyName.ToLowerInvariant() + "Value";
+
+        sb.AppendLine($"{indentation}// Deserialize DynamoDbMap property {propertyName}");
+        sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {varName}) && {varName}.M != null)");
+        sb.AppendLine($"{indentation}{{");
+        
+        // Generate logging for Map conversion
+        sb.Append(LoggingCodeGenerator.GenerateMapConversionLogging(propertyName, $"{varName}.M.Count", "FromDynamoDb"));
+        
+        sb.AppendLine($"{indentation}    try");
+        sb.AppendLine($"{indentation}    {{");
+
+        // Check if it's Dictionary<string, string>
+        if (propertyType.Contains("Dictionary<string, string>") || 
+            propertyType.Contains("Dictionary<System.String, System.String>"))
+        {
+            sb.AppendLine($"{indentation}        entity.{escapedPropertyName} = {varName}.M.ToDictionary(");
+            sb.AppendLine($"{indentation}            kvp => kvp.Key,");
+            sb.AppendLine($"{indentation}            kvp => kvp.Value.S);");
+        }
+        // Check if it's Dictionary<string, object>
+        else if (propertyType.Contains("Dictionary<string, object>") ||
+                 propertyType.Contains("Dictionary<System.String, System.Object>"))
+        {
+            sb.AppendLine($"{indentation}        entity.{escapedPropertyName} = {varName}.M.ToDictionary(");
+            sb.AppendLine($"{indentation}            kvp => kvp.Key,");
+            sb.AppendLine($"{indentation}            kvp => (object)kvp.Value);");
+        }
+        // Check if it's Dictionary<string, AttributeValue>
+        else if (propertyType.Contains("Dictionary<string, AttributeValue>") ||
+                 propertyType.Contains("Dictionary<System.String, Amazon.DynamoDBv2.Model.AttributeValue>"))
+        {
+            sb.AppendLine($"{indentation}        entity.{escapedPropertyName} = {varName}.M;");
+        }
+        else
+        {
+            // Custom object with [DynamoDbMap] - use nested FromDynamoDb call
+            var simpleTypeName = GetSimpleTypeName(propertyType);
+            sb.AppendLine($"{indentation}        entity.{escapedPropertyName} = {simpleTypeName}.FromDynamoDb<{simpleTypeName}>({varName}.M, options);");
+        }
+
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine($"{indentation}    catch (Exception ex)");
+        sb.AppendLine($"{indentation}    {{");
+        
+        // Generate error logging for Map conversion
+        sb.Append(LoggingCodeGenerator.GenerateConversionErrorLogging(propertyName, "DynamoDB Map", propertyType, "ex"));
+        
+        // Log the DynamoDbMap deserialization failure with enhanced details
+        sb.AppendLine($"{indentation}        options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.DynamoDbMapDeserializationFailed,");
+        sb.AppendLine($"{indentation}            \"Failed to deserialize DynamoDbMap property {{PropertyName}} of type {{PropertyType}} for entity {{EntityType}}. Actual DynamoDB type: {{ActualType}}. Error: {{Error}}\",");
+        sb.AppendLine($"{indentation}            \"{propertyName}\", \"{property.PropertyType}\", \"{entity.ClassName}\", {varName}.M != null ? \"M (Map)\" : \"null\", ex.Message);");
+        
+        sb.AppendLine($"{indentation}        throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"{indentation}            typeof({entity.ClassName}),");
+        sb.AppendLine($"{indentation}            \"{propertyName}\",");
+        sb.AppendLine($"{indentation}            {varName},");
+        sb.AppendLine($"{indentation}            typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine($"{indentation}            ex)");
+        sb.AppendLine($"{indentation}            .WithContext(\"PropertyType\", \"{property.PropertyType}\")");
+        sb.AppendLine($"{indentation}            .WithContext(\"Operation\", \"MapDeserialization\");");
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine($"{indentation}}}");
+
+        // Handle nullable map properties when the attribute exists but M is null
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"{indentation}else if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {varName}Null) && {varName}Null.NULL == true)");
+            sb.AppendLine($"{indentation}{{");
+            sb.AppendLine($"{indentation}    entity.{escapedPropertyName} = null;");
+            sb.AppendLine($"{indentation}}}");
+        }
+    }
+
+    /// <summary>
+    /// Generates deserialization code for List&lt;T&gt; properties with [DynamoDbMap] attribute.
+    /// </summary>
+    private static void GenerateListOfMapsPropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var propertyType = property.PropertyType;
+        var elementType = property.ComplexType?.ElementType ?? GetCollectionElementType(propertyType);
+        var simpleElementType = GetSimpleTypeName(elementType);
+        var nonNullableElementType = elementType.TrimEnd('?');
+        var varName = propertyName.ToLowerInvariant() + "Value";
+
+        sb.AppendLine($"{indentation}// Deserialize List<{simpleElementType}> with [DynamoDbMap] property {propertyName}");
+        sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {varName}) && {varName}.L != null)");
+        sb.AppendLine($"{indentation}{{");
+        sb.AppendLine($"{indentation}    try");
+        sb.AppendLine($"{indentation}    {{");
+        sb.AppendLine($"{indentation}        entity.{escapedPropertyName} = new List<{nonNullableElementType}>();");
+        sb.AppendLine($"{indentation}        foreach (var elementValue in {varName}.L)");
+        sb.AppendLine($"{indentation}        {{");
+        sb.AppendLine($"{indentation}            if (elementValue.M != null)");
+        sb.AppendLine($"{indentation}            {{");
+        sb.AppendLine($"{indentation}                var element = {simpleElementType}.FromDynamoDb<{simpleElementType}>(elementValue.M, options);");
+        sb.AppendLine($"{indentation}                entity.{escapedPropertyName}.Add(element);");
+        sb.AppendLine($"{indentation}            }}");
+        sb.AppendLine($"{indentation}        }}");
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine($"{indentation}    catch (Exception ex)");
+        sb.AppendLine($"{indentation}    {{");
+        
+        // Log the DynamoDbMap list deserialization failure with enhanced details
+        sb.AppendLine($"{indentation}        options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.DynamoDbMapDeserializationFailed,");
+        sb.AppendLine($"{indentation}            \"Failed to deserialize List<DynamoDbMap> property {{PropertyName}} with element type {{ElementType}} for entity {{EntityType}}. Error: {{Error}}\",");
+        sb.AppendLine($"{indentation}            \"{propertyName}\", \"{elementType}\", \"{entity.ClassName}\", ex.Message);");
+        
+        sb.AppendLine($"{indentation}        throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"{indentation}            typeof({entity.ClassName}),");
+        sb.AppendLine($"{indentation}            \"{propertyName}\",");
+        sb.AppendLine($"{indentation}            {varName},");
+        sb.AppendLine($"{indentation}            typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine($"{indentation}            ex)");
+        sb.AppendLine($"{indentation}            .WithContext(\"CollectionType\", \"ListOfMaps\")");
+        sb.AppendLine($"{indentation}            .WithContext(\"ElementType\", \"{elementType}\")");
+        sb.AppendLine($"{indentation}            .WithContext(\"Operation\", \"FromDynamoDb\");");
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine($"{indentation}}}");
+    }
+
+    /// <summary>
+    /// Generates deserialization code for collection properties (List, HashSet, etc.).
+    /// </summary>
+    private static void GenerateCollectionPropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
+    {
+        // Delegate to existing method for now - collections use standard "item" variable
+        // This can be fully parameterized in a future iteration if needed
+        GenerateCollectionPropertyFromAttributeValue(sb, property, entity);
+    }
+
+    /// <summary>
+    /// Generates deserialization code for primitive and simple types.
+    /// </summary>
+    private static void GeneratePrimitivePropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string itemVariableName,
+        string indentation)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var varName = propertyName.ToLowerInvariant() + "Value";
+
+        // Check if property has format string
+        var hasFormatString = !string.IsNullOrEmpty(property.Format);
+
+        sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {varName}))");
+        sb.AppendLine($"{indentation}{{");
+
+        // For nullable properties, check if DynamoDB stored a NULL value
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"{indentation}    if ({varName}.NULL == true)");
+            sb.AppendLine($"{indentation}    {{");
+            sb.AppendLine($"{indentation}        entity.{escapedPropertyName} = null;");
+            sb.AppendLine($"{indentation}    }}");
+            sb.AppendLine($"{indentation}    else");
+            sb.AppendLine($"{indentation}    {{");
+        }
+
+        var innerIndent = indentation + (property.IsNullable ? "    " : "");
+
+        if (hasFormatString)
+        {
+            GenerateFormattedPropertyDeserializationShared(sb, property, entity, varName, escapedPropertyName, innerIndent);
+        }
+        else
+        {
+            sb.AppendLine($"{innerIndent}    try");
+            sb.AppendLine($"{innerIndent}    {{");
+            sb.AppendLine($"{innerIndent}        entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, varName)};");
+            sb.AppendLine($"{innerIndent}    }}");
+            sb.AppendLine($"{innerIndent}    catch (Exception ex)");
+            sb.AppendLine($"{innerIndent}    {{");
+            sb.AppendLine($"{innerIndent}        throw DynamoDbMappingException.PropertyConversionFailed(");
+            sb.AppendLine($"{innerIndent}            typeof({entity.ClassName}),");
+            sb.AppendLine($"{innerIndent}            \"{propertyName}\",");
+            sb.AppendLine($"{innerIndent}            {varName},");
+            sb.AppendLine($"{innerIndent}            typeof({GetTypeForMetadata(property.PropertyType)}),");
+            sb.AppendLine($"{innerIndent}            ex);");
+            sb.AppendLine($"{innerIndent}    }}");
+        }
+
+        // Close the else block for nullable properties
+        if (property.IsNullable)
+        {
+            sb.AppendLine($"{indentation}    }}");
+        }
+
+        sb.AppendLine($"{indentation}}}");
+    }
+
+    /// <summary>
+    /// Generates deserialization code for formatted primitive types.
+    /// Uses TryParse for safe parsing with proper error handling.
+    /// </summary>
+    private static void GenerateFormattedPropertyDeserializationShared(
+        StringBuilder sb,
+        PropertyModel property,
+        EntityModel entity,
+        string varName,
+        string escapedPropertyName,
+        string indentation)
+    {
+        var propertyName = property.PropertyName;
+        var baseType = GetBaseType(property.PropertyType);
+        var format = property.Format!;
+
+        // Generate logging for format string parsing
+        sb.Append(LoggingCodeGenerator.GenerateFormatStringParsingLogging(propertyName, format, baseType));
+        sb.AppendLine();
+
+        sb.AppendLine($"{indentation}    try");
+        sb.AppendLine($"{indentation}    {{");
+
+        // Handle DateTime with format
+        if (baseType is "DateTime" or "System.DateTime")
+        {
+            sb.AppendLine($"{indentation}        if (DateTime.TryParseExact({varName}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            
+            // Apply DateTime Kind if specified
+            if (property.DateTimeKind.HasValue)
+            {
+                var kindSetting = property.DateTimeKind.Value switch
+                {
+                    DateTimeKind.Utc => "DateTime.SpecifyKind(parsed, DateTimeKind.Utc)",
+                    DateTimeKind.Local => "DateTime.SpecifyKind(parsed, DateTimeKind.Local)",
+                    _ => "parsed"
+                };
+                sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = {kindSetting};");
+            }
+            else
+            {
+                sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            }
+            
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse DateTime value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"{indentation}                $\"Common DateTime formats: 'o' (ISO 8601), 'yyyy-MM-dd' (date only), 'yyyy-MM-dd HH:mm:ss' (date and time).\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle DateTimeOffset
+        else if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
+        {
+            sb.AppendLine($"{indentation}        if (DateTimeOffset.TryParseExact({varName}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse DateTimeOffset value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"{indentation}                $\"Common DateTimeOffset formats: 'o' (ISO 8601), 'yyyy-MM-dd HH:mm:ss zzz' (with timezone).\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle DateOnly
+        else if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            sb.AppendLine($"{indentation}        if (DateOnly.TryParseExact({varName}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse DateOnly value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"{indentation}                $\"Common DateOnly formats: 'yyyy-MM-dd' (ISO 8601), 'MM/dd/yyyy' (US format).\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle TimeOnly
+        else if (baseType is "TimeOnly" or "System.TimeOnly")
+        {
+            sb.AppendLine($"{indentation}        if (TimeOnly.TryParseExact({varName}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse TimeOnly value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}') using format '{format}'. \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value matches the format string. \" +");
+            sb.AppendLine($"{indentation}                $\"Common TimeOnly formats: 'HH:mm:ss' (24-hour), 'h:mm tt' (12-hour with AM/PM).\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle int
+        else if (baseType is "int" or "System.Int32")
+        {
+            sb.AppendLine($"{indentation}        if (int.TryParse({varName}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse int value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value is a valid integer. \" +");
+            sb.AppendLine($"{indentation}                $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle long
+        else if (baseType is "long" or "System.Int64")
+        {
+            sb.AppendLine($"{indentation}        if (long.TryParse({varName}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse long value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value is a valid long integer. \" +");
+            sb.AppendLine($"{indentation}                $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle double
+        else if (baseType is "double" or "System.Double")
+        {
+            sb.AppendLine($"{indentation}        if (double.TryParse({varName}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse double value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value is a valid double-precision number. \" +");
+            sb.AppendLine($"{indentation}                $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle float
+        else if (baseType is "float" or "System.Single")
+        {
+            sb.AppendLine($"{indentation}        if (float.TryParse({varName}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse float value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value is a valid single-precision number. \" +");
+            sb.AppendLine($"{indentation}                $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        // Handle decimal
+        else if (baseType is "decimal" or "System.Decimal")
+        {
+            sb.AppendLine($"{indentation}        if (decimal.TryParse({varName}.S, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            entity.{escapedPropertyName} = parsed;");
+            sb.AppendLine($"{indentation}        }}");
+            sb.AppendLine($"{indentation}        else");
+            sb.AppendLine($"{indentation}        {{");
+            sb.AppendLine($"{indentation}            throw new DynamoDbMappingException(");
+            sb.AppendLine($"{indentation}                $\"Failed to parse decimal value '{{{varName}.S}}' for property '{propertyName}' (DynamoDB attribute: '{property.AttributeName}'). \" +");
+            sb.AppendLine($"{indentation}                $\"Ensure the stored value is a valid decimal number. \" +");
+            sb.AppendLine($"{indentation}                $\"If using a format string, verify it matches the stored data format.\");");
+            sb.AppendLine($"{indentation}        }}");
+        }
+        else
+        {
+            // Fallback to string
+            sb.AppendLine($"{indentation}        entity.{escapedPropertyName} = {varName}.S;");
+        }
+
+        sb.AppendLine($"{indentation}    }}");
+        sb.AppendLine($"{indentation}    catch (Exception ex)");
+        sb.AppendLine($"{indentation}    {{");
+        sb.AppendLine($"{indentation}        throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"{indentation}            typeof({entity.ClassName}),");
+        sb.AppendLine($"{indentation}            \"{propertyName}\",");
+        sb.AppendLine($"{indentation}            {varName},");
+        sb.AppendLine($"{indentation}            typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine($"{indentation}            ex)");
+        sb.AppendLine($"{indentation}            .WithContext(\"Format\", \"{format}\")");
+        sb.AppendLine($"{indentation}            .WithContext(\"Operation\", \"FormattedDeserialization\");");
+        sb.AppendLine($"{indentation}    }}");
+    }
+
+    private static void GeneratePropertyFromAttributeValueAsync(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
         // Handle encrypted properties (must be before other handlers)
+        // These require async operations and are not part of the shared method
         if (property.Security?.IsEncrypted == true)
         {
             GenerateEncryptedPropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
-        // Handle GeoLocation properties (requires geospatial package)
-        if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)
-        {
-            GenerateGeoLocationPropertyFromAttributeValue(sb, property, entity);
-            return;
-        }
-
         // Handle BlobStorage properties with BlobData<T> wrapper
+        // These require async operations and are not part of the shared method
         if (property.ComplexType?.IsBlobStorage == true)
         {
             GenerateBlobStoragePropertyFromAttributeValue(sb, property, entity);
             return;
         }
 
-        // Handle TTL properties (Time-To-Live)
-        if (property.ComplexType?.IsTtl == true)
-        {
-            GenerateTtlPropertyFromAttributeValue(sb, property, entity);
-            return;
-        }
-
-        // Handle JSON blob properties
-        if (property.ComplexType?.IsJsonBlob == true)
-        {
-            GenerateJsonBlobPropertyFromAttributeValue(sb, property, entity);
-            return;
-        }
-
-        // Handle Map properties (Dictionary types)
-        if (property.ComplexType?.IsMap == true)
-        {
-            GenerateMapPropertyFromAttributeValue(sb, property, entity);
-            return;
-        }
-
-        if (property.IsCollection)
-        {
-            GenerateCollectionPropertyFromAttributeValue(sb, property, entity);
-            return;
-        }
-
-        // Check if property has format string
-        // All types with format strings use GenerateFormattedPropertyDeserialization for consistent error handling
-        var hasFormatString = !string.IsNullOrEmpty(property.Format);
-        var needsFormattedDeserialization = hasFormatString;
-
-        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
-        sb.AppendLine("            {");
-        
-        // Use formatted deserialization if format string is present (non-DateTime types)
-        if (needsFormattedDeserialization)
-        {
-            GenerateFormattedPropertyDeserialization(sb, property, entity, $"{propertyName.ToLowerInvariant()}Value", propertyName);
-        }
-        else
-        {
-            sb.AppendLine("                try");
-            sb.AppendLine("                {");
-            sb.AppendLine($"                    entity.{escapedPropertyName} = {GetFromAttributeValueExpression(property, $"{propertyName.ToLowerInvariant()}Value")};");
-            sb.AppendLine("                }");
-            sb.AppendLine("                catch (Exception ex)");
-            sb.AppendLine("                {");
-            sb.AppendLine($"                    throw DynamoDbMappingException.PropertyConversionFailed(");
-            sb.AppendLine($"                        typeof({entity.ClassName}),");
-            sb.AppendLine($"                        \"{propertyName}\",");
-            sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
-            sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
-            sb.AppendLine("                        ex);");
-            sb.AppendLine("                }");
-        }
-        
-        sb.AppendLine("            }");
+        // Delegate to the shared property deserialization method for all other property types
+        // This ensures consistent behavior between sync and async FromDynamoDb methods
+        GeneratePropertyDeserializationShared(sb, property, entity, "item", "            ");
     }
 
     private static void GenerateBlobStoragePropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
@@ -2115,7 +2713,7 @@ internal static class MapperGenerator
             sb.AppendLine("                        {");
             sb.AppendLine("                            // Step 1: Read encrypted bytes from blob storage");
             sb.AppendLine("                            using var memoryStream = new MemoryStream();");
-            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct);");
+            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct).ConfigureAwait(false);");
             sb.AppendLine("                            var encryptedBytes = memoryStream.ToArray();");
             sb.AppendLine();
             sb.AppendLine("                            // Step 2: Decrypt the data");
@@ -2138,7 +2736,7 @@ internal static class MapperGenerator
             sb.AppendLine("                                encryptedBytes,");
             sb.AppendLine($"                                \"{propertyName}\",");
             sb.AppendLine("                                encryptionContext,");
-            sb.AppendLine("                                ct);");
+            sb.AppendLine("                                ct).ConfigureAwait(false);");
             sb.AppendLine();
             
             if (isJsonBlob)
@@ -2191,7 +2789,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
             sb.AppendLine("                            }");
             sb.AppendLine("                            using var reader = new StreamReader(stream);");
-            sb.AppendLine("                            var json = await reader.ReadToEndAsync();");
+            sb.AppendLine("                            var json = await reader.ReadToEndAsync().ConfigureAwait(false);");
             sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
             sb.AppendLine("                        };");
         }
@@ -2201,7 +2799,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
             sb.AppendLine("                        {");
             sb.AppendLine("                            using var memoryStream = new MemoryStream();");
-            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct);");
+            sb.AppendLine("                            await stream.CopyToAsync(memoryStream, ct).ConfigureAwait(false);");
             sb.AppendLine("                            return memoryStream.ToArray();");
             sb.AppendLine("                        };");
         }
@@ -2211,7 +2809,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                        Func<Stream, CancellationToken, Task<{innerType}>> deserializer = async (stream, ct) =>");
             sb.AppendLine("                        {");
             sb.AppendLine("                            using var reader = new StreamReader(stream);");
-            sb.AppendLine("                            return await reader.ReadToEndAsync();");
+            sb.AppendLine("                            return await reader.ReadToEndAsync().ConfigureAwait(false);");
             sb.AppendLine("                        };");
         }
         else
@@ -2226,7 +2824,7 @@ internal static class MapperGenerator
             sb.AppendLine($"                                    \"Call .WithSystemTextJson() or .WithNewtonsoftJson() on FluentDynamoDbOptions.\");");
             sb.AppendLine("                            }");
             sb.AppendLine("                            using var reader = new StreamReader(stream);");
-            sb.AppendLine("                            var json = await reader.ReadToEndAsync();");
+            sb.AppendLine("                            var json = await reader.ReadToEndAsync().ConfigureAwait(false);");
             sb.AppendLine($"                            return options.JsonSerializer.Deserialize<{innerType}>(json);");
             sb.AppendLine("                        };");
         }
@@ -2243,7 +2841,7 @@ internal static class MapperGenerator
         if (!lazyLoad)
         {
             sb.AppendLine("                        // Eager loading: load blob data immediately");
-            sb.AppendLine($"                        await entity.{escapedPropertyName}.LoadAsync(cancellationToken);");
+            sb.AppendLine($"                        await entity.{escapedPropertyName}.LoadAsync(cancellationToken).ConfigureAwait(false);");
         }
         else
         {
@@ -2326,6 +2924,49 @@ internal static class MapperGenerator
         sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
         sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
         sb.AppendLine("                        ex);");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+    }
+
+    /// <summary>
+    /// Generates code for deserializing a List&lt;T&gt; property with [DynamoDbMap] attribute.
+    /// Each element in the DynamoDB List is deserialized as a Map using the element type's FromDynamoDb method.
+    /// </summary>
+    private static void GenerateListOfMapsPropertyFromAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)
+    {
+        var attributeName = property.AttributeName;
+        var propertyName = property.PropertyName;
+        var escapedPropertyName = EscapePropertyName(propertyName);
+        var elementType = property.ComplexType?.ElementType ?? GetCollectionElementType(property.PropertyType);
+        var simpleElementType = GetSimpleTypeName(elementType);
+        var nonNullableElementType = elementType.TrimEnd('?');
+
+        sb.AppendLine($"            // Convert DynamoDB List of Maps to List<{simpleElementType}> with [DynamoDbMap]");
+        sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value) && {propertyName.ToLowerInvariant()}Value.L != null)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine($"                    entity.{escapedPropertyName} = new List<{nonNullableElementType}>();");
+        sb.AppendLine($"                    foreach (var elementValue in {propertyName.ToLowerInvariant()}Value.L)");
+        sb.AppendLine("                    {");
+        sb.AppendLine($"                        if (elementValue.M != null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine($"                            var element = {simpleElementType}.FromDynamoDb<{simpleElementType}>(elementValue.M, options);");
+        sb.AppendLine($"                            entity.{escapedPropertyName}.Add(element);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    throw DynamoDbMappingException.PropertyConversionFailed(");
+        sb.AppendLine($"                        typeof({entity.ClassName}),");
+        sb.AppendLine($"                        \"{propertyName}\",");
+        sb.AppendLine($"                        {propertyName.ToLowerInvariant()}Value,");
+        sb.AppendLine($"                        typeof({GetTypeForMetadata(property.PropertyType)}),");
+        sb.AppendLine("                        ex)");
+        sb.AppendLine($"                        .WithContext(\"CollectionType\", \"ListOfMaps\")");
+        sb.AppendLine($"                        .WithContext(\"ElementType\", \"{elementType}\")");
+        sb.AppendLine($"                        .WithContext(\"Operation\", \"FromDynamoDb\");");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
     }
@@ -2470,9 +3111,17 @@ internal static class MapperGenerator
             "double" or "System.Double" => "x => double.Parse(x.N)",
             "float" or "System.Single" => "x => float.Parse(x.N)",
             "decimal" or "System.Decimal" => "x => decimal.Parse(x.N)",
+            "ulong" or "System.UInt64" => "x => ulong.Parse(x.N)",
+            "uint" or "System.UInt32" => "x => uint.Parse(x.N)",
+            "ushort" or "System.UInt16" => "x => ushort.Parse(x.N)",
+            "byte" or "System.Byte" => "x => byte.Parse(x.N)",
+            "sbyte" or "System.SByte" => "x => sbyte.Parse(x.N)",
+            "short" or "System.Int16" => "x => short.Parse(x.N)",
             "bool" or "System.Boolean" => "x => x.BOOL ?? false",
             "DateTime" or "System.DateTime" => "x => DateTime.Parse(x.S)",
             "DateTimeOffset" or "System.DateTimeOffset" => "x => DateTimeOffset.Parse(x.S)",
+            "DateOnly" or "System.DateOnly" => "x => DateOnly.ParseExact(x.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
+            "TimeOnly" or "System.TimeOnly" => "x => TimeOnly.ParseExact(x.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
             "Guid" or "System.Guid" => "x => Guid.Parse(x.S)",
             "Ulid" or "System.Ulid" => "x => Ulid.Parse(x.S)",
             "byte[]" or "System.Byte[]" => "x => x.B.ToArray()",
@@ -2505,9 +3154,17 @@ internal static class MapperGenerator
             "double" or "System.Double" => $"double.Parse({valueExpression}.N)",
             "float" or "System.Single" => $"float.Parse({valueExpression}.N)",
             "decimal" or "System.Decimal" => $"decimal.Parse({valueExpression}.N)",
+            "ulong" or "System.UInt64" => $"ulong.Parse({valueExpression}.N)",
+            "uint" or "System.UInt32" => $"uint.Parse({valueExpression}.N)",
+            "ushort" or "System.UInt16" => $"ushort.Parse({valueExpression}.N)",
+            "byte" or "System.Byte" => $"byte.Parse({valueExpression}.N)",
+            "sbyte" or "System.SByte" => $"sbyte.Parse({valueExpression}.N)",
+            "short" or "System.Int16" => $"short.Parse({valueExpression}.N)",
             "bool" or "System.Boolean" => property.IsNullable ? $"{valueExpression}.BOOL" : $"{valueExpression}.BOOL ?? false",
             "DateTime" or "System.DateTime" => $"DateTime.SpecifyKind(DateTime.Parse({valueExpression}.S, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeKind.Unspecified)",
             "DateTimeOffset" or "System.DateTimeOffset" => $"DateTimeOffset.Parse({valueExpression}.S)",
+            "DateOnly" or "System.DateOnly" => $"DateOnly.ParseExact({valueExpression}.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
+            "TimeOnly" or "System.TimeOnly" => $"TimeOnly.ParseExact({valueExpression}.S, \"O\", System.Globalization.CultureInfo.InvariantCulture)",
             "Guid" or "System.Guid" => $"Guid.Parse({valueExpression}.S)",
             "Ulid" or "System.Ulid" => $"Ulid.Parse({valueExpression}.S)",
             "byte[]" or "System.Byte[]" => $"{valueExpression}.B.ToArray()",
@@ -2589,6 +3246,18 @@ internal static class MapperGenerator
         if (baseType is "DateTimeOffset" or "System.DateTimeOffset")
         {
             return $"DateTimeOffset.ParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None)";
+        }
+
+        // For DateOnly with format
+        if (baseType is "DateOnly" or "System.DateOnly")
+        {
+            return $"DateOnly.ParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // For TimeOnly with format
+        if (baseType is "TimeOnly" or "System.TimeOnly")
+        {
+            return $"TimeOnly.ParseExact({valueExpression}.S, \"{format}\", System.Globalization.CultureInfo.InvariantCulture)";
         }
 
         // Default: parse as string
@@ -2727,19 +3396,20 @@ internal static class MapperGenerator
         sb.AppendLine("            // Return null if no primary entity item found");
         sb.AppendLine("            if (primaryItem == null)");
         sb.AppendLine("            {");
+        sb.AppendLine("                options?.Logger?.LogDebug(Oproto.FluentDynamoDb.Logging.LogEventIds.NoPrimaryEntityFound,");
+        sb.AppendLine($"                    \"No primary entity item found for {{EntityType}}. Checked {{ItemCount}} items.\",");
+        sb.AppendLine($"                    \"{entity.ClassName}\", items.Count);");
         sb.AppendLine("                return default!;");
         sb.AppendLine("            }");
         sb.AppendLine();
         
-        // Populate non-collection properties from primary item
+        // Populate non-collection properties from primary item using shared deserialization logic
         sb.AppendLine("            // Populate non-collection properties from primary entity item");
         foreach (var property in nonCollectionProperties)
         {
-            var varName = property.PropertyName.ToLowerInvariant() + "Value";
-            sb.AppendLine($"            if (primaryItem.TryGetValue(\"{property.AttributeName}\", out var {varName}))");
-            sb.AppendLine("            {");
-            sb.AppendLine($"                entity.{property.PropertyName} = {GetFromAttributeValueExpression(property, varName)};");
-            sb.AppendLine("            }");
+            // Use the shared property deserialization method to ensure consistent behavior
+            // between single-item and multi-item FromDynamoDb methods
+            GeneratePropertyDeserializationShared(sb, property, entity, "primaryItem", "            ");
         }
         sb.AppendLine();
     }
@@ -3022,6 +3692,59 @@ internal static class MapperGenerator
         sb.AppendLine($"        public static bool RequiresWriteTransaction => {entity.RequiresWriteTransaction.ToString().ToLowerInvariant()};");
     }
 
+    /// <summary>
+    /// Generates the ExtractSortKeyPrefix helper method for recursive composite entity assembly.
+    /// This method extracts the prefix portion of a sort key based on a wildcard pattern.
+    /// </summary>
+    private static void GenerateExtractSortKeyPrefixHelper(StringBuilder sb)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Extracts the sort key prefix from a full sort key based on a wildcard pattern.");
+        sb.AppendLine("        /// Used for grouping items during recursive composite entity assembly.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <param name=\"sortKey\">The full sort key value.</param>");
+        sb.AppendLine("        /// <param name=\"pattern\">The wildcard pattern (e.g., \"INVOICE#*#LINE#*\").</param>");
+        sb.AppendLine("        /// <returns>The prefix portion of the sort key that identifies the parent entity.</returns>");
+        sb.AppendLine("        private static string ExtractSortKeyPrefix(string sortKey, string pattern)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            // Find the position of the first wildcard in the pattern");
+        sb.AppendLine("            var wildcardIndex = pattern.IndexOf('*');");
+        sb.AppendLine("            if (wildcardIndex <= 0)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                // No wildcard or wildcard at start - return the full sort key");
+        sb.AppendLine("                return sortKey;");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        sb.AppendLine("            // Get the static prefix before the first wildcard");
+        sb.AppendLine("            var staticPrefix = pattern.Substring(0, wildcardIndex);");
+        sb.AppendLine();
+        sb.AppendLine("            // Find the delimiter (character before the wildcard)");
+        sb.AppendLine("            var delimiter = pattern[wildcardIndex - 1];");
+        sb.AppendLine();
+        sb.AppendLine("            // Find the end of the first dynamic segment in the sort key");
+        sb.AppendLine("            // The prefix ends at the next delimiter after the static prefix");
+        sb.AppendLine("            var prefixEndIndex = sortKey.IndexOf(delimiter, staticPrefix.Length);");
+        sb.AppendLine("            if (prefixEndIndex < 0)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                // No delimiter found - return the full sort key");
+        sb.AppendLine("                return sortKey;");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        sb.AppendLine("            // Find the next segment after the first wildcard value");
+        sb.AppendLine("            // This gives us the unique prefix for this child entity");
+        sb.AppendLine("            var nextDelimiterIndex = sortKey.IndexOf(delimiter, prefixEndIndex + 1);");
+        sb.AppendLine("            if (nextDelimiterIndex < 0)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                // No more delimiters - return up to the end");
+        sb.AppendLine("                return sortKey;");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        sb.AppendLine("            // Return the prefix including the first dynamic segment");
+        sb.AppendLine("            return sortKey.Substring(0, nextDelimiterIndex);");
+        sb.AppendLine("        }");
+    }
+
     private static void GeneratePropertyMetadata(StringBuilder sb, PropertyModel property)
     {
         sb.AppendLine("                    new PropertyMetadata");
@@ -3034,13 +3757,8 @@ internal static class MapperGenerator
         sb.AppendLine($"                        IsCollection = {property.IsCollection.ToString().ToLowerInvariant()},");
         sb.AppendLine($"                        IsNullable = {property.IsNullable.ToString().ToLowerInvariant()},");
 
-        // Add supported operations if available
-        if (property.Queryable?.HasSupportedOperations == true)
-        {
-            var operations = string.Join(", ", property.Queryable.SupportedOperations.Select(op => $"DynamoDbOperation.{op}"));
-            sb.AppendLine($"                        SupportedOperations = new[] {{ {operations} }},");
-        }
-        else if (property.IsPartitionKey)
+        // Add supported operations derived from key attributes
+        if (property.IsPartitionKey)
         {
             // Partition keys only support equality in key conditions
             sb.AppendLine($"                        SupportedOperations = new[] {{ DynamoDbOperation.Equals }},");
@@ -3054,13 +3772,6 @@ internal static class MapperGenerator
         {
             // Non-key properties support all operations in filter expressions
             sb.AppendLine($"                        SupportedOperations = new[] {{ DynamoDbOperation.Equals, DynamoDbOperation.GreaterThan, DynamoDbOperation.LessThan, DynamoDbOperation.Contains, DynamoDbOperation.In }},");
-        }
-
-        // Add available indexes if specified
-        if (property.Queryable?.HasIndexRestrictions == true)
-        {
-            var indexes = string.Join(", ", property.Queryable.AvailableInIndexes.Select(idx => $"\"{idx}\""));
-            sb.AppendLine($"                        AvailableInIndexes = new[] {{ {indexes} }},");
         }
 
         // Add key format if available
@@ -3131,7 +3842,14 @@ internal static class MapperGenerator
             sb.AppendLine($"                        SortKeyProperty = \"{index.SortKeyProperty}\",");
         }
 
-        if (index.ProjectedProperties.Length > 0)
+        // For Keys Only projections, populate ProjectedProperties with all key attribute names
+        if (index.RequiresKeysOnlyProjection)
+        {
+            var keyAttributeNames = KeysOnlyProjectionGenerator.GetKeyAttributeNames(entity, index);
+            var projectedProps = string.Join(", ", keyAttributeNames.Select(p => $"\"{p}\""));
+            sb.AppendLine($"                        ProjectedProperties = new[] {{ {projectedProps} }},");
+        }
+        else if (index.ProjectedProperties.Length > 0)
         {
             var projectedProps = string.Join(", ", index.ProjectedProperties.Select(p => $"\"{p}\""));
             sb.AppendLine($"                        ProjectedProperties = new[] {{ {projectedProps} }},");
@@ -3160,11 +3878,18 @@ internal static class MapperGenerator
             sb.AppendLine($"                        SortKeyAttributeType = \"{GetDynamoDbAttributeType(sortKeyProperty.PropertyType)}\",");
         }
 
-        // Add projection type - default to All (use full namespace to avoid ambiguity with Amazon.DynamoDBv2.ProjectionType)
-        sb.AppendLine("                        ProjectionType = Oproto.FluentDynamoDb.Metadata.ProjectionType.All,");
+        // Add projection type from the index model (use full namespace to avoid ambiguity with Amazon.DynamoDBv2.ProjectionType)
+        var projectionTypeValue = index.ProjectionType switch
+        {
+            Models.ProjectionType.KeysOnly => "Oproto.FluentDynamoDb.Metadata.ProjectionType.KeysOnly",
+            Models.ProjectionType.Include => "Oproto.FluentDynamoDb.Metadata.ProjectionType.Include",
+            _ => "Oproto.FluentDynamoDb.Metadata.ProjectionType.All"
+        };
+        sb.AppendLine($"                        ProjectionType = {projectionTypeValue},");
         
-        // HasProjectionModel - for now, set to false (can be enhanced later with projection model detection)
-        sb.AppendLine("                        HasProjectionModel = false");
+        // HasProjectionModel - true for Keys Only projections (auto-generated), false otherwise
+        var hasProjectionModel = index.RequiresKeysOnlyProjection ? "true" : "false";
+        sb.AppendLine($"                        HasProjectionModel = {hasProjectionModel}");
 
         sb.AppendLine("                    },");
     }
@@ -3279,7 +4004,8 @@ internal static class MapperGenerator
             "string", "int", "long", "double", "float", "decimal", "bool", "DateTime", "DateTimeOffset",
             "Guid", "byte[]", "System.String", "System.Int32", "System.Int64", "System.Double",
             "System.Single", "System.Decimal", "System.Boolean", "System.DateTime", "System.DateTimeOffset",
-            "System.Guid", "System.Byte[]", "Ulid", "System.Ulid"
+            "System.Guid", "System.Byte[]", "Ulid", "System.Ulid",
+            "DateOnly", "TimeOnly", "System.DateOnly", "System.TimeOnly"
         };
 
         return !knownPrimitives.Contains(baseType) &&
@@ -3417,9 +4143,17 @@ internal static class MapperGenerator
             "double" or "System.Double" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
             "float" or "System.Single" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
             "decimal" or "System.Decimal" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
+            "ulong" or "System.UInt64" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
+            "uint" or "System.UInt32" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
+            "ushort" or "System.UInt16" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
+            "byte" or "System.Byte" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
+            "sbyte" or "System.SByte" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
+            "short" or "System.Int16" => $"new AttributeValue {{ N = {valueExpression}.ToString() }}",
             "bool" or "System.Boolean" => $"new AttributeValue {{ BOOL = {valueExpression} }}",
             "DateTime" or "System.DateTime" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\") }}",
             "DateTimeOffset" or "System.DateTimeOffset" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\") }}",
+            "DateOnly" or "System.DateOnly" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
+            "TimeOnly" or "System.TimeOnly" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
             "Guid" or "System.Guid" => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
             "Ulid" or "System.Ulid" => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
             _ when IsEnumType(elementType) => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
@@ -3476,6 +4210,15 @@ internal static class MapperGenerator
         var elementType = GetCollectionElementType(relationship.PropertyType);
 
         sb.AppendLine($"            var {relationship.PropertyName.ToLowerInvariant()}Items = new List<{elementType}>();");
+        
+        // If child entity has relationships, we need to track which items belong to each child
+        // for recursive assembly
+        if (relationship.ChildEntityHasRelationships && !string.IsNullOrEmpty(relationship.EntityType))
+        {
+            sb.AppendLine($"            // Child entity {relationship.EntityType} has nested relationships - prepare for recursive assembly");
+            sb.AppendLine($"            var {relationship.PropertyName.ToLowerInvariant()}ItemGroups = new Dictionary<string, List<Dictionary<string, AttributeValue>>>();");
+        }
+        
         sb.AppendLine("            foreach (var item in items)");
         sb.AppendLine("            {");
         sb.AppendLine($"                if (item.TryGetValue(\"{sortKeyProperty.AttributeName}\", out var sortKeyValue))");
@@ -3489,12 +4232,39 @@ internal static class MapperGenerator
 
         if (!string.IsNullOrEmpty(relationship.EntityType))
         {
-            // Use specific entity type for mapping
+            // Use specific entity type for mapping - no MatchesEntity check, use try/catch instead
             sb.AppendLine($"                        // Map to specific entity type: {relationship.EntityType}");
-            sb.AppendLine($"                        if ({relationship.EntityType}.MatchesEntity(item))");
+            sb.AppendLine("                        try");
             sb.AppendLine("                        {");
-            sb.AppendLine($"                            var relatedEntity = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, options);");
-            sb.AppendLine($"                            {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
+            
+            if (relationship.ChildEntityHasRelationships)
+            {
+                // For entities with nested relationships, we need to:
+                // 1. Extract the child's sort key prefix to group items
+                // 2. Collect all items that belong to this child entity
+                // 3. Later, call the child's multi-item FromDynamoDb for recursive assembly
+                sb.AppendLine($"                            // Extract child entity's sort key prefix for grouping");
+                sb.AppendLine($"                            var childSortKeyPrefix = ExtractSortKeyPrefix(sortKey, \"{relationship.SortKeyPattern}\");");
+                sb.AppendLine($"                            if (!{relationship.PropertyName.ToLowerInvariant()}ItemGroups.ContainsKey(childSortKeyPrefix))");
+                sb.AppendLine($"                            {{");
+                sb.AppendLine($"                                {relationship.PropertyName.ToLowerInvariant()}ItemGroups[childSortKeyPrefix] = new List<Dictionary<string, AttributeValue>>();");
+                sb.AppendLine($"                            }}");
+                sb.AppendLine($"                            {relationship.PropertyName.ToLowerInvariant()}ItemGroups[childSortKeyPrefix].Add(item);");
+            }
+            else
+            {
+                // Simple case - no nested relationships, just deserialize the single item
+                sb.AppendLine($"                            var relatedEntity = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, options);");
+                sb.AppendLine($"                            {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
+            }
+            
+            sb.AppendLine("                        }");
+            sb.AppendLine("                        catch (Exception ex)");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                                \"Failed to deserialize related entity {{EntityType}} with sort key {{SortKey}}: {{Error}}\",");
+            sb.AppendLine($"                                \"{relationship.EntityType}\", sortKey, ex.Message);");
+            sb.AppendLine("                            // Skip this item and continue processing");
             sb.AppendLine("                        }");
         }
         else
@@ -3509,12 +4279,47 @@ internal static class MapperGenerator
         sb.AppendLine("                    }");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
+        
+        // If child entity has relationships, perform recursive assembly
+        if (relationship.ChildEntityHasRelationships && !string.IsNullOrEmpty(relationship.EntityType))
+        {
+            sb.AppendLine();
+            sb.AppendLine($"            // Recursive assembly: populate nested relationships for each {relationship.EntityType}");
+            sb.AppendLine($"            foreach (var group in {relationship.PropertyName.ToLowerInvariant()}ItemGroups)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                try");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    // Use multi-item FromDynamoDb to recursively assemble the child entity with its nested relationships");
+            sb.AppendLine($"                    var childItems = group.Value;");
+            sb.AppendLine($"                    if (childItems.Count > 0)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        var relatedEntity = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(childItems, options);");
+            sb.AppendLine($"                        {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                }");
+            sb.AppendLine("                catch (Exception ex)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                        \"Failed to recursively assemble related entity {{EntityType}}: {{Error}}\",");
+            sb.AppendLine($"                        \"{relationship.EntityType}\", ex.Message);");
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+        }
+        
         sb.AppendLine($"            entity.{relationship.PropertyName} = {relationship.PropertyName.ToLowerInvariant()}Items;");
     }
 
     private static void GenerateRelatedEntitySingleMapping(StringBuilder sb, EntityModel entity, RelationshipModel relationship, PropertyModel sortKeyProperty)
     {
         var propertyType = relationship.EntityType != null ? relationship.EntityType : GetBaseType(relationship.PropertyType);
+
+        // If child entity has relationships, we need to collect items for recursive assembly
+        if (relationship.ChildEntityHasRelationships && !string.IsNullOrEmpty(relationship.EntityType))
+        {
+            sb.AppendLine($"            // Child entity {relationship.EntityType} has nested relationships - collect items for recursive assembly");
+            sb.AppendLine($"            var {relationship.PropertyName.ToLowerInvariant()}Items = new List<Dictionary<string, AttributeValue>>();");
+            sb.AppendLine($"            string? {relationship.PropertyName.ToLowerInvariant()}SortKeyPrefix = null;");
+        }
 
         sb.AppendLine("            foreach (var item in items)");
         sb.AppendLine("            {");
@@ -3529,12 +4334,34 @@ internal static class MapperGenerator
 
         if (!string.IsNullOrEmpty(relationship.EntityType))
         {
-            // Use specific entity type for mapping
+            // Use specific entity type for mapping - no MatchesEntity check, use try/catch instead
             sb.AppendLine($"                        // Map to specific entity type: {relationship.EntityType}");
-            sb.AppendLine($"                        if ({relationship.EntityType}.MatchesEntity(item))");
+            sb.AppendLine("                        try");
             sb.AppendLine("                        {");
-            sb.AppendLine($"                            entity.{relationship.PropertyName} = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, options);");
-            sb.AppendLine("                            break; // Found the related entity");
+            
+            if (relationship.ChildEntityHasRelationships)
+            {
+                // For entities with nested relationships, collect items for later recursive assembly
+                sb.AppendLine($"                            // Collect items for recursive assembly");
+                sb.AppendLine($"                            if ({relationship.PropertyName.ToLowerInvariant()}SortKeyPrefix == null)");
+                sb.AppendLine($"                            {{");
+                sb.AppendLine($"                                {relationship.PropertyName.ToLowerInvariant()}SortKeyPrefix = ExtractSortKeyPrefix(sortKey, \"{relationship.SortKeyPattern}\");");
+                sb.AppendLine($"                            }}");
+                sb.AppendLine($"                            {relationship.PropertyName.ToLowerInvariant()}Items.Add(item);");
+            }
+            else
+            {
+                sb.AppendLine($"                            entity.{relationship.PropertyName} = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>(item, options);");
+                sb.AppendLine("                            break; // Found the related entity");
+            }
+            
+            sb.AppendLine("                        }");
+            sb.AppendLine("                        catch (Exception ex)");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                                \"Failed to deserialize related entity {{EntityType}} with sort key {{SortKey}}: {{Error}}\",");
+            sb.AppendLine($"                                \"{relationship.EntityType}\", sortKey, ex.Message);");
+            sb.AppendLine("                            // Skip this item and continue processing");
             sb.AppendLine("                        }");
         }
         else
@@ -3549,6 +4376,26 @@ internal static class MapperGenerator
         sb.AppendLine("                    }");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
+        
+        // If child entity has relationships, perform recursive assembly
+        if (relationship.ChildEntityHasRelationships && !string.IsNullOrEmpty(relationship.EntityType))
+        {
+            sb.AppendLine();
+            sb.AppendLine($"            // Recursive assembly: populate nested relationships for {relationship.EntityType}");
+            sb.AppendLine($"            if ({relationship.PropertyName.ToLowerInvariant()}Items.Count > 0)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                try");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    entity.{relationship.PropertyName} = {relationship.EntityType}.FromDynamoDb<{relationship.EntityType}>({relationship.PropertyName.ToLowerInvariant()}Items, options);");
+            sb.AppendLine("                }");
+            sb.AppendLine("                catch (Exception ex)");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                        \"Failed to recursively assemble related entity {{EntityType}}: {{Error}}\",");
+            sb.AppendLine($"                        \"{relationship.EntityType}\", ex.Message);");
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+        }
     }
 
     private static void GenerateSortKeyPatternMatching(StringBuilder sb, string sortKeyPattern)
@@ -3698,7 +4545,7 @@ internal static class MapperGenerator
         sb.AppendLine($"                        {propertyName}Plaintext,");
         sb.AppendLine($"                        \"{propertyName}\",");
         sb.AppendLine("                        encryptionContext,");
-        sb.AppendLine("                        cancellationToken);");
+        sb.AppendLine("                        cancellationToken).ConfigureAwait(false);");
         sb.AppendLine();
 
         // Store as Binary (B) AttributeValue
@@ -3754,7 +4601,7 @@ internal static class MapperGenerator
         sb.AppendLine($"                                {propertyName}Ciphertext,");
         sb.AppendLine($"                                \"{propertyName}\",");
         sb.AppendLine("                                encryptionContext,");
-        sb.AppendLine("                                cancellationToken);");
+        sb.AppendLine("                                cancellationToken).ConfigureAwait(false);");
         sb.AppendLine();
 
         // Convert bytes back to property type
@@ -4208,6 +5055,8 @@ internal static class MapperGenerator
         {
             "DateTime" or "System.DateTime" => "'o' (ISO 8601), 'yyyy-MM-dd' (date only), 'yyyy-MM-dd HH:mm:ss' (date and time)",
             "DateTimeOffset" or "System.DateTimeOffset" => "'o' (ISO 8601), 'yyyy-MM-dd HH:mm:ss zzz' (with timezone)",
+            "DateOnly" or "System.DateOnly" => "'o' (ISO 8601), 'yyyy-MM-dd' (ISO date), 'MM/dd/yyyy' (US format), 'd' (short date)",
+            "TimeOnly" or "System.TimeOnly" => "'o' (ISO 8601), 'HH:mm:ss' (24-hour), 'h:mm tt' (12-hour with AM/PM), 't' (short time)",
             "decimal" or "System.Decimal" => "'F2' (2 decimal places), 'F4' (4 decimal places), 'N2' (with thousand separators)",
             "double" or "System.Double" or "float" or "System.Single" => "'F2' (2 decimal places), 'E' (scientific notation), 'G' (general)",
             "int" or "System.Int32" or "long" or "System.Int64" => "'D5' (zero-padded to 5 digits), 'N0' (with thousand separators), 'X' (hexadecimal)",

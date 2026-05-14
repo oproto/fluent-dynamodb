@@ -143,6 +143,14 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - API reference: [API Reference](reference/ApiReference.md#direct-async-shorthand-methods)
 - When to use: [Internal Architecture](advanced-topics/InternalArchitecture.md#when-to-use-each-approach)
 
+**Direct SDK Request Passing**
+- Complete guide: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md)
+- WithRequest method: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md#withrequest-method)
+- Table-level convenience methods: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md#table-level-convenience-methods)
+- Direct transaction execution: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md#direct-transaction-execution)
+- Direct batch execution: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md#direct-batch-execution)
+- Migration pattern: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md#migration-pattern)
+
 **Discriminators**
 - Complete guide: [Discriminators](advanced-topics/Discriminators.md)
 - Flexible configuration: [Entity Definition](core-features/EntityDefinition.md#flexible-discriminator-configuration)
@@ -159,6 +167,17 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 **DynamoDbTable**
 - Reference: [Attribute Reference](reference/AttributeReference.md#dynamodbtable-attribute)
 - Usage: [Entity Definition](core-features/EntityDefinition.md#dynamodbtable-attribute)
+
+**Dynamic Fields**
+- Complete guide: [Dynamic Fields](core-features/DynamicFields.md)
+- Enabling: [Dynamic Fields](core-features/DynamicFields.md#enabling-dynamic-fields)
+- Reading fields: [Dynamic Fields](core-features/DynamicFields.md#reading-dynamic-fields)
+- Writing fields: [Dynamic Fields](core-features/DynamicFields.md#writing-dynamic-fields)
+- Change tracking: [Dynamic Fields](core-features/DynamicFields.md#change-tracking)
+- Prefix operations: [Dynamic Fields](core-features/DynamicFields.md#prefix-based-operations)
+- Typed Map operations: [Dynamic Fields](core-features/DynamicFields.md#typed-map-operations)
+- Bulk operations: [Dynamic Fields](core-features/DynamicFields.md#bulk-operations)
+- Sparse attribute pattern: [Dynamic Fields](core-features/DynamicFields.md#sparse-attribute-pattern-example)
 
 ## E
 
@@ -581,6 +600,10 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 **WithClient Method**
 - STS integration: [STS Integration](advanced-topics/STSIntegration.md#using-withclient-in-operations)
 - Custom clients: [STS Integration](advanced-topics/STSIntegration.md#creating-custom-dynamodb-client)
+
+**WithRequest Method**
+- Overview: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md#withrequest-method)
+- Migration pattern: [Direct SDK Requests](advanced-topics/DirectSdkRequests.md#migration-pattern)
 
 ---
 

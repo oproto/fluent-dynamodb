@@ -261,7 +261,7 @@ public static class QueryRequestBuilderFilterExtensions
         this QueryRequestBuilder<TEntity> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class, IEntityMetadataProvider
+        where TEntity : class, IReadOnlyEntity
     {
         return WithFilterExpressionExtensions.WithFilter<QueryRequestBuilder<TEntity>, TEntity>(
             builder, expression, metadata);
@@ -296,7 +296,7 @@ public static class ScanRequestBuilderFilterExtensions
         this ScanRequestBuilder<TEntity> builder,
         Expression<Func<TEntity, bool>> expression,
         EntityMetadata? metadata = null)
-        where TEntity : class, IEntityMetadataProvider
+        where TEntity : class, IReadOnlyEntity
     {
         return WithFilterExpressionExtensions.WithFilter<ScanRequestBuilder<TEntity>, TEntity>(
             builder, expression, metadata);

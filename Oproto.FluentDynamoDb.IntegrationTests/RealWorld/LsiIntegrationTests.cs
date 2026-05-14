@@ -20,7 +20,7 @@ public class LsiIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Table wrapper for testing LSI queries.
     /// </summary>
-    private class LsiTestTable : DynamoDbTableBase
+    private class LsiTestTable : GenericTable
     {
         public DynamoDbIndex OrderDateIndex { get; }
         

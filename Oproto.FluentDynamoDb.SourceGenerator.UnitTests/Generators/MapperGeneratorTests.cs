@@ -218,13 +218,12 @@ public class MapperGeneratorTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
-                    GlobalSecondaryIndexes = new[]
+                    GsiPartitionKeys = new[]
                     {
-                        new GlobalSecondaryIndexModel
+                        new GsiPartitionKeyModel
                         {
                             IndexName = "StatusIndex",
-                            IsPartitionKey = true
-                        }
+}
                     }
                 }
             },
@@ -830,7 +829,7 @@ public class MapperGeneratorTests
             sb.AppendLine("            return new Dictionary<string, AttributeValue>();");
             sb.AppendLine("        }");
             sb.AppendLine();
-            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+            sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
             sb.AppendLine("        {");
             sb.AppendLine($"            return (TSelf)(object)new {entityType}();");
             sb.AppendLine("        }");
@@ -1261,5 +1260,134 @@ public class MapperGeneratorTests
             "should return null (default!) when no primary entity item is found");
         result.Should().Contain("// Return null if no primary entity item found",
             "should have comment explaining the null return behavior");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithDateOnlyProperty_GeneratesCorrectSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "EventEntity",
+            Namespace = "TestNamespace",
+            TableName = "events",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "EventDate",
+                    AttributeName = "event_date",
+                    PropertyType = "DateOnly"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - ToDynamoDb should use ISO 8601 format
+        result.Should().Contain("ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture)",
+            "should serialize DateOnly using ISO 8601 format");
+        
+        // Assert - FromDynamoDb should parse ISO 8601 format
+        result.Should().Contain("DateOnly.ParseExact",
+            "should deserialize DateOnly using ParseExact");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithTimeOnlyProperty_GeneratesCorrectSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "ScheduleEntity",
+            Namespace = "TestNamespace",
+            TableName = "schedules",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "StartTime",
+                    AttributeName = "start_time",
+                    PropertyType = "TimeOnly"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - ToDynamoDb should use ISO 8601 format
+        result.Should().Contain("ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture)",
+            "should serialize TimeOnly using ISO 8601 format");
+        
+        // Assert - FromDynamoDb should parse ISO 8601 format
+        result.Should().Contain("TimeOnly.ParseExact",
+            "should deserialize TimeOnly using ParseExact");
+    }
+
+    [Fact]
+    public void GenerateEntityImplementation_WithDayOfWeekProperty_GeneratesEnumSerialization()
+    {
+        // Arrange
+        var entity = new EntityModel
+        {
+            ClassName = "WeekdayEntity",
+            Namespace = "TestNamespace",
+            TableName = "weekdays",
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Id",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Day",
+                    AttributeName = "day",
+                    PropertyType = "DayOfWeek"
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Verify compilation
+        var entitySource = CreateEntitySource(entity);
+        CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
+
+        // Assert - ToDynamoDb should serialize enum as string
+        result.Should().Contain("ToString()",
+            "should serialize DayOfWeek enum as string");
+        
+        // Assert - FromDynamoDb should parse enum from string
+        result.Should().Contain("Enum.Parse<DayOfWeek>",
+            "should deserialize DayOfWeek enum using Enum.Parse");
     }
 }

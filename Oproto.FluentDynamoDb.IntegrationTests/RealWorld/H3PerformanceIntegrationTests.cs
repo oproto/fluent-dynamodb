@@ -32,7 +32,7 @@ public class H3PerformanceIntegrationTests : IntegrationTestBase
     /// Table wrapper for GSI-based H3 spatial queries with low precision (resolution 5).
     /// Supports multiple stores per H3 cell via GSI and large search radii.
     /// </summary>
-    private class H3StoreWithGsiLowPrecisionTable : DynamoDbTableBase
+    private class H3StoreWithGsiLowPrecisionTable : GenericTable
     {
         public DynamoDbIndex H3LocationIndex { get; }
         
@@ -53,7 +53,7 @@ public class H3PerformanceIntegrationTests : IntegrationTestBase
     /// Table wrapper for GSI-based H3 spatial queries.
     /// Supports multiple stores per H3 cell via GSI.
     /// </summary>
-    private class H3StoreWithGsiTable : DynamoDbTableBase
+    private class H3StoreWithGsiTable : GenericTable
     {
         public DynamoDbIndex H3LocationIndex { get; }
         

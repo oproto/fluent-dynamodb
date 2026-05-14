@@ -1,0 +1,237 @@
+# Implementation Plan
+
+- [x] 1. Fix GeoHash Query Bug (Immediate)
+  - [x] 1.1 Fix interpolated string bug in StoreLocator GeoHash query
+    - Change `$"geohash_cell BETWEEN {0} AND {1}"` to `"geohash_cell BETWEEN {0} AND {1}"` in examples/StoreLocator/Program.cs
+    - Remove the `$` prefix from all GeoHash BETWEEN query format strings
+    - _Requirements: 6.1, 6.2, 6.3_
+  - [x] 1.2 Write property test for GeoHash BETWEEN expression generation
+    - **Property 6: GeoHash BETWEEN query validity**
+    - **Validates: Requirements 6.1, 6.2, 6.3**
+  - [x] 1.3 Verify GeoHash search works in StoreLocator demo
+    - Run the StoreLocator example and test GeoHash search functionality
+    - Ensure no "Invalid KeyConditionExpression" errors occur
+    - _Requirements: 6.4_
+
+- [x] 2. Checkpoint - Ensure GeoHash fix works
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 3. Add IsDynamicEntity flag to EntityMetadata
+  - [x] 3.1 Add IsDynamicEntity property to EntityMetadata class
+    - Add `public bool IsDynamicEntity { get; init; }` to EntityMetadata
+    - Default to false for all existing entities
+    - _Requirements: 5.7, 5.8_
+  - [x] 3.2 Write unit test for IsDynamicEntity metadata flag
+    - Verify regular entities have IsDynamicEntity = false
+    - Verify DynamicEntity has IsDynamicEntity = true
+    - _Requirements: 5.7_
+
+- [x] 4. Create DynamicEntity class
+  - [x] 4.1 Create DynamicEntity in Oproto.FluentDynamoDb/Entities/DynamicEntity.cs
+    - Implement IDynamoDbEntity interface
+    - Use DynamicFieldCollection for all attributes
+    - Set IsDynamicEntity = true in GetEntityMetadata()
+    - Implement ToDynamoDb to serialize DynamicFields to AttributeValue dictionary
+    - Implement FromDynamoDb to populate DynamicFields from AttributeValue dictionary
+    - _Requirements: 5.6, 7.1_
+  - [x] 4.2 Write property test for DynamicEntity round-trip
+    - **Property 2: DynamicEntity round-trip consistency**
+    - **Validates: Requirements 5.6, 7.1**
+
+- [x] 5. Update Expression Translator for DynamicEntity
+  - [x] 5.1 Modify ExpressionTranslator to skip key validation for DynamicEntity
+    - Check EntityMetadata.IsDynamicEntity before validating key conditions
+    - Allow DynamicFields indexer access in key conditions for DynamicEntity
+    - _Requirements: 5.7, 5.8_
+  - [x] 5.2 Write property test for DynamicEntity expression translation
+    - **Property 7: DynamicEntity expression translation**
+    - **Validates: Requirements 5.7, 5.8, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6**
+
+- [x] 6. Create DynamicTableKeyOptions class
+  - [x] 6.1 Create DynamicTableKeyOptions in Oproto.FluentDynamoDb/Storage/DynamicTableKeyOptions.cs
+    - Add PartitionKeyName (string, default "pk")
+    - Add PartitionKeyType (ScalarAttributeType, default S)
+    - Add SortKeyName (string?, default null)
+    - Add SortKeyType (ScalarAttributeType?, default null)
+    - _Requirements: 5.1, 5.2_
+
+- [x] 7. Create DynamicTable class
+  - [x] 7.1 Create DynamicTable in Oproto.FluentDynamoDb/Storage/DynamicTable.cs
+    - Add constructor accepting client, tableName, keyOptions, options
+    - Add Client, Name, Options, KeyOptions properties
+    - Add Query() method returning QueryRequestBuilder<DynamicEntity>
+    - Add Scan() method returning ScanRequestBuilder<DynamicEntity>
+    - _Requirements: 5.1, 5.6_
+  - [x] 7.2 Add typed key methods to DynamicTable
+    - Add GetAsync(string pk) and GetAsync(string pk, string sk) for string keys
+    - Add GetAsync(long pk) and GetAsync(long pk, long sk) for numeric keys
+    - Add GetAsync(AttributeValue pk, AttributeValue? sk) for raw keys
+    - Add similar overloads for DeleteAsync and UpdateAsync
+    - Validate KeyOptions before using typed methods
+    - _Requirements: 5.2, 5.3, 5.4, 5.5_
+  - [x] 7.3 Write property test for DynamicTable key operations
+    - **Property 3: DynamicTable key operations consistency**
+    - **Validates: Requirements 5.2, 5.3, 5.4, 5.5**
+  - [x] 7.4 Add Put method to DynamicTable
+    - Add PutAsync(DynamicEntity entity) method
+    - _Requirements: 5.1_
+
+- [x] 8. Checkpoint - Ensure DynamicEntity and DynamicTable work
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. Add PartiQL Support (REVISED - Request Builder Pattern)
+  - [x] 9.1 Create PartiQLRequestBuilder in Oproto.FluentDynamoDb/Requests/PartiQLRequestBuilder.cs
+    - Create PartiQLRequestBuilder<TEntity> class following QueryRequestBuilder pattern
+    - Add WithStatement(string statement, params object[] parameters) method supporting format specifiers like {0:o}
+    - Use FormatStringProcessor for consistent format string handling with other API methods
+    - Add ToListAsync() for SELECT queries with entity hydration
+    - Add ToCompoundEntityAsync() for compound entity table results
+    - Add ExecuteAsync() for INSERT/UPDATE/DELETE statements
+    - Add ToRequest() to return underlying ExecuteStatementRequest
+    - Store ResponseMetadata and ConsumedCapacity after execution
+    - Expose Client property for batch builder to access
+    - _Requirements: 3.1, 3.2, 3.5, 3.6_
+  - [x] 9.2 Add BatchPartiQLBuilder, BatchPartiQLResponse, and PartiQL property to DynamoDbBatch
+    - Add PartiQL property to DynamoDbBatch static class returning BatchPartiQLBuilder
+    - Create BatchPartiQLBuilder class with Add(PartiQLRequestBuilder<TEntity>) method
+    - Add WithClient(IAmazonDynamoDB) method for explicit client configuration
+    - Add ExecuteAsync() method returning BatchPartiQLResponse wrapper
+    - Add ExecuteAndMapAsync<T1>() through ExecuteAndMapAsync<T1...T8>() tuple convenience methods
+    - Create BatchPartiQLResponse class with GetItem<T>(index) and GetItems<T>(index) methods
+    - Client is inferred from first builder added, or explicitly set
+    - Follow same patterns as BatchGetBuilder and TransactionGetBuilder
+    - _Requirements: 3.5, 3.6_
+  - [x] 9.3 Add ExecutePartiQL methods to DynamoDbTableBase
+    - Add ExecutePartiQL<TEntity>(string statement, params object[] parameters) returning PartiQLRequestBuilder<TEntity>
+    - Add ExecutePartiQL(string statement, params object[] parameters) returning PartiQLRequestBuilder<DynamicEntity>
+    - _Requirements: 3.1, 3.2_
+  - [x] 9.4 Add ExecutePartiQL methods to DynamicTable
+    - Add ExecutePartiQL(string statement, params object[] parameters) returning PartiQLRequestBuilder<DynamicEntity>
+    - _Requirements: 3.4_
+  - [x] 9.5 Remove old PartiQLExtensions implementation
+    - Delete Oproto.FluentDynamoDb/Requests/Extensions/PartiQLExtensions.cs (extension methods on IAmazonDynamoDB)
+    - Delete any associated unit tests for the old extension method pattern
+    - _Requirements: 3.1_
+  - [x] 9.6 Write property test for PartiQL parameter substitution
+    - **Property 4: PartiQL hydration consistency**
+    - **Validates: Requirements 3.2, 3.3, 3.4**
+
+- [x] 10. Checkpoint - Ensure PartiQL request builder works
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 11. Add Direct SDK Request Passing (REVISED - Builder Pattern)
+  - [x] 11.1 Add WithRequest methods to request builders
+    - Add WithRequest(GetItemRequest) to GetItemRequestBuilder
+    - Add WithRequest(QueryRequest) to QueryRequestBuilder
+    - Add WithRequest(ScanRequest) to ScanRequestBuilder
+    - Add WithRequest(PutItemRequest) to PutItemRequestBuilder
+    - Add WithRequest(UpdateItemRequest) to UpdateItemRequestBuilder
+    - Add WithRequest(DeleteItemRequest) to DeleteItemRequestBuilder
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
+  - [x] 11.2 Add SDK request overloads to DynamoDbTableBase
+    - Add Get<TEntity>(GetItemRequest) returning builder
+    - Add GetAsync<TEntity>(GetItemRequest) convenience method
+    - Add Query<TEntity>(QueryRequest) returning builder
+    - Add QueryAsync<TEntity>(QueryRequest) convenience method
+    - Add Scan<TEntity>(ScanRequest) returning builder
+    - Add ScanAsync<TEntity>(ScanRequest) convenience method
+    - Add Put<TEntity>(PutItemRequest) returning builder
+    - Add PutAsync<TEntity>(PutItemRequest) convenience method
+    - Add Update<TEntity>(UpdateItemRequest) returning builder
+    - Add UpdateAsync<TEntity>(UpdateItemRequest) convenience method
+    - Add Delete<TEntity>(DeleteItemRequest) returning builder
+    - Add DeleteAsync<TEntity>(DeleteItemRequest) convenience method
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
+  - [x] 11.3 Add SDK request overloads to DynamicTable
+    - Same pattern as DynamoDbTableBase for DynamicEntity
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
+  - [x] 11.4 Write property test for SDK request hydration via builders
+    - **Property 5: Direct SDK request hydration consistency**
+    - **Validates: Requirements 4.1, 4.5, 4.6**
+  - [x] 11.5 Add direct SDK support to DynamoDbTransactions and DynamoDbBatch
+    - Add WriteAsync(IAmazonDynamoDB, TransactWriteItemsRequest) to DynamoDbTransactions
+    - Add GetAsync(IAmazonDynamoDB, TransactGetItemsRequest) to DynamoDbTransactions
+    - Add WriteAsync(IAmazonDynamoDB, BatchWriteItemRequest) to DynamoDbBatch
+    - Add GetAsync(IAmazonDynamoDB, BatchGetItemRequest) to DynamoDbBatch
+    - _Requirements: 4.7, 4.8, 4.9_
+  - [x] 11.6 Remove incorrect DirectSdkExtensions.cs implementation
+    - Delete Oproto.FluentDynamoDb/Requests/Extensions/DirectSdkExtensions.cs
+    - Delete Oproto.FluentDynamoDb.UnitTests/Requests/Extensions/DirectSdkExtensionsPropertyTests.cs
+    - Remove extension methods from IAmazonDynamoDB (incorrect pattern)
+
+- [x] 12. Checkpoint - Ensure SDK request passing works
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 13. Update Source Generator for DynamoDbTableBase Removal
+  - [x] 13.1 Modify TableGenerator to generate complete table classes
+    - Remove inheritance from DynamoDbTableBase
+    - Generate Client, Name, Options properties directly
+    - Generate constructor with client, tableName, options parameters
+    - Generate Logger and FieldEncryptor properties
+    - _Requirements: 1.1, 1.2_
+  - [x] 13.2 Generate entity accessors with visibility control
+    - Respect [GenerateAccessors] attribute for visibility
+    - Generate accessor properties for each entity type
+    - _Requirements: 1.3_
+  - [x] 13.3 Generate index accessors
+    - Generate DynamoDbIndex properties for GSIs and LSIs
+    - _Requirements: 1.4_
+  - [x] 13.4 Generate generic operation methods
+    - Generate Query<T>(), Get<T>(), Put<T>(), Update<T>(), Delete<T>() methods
+    - Generate convenience methods (PutAsync, GetAsync, etc.)
+    - Generate ExecutePartiQL<T>() and BatchExecutePartiQL() methods
+    - _Requirements: 1.1_
+  - [x] 13.5 Write property test for generated table class structure
+    - **Property 1: Generated table class backward compatibility**
+    - **Validates: Requirements 1.5, 10.1, 10.2, 10.3**
+
+- [x] 14. Remove DynamoDbTableBase
+  - [x] 14.1 Delete DynamoDbTableBase.cs
+    - Remove Oproto.FluentDynamoDb/Storage/DynamoDbTableBase.cs
+    - _Requirements: 1.6_
+  - [x] 14.2 Update any remaining references
+    - Update extension methods that reference DynamoDbTableBase
+    - Update documentation references
+    - _Requirements: 1.6_
+
+- [x] 15. Checkpoint - Ensure backward compatibility
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 16. Update Documentation
+  - [x] 16.1 Update CHANGELOG.md with all changes
+    - Document DynamoDbTableBase removal as breaking change
+    - Document DynamicEntity and DynamicTable as new features
+    - Document PartiQL support as new feature
+    - Document direct SDK request passing as new feature
+    - Document GeoHash bug fix
+    - _Requirements: 10.4, 10.5_
+  - [x] 16.2 Update BREAKING_CHANGES_v0.9.md (or create v1.0 version)
+    - Document DynamoDbTableBase removal with migration guidance
+    - Explain that generated table classes work unchanged
+    - _Requirements: 10.4_
+  - [x] 16.3 Create DynamicTable documentation
+    - Create docs/advanced-topics/DynamicTable.md
+    - Document use cases, key configuration, and examples
+    - _Requirements: 9.1, 9.2, 9.3, 9.4_
+  - [x] 16.4 Create PartiQL documentation
+    - Create docs/advanced-topics/PartiQL.md
+    - Document request builder pattern and examples
+    - _Requirements: 3.1_
+  - [x] 16.5 Truncate DOCUMENTATION_CHANGELOG.md
+    - Clear existing entries (website is up-to-date)
+    - Add new entries for all documentation changes in this spec
+    - _Requirements: Documentation standards_
+
+- [x] 17. Update Example Projects
+  - [x] 17.1 Verify all example projects compile and run
+    - Test TodoList, TransactionDemo, InvoiceManager, StoreLocator
+    - Ensure no breaking changes affect examples
+    - _Requirements: 10.1, 10.2, 10.3_
+  - [x] 17.2 Add DynamicTable example
+    - Create examples/DynamicTableDemo demonstrating schema-less access
+    - Show key configuration, queries, and CRUD operations
+    - _Requirements: 9.4_
+
+- [x] 18. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+

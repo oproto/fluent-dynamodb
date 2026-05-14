@@ -133,12 +133,12 @@ public partial class Product
     public string Category { get; set; } = string.Empty;
 
     // GSI partition key
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("status")]
     public string Status { get; set; } = string.Empty;
 
     // GSI sort key
-    [GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+    [GsiSortKey("StatusIndex")]
     [DynamoDbAttribute("created_date")]
     public DateTime CreatedDate { get; set; }
 
@@ -168,7 +168,7 @@ public partial class Customer
     public string Pk { get; set; } = string.Empty;
 
     // Computed with custom format
-    [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+    [GsiPartitionKey("StatusIndex")]
     [DynamoDbAttribute("gsi1_pk")]
     [Computed(nameof(Status), Format = "STATUS#{0}")]
     public string StatusIndexPk { get; set; } = string.Empty;
@@ -284,7 +284,7 @@ await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}, {UserFields.UpdatedAt} = {{1:o}}", 
          "New Name", DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 See [Expression Formatting](core-features/ExpressionFormatting.md) for supported format specifiers and advanced usage.
@@ -315,28 +315,28 @@ var user = new User
 
 await table.Put()
     .WithItem(user)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Read
-var response = await table.Get()
+var user = await table.Get()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync<User>();
+    .GetItemAsync();
 
-if (response.Item != null)
+if (user != null)
 {
-    Console.WriteLine($"Found user: {response.Item.Name}");
+    Console.WriteLine($"Found user: {user.Name}");
 }
 
 // Update with format strings
 await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}", "Jane Doe")
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Delete
 await table.Delete()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .ExecuteAsync();
+    .DeleteAsync();
 ```
 
 ### Query Operations
@@ -507,14 +507,14 @@ See [Composite Entities](advanced-topics/CompositeEntities.md) for detailed docu
 await table.Put()
     .WithItem(user)
     .Where($"attribute_not_exists({{0}})", UserFields.UserId)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Conditional update with version check
 await table.Update()
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
     .Set($"SET {UserFields.Name} = {{0}}", "New Name")
     .Where($"{UserFields.Version} = {{0}}", currentVersion)
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 See [Basic Operations](core-features/BasicOperations.md) for more conditional examples.
@@ -553,10 +553,10 @@ await DynamoDbTransactions.Write
 2. **Leverage GSIs for Access Patterns**
    ```csharp
    // Support queries by status and date
-   [GlobalSecondaryIndex("StatusDateIndex", IsPartitionKey = true)]
+   [GsiPartitionKey("StatusDateIndex")]
    public string Status { get; set; }
    
-   [GlobalSecondaryIndex("StatusDateIndex", IsSortKey = true)]
+   [GsiSortKey("StatusDateIndex")]
    public DateTime CreatedDate { get; set; }
    ```
 
@@ -585,7 +585,7 @@ await DynamoDbTransactions.Write
 2. **Use Projection for GSIs**
    ```csharp
    // Only project necessary attributes to GSI
-   [GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+   [GsiPartitionKey("StatusIndex")]
    [QueryableAttribute(AvailableInIndexes = new[] { "StatusIndex" })]
    public string Status { get; set; }
    ```
@@ -610,7 +610,7 @@ await DynamoDbTransactions.Write
        await table.Put()
            .WithItem(user)
            .WithConditionExpression($"attribute_not_exists({UserFields.UserId})")
-           .ExecuteAsync();
+           .PutAsync();
    }
    catch (ConditionalCheckFailedException)
    {

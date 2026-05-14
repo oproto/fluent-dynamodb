@@ -383,7 +383,7 @@ public class FormatApplicationIntegrationTests : IntegrationTestBase
     }
     
     // Helper class to create a table instance for query and scan operations
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)

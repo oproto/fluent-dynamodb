@@ -66,7 +66,7 @@ public static class SpatialQueryExtensions
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>A spatial query response containing items, continuation token, and query statistics.</returns>
     public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
-        this DynamoDbTableBase table,
+        this IDynamoDbTable table,
         Func<TEntity, GeoLocation> locationSelector,
         SpatialIndexType spatialIndexType,
         int precision,
@@ -84,7 +84,7 @@ public static class SpatialQueryExtensions
         
         // Delegate to the core implementation with query factory
         return SpatialQueryCoreAsync(
-            createQuery: () => table.Query<TEntity>(),
+            createQuery: () => new QueryRequestBuilder<TEntity>(table.DynamoDbClient).ForTable(table.Name),
             locationSelector: locationSelector,
             cells: cells,
             queryBuilder: queryBuilder,
@@ -115,7 +115,7 @@ public static class SpatialQueryExtensions
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>A spatial query response containing items, continuation token, and query statistics.</returns>
     public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
-        this DynamoDbTableBase table,
+        this IDynamoDbTable table,
         Func<TEntity, GeoLocation> locationSelector,
         SpatialIndexType spatialIndexType,
         int precision,
@@ -135,7 +135,7 @@ public static class SpatialQueryExtensions
         
         // Delegate to the core implementation with query factory
         return SpatialQueryCoreAsync(
-            createQuery: () => table.Query<TEntity>(),
+            createQuery: () => new QueryRequestBuilder<TEntity>(table.DynamoDbClient).ForTable(table.Name),
             locationSelector: locationSelector,
             cells: cells,
             queryBuilder: queryBuilder,
@@ -184,7 +184,7 @@ public static class SpatialQueryExtensions
     /// </code>
     /// </example>
     public static Task<SpatialQueryResponse<TEntity>> SpatialQueryAsync<TEntity>(
-        this DynamoDbTableBase table,
+        this IDynamoDbTable table,
         Func<TEntity, GeoLocation> locationSelector,
         IEnumerable<string> cells,
         Func<QueryRequestBuilder<TEntity>, string, IPaginationRequest, QueryRequestBuilder<TEntity>> queryBuilder,
@@ -196,7 +196,7 @@ public static class SpatialQueryExtensions
         where TEntity : class, IDynamoDbEntity
     {
         return SpatialQueryCoreAsync(
-            createQuery: () => table.Query<TEntity>(),
+            createQuery: () => new QueryRequestBuilder<TEntity>(table.DynamoDbClient).ForTable(table.Name),
             locationSelector: locationSelector,
             cells: cells.ToList(),
             queryBuilder: queryBuilder,
@@ -413,7 +413,7 @@ public static class SpatialQueryExtensions
             queryTasks.Add(query.ToListAsync(cancellationToken));
         }
 
-        var responses = await Task.WhenAll(queryTasks);
+        var responses = await Task.WhenAll(queryTasks).ConfigureAwait(false);
 
         // Merge results from all cells
         // Note: Deduplication is not needed because each DynamoDB item has a unique primary key.
@@ -504,13 +504,13 @@ public static class SpatialQueryExtensions
                 query = query.StartAt(deserializedKey);
             }
             
-            var entityList = await query.ToListAsync(cancellationToken);
+            var entityList = await query.ToListAsync(cancellationToken).ConfigureAwait(false);
             cellsQueried++;
             
-            // Get LastEvaluatedKey and ScannedCount directly from the builder instance
+            // Get LastEvaluatedKey and ScannedCount from the builder's Response property
             // This avoids AsyncLocal issues that can occur with DynamoDbOperationContext
-            var cellLastEvaluatedKey = query.LastEvaluatedKey;
-            var scannedCount = query.ScannedCount ?? entityList.Count;
+            var cellLastEvaluatedKey = query.Response?.LastEvaluatedKey;
+            var scannedCount = query.Response?.ScannedCount ?? entityList.Count;
             totalScanned += scannedCount;
 
             // Add all items from this batch (we requested exactly what we need)

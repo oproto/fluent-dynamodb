@@ -9,15 +9,19 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 /// including key resolution, caching policies, and algorithm selection.
 /// </para>
 /// <para>
+/// <strong>Data Key Caching:</strong> The AWS Encryption SDK for .NET does not support
+/// data key caching natively. Each encryption operation calls KMS to generate a new data key.
+/// For applications requiring reduced KMS API calls, consider using the AWS KMS Hierarchical Keyring.
+/// </para>
+/// <para>
 /// <strong>Security Best Practices:</strong>
 /// </para>
 /// <list type="bullet">
 /// <item>Load KMS key ARNs from secure configuration (AWS Secrets Manager, Parameter Store, etc.)</item>
 /// <item>Never hardcode KMS key ARNs in source code</item>
 /// <item>Use key commitment algorithms (default) to prevent key substitution attacks</item>
-/// <item>Enable caching to reduce KMS API calls and costs</item>
-/// <item>Set appropriate limits for MaxMessagesPerDataKey and MaxBytesPerDataKey</item>
 /// <item>Use encryption context for audit trails in CloudTrail</item>
+/// <item>Consider the AWS KMS Hierarchical Keyring for data key caching scenarios</item>
 /// </list>
 /// </remarks>
 /// <example>
@@ -26,8 +30,7 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 /// var options = new AwsEncryptionSdkOptions
 /// {
 ///     DefaultKeyId = configuration["Kms:DefaultKeyArn"],
-///     EnableCaching = true,
-///     DefaultCacheTtlSeconds = 300
+///     EnableCaching = true
 /// };
 /// </code>
 /// </example>
@@ -42,10 +45,7 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 ///         ["tenant-a"] = configuration["Kms:TenantA:KeyArn"],
 ///         ["tenant-b"] = configuration["Kms:TenantB:KeyArn"]
 ///     },
-///     EnableCaching = true,
-///     DefaultCacheTtlSeconds = 300,
-///     MaxMessagesPerDataKey = 100,
-///     MaxBytesPerDataKey = 100 * 1024 * 1024
+///     EnableCaching = true
 /// };
 /// </code>
 /// </example>
@@ -88,75 +88,24 @@ public sealed class AwsEncryptionSdkOptions
     public Dictionary<string, string>? ContextKeyMap { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether data key caching is enabled.
+    /// Gets or sets a value indicating whether keyring caching is enabled.
     /// Default is <c>true</c>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, the AWS Encryption SDK's <c>CachingCryptoMaterialsManager</c> is used
-    /// to cache data keys, reducing KMS API calls and improving performance.
+    /// <strong>Important:</strong> The AWS Encryption SDK for .NET does not support data key caching.
+    /// This option controls keyring object caching only, which reduces object creation overhead
+    /// but does not cache data keys. Each encryption operation will call KMS.
     /// </para>
     /// <para>
-    /// Caching is controlled by <see cref="DefaultCacheTtlSeconds"/>, <see cref="MaxMessagesPerDataKey"/>,
-    /// and <see cref="MaxBytesPerDataKey"/>. Data keys are automatically rotated when any limit is reached.
+    /// When enabled, keyrings are cached by a composite key of KMS key ARN and context ID.
+    /// This provides tenant isolation - different contexts get different keyring instances.
     /// </para>
     /// <para>
-    /// Disable caching only if you have specific security requirements that mandate generating
-    /// a new data key for every encryption operation.
+    /// When disabled, a new keyring is created for each encryption/decryption operation.
     /// </para>
     /// </remarks>
     public bool EnableCaching { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets the default cache TTL (time-to-live) for data keys in seconds.
-    /// Default is 300 seconds (5 minutes).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This value can be overridden per-field using the <c>CacheTtlSeconds</c> property
-    /// on the <c>EncryptedAttribute</c>.
-    /// </para>
-    /// <para>
-    /// After the TTL expires, a new data key is generated from KMS. This provides a balance
-    /// between performance (fewer KMS calls) and security (regular key rotation).
-    /// </para>
-    /// <para>
-    /// Only applies when <see cref="EnableCaching"/> is <c>true</c>.
-    /// </para>
-    /// </remarks>
-    public int DefaultCacheTtlSeconds { get; set; } = 300;
-
-    /// <summary>
-    /// Gets or sets the maximum number of messages that can be encrypted with a single data key.
-    /// Default is 100.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This is an AWS Encryption SDK best practice to limit the amount of data encrypted
-    /// with a single data key. When this limit is reached, a new data key is automatically
-    /// generated from KMS.
-    /// </para>
-    /// <para>
-    /// Only applies when <see cref="EnableCaching"/> is <c>true</c>.
-    /// </para>
-    /// </remarks>
-    public int MaxMessagesPerDataKey { get; set; } = 100;
-
-    /// <summary>
-    /// Gets or sets the maximum number of bytes that can be encrypted with a single data key.
-    /// Default is 104,857,600 bytes (100 MB).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This is an AWS Encryption SDK best practice to limit the amount of data encrypted
-    /// with a single data key. When this limit is reached, a new data key is automatically
-    /// generated from KMS.
-    /// </para>
-    /// <para>
-    /// Only applies when <see cref="EnableCaching"/> is <c>true</c>.
-    /// </para>
-    /// </remarks>
-    public long MaxBytesPerDataKey { get; set; } = 100 * 1024 * 1024; // 100 MB
 
     /// <summary>
     /// Gets or sets the algorithm suite identifier to use for encryption.
@@ -187,4 +136,5 @@ public sealed class AwsEncryptionSdkOptions
     /// </para>
     /// </remarks>
     public string Algorithm { get; set; } = "AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384";
+
 }

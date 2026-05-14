@@ -224,7 +224,8 @@ internal static class FieldsGenerator
     {
         // Find all properties that have GSI attributes for this index (excluding key properties already handled)
         var projectedProperties = entity.Properties
-            .Where(p => p.GlobalSecondaryIndexes.Any(gsi => gsi.IndexName == index.IndexName) &&
+            .Where(p => (p.GsiPartitionKeys.Any(gsi => gsi.IndexName == index.IndexName) ||
+                        p.GsiSortKeys.Any(gsi => gsi.IndexName == index.IndexName)) &&
                        p.PropertyName != index.PartitionKeyProperty &&
                        p.PropertyName != index.SortKeyProperty &&
                        p.HasAttributeMapping)

@@ -75,6 +75,14 @@ public class DeleteItemRequestBuilder<TEntity> :
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
     private List<string>? _blobReferenceKeys;
+    private KeyCondition _keyCondition = KeyCondition.None;
+
+    /// <summary>
+    /// Gets the response metadata from the most recent DeleteItem execution.
+    /// This is populated by Primary API methods (DeleteAsync) after execution.
+    /// Null if the operation hasn't been executed yet.
+    /// </summary>
+    public DeleteItemOperationResponse? Response { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -118,11 +126,19 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// <summary>
     /// Sets the condition expression on the builder.
     /// If a condition expression already exists, combines them with AND logic.
+    /// If the expression is empty or whitespace (e.g., all conditional clauses evaluated to skip),
+    /// the method returns without setting the condition, allowing the operation to proceed unconditionally.
     /// </summary>
     /// <param name="expression">The processed condition expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public DeleteItemRequestBuilder<TEntity> SetConditionExpression(string expression)
     {
+        // Skip setting if expression is empty (all conditionals evaluated to skip)
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return this;
+        }
+        
         if (string.IsNullOrEmpty(_req.ConditionExpression))
         {
             _req.ConditionExpression = expression;
@@ -152,6 +168,98 @@ public class DeleteItemRequestBuilder<TEntity> :
     public DeleteItemRequestBuilder<TEntity> Self => this;
 
     /// <summary>
+    /// Adds a condition that the item must already exist (all key attributes must exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustExist)</c>.
+    /// Use this to ensure you're deleting an existing item.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_exists(pk) AND attribute_exists(sk)</c></para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Delete only if exists (fail if not exists)
+    /// await table.Users.Delete(userId).IfExists().DeleteAsync();
+    /// </code>
+    /// </example>
+    public DeleteItemRequestBuilder<TEntity> IfExists()
+    {
+        _keyCondition = KeyCondition.MustExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a condition that the item must not already exist (key attributes must not exist).
+    /// Equivalent to <c>WithKeyCondition(KeyCondition.MustNotExist)</c>.
+    /// Note: This is rarely useful for delete operations but provided for API consistency.
+    /// </summary>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>For simple key entities: generates <c>attribute_not_exists(pk)</c></para>
+    /// <para>For composite key entities: generates <c>attribute_not_exists(pk) AND attribute_not_exists(sk)</c></para>
+    /// </remarks>
+    public DeleteItemRequestBuilder<TEntity> IfNotExists()
+    {
+        _keyCondition = KeyCondition.MustNotExist;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the key condition for this operation.
+    /// </summary>
+    /// <param name="condition">The key condition to apply.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Using enum directly
+    /// await table.Users.Delete(userId).WithKeyCondition(KeyCondition.MustExist).DeleteAsync();
+    /// </code>
+    /// </example>
+    public DeleteItemRequestBuilder<TEntity> WithKeyCondition(KeyCondition condition)
+    {
+        _keyCondition = condition;
+        return this;
+    }
+
+    /// <summary>
+    /// Applies the key condition to the request's condition expression.
+    /// Called internally during request building.
+    /// </summary>
+    private void ApplyKeyCondition()
+    {
+        if (_keyCondition == KeyCondition.None) return;
+
+        var metadata = TEntity.GetEntityMetadata();
+        var pkAttrName = metadata.PartitionKeyAttributeName;
+        var skAttrName = metadata.SortKeyAttributeName;
+
+        string condition;
+        if (_keyCondition == KeyCondition.MustExist)
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_exists({pkAttrName})"
+                : $"attribute_exists({pkAttrName}) AND attribute_exists({skAttrName})";
+        }
+        else // MustNotExist
+        {
+            condition = string.IsNullOrEmpty(skAttrName)
+                ? $"attribute_not_exists({pkAttrName})"
+                : $"attribute_not_exists({pkAttrName}) AND attribute_not_exists({skAttrName})";
+        }
+
+        // Combine with existing condition if present
+        if (string.IsNullOrEmpty(_req.ConditionExpression))
+        {
+            _req.ConditionExpression = condition;
+        }
+        else
+        {
+            _req.ConditionExpression = $"({condition}) AND ({_req.ConditionExpression})";
+        }
+    }
+
+    /// <summary>
     /// Sets the blob reference keys for cleanup after delete.
     /// Used internally when deleting entities with blob storage properties.
     /// </summary>
@@ -171,6 +279,42 @@ public class DeleteItemRequestBuilder<TEntity> :
     public DeleteItemRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built DeleteItemRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's execution and context population capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built DeleteItemRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new DeleteItemRequest
+    /// {
+    ///     TableName = "Users",
+    ///     Key = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         ["pk"] = new AttributeValue { S = "USER#123" },
+    ///         ["sk"] = new AttributeValue { S = "PROFILE" }
+    ///     },
+    ///     ConditionExpression = "attribute_exists(pk)",
+    ///     ReturnValues = ReturnValue.ALL_OLD
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Delete&lt;User&gt;().WithRequest(sdkRequest);
+    /// var deletedUser = await builder.DeleteAsync();
+    /// var capacity = builder.ConsumedCapacity;
+    /// </code>
+    /// </example>
+    public DeleteItemRequestBuilder<TEntity> WithRequest(DeleteItemRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 
@@ -254,6 +398,9 @@ public class DeleteItemRequestBuilder<TEntity> :
     /// <returns>A configured DeleteItemRequest ready for execution.</returns>
     public DeleteItemRequest ToDeleteItemRequest()
     {
+        // Apply key condition before building the request
+        ApplyKeyCondition();
+        
         if (_attrN.AttributeNames.Count > 0)
         {
             _req.ExpressionAttributeNames = _attrN.AttributeNames;
@@ -263,17 +410,21 @@ public class DeleteItemRequestBuilder<TEntity> :
         {
             _req.ExpressionAttributeValues = _attrV.AttributeValues;
         }
-        else if (_req.ExpressionAttributeValues == null)
-        {
-            _req.ExpressionAttributeValues = new Dictionary<string, AttributeValue>();
-        }
+        // Note: Do NOT set an empty ExpressionAttributeValues dictionary
+        // DynamoDB will reject requests with empty ExpressionAttributeValues
         return _req;
     }
 
     // ITransactableDeleteBuilder implementation
     string ITransactableDeleteBuilder.GetTableName() => _req.TableName;
     Dictionary<string, AttributeValue> ITransactableDeleteBuilder.GetKey() => _req.Key;
-    string? ITransactableDeleteBuilder.GetConditionExpression() => _req.ConditionExpression;
+    string? ITransactableDeleteBuilder.GetConditionExpression()
+    {
+        // Apply key condition before returning the condition expression
+        // This ensures key conditions are included when the builder is used in transactions
+        ApplyKeyCondition();
+        return _req.ConditionExpression;
+    }
     Dictionary<string, string>? ITransactableDeleteBuilder.GetExpressionAttributeNames() => 
         _attrN.AttributeNames.Count > 0 ? _attrN.AttributeNames : null;
     Dictionary<string, AttributeValue>? ITransactableDeleteBuilder.GetExpressionAttributeValues() => 
@@ -306,10 +457,10 @@ public class DeleteItemRequestBuilder<TEntity> :
         // Check if we have blob reference keys to clean up
         if (_blobReferenceKeys != null && _blobReferenceKeys.Count > 0 && _options.BlobStorageStrategy != null)
         {
-            return await ExecuteWithBlobStorageAsync(request, cancellationToken);
+            return await ExecuteWithBlobStorageAsync(request, cancellationToken).ConfigureAwait(false);
         }
         
-        return await ExecuteDynamoDbOperationAsync(request, cancellationToken);
+        return await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<DeleteItemResponse> ExecuteWithBlobStorageAsync(
@@ -319,8 +470,8 @@ public class DeleteItemRequestBuilder<TEntity> :
         return await BlobStorageHelper.ExecuteDeleteWithBlobStrategyAsync<TEntity, DeleteItemResponse>(
             _blobReferenceKeys!,
             _options,
-            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken),
-            cancellationToken);
+            async () => await ExecuteDynamoDbOperationAsync(request, cancellationToken).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<DeleteItemResponse> ExecuteDynamoDbOperationAsync(
@@ -344,7 +495,7 @@ public class DeleteItemRequestBuilder<TEntity> :
         
         try
         {
-            var response = await _dynamoDbClient.DeleteItemAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

@@ -530,16 +530,6 @@ internal static class KeysGenerator
     /// </summary>
     private static KeyFormatInfo GetKeyFormat(PropertyModel property, IndexModel? index, bool isPartitionKey)
     {
-        // Check if there's a GSI-specific format
-        if (index != null)
-        {
-            var gsiAttribute = property.GlobalSecondaryIndexes.FirstOrDefault(gsi => gsi.IndexName == index.IndexName);
-            if (gsiAttribute != null && !string.IsNullOrEmpty(gsiAttribute.KeyFormat))
-            {
-                return ParseKeyFormat(gsiAttribute.KeyFormat!);
-            }
-        }
-
         // Use property-level key format if available
         if (property.KeyFormat != null)
         {

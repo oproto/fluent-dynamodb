@@ -60,7 +60,7 @@ internal static class SchemaValidationGenerator
         sb.AppendLine($"            client,");
         sb.AppendLine($"            \"{tableName}\",");
         sb.AppendLine($"            {entity.ClassName}.GetEntityMetadata(),");
-        sb.AppendLine($"            options ?? new Oproto.FluentDynamoDb.Validation.SchemaValidationOptions());");
+        sb.AppendLine($"            options ?? new Oproto.FluentDynamoDb.Validation.SchemaValidationOptions()).ConfigureAwait(false);");
         sb.AppendLine("    }");
     }
 

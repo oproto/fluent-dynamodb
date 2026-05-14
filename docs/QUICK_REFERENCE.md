@@ -88,11 +88,11 @@ public string UserId { get; set; } = string.Empty;
 ### Global Secondary Index
 
 ```csharp
-[GlobalSecondaryIndex("IndexName", IsPartitionKey = true)]
+[GsiPartitionKey("IndexName")]
 [DynamoDbAttribute("gsi-pk")]
 public string GsiPartitionKey { get; set; } = string.Empty;
 
-[GlobalSecondaryIndex("IndexName", IsSortKey = true)]
+[GsiSortKey("IndexName")]
 [DynamoDbAttribute("gsi-sk")]
 public string GsiSortKey { get; set; } = string.Empty;
 ```
@@ -120,8 +120,7 @@ public partial class User
 }
 
 // GSI-specific discriminator
-[GlobalSecondaryIndex("StatusIndex",
-    IsPartitionKey = true,
+[GsiPartitionKey("StatusIndex",
     DiscriminatorProperty = "GSI1SK",
     DiscriminatorPattern = "USER#*")]
 [DynamoDbAttribute("status")]
@@ -307,17 +306,17 @@ var ordersTable = new OrdersTable(client, "orders");  // Multi-entity table with
 // Single-entity table: table-level operations
 await table.Put()
     .WithItem(entity)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Multi-entity table: entity accessor operations
 await ordersTable.Orders.Put(order)
-    .ExecuteAsync();
+    .PutAsync();
 
 // Conditional put
 await table.Put()
     .WithItem(entity)
     .Where($"{EntityFields.Status} = {{0}}", "draft")
-    .ExecuteAsync();
+    .PutAsync();
 ```
 
 **Details:** [Basic Operations](core-features/BasicOperations.md#put-operations)
@@ -326,25 +325,25 @@ await table.Put()
 
 ```csharp
 // Single-entity table: table-level operations
-var response = await table.Get()
+var entity = await table.Get()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
-    .ExecuteAsync<Entity>();
+    .GetItemAsync();
 
 // Multi-entity table: entity accessor operations
-var response = await ordersTable.Orders.Get()
+var order = await ordersTable.Orders.Get()
     .WithKey(OrderFields.OrderId, OrderKeys.Pk("order123"))
-    .ExecuteAsync();
+    .GetItemAsync();
 
 // Get by partition and sort key
-var response = await table.Get()
+var entity = await table.Get()
     .WithKey(EntityFields.PartitionKey, EntityKeys.Pk("pk123"))
     .WithKey(EntityFields.SortKey, EntityKeys.Sk("sk456"))
-    .ExecuteAsync<Entity>();
+    .GetItemAsync();
 
-// Access result
-if (response.IsSuccess)
+// Check if found
+if (entity != null)
 {
-    var entity = response.Item;
+    // Use entity
 }
 ```
 
@@ -362,7 +361,7 @@ await table.Update()
         UpdatedAt = DateTime.UtcNow,
         ViewCount = x.ViewCount.Add(1)
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // Advanced features: nullable types, arithmetic, format strings
 await table.Update()
@@ -387,26 +386,26 @@ await table.Update()
         TempData = x.TempData.Remove(),
         OldTags = x.OldTags.Delete("old-tag")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // String-based SET expression
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"SET {EntityFields.Name} = {{0}}, {EntityFields.UpdatedAt} = {{1:o}}", 
          "New Name", DateTime.UtcNow)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // String-based ADD expression (increment)
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"ADD {EntityFields.ViewCount} {{0}}", 1)
-    .ExecuteAsync();
+    .UpdateAsync();
 
 // String-based REMOVE expression
 await table.Update()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Set($"REMOVE {EntityFields.TempField}")
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md) | [Basic Operations](core-features/BasicOperations.md#update-operations)
@@ -417,13 +416,13 @@ await table.Update()
 // Simple delete
 await table.Delete()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
-    .ExecuteAsync();
+    .DeleteAsync();
 
 // Conditional delete
 await table.Delete()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .Where($"{EntityFields.Status} = {{0}}", "inactive")
-    .ExecuteAsync();
+    .DeleteAsync();
 ```
 
 **Details:** [Basic Operations](core-features/BasicOperations.md#delete-operations)
@@ -438,26 +437,26 @@ FluentDynamoDb supports three approaches for writing queries:
 
 ```csharp
 // 1. Expression-based (type-safe, recommended)
-var response = await table.Query()
+var items = await table.Query()
     .Where<Entity>(x => x.PartitionKey == pk && x.SortKey == sk)
     .WithFilter<Entity>(x => x.Status == "active")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // 2. Format strings (concise)
-var response = await table.Query()
+var items = await table.Query()
     .Where($"{EntityFields.PartitionKey} = {{0}} AND {EntityFields.SortKey} = {{1}}", 
            EntityKeys.Pk("pk123"), EntityKeys.Sk("sk456"))
     .WithFilter($"{EntityFields.Status} = {{0}}", "active")
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 
 // 3. Manual parameters (maximum control)
-var response = await table.Query()
+var items = await table.Query()
     .Where($"{EntityFields.PartitionKey} = :pk AND {EntityFields.SortKey} = :sk")
     .WithValue(":pk", EntityKeys.Pk("pk123"))
     .WithValue(":sk", EntityKeys.Sk("sk456"))
     .WithFilter($"{EntityFields.Status} = :status")
     .WithValue(":status", "active")
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 ```
 
 **Details:** [Querying Data](core-features/QueryingData.md#three-approaches-to-writing-queries)
@@ -466,30 +465,30 @@ var response = await table.Query()
 
 ```csharp
 // Single-entity table: Expression-based query
-var response = await table.Query()
+var items = await table.Query()
     .Where<Entity>(x => x.PartitionKey == pk)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Multi-entity table: Entity accessor query
-var response = await ordersTable.Orders.Query()
+var orders = await ordersTable.Orders.Query()
     .Where<Order>(x => x.CustomerId == customerId)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Format string: Query by partition key
-var response = await table.Query()
+var items = await table.Query()
     .Where($"{EntityFields.PartitionKey} = {{0}}", EntityKeys.Pk("pk123"))
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 
 // Expression-based: Query with sort key condition
-var response = await table.Query()
+var items = await table.Query()
     .Where<Entity>(x => x.PartitionKey == pk && x.SortKey == sk)
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Format string: Query with sort key condition
-var response = await table.Query()
+var items = await table.Query()
     .Where($"{EntityFields.PartitionKey} = {{0}} AND {EntityFields.SortKey} = {{1}}", 
            EntityKeys.Pk("pk123"), EntityKeys.Sk("sk456"))
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 ```
 
 **Details:** [Querying Data](core-features/QueryingData.md#basic-queries)
@@ -498,16 +497,16 @@ var response = await table.Query()
 
 ```csharp
 // Expression-based
-var response = await table.Query()
+var items = await table.Query()
     .Where<Entity>(x => x.PartitionKey == pk)
     .WithFilter<Entity>(x => x.Status == "active")
-    .ExecuteAsync();
+    .ToListAsync();
 
 // Format string
-var response = await table.Query()
+var items = await table.Query()
     .Where($"{EntityFields.PartitionKey} = {{0}}", EntityKeys.Pk("pk123"))
     .WithFilter($"{EntityFields.Status} = {{0}}", "active")
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 ```
 
 **Details:** [Querying Data](core-features/QueryingData.md#filter-expressions)
@@ -515,19 +514,21 @@ var response = await table.Query()
 ### Query with Pagination
 
 ```csharp
-var response = await table.Query()
+var query = table.Query()
     .Where($"{EntityFields.PartitionKey} = {{0}}", EntityKeys.Pk("pk123"))
-    .Take(20)
-    .ExecuteAsync<Entity>();
+    .Take(20);
 
-// Next page
-if (response.LastEvaluatedKey != null)
+var items = await query.ToListAsync();
+
+// Access pagination metadata via builder.Response
+if (query.Response?.HasMorePages == true)
 {
-    var nextPage = await table.Query()
+    var nextQuery = table.Query()
         .Where($"{EntityFields.PartitionKey} = {{0}}", EntityKeys.Pk("pk123"))
         .Take(20)
-        .WithExclusiveStartKey(response.LastEvaluatedKey)
-        .ExecuteAsync<Entity>();
+        .WithExclusiveStartKey(query.Response.LastEvaluatedKey);
+    
+    var nextItems = await nextQuery.ToListAsync();
 }
 ```
 
@@ -536,10 +537,10 @@ if (response.LastEvaluatedKey != null)
 ### Query GSI
 
 ```csharp
-var response = await table.Query()
+var items = await table.Query()
     .UsingIndex(EntityIndexes.IndexName)
     .Where($"{EntityFields.GsiPartitionKey} = {{0}}", "value")
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 ```
 
 **Details:** [Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md#querying-gsis)
@@ -547,9 +548,9 @@ var response = await table.Query()
 ### Scan (Use Sparingly)
 
 ```csharp
-var response = await table.Scan()
+var items = await table.Scan()
     .Where($"{EntityFields.Status} = {{0}}", "active")
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 ```
 
 **Details:** [Querying Data](core-features/QueryingData.md#scan-operations)
@@ -569,7 +570,7 @@ await table.Update()
         Email = "john@example.com",
         Status = "active"
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#set-operations)
@@ -584,7 +585,7 @@ await table.Update()
         LoginCount = x.LoginCount.Add(1),
         Credits = x.Credits.Add(-10)  // Decrement
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#add-operations)
@@ -598,7 +599,7 @@ await table.Update()
     {
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#remove-operations)
@@ -612,7 +613,7 @@ await table.Update()
     {
         Tags = x.Tags.Delete("old-tag", "deprecated")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#delete-operations)
@@ -633,7 +634,7 @@ await table.Update()
         // list_prepend
         RecentActivity = x.RecentActivity.ListPrepend("latest-event")
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#dynamodb-functions)
@@ -648,7 +649,7 @@ await table.Update()
         Score = x.Score + 10,
         Balance = x.Balance - 5.00m
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#arithmetic-operations)
@@ -676,7 +677,7 @@ await table.Update()
         // REMOVE
         TempData = x.TempData.Remove()
     })
-    .ExecuteAsync();
+    .UpdateAsync();
 ```
 
 **Details:** [Expression-Based Updates](core-features/ExpressionBasedUpdates.md#combined-operations)
@@ -836,11 +837,11 @@ var response = await DynamoDbTransactions.Get
 ### Define GSI
 
 ```csharp
-[GlobalSecondaryIndex("StatusIndex", IsPartitionKey = true)]
+[GsiPartitionKey("StatusIndex")]
 [DynamoDbAttribute("status")]
 public string Status { get; set; } = string.Empty;
 
-[GlobalSecondaryIndex("StatusIndex", IsSortKey = true)]
+[GsiSortKey("StatusIndex")]
 [DynamoDbAttribute("createdAt")]
 public DateTime CreatedAt { get; set; }
 ```
@@ -850,10 +851,10 @@ public DateTime CreatedAt { get; set; }
 ### Query GSI
 
 ```csharp
-var response = await table.Query()
+var items = await table.Query()
     .UsingIndex(EntityIndexes.StatusIndex)
     .Where($"{EntityFields.Status} = {{0}}", "active")
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 ```
 
 **Details:** [Global Secondary Indexes](advanced-topics/GlobalSecondaryIndexes.md#querying-gsis)
@@ -915,13 +916,15 @@ public partial class Customer
 
 ```csharp
 // Query all items for the partition key
-var response = await table.Query()
+var order = await table.Query()
     .Where($"{OrderFields.OrderId} = {{0}}", OrderKeys.Pk("order123"))
-    .ExecuteAsync<Order>();
+    .ToCompositeEntityAsync();
 
 // Related entities are automatically populated
-var order = response.Items.First();
-Console.WriteLine($"Order has {order.Items?.Count} items");
+if (order != null)
+{
+    Console.WriteLine($"Order has {order.Items?.Count} items");
+}
 ```
 
 **Details:** [Composite Entities](advanced-topics/CompositeEntities.md#querying-multi-item-entities)
@@ -937,10 +940,10 @@ using Amazon.DynamoDBv2.Model;
 
 try
 {
-    await table.Put
+    await table.Put()
         .WithItem(entity)
         .Where($"attribute_not_exists({EntityFields.Id})")
-        .ExecuteAsync();
+        .PutAsync();
 }
 catch (ConditionalCheckFailedException)
 {
@@ -1006,10 +1009,10 @@ var scopedClient = new AmazonDynamoDBClient(
 ### Use Custom Client
 
 ```csharp
-var response = await table.Get()
+var entity = await table.Get()
     .WithClient(scopedClient)
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
-    .ExecuteAsync<Entity>();
+    .GetItemAsync();
 ```
 
 **Details:** [STS Integration](advanced-topics/STSIntegration.md#using-withclient-in-operations)
@@ -1042,10 +1045,10 @@ foreach (var entity in entities)
 
 ```csharp
 // ✅ Good - only retrieve needed attributes
-var response = await table.Query()
+var items = await table.Query()
     .Where($"{EntityFields.PartitionKey} = {{0}}", EntityKeys.Pk("pk123"))
     .WithProjectionExpression($"{EntityFields.Id}, {EntityFields.Name}")
-    .ExecuteAsync<Entity>();
+    .ToListAsync();
 ```
 
 **Details:** [Performance Optimization](advanced-topics/PerformanceOptimization.md#projection-expressions)
@@ -1054,15 +1057,15 @@ var response = await table.Query()
 
 ```csharp
 // Eventually consistent (default) - uses half the RCUs
-var response = await table.Get()
+var entity = await table.Get()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
-    .ExecuteAsync<Entity>();
+    .GetItemAsync();
 
 // Strongly consistent - uses double the RCUs
-var response = await table.Get()
+var entity = await table.Get()
     .WithKey(EntityFields.Id, EntityKeys.Pk("id123"))
     .UsingConsistentRead()
-    .ExecuteAsync<Entity>();
+    .GetItemAsync();
 ```
 
 **Details:** [Performance Optimization](advanced-topics/PerformanceOptimization.md#consistent-reads-vs-eventual-consistency)

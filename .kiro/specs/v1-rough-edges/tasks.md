@@ -1,0 +1,127 @@
+# Implementation Plan
+
+- [x] 1. DateTimeOffset Testing and Verification
+  - [x] 1.1 Add DateTimeOffset property-based tests for serialization round-trip
+    - Create test file `Oproto.FluentDynamoDb.UnitTests/Entities/DateTimeOffsetPropertyTests.cs`
+    - Add FsCheck generator for DateTimeOffset values
+    - Test ISO 8601 format serialization and deserialization
+    - _Requirements: 1.1, 1.2, 1.5_
+  - [x] 1.2 Write property test for DateTimeOffset round-trip
+    - **Property 1: DateTimeOffset Round-Trip Consistency**
+    - **Validates: Requirements 1.1, 1.2, 1.5**
+  - [x] 1.3 Add DateTimeOffset TTL property-based tests
+    - Test Unix epoch conversion for TTL attributes
+    - Test reconstruction from Unix epoch seconds
+    - _Requirements: 1.3, 1.4_
+  - [x] 1.4 Write property test for DateTimeOffset TTL round-trip
+    - **Property 2: DateTimeOffset TTL Round-Trip**
+    - **Validates: Requirements 1.3, 1.4**
+
+- [x] 2. Record Type Support Verification
+  - [x] 2.1 Create record type test entities
+    - Create test record with [DynamoDbTable] attribute
+    - Create test record with positional parameters
+    - Create test record with init-only properties
+    - _Requirements: 2.1, 2.4, 2.5_
+  - [x] 2.2 Add source generator tests for record types
+    - Verify source generator produces valid code for record declarations
+    - Test in `Oproto.FluentDynamoDb.SourceGenerator.UnitTests`
+    - _Requirements: 2.1_
+  - [x] 2.3 Add record type serialization tests
+    - Test record entity serialization to DynamoDB format
+    - Test record entity deserialization from DynamoDB format
+    - _Requirements: 2.2, 2.3_
+  - [x] 2.4 Write property test for record type round-trip
+    - **Property 3: Record Type Entity Round-Trip**
+    - **Validates: Requirements 2.2, 2.3**
+
+- [x] 3. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 4. Conditional Filter Expression Support
+  - [x] 4.1 Add ConditionalExpression handling to ExpressionTranslator
+    - Add `VisitConditional` method to handle ternary expressions
+    - Evaluate condition at translation time
+    - Handle constant true false-branch (omit filter)
+    - Throw for entity parameter references in condition
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  - [x] 4.2 Add unit tests for conditional filter expressions
+    - Test true branch selection
+    - Test false branch selection
+    - Test constant true omission
+    - Test error on entity parameter in condition
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  - [x] 4.3 Write property test for conditional filter true omission
+    - **Property 4: Conditional Filter True Omission**
+    - **Validates: Requirements 4.1**
+  - [x] 4.4 Write property test for conditional filter partial inclusion
+    - **Property 5: Conditional Filter Partial Inclusion**
+    - **Validates: Requirements 4.2**
+
+- [x] 5. Conditional Update Expression Support
+  - [x] 5.1 Add Skip operation type to UpdateExpressionTranslator
+    - Add `Skip` to `OperationType` enum
+    - Modify `ClassifyOperation` to detect conditional null patterns
+    - Skip properties when condition evaluates to null branch
+    - _Requirements: 5.1, 5.3_
+  - [x] 5.2 Handle conditional value selection in updates
+    - Evaluate ternary conditions at translation time
+    - Use appropriate branch value based on condition
+    - _Requirements: 5.2_
+  - [x] 5.3 Add unit tests for conditional update expressions
+    - Test skip on null false branch
+    - Test value selection with non-null branches
+    - Test that skipped properties don't generate REMOVE
+    - _Requirements: 5.1, 5.2, 5.3_
+  - [x] 5.4 Write property test for conditional update skip
+    - **Property 6: Conditional Update Skip on Null**
+    - **Validates: Requirements 5.1, 5.3**
+  - [x] 5.5 Write property test for conditional update value selection
+    - **Property 7: Conditional Update Value Selection**
+    - **Validates: Requirements 5.2**
+
+- [x] 6. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 7. Local Function Evaluation Verification
+  - [x] 7.1 Add tests for local function evaluation in expressions
+    - Test that local functions are evaluated at translation time
+    - Test that results are captured as constants
+    - Test error on entity parameter reference
+    - _Requirements: 6.1, 6.2, 6.4_
+  - [x] 7.2 Write property test for local function evaluation
+    - **Property 8: Local Function Evaluation**
+    - **Validates: Requirements 6.1, 6.4**
+
+- [x] 8. ToCompositeEntityAsync Pagination Documentation
+  - [x] 8.1 Add XML documentation for pagination limitations
+    - Update `ToCompositeEntityAsync` XML docs with pagination warning
+    - Update `ToCompositeEntityListAsync` XML docs
+    - _Requirements: 3.1, 3.3_
+  - [x] 8.2 Add documentation to LIMITATIONS.md or create new doc
+    - Document that composite entities must fit in single response
+    - Recommend alternatives (manual pagination, smaller entities)
+    - _Requirements: 3.2_
+
+- [x] 9. Documentation Updates
+  - [x] 9.1 Update expression documentation with conditional examples
+    - Add examples of conditional filter patterns
+    - Add examples of conditional update patterns
+    - Document local function evaluation behavior
+    - _Requirements: 7.3_
+  - [x] 9.2 Add DateTimeOffset examples to documentation
+    - Add examples of DateTimeOffset entity properties
+    - Add examples of DateTimeOffset TTL usage
+    - _Requirements: 7.1_
+  - [x] 9.3 Add record type examples to documentation
+    - Add examples of record type entities
+    - Document any limitations or considerations
+    - _Requirements: 7.2_
+  - [x] 9.4 Update DOCUMENTATION_CHANGELOG.md
+    - Add entries for all documentation changes
+    - Follow established changelog format
+    - _Requirements: 7.4_
+
+- [x] 10. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+

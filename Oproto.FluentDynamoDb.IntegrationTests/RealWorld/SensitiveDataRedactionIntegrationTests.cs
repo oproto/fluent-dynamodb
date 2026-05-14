@@ -348,7 +348,7 @@ public class SensitiveDataRedactionIntegrationTests : IntegrationTestBase
     }
     
     // Helper class to create a table instance with logger support
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : GenericTable
     {
         public TestTable(IAmazonDynamoDB client, string tableName, TestLogger? logger) 
             : base(client, tableName, new FluentDynamoDbOptions().WithLogger(logger))

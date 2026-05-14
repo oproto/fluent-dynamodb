@@ -72,7 +72,7 @@ public class HydratorGeneratorTests
             "should generate HydrateAsync method");
         result.Should().Contain("Dictionary<string, AttributeValue> item,",
             "should accept single item parameter");
-        result.Should().Contain("IBlobStorageProvider blobProvider,",
+        result.Should().Contain("IBlobStorageProvider? blobProvider,",
             "should accept blob provider parameter");
         result.Should().Contain("CancellationToken cancellationToken = default)",
             "should accept cancellation token parameter");

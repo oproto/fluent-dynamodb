@@ -1008,13 +1008,16 @@ public partial class Store : IDynamoDbEntity
 ### Querying via GSI
 
 ```csharp
-public class StoreTable : DynamoDbTableBase
+public class StoreTable : IDynamoDbTable
 {
+    public IAmazonDynamoDB DynamoDbClient { get; }
+    public string Name { get; }
     public DynamoDbIndex S2LocationIndex { get; }
     
-    public StoreTable(IAmazonDynamoDB client, string tableName) 
-        : base(client, tableName)
+    public StoreTable(IAmazonDynamoDB client, string tableName)
     {
+        DynamoDbClient = client;
+        Name = tableName;
         S2LocationIndex = new DynamoDbIndex(this, "s2-location-index");
     }
 }

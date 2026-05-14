@@ -134,7 +134,7 @@ using Oproto.FluentDynamoDb.Metadata;    // EntityMetadata, PropertyMetadata
 using Oproto.FluentDynamoDb.Hydration;   // IAsyncEntityHydrator
 using Oproto.FluentDynamoDb.Mapping;     // MappingErrorHandler, exceptions
 using Oproto.FluentDynamoDb.Context;     // DynamoDbOperationContext
-using Oproto.FluentDynamoDb.Storage;     // DynamoDbTableBase, DynamoDbIndex
+using Oproto.FluentDynamoDb.Storage;     // IDynamoDbTable, DynamoDbIndex, DynamicTable
 ```
 
 #### JSON Serializer Configuration
@@ -182,6 +182,34 @@ await table.Query.Where(...).ToListAsync();
 await table.Users.PutAsync(user);
 await table.Users.Query().Where(...).ToListAsync();
 ```
+
+#### Null Handling in Conditional Updates (v1.0 Breaking Change)
+
+`null` in conditional update expressions now sets DynamoDB NULL instead of skipping the update. Use `NoUpdate()` for skip behavior:
+
+```csharp
+// Before (v0.x): null in false branch skipped the update
+.Set(x => new UserUpdateModel 
+{ 
+    Name = shouldUpdate ? newName : null  // Skipped when !shouldUpdate
+})
+
+// After (v1.0): null sets DynamoDB NULL, use NoUpdate() to skip
+.Set(x => new UserUpdateModel 
+{ 
+    Name = shouldUpdate ? newName : x.Name.NoUpdate()  // Skipped when !shouldUpdate
+})
+```
+
+**Null vs NoUpdate() vs Remove():**
+
+| Method | DynamoDB Result | Use Case |
+|--------|-----------------|----------|
+| `= null` | SET attr = NULL | Set attribute to DynamoDB NULL type |
+| `.NoUpdate()` | No operation | Skip updating this property conditionally |
+| `.Remove()` | REMOVE attr | Delete the attribute entirely |
+
+See [Breaking Changes v1.0](docs/BREAKING_CHANGES_v1.0.md) for detailed migration guidance.
 
 ---
 

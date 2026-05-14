@@ -15,11 +15,16 @@ public class ManualProjectionConfigurationExamples
     /// This approach is useful when not using source generation or when you need
     /// runtime control over projection expressions.
     /// </summary>
-    public class TransactionsTable : DynamoDbTableBase
+    public class TransactionsTable : IDynamoDbTable
     {
-        public TransactionsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+        public TransactionsTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Example 1: Non-generic index with manual projection
         // The projection expression is automatically applied to all queries through this index
@@ -50,7 +55,7 @@ public class ManualProjectionConfigurationExamples
     /// <summary>
     /// Example entity class.
     /// </summary>
-    public class Transaction
+    public class Transaction : Entities.IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public decimal Amount { get; set; }
@@ -59,18 +64,36 @@ public class ManualProjectionConfigurationExamples
         public string EntityType { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public Dictionary<string, string> Metadata { get; set; } = new();
+        
+        // IDynamoDbEntity implementation
+        public static Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => new();
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : Entities.IReadOnlyEntity => throw new NotImplementedException();
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => throw new NotImplementedException();
+        public static string GetPartitionKey(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => string.Empty;
+        public static bool MatchesEntity(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => false;
+        public static Metadata.EntityMetadata GetEntityMetadata() => new();
+        public static bool RequiresWriteTransaction => false;
     }
 
     /// <summary>
     /// Example projection class (manually defined, not generated).
     /// </summary>
-    public class TransactionSummary
+    public class TransactionSummary : Entities.IDynamoDbEntity
     {
         public string Id { get; set; } = string.Empty;
         public decimal Amount { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime CreatedDate { get; set; }
         public string EntityType { get; set; } = string.Empty;
+        
+        // IDynamoDbEntity implementation
+        public static Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => new();
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : Entities.IReadOnlyEntity => throw new NotImplementedException();
+        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : Entities.IDynamoDbEntity => throw new NotImplementedException();
+        public static string GetPartitionKey(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => string.Empty;
+        public static bool MatchesEntity(Dictionary<string, Amazon.DynamoDBv2.Model.AttributeValue> item) => false;
+        public static Metadata.EntityMetadata GetEntityMetadata() => new();
+        public static bool RequiresWriteTransaction => false;
     }
 
     /// <summary>
@@ -208,11 +231,16 @@ public class ManualProjectionConfigurationExamples
     /// Example: Multiple projections for the same index.
     /// Shows how to define different projection levels for different use cases.
     /// </summary>
-    public class FlexibleProjectionsTable : DynamoDbTableBase
+    public class FlexibleProjectionsTable : IDynamoDbTable
     {
-        public FlexibleProjectionsTable(IAmazonDynamoDB client) : base(client, "Transactions")
+        public FlexibleProjectionsTable(IAmazonDynamoDB client)
         {
+            DynamoDbClient = client;
+            Name = "Transactions";
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
 
         // Minimal projection for list views
         public DynamoDbIndex StatusIndexMinimal => new DynamoDbIndex(

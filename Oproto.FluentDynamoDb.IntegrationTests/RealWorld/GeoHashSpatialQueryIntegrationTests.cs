@@ -24,7 +24,7 @@ public class GeoHashSpatialQueryIntegrationTests : IntegrationTestBase
     /// <summary>
     /// Simple table wrapper for testing spatial queries with GeoHash-indexed entities.
     /// </summary>
-    private class GeoHashStoreTable : DynamoDbTableBase
+    private class GeoHashStoreTable : GenericTable
     {
         public GeoHashStoreTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName, new FluentDynamoDbOptions().AddGeospatial())

@@ -1,6 +1,9 @@
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using AwesomeAssertions;
 using NSubstitute;
+using Oproto.FluentDynamoDb.Entities;
+using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Storage;
 
@@ -8,16 +11,39 @@ namespace Oproto.FluentDynamoDb.UnitTests.Storage;
 
 public class DynamoDbIndexGenericTests
 {
-    private class TestTable : DynamoDbTableBase
+    private class TestTable : IDynamoDbTable
     {
-        public TestTable(IAmazonDynamoDB client) : base(client, "TestTable") { }
+        public TestTable(IAmazonDynamoDB client)
+        {
+            DynamoDbClient = client;
+            Name = "TestTable";
+        }
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
     }
 
-    private class TestEntity
+    private class TestEntity : IReadOnlyEntity
     {
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
+            where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntity();
+
+        public static string GetPartitionKey(Dictionary<string, AttributeValue> item) =>
+            item.TryGetValue("pk", out var pk) ? pk.S : string.Empty;
+
+        public static EntityMetadata GetEntityMetadata() => new()
+        {
+            TableName = "test-table",
+            Properties = new[]
+            {
+                new PropertyMetadata { PropertyName = "Id", AttributeName = "pk", IsPartitionKey = true },
+                new PropertyMetadata { PropertyName = "Name", AttributeName = "name" },
+                new PropertyMetadata { PropertyName = "Status", AttributeName = "status" }
+            }
+        };
     }
 
     [Fact]

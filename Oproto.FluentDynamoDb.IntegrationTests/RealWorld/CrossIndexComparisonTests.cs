@@ -23,7 +23,7 @@ public class CrossIndexComparisonTests : IntegrationTestBase
     
     #region Table Wrappers
     
-    private class S2StoreTable : DynamoDbTableBase
+    private class S2StoreTable : GenericTable
     {
         public S2StoreTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)
@@ -37,7 +37,7 @@ public class CrossIndexComparisonTests : IntegrationTestBase
         }
     }
     
-    private class H3StoreTable : DynamoDbTableBase
+    private class H3StoreTable : GenericTable
     {
         public H3StoreTable(IAmazonDynamoDB client, string tableName) 
             : base(client, tableName)

@@ -1,5 +1,6 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Interfaces;
 
@@ -19,8 +20,9 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// - Large tables will require multiple scan operations due to 1MB response limits
 /// - Consider using parallel scans for large tables to improve throughput
 /// - Always use filter expressions to reduce data transfer, though this doesn't reduce consumed capacity
+/// Now supports both full entities and projections through IReadOnlyEntity constraint.
 /// </summary>
-/// <typeparam name="TEntity">The entity type being scanned.</typeparam>
+/// <typeparam name="TEntity">The entity or projection type being scanned. Must implement IReadOnlyEntity&lt;TEntity&gt;.</typeparam>
 /// <example>
 /// <code>
 /// // Basic scan with filter
@@ -39,7 +41,7 @@ namespace Oproto.FluentDynamoDb.Requests;
 /// </example>
 public class ScanRequestBuilder<TEntity> :
     IWithAttributeNames<ScanRequestBuilder<TEntity>>, IWithAttributeValues<ScanRequestBuilder<TEntity>>, IWithFilterExpression<ScanRequestBuilder<TEntity>>, IHasDynamoDbClient
-    where TEntity : class
+    where TEntity : class, IReadOnlyEntity
 {
     /// <summary>
     /// Initializes a new instance of the ScanRequestBuilder.
@@ -69,6 +71,13 @@ public class ScanRequestBuilder<TEntity> :
     private readonly FluentDynamoDbOptions _options;
     private readonly AttributeValueInternal _attrV = new AttributeValueInternal();
     private readonly AttributeNameInternal _attrN = new AttributeNameInternal();
+
+    /// <summary>
+    /// Gets the response metadata from the most recent scan execution.
+    /// This is populated by Primary API methods (ToListAsync, etc.) after execution.
+    /// Null if the scan hasn't been executed yet.
+    /// </summary>
+    public ScanOperationResponse? Response { get; internal set; }
 
     /// <summary>
     /// Gets the internal attribute value helper for extension method access.
@@ -112,11 +121,19 @@ public class ScanRequestBuilder<TEntity> :
     /// <summary>
     /// Sets the filter expression on the builder.
     /// If a filter expression already exists, combines them with AND logic.
+    /// If the expression is empty or whitespace (e.g., all conditional clauses evaluated to skip),
+    /// the method returns without setting the filter, allowing the operation to proceed without filtering.
     /// </summary>
     /// <param name="expression">The processed filter expression to set.</param>
     /// <returns>The builder instance for method chaining.</returns>
     public ScanRequestBuilder<TEntity> SetFilterExpression(string expression)
     {
+        // Skip setting if expression is empty (all conditionals evaluated to skip)
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return this;
+        }
+        
         if (string.IsNullOrEmpty(_req.FilterExpression))
         {
             _req.FilterExpression = expression;
@@ -141,6 +158,40 @@ public class ScanRequestBuilder<TEntity> :
     public ScanRequestBuilder<TEntity> ForTable(string tableName)
     {
         _req.TableName = tableName;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the builder with a pre-built ScanRequest.
+    /// This replaces any previously configured request state.
+    /// Use this when you have an existing SDK request object and want to leverage
+    /// the library's entity hydration capabilities.
+    /// </summary>
+    /// <param name="request">The pre-built ScanRequest.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when request is null.</exception>
+    /// <example>
+    /// <code>
+    /// var sdkRequest = new ScanRequest
+    /// {
+    ///     TableName = "Products",
+    ///     FilterExpression = "category = :cat",
+    ///     ExpressionAttributeValues = new Dictionary&lt;string, AttributeValue&gt;
+    ///     {
+    ///         [":cat"] = new AttributeValue { S = "Electronics" }
+    ///     }
+    /// };
+    /// 
+    /// // Use builder pattern for metadata access
+    /// var builder = table.Scan&lt;Product&gt;().WithRequest(sdkRequest);
+    /// var products = await builder.ToListAsync();
+    /// var scannedCount = builder.ScannedCount;
+    /// </code>
+    /// </example>
+    public ScanRequestBuilder<TEntity> WithRequest(ScanRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _req = request;
         return this;
     }
 
@@ -338,7 +389,7 @@ public class ScanRequestBuilder<TEntity> :
         
         try
         {
-            var response = await _dynamoDbClient.ScanAsync(request, cancellationToken);
+            var response = await _dynamoDbClient.ScanAsync(request, cancellationToken).ConfigureAwait(false);
             
             if (_logger?.IsEnabled(LogLevel.Information) == true)
             {

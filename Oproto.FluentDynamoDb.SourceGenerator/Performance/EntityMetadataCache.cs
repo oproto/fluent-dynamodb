@@ -57,8 +57,8 @@ internal static class EntityMetadataCache
                 PropertyType = p.PropertyType,
                 IsPartitionKey = p.IsPartitionKey,
                 IsSortKey = p.IsSortKey,
-                SupportedOperations = p.Queryable != null ? p.Queryable.SupportedOperations : Array.Empty<DynamoDbOperation>(),
-                AvailableInIndexes = p.Queryable != null ? p.Queryable.AvailableInIndexes : Array.Empty<string>()
+                SupportedOperations = Array.Empty<DynamoDbOperation>(),
+                AvailableInIndexes = Array.Empty<string>()
             }).ToArray(),
             Indexes = entity.Indexes.Select(i => new CachedIndexMetadata
             {

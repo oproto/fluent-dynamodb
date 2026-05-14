@@ -304,7 +304,7 @@ public sealed class DiscriminatorStreamProcessorBuilder
         {
             if (_unknownTypeHandler != null)
             {
-                await _unknownTypeHandler(_record);
+                await _unknownTypeHandler(_record).ConfigureAwait(false);
             }
             return;
         }
@@ -328,14 +328,14 @@ public sealed class DiscriminatorStreamProcessorBuilder
         // Step 3: Delegate to TypeHandlerRegistration.ProcessAsync if match found
         if (matchedHandler != null)
         {
-            await matchedHandler.ProcessAsync(_record);
+            await matchedHandler.ProcessAsync(_record).ConfigureAwait(false);
             return;
         }
 
         // Step 4: Call OnUnknownType handler if no match and handler is registered
         if (_unknownTypeHandler != null)
         {
-            await _unknownTypeHandler(_record);
+            await _unknownTypeHandler(_record).ConfigureAwait(false);
         }
 
         // Step 5: Skip silently if no match and no OnUnknownType handler

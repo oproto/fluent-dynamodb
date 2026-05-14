@@ -255,7 +255,7 @@ var result = await geoHashTable.SpatialQueryAsync<StoreGeoHash>(
     center: center,
     radiusKilometers: radiusKm,
     queryBuilder: (query, cell, pagination) => query
-        .Where($"geohash_cell BETWEEN {0} AND {1}", cell.Split(':')[0], cell.Split(':')[1])
+        .Where("geohash_cell BETWEEN {0} AND {1}", cell.Split(':')[0], cell.Split(':')[1])
 );
 
 // Results include distance calculation

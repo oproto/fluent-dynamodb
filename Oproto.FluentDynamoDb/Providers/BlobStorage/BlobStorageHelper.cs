@@ -299,14 +299,14 @@ internal static class BlobStorageHelper
         if (strategy == null)
         {
             // No strategy configured, just execute the operation
-            return await executeOperation();
+            return await executeOperation().ConfigureAwait(false);
         }
         
         var blobProperties = ExtractBlobProperties(entity, options);
         if (blobProperties.Count == 0)
         {
             // No blob properties with pending data, just execute the operation
-            return await executeOperation();
+            return await executeOperation().ConfigureAwait(false);
         }
         
         var context = new BlobWriteContext
@@ -318,7 +318,7 @@ internal static class BlobStorageHelper
         try
         {
             // Step 1: Upload blobs before DynamoDB write
-            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken);
+            var result = await strategy.OnBeforeDynamoDbWriteAsync(context, cancellationToken).ConfigureAwait(false);
             
             // Step 2: Update item with reference keys
             UpdateItemWithReferenceKeys(item, result, blobProperties);
@@ -327,17 +327,17 @@ internal static class BlobStorageHelper
             TResult response;
             try
             {
-                response = await executeOperation();
+                response = await executeOperation().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 // Step 4a: Handle DynamoDB write failure
-                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken);
+                await strategy.OnAfterDynamoDbWriteFailureAsync(context, ex, cancellationToken).ConfigureAwait(false);
                 throw;
             }
             
             // Step 4b: Handle DynamoDB write success
-            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken);
+            await strategy.OnAfterDynamoDbWriteSuccessAsync(context, cancellationToken).ConfigureAwait(false);
             
             // Step 5: Update entity with reference keys
             UpdateEntityWithReferenceKeys(entity, result);
@@ -384,7 +384,7 @@ internal static class BlobStorageHelper
         if (strategy == null || referenceKeys.Count == 0)
         {
             // No strategy configured or no blob references, just execute the operation
-            return await executeOperation();
+            return await executeOperation().ConfigureAwait(false);
         }
         
         var context = new BlobDeleteContext
@@ -394,13 +394,13 @@ internal static class BlobStorageHelper
         };
         
         // Step 1: Prepare for blob cleanup
-        context = await strategy.OnBeforeDynamoDbDeleteAsync(context, cancellationToken);
+        context = await strategy.OnBeforeDynamoDbDeleteAsync(context, cancellationToken).ConfigureAwait(false);
         
         // Step 2: Execute DynamoDB delete operation
-        var response = await executeOperation();
+        var response = await executeOperation().ConfigureAwait(false);
         
         // Step 3: Clean up blobs after successful delete
-        await strategy.OnAfterDynamoDbDeleteSuccessAsync(context, cancellationToken);
+        await strategy.OnAfterDynamoDbDeleteSuccessAsync(context, cancellationToken).ConfigureAwait(false);
         
         return response;
     }

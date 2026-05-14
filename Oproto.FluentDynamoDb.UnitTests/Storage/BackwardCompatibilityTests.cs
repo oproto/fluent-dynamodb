@@ -23,29 +23,75 @@ public class BackwardCompatibilityTests
     /// Test table using the original constructor without logger parameter.
     /// This simulates existing user code that should continue to work.
     /// </summary>
-    private class LegacyTestTable : DynamoDbTableBase
+    private class LegacyTestTable : IDynamoDbTable
     {
         public LegacyTestTable(IAmazonDynamoDB client, string tableName)
-            : base(client, tableName)
         {
+            DynamoDbClient = client;
+            Name = tableName;
+            Options = new FluentDynamoDbOptions();
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
+        protected FluentDynamoDbOptions Options { get; }
+
+        // Methods that mirror source-generated table classes
+        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
+            => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
+            => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
     }
     
     /// <summary>
     /// Test table using the new constructor with FluentDynamoDbOptions.
     /// This simulates new code that uses the recommended options pattern.
     /// </summary>
-    private class ModernTestTable : DynamoDbTableBase
+    private class ModernTestTable : IDynamoDbTable
     {
         public ModernTestTable(IAmazonDynamoDB client, string tableName)
-            : base(client, tableName)
         {
+            DynamoDbClient = client;
+            Name = tableName;
+            Options = new FluentDynamoDbOptions();
         }
         
         public ModernTestTable(IAmazonDynamoDB client, string tableName, FluentDynamoDbOptions options)
-            : base(client, tableName, options)
         {
+            DynamoDbClient = client;
+            Name = tableName;
+            Options = options ?? new FluentDynamoDbOptions();
         }
+
+        public IAmazonDynamoDB DynamoDbClient { get; }
+        public string Name { get; }
+        protected FluentDynamoDbOptions Options { get; }
+
+        // Methods that mirror source-generated table classes
+        public QueryRequestBuilder<TEntity> Query<TEntity>() where TEntity : class, IReadOnlyEntity
+            => new QueryRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public GetItemRequestBuilder<TEntity> Get<TEntity>() where TEntity : class, IReadOnlyEntity
+            => new GetItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public UpdateItemRequestBuilder<TEntity> Update<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new UpdateItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public DeleteItemRequestBuilder<TEntity> Delete<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new DeleteItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
+
+        public PutItemRequestBuilder<TEntity> Put<TEntity>() where TEntity : class, IDynamoDbEntity
+            => new PutItemRequestBuilder<TEntity>(DynamoDbClient, Options).ForTable(Name);
         
         // Factory method for tests that just need a logger
         public static ModernTestTable WithLogger(IAmazonDynamoDB client, string tableName, IDynamoDbLogger logger)
@@ -119,7 +165,7 @@ public class BackwardCompatibilityTests
     }
     
     [Fact]
-    public void DynamoDbTableBase_OriginalConstructor_ShouldStillWork()
+    public void LegacyTable_OriginalConstructor_ShouldStillWork()
     {
         // Arrange
         var mockClient = Substitute.For<IAmazonDynamoDB>();
@@ -830,7 +876,7 @@ public class BackwardCompatibilityTests
             };
         }
 
-        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
+        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
         {
             var entity = new TestEntity
             {

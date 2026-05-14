@@ -518,10 +518,24 @@ internal static class EntitySpecificUpdateBuilderGenerator
         sb.Append($"        {extensionClassName}.{method.Name}");
         
         // Add generic type arguments with specialization
+        // For WhereExpression pattern on UpdateItemRequestBuilder, use the specific overload
+        // that takes UpdateItemRequestBuilder<TEntity> directly (with only TEntity type arg)
+        // instead of the generic IWithConditionExpression<T> overload (with T and TEntity type args)
+        // This ensures the correct validation mode is used (None instead of KeysOnly)
         if (method.IsGenericMethod)
         {
             sb.Append("<");
-            var typeArgs = GetSpecializedTypeArguments(method, entityClassName, updateExpressionsClassName, specializationPattern, remainingTypeParams, builderClassName);
+            List<string> typeArgs;
+            if (specializationPattern == SpecializationPattern.WhereExpression && method.Name == "Where")
+            {
+                // Use only TEntity type argument to call the specific UpdateItemRequestBuilder overload
+                // which uses ExpressionValidationMode.None (allows any property in condition)
+                typeArgs = new List<string> { entityClassName };
+            }
+            else
+            {
+                typeArgs = GetSpecializedTypeArguments(method, entityClassName, updateExpressionsClassName, specializationPattern, remainingTypeParams, builderClassName);
+            }
             sb.Append(string.Join(", ", typeArgs));
             sb.Append(">");
         }

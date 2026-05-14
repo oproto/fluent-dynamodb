@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using AWS.Cryptography.EncryptionSDK;
+using AWS.Cryptography.MaterialProviders;
 using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.Encryption.Kms;
@@ -22,7 +25,16 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
 {
     private readonly IKmsKeyResolver _keyResolver;
     private readonly AwsEncryptionSdkOptions _options;
-    private readonly CachingConfiguration? _cachingConfig;
+    
+    // New SDK clients
+    private readonly MaterialProviders _materialProviders;
+    private readonly ESDK _esdk;
+    
+    // Cache keyrings by key ARN (and optionally context ID) to avoid recreating them
+    // Note: The AWS Encryption SDK for .NET does not support data key caching like other language implementations.
+    // Instead, we cache keyrings to reduce object creation overhead. For true data key caching,
+    // consider using the AWS KMS Hierarchical keyring (requires additional DynamoDB table setup).
+    private readonly ConcurrentDictionary<string, IKeyring> _keyringCache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AwsEncryptionSdkFieldEncryptor"/> class.
@@ -31,8 +43,18 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
     /// <param name="options">Optional configuration options. If null, default options are used.</param>
     /// <remarks>
     /// <para>
-    /// When <see cref="AwsEncryptionSdkOptions.EnableCaching"/> is true, a caching configuration
-    /// is created to reduce KMS API calls. When false, each encryption operation generates a new data key.
+    /// Note: The AWS Encryption SDK for .NET does not support data key caching like other language
+    /// implementations. The <see cref="AwsEncryptionSdkOptions.EnableCaching"/> option controls
+    /// keyring caching (to reduce object creation overhead) but does not cache data keys.
+    /// Each encryption operation will call KMS to generate a new data key.
+    /// </para>
+    /// <para>
+    /// For true data key caching, consider using the AWS KMS Hierarchical keyring, which requires
+    /// additional setup including a DynamoDB table for branch key storage.
+    /// </para>
+    /// <para>
+    /// Tenant isolation is achieved through encryption context - different context IDs result in
+    /// different encryption contexts that are cryptographically bound to the ciphertext.
     /// </para>
     /// </remarks>
     public AwsEncryptionSdkFieldEncryptor(
@@ -42,58 +64,58 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         _keyResolver = keyResolver ?? throw new ArgumentNullException(nameof(keyResolver));
         _options = options ?? new AwsEncryptionSdkOptions();
         
-        // Setup caching configuration if enabled
-        if (_options.EnableCaching)
-        {
-            _cachingConfig = CreateCachingConfiguration();
-        }
-        // When caching is disabled, _cachingConfig remains null and we'll use
-        // a non-caching approach for each encryption operation
-        
-        // Note: AWS Encryption SDK initialization will be added once the correct
-        // package namespaces are confirmed. The AWS.EncryptionSDK package structure
-        // may differ from the design assumptions.
+        // Initialize SDK clients
+        _materialProviders = new MaterialProviders(new MaterialProvidersConfig());
+        _esdk = new ESDK(new AwsEncryptionSdkConfig());
     }
 
     /// <summary>
-    /// Creates a caching configuration with the configured limits.
+    /// Gets a value indicating whether keyring caching is enabled.
     /// </summary>
-    /// <returns>A configured caching configuration.</returns>
+    /// <remarks>
+    /// Note: This controls keyring object caching only. The AWS Encryption SDK for .NET
+    /// does not support data key caching natively. Each encryption operation calls KMS.
+    /// </remarks>
+    internal bool IsCachingEnabled => _options.EnableCaching;
+
+    /// <summary>
+    /// Gets or creates a keyring for the specified KMS key ARN and optional context ID.
+    /// </summary>
+    /// <param name="keyArn">The KMS key ARN to create a keyring for.</param>
+    /// <param name="contextId">Optional context ID for cache key partitioning (tenant isolation).</param>
+    /// <returns>A keyring configured for the specified KMS key.</returns>
     /// <remarks>
     /// <para>
-    /// The caching configuration reduces KMS API calls by caching data keys.
-    /// Data keys are automatically rotated when any of the following limits are reached:
+    /// When caching is enabled, keyrings are cached by a composite key of key ARN and context ID.
+    /// This ensures tenant isolation - different contexts get different keyring instances.
     /// </para>
-    /// <list type="bullet">
-    /// <item>Cache TTL expires (configured per-field or via DefaultCacheTtlSeconds)</item>
-    /// <item>MaxMessagesPerDataKey limit is reached</item>
-    /// <item>MaxBytesPerDataKey limit is reached</item>
-    /// </list>
     /// <para>
-    /// The cache key includes the context ID to ensure different contexts use different data keys,
-    /// providing proper isolation in multi-tenant scenarios.
+    /// When caching is disabled, a new keyring is created for each operation.
     /// </para>
     /// </remarks>
-    private CachingConfiguration CreateCachingConfiguration()
+    private IKeyring GetOrCreateKeyring(string keyArn, string? contextId)
     {
-        return new CachingConfiguration
+        if (!_options.EnableCaching)
         {
-            MaxAge = _options.DefaultCacheTtlSeconds,
-            MaxMessagesPerDataKey = _options.MaxMessagesPerDataKey,
-            MaxBytesPerDataKey = _options.MaxBytesPerDataKey,
-            MaxCacheEntries = 1000 // Maximum number of cache entries
-        };
+            // When caching is disabled, create a new keyring for each operation
+            return _materialProviders.CreateAwsKmsKeyring(new CreateAwsKmsKeyringInput
+            {
+                KmsKeyId = keyArn
+            });
+        }
+
+        // Create a composite cache key that includes context ID for tenant isolation (Requirement 4.6)
+        // This ensures different contexts use different cache entries
+        var cacheKey = string.IsNullOrWhiteSpace(contextId) 
+            ? keyArn 
+            : $"{keyArn}|{contextId}";
+
+        return _keyringCache.GetOrAdd(cacheKey, _ =>
+            _materialProviders.CreateAwsKmsKeyring(new CreateAwsKmsKeyringInput
+            {
+                KmsKeyId = keyArn
+            }));
     }
-
-    /// <summary>
-    /// Gets a value indicating whether caching is enabled.
-    /// </summary>
-    internal bool IsCachingEnabled => _cachingConfig != null;
-
-    /// <summary>
-    /// Gets the caching configuration if caching is enabled.
-    /// </summary>
-    internal CachingConfiguration? CachingConfig => _cachingConfig;
 
     /// <inheritdoc />
     public async Task<byte[]> EncryptAsync(
@@ -126,41 +148,41 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
             // 2. Build encryption context dictionary (field name, context ID, entity type)
             var encryptionContext = BuildEncryptionContext(fieldName, context.ContextId);
 
-            // TODO: Implement AWS Encryption SDK integration
-            // The following steps need to be implemented once the correct AWS.EncryptionSDK
-            // package namespaces are confirmed:
-            //
-            // 3. Create KMS keyring with resolved key ARN
-            // 4. Create cryptographic materials manager (with or without caching based on _cachingConfig)
-            //    - If _cachingConfig != null: Create CachingCMM with configured limits
-            //    - If _cachingConfig == null: Create DefaultCMM without caching
-            // 5. Call ESDK.Encrypt with plaintext, CMM, and encryption context
-            // 6. Return encrypted data in AWS Encryption SDK message format (binary)
-            //
-            // The encryption context should be included in the encrypted message for:
-            // - Audit trails in CloudTrail
-            // - Validation during decryption
-            // - Additional authenticated data (AAD)
+            // 3. Get or create KMS keyring with resolved key ARN
+            // Context ID is included in cache key for tenant isolation (Requirement 4.6)
+            var keyring = GetOrCreateKeyring(keyArn, context.ContextId);
 
-            // Placeholder: Return a marker indicating encryption is not yet implemented
-            await Task.CompletedTask;
-            throw new NotImplementedException(
-                $"AWS Encryption SDK integration is not yet complete. " +
-                $"Field: {fieldName}, Context: {context.ContextId}, Key: {keyArn}");
+            // 4. Create EncryptInput with plaintext, keyring, and encryption context
+            // Note: The .NET SDK doesn't support data key caching, so we use the keyring directly.
+            // Tenant isolation is achieved through:
+            // - Separate keyring cache entries per context ID
+            // - Encryption context bound to ciphertext (validated during decryption)
+            var encryptInput = new EncryptInput
+            {
+                Plaintext = new MemoryStream(plaintext),
+                Keyring = keyring,
+                EncryptionContext = encryptionContext,
+                // Use algorithm suite with key commitment to prevent key substitution attacks (Requirement 2.5)
+                AlgorithmSuiteId = ESDKAlgorithmSuiteId.ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384
+            };
+
+            // 5. Call ESDK.Encrypt and return ciphertext bytes
+            var encryptOutput = _esdk.Encrypt(encryptInput);
+            
+            // Read the ciphertext from the output stream
+            using var ciphertextStream = encryptOutput.Ciphertext;
+            using var memoryStream = new MemoryStream();
+            await ciphertextStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
+            return memoryStream.ToArray();
         }
         catch (FieldEncryptionException)
         {
             // Re-throw our own exceptions
             throw;
         }
-        catch (NotImplementedException)
-        {
-            // Re-throw not implemented
-            throw;
-        }
         catch (Exception ex)
         {
-            // Handle errors with FieldEncryptionException
+            // Handle errors with FieldEncryptionException (Requirements 2.4, 7.2, 7.4)
             throw new FieldEncryptionException(
                 $"Failed to encrypt field '{fieldName}': {ex.Message}",
                 fieldName,
@@ -186,7 +208,7 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         
         try
         {
-            // 1. Resolve KMS key ARN for keyring
+            // 1. Resolve KMS key ARN via key resolver (Requirement 3.1)
             keyArn = _keyResolver.ResolveKeyId(context.ContextId);
             
             if (string.IsNullOrWhiteSpace(keyArn))
@@ -198,54 +220,139 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
                     null);
             }
 
-            // 2. Build expected encryption context for validation
+            // 2. Build expected encryption context for validation (Requirements 3.2, 3.3)
             var expectedContext = BuildEncryptionContext(fieldName, context.ContextId);
 
-            // TODO: Implement AWS Encryption SDK integration
-            // The following steps need to be implemented once the correct AWS.EncryptionSDK
-            // package namespaces are confirmed:
-            //
-            // 3. Create KMS keyring with resolved key ARN
-            // 4. Create cryptographic materials manager (with or without caching based on _cachingConfig)
-            //    - If _cachingConfig != null: Create CachingCMM with configured limits
-            //    - If _cachingConfig == null: Create DefaultCMM without caching
-            // 5. Call ESDK.Decrypt with ciphertext and CMM
-            // 6. Validate encryption context from decrypted message matches expectedContext
-            //    - Check that all expected keys are present with correct values
-            //    - Throw FieldEncryptionException if validation fails
-            // 7. Return decrypted plaintext
-            //
-            // The encryption context validation ensures:
-            // - Data was encrypted for the correct field
-            // - Data was encrypted for the correct context (e.g., tenant)
-            // - Protection against ciphertext substitution attacks
+            // 3. Get or create KMS keyring with resolved key ARN
+            // Context ID is included in cache key for tenant isolation (Requirement 4.6)
+            var keyring = GetOrCreateKeyring(keyArn, context.ContextId);
 
-            // Placeholder: Return a marker indicating decryption is not yet implemented
-            await Task.CompletedTask;
-            throw new NotImplementedException(
-                $"AWS Encryption SDK integration is not yet complete. " +
-                $"Field: {fieldName}, Context: {context.ContextId}, Key: {keyArn}");
+            // 4. Create DecryptInput with ciphertext and keyring
+            // Note: The .NET SDK doesn't support data key caching, so we use the keyring directly.
+            var decryptInput = new DecryptInput
+            {
+                Ciphertext = new MemoryStream(ciphertext),
+                Keyring = keyring
+            };
+
+            // 5. Call ESDK.Decrypt and get plaintext bytes
+            var decryptOutput = _esdk.Decrypt(decryptInput);
+            
+            // 6. Validate encryption context from decrypted message (Requirements 3.2, 3.3)
+            ValidateEncryptionContext(decryptOutput.EncryptionContext, expectedContext, fieldName, context.ContextId);
+            
+            // 7. Read the plaintext from the output stream
+            using var plaintextStream = decryptOutput.Plaintext;
+            using var memoryStream = new MemoryStream();
+            await plaintextStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
+            return memoryStream.ToArray();
         }
         catch (FieldEncryptionException)
         {
             // Re-throw our own exceptions
             throw;
         }
-        catch (NotImplementedException)
-        {
-            // Re-throw not implemented
-            throw;
-        }
         catch (Exception ex)
         {
-            // Handle errors with FieldEncryptionException
+            // Handle errors with FieldEncryptionException (Requirements 3.4, 3.5, 7.3, 7.5)
+            var message = BuildDecryptionErrorMessage(ex, fieldName, keyArn);
             throw new FieldEncryptionException(
-                $"Failed to decrypt field '{fieldName}': {ex.Message}",
+                message,
                 fieldName,
                 context.ContextId,
                 keyArn,
                 ex);
         }
+    }
+
+    /// <summary>
+    /// Validates that the encryption context from the decrypted message matches the expected values.
+    /// </summary>
+    /// <param name="actualContext">The encryption context from the decrypted message.</param>
+    /// <param name="expectedContext">The expected encryption context values.</param>
+    /// <param name="fieldName">The field name for error reporting.</param>
+    /// <param name="contextId">The context ID for error reporting.</param>
+    /// <exception cref="FieldEncryptionException">Thrown when the encryption context validation fails.</exception>
+    /// <remarks>
+    /// <para>
+    /// This validation ensures that the ciphertext was encrypted for the expected field and context.
+    /// It prevents accidental decryption of data intended for a different field or tenant.
+    /// </para>
+    /// </remarks>
+    private static void ValidateEncryptionContext(
+        Dictionary<string, string>? actualContext,
+        Dictionary<string, string> expectedContext,
+        string fieldName,
+        string? contextId)
+    {
+        if (actualContext == null)
+        {
+            throw new FieldEncryptionException(
+                $"Encryption context validation failed for field '{fieldName}': No encryption context found in ciphertext.",
+                fieldName,
+                contextId,
+                null);
+        }
+
+        // Validate field name is present and matches
+        if (!actualContext.TryGetValue("field", out var actualFieldName) || actualFieldName != expectedContext["field"])
+        {
+            var actualFieldDisplay = actualFieldName ?? "(missing)";
+            throw new FieldEncryptionException(
+                $"Encryption context validation failed for field '{fieldName}': Expected field '{expectedContext["field"]}', found '{actualFieldDisplay}'.",
+                fieldName,
+                contextId,
+                null);
+        }
+
+        // Validate context ID if expected (Requirements 3.2, 3.3)
+        if (expectedContext.TryGetValue("context", out var expectedContextId))
+        {
+            if (!actualContext.TryGetValue("context", out var actualContextId) || actualContextId != expectedContextId)
+            {
+                var actualContextDisplay = actualContextId ?? "(missing)";
+                throw new FieldEncryptionException(
+                    $"Encryption context validation failed for field '{fieldName}': Expected context '{expectedContextId}', found '{actualContextDisplay}'.",
+                    fieldName,
+                    contextId,
+                    null);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds a descriptive error message for decryption failures.
+    /// </summary>
+    /// <param name="ex">The exception that caused the failure.</param>
+    /// <param name="fieldName">The field name being decrypted.</param>
+    /// <param name="keyArn">The KMS key ARN that was used.</param>
+    /// <returns>A descriptive error message.</returns>
+    private static string BuildDecryptionErrorMessage(Exception ex, string fieldName, string? keyArn)
+    {
+        // Check for common KMS-related errors and provide clear messages (Requirements 3.4, 3.5)
+        var exceptionMessage = ex.Message;
+        var innerMessage = ex.InnerException?.Message ?? string.Empty;
+        var combinedMessage = $"{exceptionMessage} {innerMessage}".ToLowerInvariant();
+
+        if (combinedMessage.Contains("access denied") || combinedMessage.Contains("accessdenied"))
+        {
+            return $"KMS access denied for key '{keyArn}'. Verify IAM permissions for kms:Decrypt.";
+        }
+
+        if (combinedMessage.Contains("not found") || combinedMessage.Contains("notfound") || 
+            combinedMessage.Contains("does not exist"))
+        {
+            return $"KMS key '{keyArn}' not found or disabled. Verify the key ARN is correct and the key is enabled.";
+        }
+
+        if (combinedMessage.Contains("invalid ciphertext") || combinedMessage.Contains("invalidciphertext") ||
+            combinedMessage.Contains("cannot decrypt"))
+        {
+            return $"Failed to decrypt field '{fieldName}': The ciphertext may have been encrypted with a different key or is corrupted.";
+        }
+
+        // Default error message
+        return $"Failed to decrypt field '{fieldName}': {ex.Message}";
     }
 
     /// <summary>
@@ -292,30 +399,4 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
 
         return encryptionContext;
     }
-}
-
-/// <summary>
-/// Configuration for data key caching in the AWS Encryption SDK.
-/// </summary>
-internal sealed class CachingConfiguration
-{
-    /// <summary>
-    /// Gets or sets the maximum age (TTL) for cached data keys in seconds.
-    /// </summary>
-    public int MaxAge { get; set; }
-
-    /// <summary>
-    /// Gets or sets the maximum number of messages that can be encrypted with a single data key.
-    /// </summary>
-    public int MaxMessagesPerDataKey { get; set; }
-
-    /// <summary>
-    /// Gets or sets the maximum number of bytes that can be encrypted with a single data key.
-    /// </summary>
-    public long MaxBytesPerDataKey { get; set; }
-
-    /// <summary>
-    /// Gets or sets the maximum number of entries in the cache.
-    /// </summary>
-    public int MaxCacheEntries { get; set; }
 }
