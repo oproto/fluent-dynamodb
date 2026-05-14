@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   validate-tag:
@@ -390,3 +391,108 @@ jobs:
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🔗 [View Release](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)" >> $GITHUB_STEP_SUMMARY
+
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-packages, create-release]
+    environment: production
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: nuget-packages
+          path: ./packages
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Get NuGet API key via Trusted Publishing
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push packages to NuGet.org
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          echo "🚀 Publishing packages for version: $VERSION"
+          echo ""
+
+          FAILED=0
+
+          for package in ./packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              echo "Publishing: $PACKAGE_NAME"
+
+              if dotnet nuget push "$package" \
+                --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate \
+                --timeout 300; then
+                echo "  ✅ Published: $PACKAGE_NAME"
+              else
+                echo "  ❌ Failed: $PACKAGE_NAME"
+                FAILED=$((FAILED + 1))
+              fi
+              echo ""
+            fi
+          done
+
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ $FAILED package(s) failed to publish"
+            exit 1
+          fi
+
+          echo "✅ All packages published successfully"
+
+      - name: Push symbol packages
+        run: |
+          echo "🔍 Publishing symbol packages..."
+
+          for package in ./packages/*.snupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              echo "Publishing symbols: $PACKAGE_NAME"
+
+              dotnet nuget push "$package" \
+                --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate \
+                --timeout 300 || echo "  ⚠️  Symbol push failed (non-fatal): $PACKAGE_NAME"
+            fi
+          done
+
+          echo "✅ Symbol publishing complete"
+
+      - name: Publish summary
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+
+          echo "# 🚀 NuGet Publish Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** https://www.nuget.org" >> $GITHUB_STEP_SUMMARY
+          echo "**Auth:** Trusted Publishing (OIDC)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Published Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          for package in ./packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package")
+              PACKAGE_ID=$(echo "$PACKAGE_NAME" | sed "s/\.$VERSION\.nupkg//")
+              echo "- [\`$PACKAGE_ID\`](https://www.nuget.org/packages/$PACKAGE_ID/$VERSION)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "⏱️ Packages may take a few minutes to appear on nuget.org after publishing." >> $GITHUB_STEP_SUMMARY
