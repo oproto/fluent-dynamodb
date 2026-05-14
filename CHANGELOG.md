@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-13
+
 ### Added
 
 - **String CompareTo Support in Lambda Expressions** - Added support for `string.CompareTo()` method in lambda expressions for string range comparisons
