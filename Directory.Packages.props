@@ -9,8 +9,8 @@
   <ItemGroup>
     <PackageVersion Include="AWSSDK.DynamoDBv2" Version="[4.0.0,5.0.0)" />
     <PackageVersion Include="AWSSDK.S3" Version="[4.0.0,5.0.0)" />
-    <PackageVersion Include="AWSSDK.KeyManagementService" Version="[4.0.0,5.0.0)" />
-    <PackageVersion Include="AWS.Cryptography.EncryptionSDK" Version="[4.0.0,5.0.0)" />
+    <PackageVersion Include="AWSSDK.KeyManagementService" Version="[4.0.9.4,5.0.0)" />
+    <PackageVersion Include="AWS.Cryptography.EncryptionSDK" Version="[5.0.0,6.0.0)" />
     <PackageVersion Include="Amazon.Lambda.DynamoDBEvents" Version="[3.1.1,4.0.0)" />
   </ItemGroup>
   

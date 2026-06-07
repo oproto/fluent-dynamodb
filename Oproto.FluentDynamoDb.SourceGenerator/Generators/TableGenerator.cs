@@ -97,6 +97,7 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Hydration;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Validation;");
@@ -266,6 +267,7 @@ internal static class TableGenerator
         sb.AppendLine("using Oproto.FluentDynamoDb.Requests.Extensions;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Storage;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
+        sb.AppendLine("using Oproto.FluentDynamoDb.Hydration;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Utility;");
         sb.AppendLine("using Oproto.FluentDynamoDb.Validation;");
@@ -452,6 +454,15 @@ internal static class TableGenerator
             var propertyName = GetEntityPropertyName(entity);
             var accessorClassName = $"{entity.ClassName}Accessor";
             sb.AppendLine($"        {propertyName} = new {accessorClassName}(this);");
+        }
+        
+        // Auto-register hydrators for entities that require async serialization (encryption/blob storage)
+        foreach (var entity in entities)
+        {
+            if (HydratorGenerator.RequiresHydrator(entity))
+            {
+                sb.AppendLine($"        DefaultEntityHydratorRegistry.Instance.Register{entity.ClassName}Hydrator();");
+            }
         }
         
         sb.AppendLine($"    }}");
@@ -1322,7 +1333,7 @@ internal static class TableGenerator
         sb.AppendLine($"        /// </summary>");
         sb.AppendLine($"        /// <returns>A ScanRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
         sb.AppendLine($"        {modifier} ScanRequestBuilder<{entity.ClassName}> Scan() =>");
-        sb.AppendLine($"            new ScanRequestBuilder<{entity.ClassName}>(_table.DynamoDbClient).ForTable(_table.Name);");
+        sb.AppendLine($"            new ScanRequestBuilder<{entity.ClassName}>(_table.DynamoDbClient, _table.GetOptions()).ForTable(_table.Name);");
         sb.AppendLine();
         
         // Expression-based Scan(string, params object[]) method
@@ -2018,6 +2029,13 @@ internal static class TableGenerator
         sb.AppendLine($"        Options = options ?? new FluentDynamoDbOptions();");
         sb.AppendLine($"        Logger = Options.Logger;");
         sb.AppendLine($"        FieldEncryptor = Options.FieldEncryptor;");
+        
+        // Auto-register hydrator for entities that require async serialization (encryption/blob storage)
+        if (HydratorGenerator.RequiresHydrator(entity))
+        {
+            sb.AppendLine($"        DefaultEntityHydratorRegistry.Instance.Register{entity.ClassName}Hydrator();");
+        }
+        
         sb.AppendLine($"    }}");
         sb.AppendLine();
     }
@@ -2335,7 +2353,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    /// <returns>A ScanRequestBuilder&lt;{entity.ClassName}&gt; configured for this table.</returns>");
         sb.AppendLine($"    public ScanRequestBuilder<{entity.ClassName}> Scan() =>");
-        sb.AppendLine($"        new ScanRequestBuilder<{entity.ClassName}>(DynamoDbClient).ForTable(Name);");
+        sb.AppendLine($"        new ScanRequestBuilder<{entity.ClassName}>(DynamoDbClient, Options).ForTable(Name);");
         sb.AppendLine();
 
         // Expression-based Scan(string, params object[]) method
@@ -3407,7 +3425,7 @@ internal static class TableGenerator
         sb.AppendLine("    /// Creates a new ConditionCheck operation builder for this table.");
         sb.AppendLine("    /// </summary>");
         sb.AppendLine("    public ConditionCheckBuilder<TEntity> ConditionCheck<TEntity>() where TEntity : class =>");
-        sb.AppendLine("        new ConditionCheckBuilder<TEntity>(DynamoDbClient, Name);");
+        sb.AppendLine("        new ConditionCheckBuilder<TEntity>(DynamoDbClient, Name, Options);");
         sb.AppendLine();
         
         // PutAsync<TEntity>(entity) method

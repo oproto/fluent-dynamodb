@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Automatic Hydrator Registration** - Generated table constructors now auto-register hydrators for entities with `[Encrypted]` or blob storage properties. Previously, users had to manually call `DefaultEntityHydratorRegistry.Instance.Register{Entity}Hydrator()` before any Put/Get operations would work on encrypted entities. This is now handled automatically when the table is instantiated.
+
+- **Encrypted Entity Read Operations** - Fixed `NotSupportedException` on `GetItemAsync`, `ToListAsync` (Query), and `ToListAsync` (Scan) for entities with `[Encrypted]` properties. These methods called the sync `FromDynamoDb` stub directly instead of using the registered hydrator for async deserialization. They now check the hydrator registry and use `HydrateAsync` when a hydrator is available.
+
+- **Options Not Passed to Scan Builder** - The generated `Scan()` method on entity accessors and single-entity tables created a `ScanRequestBuilder` without passing `FluentDynamoDbOptions`. This meant the hydrator had no access to the configured `IFieldEncryptor` during deserialization, causing "no IFieldEncryptor is configured" errors on encrypted entities. All generated builder instantiations now pass options through.
+
+- **Options Not Passed to ConditionCheck Builder** - The generated `ConditionCheck<T>()` method was not passing `FluentDynamoDbOptions` to the `ConditionCheckBuilder`. Fixed for consistency — ensures logger and future options are available.
+
+- **Misleading FromDynamoDb Stub Error Messages** - The generated `FromDynamoDb` stub methods always reported "has blob reference properties" regardless of whether the entity used encryption-only or blob storage. Error messages now correctly identify the entity's actual requirements (encrypted, blob, or both).
+
+### Changed
+
+- **AWS Encryption SDK Updated to 5.0.0** - Updated `AWS.Cryptography.EncryptionSDK` from `[4.0.0,5.0.0)` to `[5.0.0,6.0.0)` and `AWSSDK.KeyManagementService` minimum from `4.0.0` to `4.0.9.4`. The 4.x Encryption SDK's internal `ComAmazonawsKms 1.0.0` package was built against AWSSDK v3 and is incompatible with AWSSDK v4. Version 5.0.0 uses `ComAmazonawsKms 2.0.0` which targets AWSSDK v4. Also adapted `CreateAwsKmsKeyring` calls to provide the now-required `KmsClient` parameter with region extracted from the key ARN.
+
 ## [1.0.1] - 2026-06-06
 
 ### Fixed
