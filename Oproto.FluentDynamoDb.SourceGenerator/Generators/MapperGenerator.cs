@@ -328,31 +328,97 @@ internal static class MapperGenerator
 
     private static void GenerateFromDynamoDbSingleStubMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
-        sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
+        
+        if (hasBlobStorage && hasEncryptedProperties)
+        {
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob storage and encrypted properties and requires async methods.");
+        }
+        else if (hasEncryptedProperties)
+        {
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has encrypted properties and requires async methods.");
+        }
+        else
+        {
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob storage properties and requires async methods.");
+        }
+        
         sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
         sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity");
         sb.AppendLine("        {");
-        sb.AppendLine($"            throw new NotSupportedException(");
-        sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
-        sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        
+        if (hasBlobStorage && hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage and encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider and IFieldEncryptor instead.\");");
+        }
+        else if (hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use FromDynamoDbAsync with an IFieldEncryptor instead.\");");
+        }
+        else
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        }
+        
         sb.AppendLine("        }");
     }
 
     private static void GenerateFromDynamoDbMultiStubMethod(StringBuilder sb, EntityModel entity)
     {
+        var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
+        var hasEncryptedProperties = entity.Properties.Any(p => p.Security?.IsEncrypted == true);
+        
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
-        sb.AppendLine("        /// Stub method for interface compliance. This entity has blob references and requires async methods.");
+        
+        if (hasBlobStorage && hasEncryptedProperties)
+        {
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob storage and encrypted properties and requires async methods.");
+        }
+        else if (hasEncryptedProperties)
+        {
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has encrypted properties and requires async methods.");
+        }
+        else
+        {
+            sb.AppendLine("        /// Stub method for interface compliance. This entity has blob storage properties and requires async methods.");
+        }
+        
         sb.AppendLine("        /// Use FromDynamoDbAsync instead.");
         sb.AppendLine("        /// </summary>");
         sb.AppendLine($"        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
-        sb.AppendLine($"            throw new NotSupportedException(");
-        sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
-        sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        
+        if (hasBlobStorage && hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage and encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider and IFieldEncryptor instead.\");");
+        }
+        else if (hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use FromDynamoDbAsync with an IFieldEncryptor instead.\");");
+        }
+        else
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob reference properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use FromDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        }
+        
         sb.AppendLine("        }");
     }
 

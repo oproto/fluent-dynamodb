@@ -56,7 +56,16 @@ public static class EntityExecuteAsyncExtensions
             if (response.Item == null || !T.MatchesEntity(response.Item))
                 return null;
 
-            return T.FromDynamoDb<T>(response.Item, builder.GetOptions());
+            // Check if a hydrator is registered for async deserialization (encrypted/blob entities)
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry?.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var blobProvider = options.BlobStorageProvider;
+                return await hydrator.HydrateAsync(response.Item, blobProvider, options, cancellationToken).ConfigureAwait(false);
+            }
+
+            return T.FromDynamoDb<T>(response.Item, options);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -186,8 +195,22 @@ public static class EntityExecuteAsyncExtensions
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
             var options = builder.GetOptions();
-            var entityItems = items
-                .Where(T.MatchesEntity)
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
+            
+            // Check if a hydrator is registered for async deserialization (encrypted/blob entities)
+            var hydrator = options.HydratorRegistry?.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var blobProvider = options.BlobStorageProvider;
+                var results = new List<T>(matchingItems.Count);
+                foreach (var item in matchingItems)
+                {
+                    results.Add(await hydrator.HydrateAsync(item, blobProvider, options, cancellationToken).ConfigureAwait(false));
+                }
+                return results;
+            }
+            
+            var entityItems = matchingItems
                 .Select(item => T.FromDynamoDb<T>(item, options))
                 .ToList();
 
@@ -741,8 +764,22 @@ public static class EntityExecuteAsyncExtensions
 
             // Each DynamoDB item becomes a separate T instance (1:1 mapping)
             var options = builder.GetOptions();
-            var entityItems = items
-                .Where(T.MatchesEntity)
+            var matchingItems = items.Where(T.MatchesEntity).ToList();
+            
+            // Check if a hydrator is registered for async deserialization (encrypted/blob entities)
+            var hydrator = options.HydratorRegistry?.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var blobProvider = options.BlobStorageProvider;
+                var results = new List<T>(matchingItems.Count);
+                foreach (var item in matchingItems)
+                {
+                    results.Add(await hydrator.HydrateAsync(item, blobProvider, options, cancellationToken).ConfigureAwait(false));
+                }
+                return results;
+            }
+            
+            var entityItems = matchingItems
                 .Select(item => T.FromDynamoDb<T>(item, options))
                 .ToList();
 

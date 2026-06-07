@@ -100,7 +100,8 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
             // When caching is disabled, create a new keyring for each operation
             return _materialProviders.CreateAwsKmsKeyring(new CreateAwsKmsKeyringInput
             {
-                KmsKeyId = keyArn
+                KmsKeyId = keyArn,
+                KmsClient = CreateKmsClient(keyArn)
             });
         }
 
@@ -113,8 +114,30 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         return _keyringCache.GetOrAdd(cacheKey, _ =>
             _materialProviders.CreateAwsKmsKeyring(new CreateAwsKmsKeyringInput
             {
-                KmsKeyId = keyArn
+                KmsKeyId = keyArn,
+                KmsClient = CreateKmsClient(keyArn)
             }));
+    }
+
+    /// <summary>
+    /// Creates a KMS client configured with the region extracted from the key ARN.
+    /// </summary>
+    private static Amazon.KeyManagementService.AmazonKeyManagementServiceClient CreateKmsClient(string keyArn)
+    {
+        // ARN format: arn:aws:kms:{region}:{account}:key/{keyId}
+        var parts = keyArn.Split(':');
+        if (parts.Length >= 4 && !string.IsNullOrWhiteSpace(parts[3]))
+        {
+            var region = Amazon.RegionEndpoint.GetBySystemName(parts[3]);
+            return new Amazon.KeyManagementService.AmazonKeyManagementServiceClient(region);
+        }
+
+        // Fallback — let the SDK resolve from environment/config
+        return new Amazon.KeyManagementService.AmazonKeyManagementServiceClient(
+            new Amazon.KeyManagementService.AmazonKeyManagementServiceConfig
+            {
+                RegionEndpoint = Amazon.RegionEndpoint.USEast1
+            });
     }
 
     /// <inheritdoc />

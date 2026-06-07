@@ -7,7 +7,6 @@ using EncryptionDemo.Entities;
 using Examples.Shared;
 using Oproto.FluentDynamoDb;
 using Oproto.FluentDynamoDb.Encryption.Kms;
-using Oproto.FluentDynamoDb.Hydration;
 using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -55,9 +54,6 @@ else
 {
     ConsoleHelpers.ShowInfo($"Table '{TableName}' already exists");
 }
-
-// Register the source-generated hydrator for async encryption serialization
-DefaultEntityHydratorRegistry.Instance.RegisterSecureRecordHydrator();
 
 // Configure FluentDynamoDbOptions with logger and optional encryptor
 var logger = new ConsoleLogger(LogLevel.Debug);
