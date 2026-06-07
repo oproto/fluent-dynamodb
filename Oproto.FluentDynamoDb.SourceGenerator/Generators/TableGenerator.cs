@@ -719,8 +719,7 @@ internal static class TableGenerator
         sb.AppendLine($"        /// <returns>A PutItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the entity.</returns>");
         sb.AppendLine($"        {modifier} PutItemRequestBuilder<{entity.ClassName}> Put({entity.ClassName} entity)");
         sb.AppendLine($"        {{");
-        sb.AppendLine($"            var item = {entity.ClassName}.ToDynamoDb(entity, _table.Options);");
-        sb.AppendLine($"            return _table.Put<{entity.ClassName}>().WithItem(item);");
+        sb.AppendLine($"            return _table.Put<{entity.ClassName}>().WithItem(entity);");
         sb.AppendLine($"        }}");
         sb.AppendLine();
         
@@ -2141,8 +2140,7 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </example>");
         sb.AppendLine($"    public PutItemRequestBuilder<{entity.ClassName}> Put({entity.ClassName} entity)");
         sb.AppendLine($"    {{");
-        sb.AppendLine($"        var item = {entity.ClassName}.ToDynamoDb(entity, Options);");
-        sb.AppendLine($"        return Put<{entity.ClassName}>().WithItem(item);");
+        sb.AppendLine($"        return Put<{entity.ClassName}>().WithItem(entity);");
         sb.AppendLine($"    }}");
         sb.AppendLine();
         
