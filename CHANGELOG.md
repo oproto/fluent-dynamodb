@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-06-07
+
 ### Fixed
 
 - **Automatic Hydrator Registration** - Generated table constructors now auto-register hydrators for entities with `[Encrypted]` or blob storage properties. Previously, users had to manually call `DefaultEntityHydratorRegistry.Instance.Register{Entity}Hydrator()` before any Put/Get operations would work on encrypted entities. This is now handled automatically when the table is instantiated.
