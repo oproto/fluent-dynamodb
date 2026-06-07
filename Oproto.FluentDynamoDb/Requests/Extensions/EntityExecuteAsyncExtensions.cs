@@ -619,7 +619,8 @@ public static class EntityExecuteAsyncExtensions
     /// <summary>
     /// Configures the PutItem operation to use a strongly-typed entity.
     /// The entity is automatically converted to DynamoDB AttributeValue format.
-    /// For multi-item entities, only the first item is used for PutItem operations.
+    /// For entities with encrypted or blob storage properties, serialization is deferred
+    /// to async execution time via the builder's hydrator-aware WithItem instance method.
     /// </summary>
     /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <param name="builder">The PutItemRequestBuilder instance.</param>
@@ -631,16 +632,11 @@ public static class EntityExecuteAsyncExtensions
         T item)
         where T : class, IDynamoDbEntity
     {
-        try
-        {
-            var attributeDict = T.ToDynamoDb(item, builder.GetOptions());
-            return builder.WithItem(attributeDict);
-        }
-        catch (Exception ex)
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to convert {typeof(T).Name} entity to DynamoDB format. Error: {ex.Message}", ex);
-        }
+        // Delegate to the builder's instance method which handles:
+        // - Hydrator-based deferred serialization for encrypted/blob entities
+        // - NotSupportedException fallback for entities without registered hydrators
+        // - Direct synchronous serialization for standard entities
+        return builder.WithItem(item);
     }
 
     /// <summary>
