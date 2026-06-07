@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-06
+
 ### Fixed
 
 - **Encrypted Entity Put Operations** - Fixed `NotSupportedException` thrown when using `Put(entity)` on entities with `[Encrypted]` properties. Three code paths were eagerly calling the synchronous `ToDynamoDb()` stub instead of deferring serialization to async execution time via the hydrator pipeline:
