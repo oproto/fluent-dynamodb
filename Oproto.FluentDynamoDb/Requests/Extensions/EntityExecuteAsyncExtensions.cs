@@ -363,6 +363,24 @@ public static class EntityExecuteAsyncExtensions
 
             // Group items by partition key for multi-item entities
             var options = builder.GetOptions();
+            
+            // Check if a hydrator is registered for async deserialization (encrypted/blob entities)
+            var hydrator = options.HydratorRegistry?.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var blobProvider = options.BlobStorageProvider;
+                var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
+                var results = new List<T>(groups.Count);
+                foreach (var group in groups)
+                {
+                    var groupItems = group.ToList();
+                    results.Add(groupItems.Count == 1
+                        ? await hydrator.HydrateAsync(groupItems[0], blobProvider, options, cancellationToken).ConfigureAwait(false)
+                        : await hydrator.HydrateAsync(groupItems, blobProvider, options, cancellationToken).ConfigureAwait(false));
+                }
+                return results;
+            }
+            
             var entityItems = matchingItems
                 .GroupBy(T.GetPartitionKey)
                 .Select(group => group.Count() == 1
@@ -542,6 +560,15 @@ public static class EntityExecuteAsyncExtensions
             // won't match the primary entity type (e.g., Invoice)
             if (items.Count == 0)
                 return null;
+
+            // Check if a hydrator is registered for async deserialization (encrypted/blob entities)
+            var options = builder.GetOptions();
+            var hydrator = options.HydratorRegistry?.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var blobProvider = options.BlobStorageProvider;
+                return await hydrator.HydrateAsync(items, blobProvider, options, cancellationToken).ConfigureAwait(false);
+            }
 
             // Use multi-item FromDynamoDb to combine all items into single entity
             return T.FromDynamoDb<T>(items, builder.GetOptions());
@@ -916,6 +943,24 @@ public static class EntityExecuteAsyncExtensions
 
             // Group items by partition key for multi-item entities
             var options = builder.GetOptions();
+            
+            // Check if a hydrator is registered for async deserialization (encrypted/blob entities)
+            var hydrator = options.HydratorRegistry?.GetHydrator<T>();
+            if (hydrator != null)
+            {
+                var blobProvider = options.BlobStorageProvider;
+                var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
+                var results = new List<T>(groups.Count);
+                foreach (var group in groups)
+                {
+                    var groupItems = group.ToList();
+                    results.Add(groupItems.Count == 1
+                        ? await hydrator.HydrateAsync(groupItems[0], blobProvider, options, cancellationToken).ConfigureAwait(false)
+                        : await hydrator.HydrateAsync(groupItems, blobProvider, options, cancellationToken).ConfigureAwait(false));
+                }
+                return results;
+            }
+            
             var entityItems = matchingItems
                 .GroupBy(T.GetPartitionKey)
                 .Select(group => group.Count() == 1
