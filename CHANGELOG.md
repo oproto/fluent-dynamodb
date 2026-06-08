@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-06-08
+
 ### Fixed
 
 - **Encrypted Composite Entity Read Operations** - Fixed `NotSupportedException` on `ToCompositeEntityAsync` and `ToCompositeEntityListAsync` (Query/Scan) for entities with `[Encrypted]` properties. These methods called the sync multi-item `FromDynamoDb` stub directly instead of using the registered hydrator.
