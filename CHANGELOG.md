@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+## [1.0.4] - 2026-06-11
+
+- **Bare Boolean Expression Translation** - Fixed `ExpressionTranslator` producing invalid DynamoDB syntax for bare boolean property access in filter and condition expressions. `!x.IsDeleted` generated `NOT (#attr0)` and `x.IsActive` generated just `#attr0` — neither is a valid DynamoDB condition. They now correctly translate to `#attr0 = :p0` with the appropriate BOOL value (false for negation, true for affirmative). Affects top-level booleans, booleans in compound AND/OR expressions, and nested boolean properties (e.g., `x.Settings.IsEnabled`).
+
 ## [1.0.3] - 2026-06-08
 
 ### Fixed
