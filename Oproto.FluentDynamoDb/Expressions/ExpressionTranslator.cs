@@ -196,6 +196,24 @@ public class ExpressionTranslator
         // Get the entity parameter (the 'x' in 'x => x.Id == value')
         var entityParameter = expression.Parameters[0];
 
+        // Check if the body is a bare boolean member expression (e.g., x => x.IsActive)
+        var body = expression.Body;
+        // Strip potential Convert/ConvertChecked wrapper
+        var actualBody = body;
+        if (actualBody.NodeType == ExpressionType.Convert || actualBody.NodeType == ExpressionType.ConvertChecked)
+        {
+            actualBody = ((UnaryExpression)actualBody).Operand;
+        }
+        
+        if (actualBody is MemberExpression
+            && actualBody.Type == typeof(bool)
+            && IsEntityPropertyAccess(actualBody, entityParameter))
+        {
+            // Visit the body to get the attribute path, then translate as equality with true
+            var attributePath = Visit(body, entityParameter, context);
+            return TranslateBooleanMemberAsCondition(attributePath, true, context);
+        }
+
         // Visit the body of the lambda expression
         var result = Visit(expression.Body, entityParameter, context);
         
@@ -327,8 +345,9 @@ public class ExpressionTranslator
             }
             
             // AND/OR between entity conditions or with ternary expressions - visit both sides
-            var left = Visit(node.Left, entityParameter, context);
-            var right = Visit(node.Right, entityParameter, context);
+            // Check if either operand is a bare boolean member expression
+            var left = VisitBinaryOperandWithBooleanCheck(node.Left, entityParameter, context);
+            var right = VisitBinaryOperandWithBooleanCheck(node.Right, entityParameter, context);
             var op = node.NodeType == ExpressionType.AndAlso ? "AND" : "OR";
             
             // Handle sentinel values from conditional expressions
@@ -859,12 +878,85 @@ public class ExpressionTranslator
     }
 
     /// <summary>
+    /// Translates a boolean member expression into a valid DynamoDB equality condition.
+    /// Converts a bare boolean attribute path (e.g., <c>#attr0</c>) into an equality comparison
+    /// against a boolean literal value (e.g., <c>#attr0 = :p0</c>).
+    /// </summary>
+    /// <param name="attributePath">The already-visited attribute path string (e.g., <c>#attr0</c> or <c>#attr0.#attr1</c>).</param>
+    /// <param name="boolValue">The boolean literal value to compare against (true or false).</param>
+    /// <param name="context">The expression context for registering attribute values.</param>
+    /// <returns>A valid DynamoDB condition string in the form <c>{attributePath} = :pN</c>.</returns>
+    private string TranslateBooleanMemberAsCondition(string attributePath, bool boolValue, ExpressionContext context)
+    {
+        // Register the BOOL attribute value
+        var attributeValue = new AttributeValue { BOOL = boolValue, IsBOOLSet = true };
+        var parameterName = context.ParameterGenerator.GenerateParameterName();
+        context.AttributeValues.AttributeValues.Add(parameterName, attributeValue);
+
+        // Build the equality condition string: "{attributePath} = {parameterName}"
+        var sb = new StringBuilder(attributePath.Length + parameterName.Length + 3);
+        sb.Append(attributePath).Append(" = ").Append(parameterName);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Visits a binary operand, detecting bare boolean member expressions and translating
+    /// them as equality comparisons with <c>true</c> instead of returning just the attribute path.
+    /// </summary>
+    /// <param name="operand">The operand expression from a binary AND/OR node.</param>
+    /// <param name="entityParameter">The entity lambda parameter.</param>
+    /// <param name="context">The expression context.</param>
+    /// <returns>A translated DynamoDB expression string for the operand.</returns>
+    private string VisitBinaryOperandWithBooleanCheck(Expression operand, ParameterExpression entityParameter, ExpressionContext context)
+    {
+        // Strip potential Convert/ConvertChecked wrapper
+        var actualOperand = operand;
+        if (actualOperand.NodeType == ExpressionType.Convert || actualOperand.NodeType == ExpressionType.ConvertChecked)
+        {
+            actualOperand = ((UnaryExpression)actualOperand).Operand;
+        }
+
+        // Check if operand is a bare boolean member expression
+        if (actualOperand is MemberExpression
+            && actualOperand.Type == typeof(bool)
+            && IsEntityPropertyAccess(actualOperand, entityParameter))
+        {
+            var attributePath = Visit(operand, entityParameter, context);
+            return TranslateBooleanMemberAsCondition(attributePath, true, context);
+        }
+
+        // Also handle negated boolean: !x.BoolProp in AND/OR
+        // This is already handled by VisitUnary (task 3.2), so normal Visit will produce the correct result
+
+        return Visit(operand, entityParameter, context);
+    }
+
+    /// <summary>
     /// Visits a unary expression node (operators like !).
     /// </summary>
     private string VisitUnary(UnaryExpression node, ParameterExpression entityParameter, ExpressionContext context)
     {
         if (node.NodeType == ExpressionType.Not)
         {
+            // Check if operand is a bare boolean member expression (entity property access)
+            // Strip potential Convert/ConvertChecked wrapper to get the actual operand
+            var actualOperand = node.Operand;
+            if (actualOperand.NodeType == ExpressionType.Convert || actualOperand.NodeType == ExpressionType.ConvertChecked)
+            {
+                actualOperand = ((UnaryExpression)actualOperand).Operand;
+            }
+
+            if (actualOperand is MemberExpression
+                && actualOperand.Type == typeof(bool)
+                && IsEntityPropertyAccess(actualOperand, entityParameter))
+            {
+                // Visit the operand to get the attribute path (e.g., "#attr0" or "#attr0.#attr1")
+                var attributePath = Visit(node.Operand, entityParameter, context);
+                // Translate as equality comparison with false
+                return TranslateBooleanMemberAsCondition(attributePath, false, context);
+            }
+
+            // Non-boolean operands (comparisons, method calls) get NOT(...) wrapping
             var operand = Visit(node.Operand, entityParameter, context);
             
             // Use StringBuilder to minimize allocations

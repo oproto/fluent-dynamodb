@@ -1,0 +1,114 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Bare Boolean Expression Produces Invalid DynamoDB Syntax
+  - **IMPORTANT**: Write this property-based test BEFORE implementing the fix
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: Scope the property to the concrete failing cases: negated bare boolean (`!x.IsDeleted`), affirmative bare boolean (`x.IsActive`), negated nested boolean (`!x.Settings.IsEnabled`), affirmative nested boolean (`x.Settings.IsEnabled`), and bare boolean in compound expression (`x.IsActive && x.Age > 18`)
+  - Bug Condition from design: `isBugCondition(input)` is true when input is a UnaryExpression(Not) with a boolean MemberExpression operand that is entity property access, OR when input is a boolean MemberExpression used as a standalone condition operand (in AND/OR or as top-level body)
+  - Test that `ExpressionTranslator.Translate(x => !x.IsDeleted, context)` produces `#attr0 = :p0` where `:p0` has BOOL value `false`
+  - Test that `ExpressionTranslator.Translate(x => x.IsActive, context)` produces `#attr0 = :p0` where `:p0` has BOOL value `true`
+  - Test that `ExpressionTranslator.Translate(x => !x.Settings.IsEnabled, context)` produces `#attr0.#attr1 = :p0` where `:p0` has BOOL value `false`
+  - Test that `ExpressionTranslator.Translate(x => x.Settings.IsEnabled, context)` produces `#attr0.#attr1 = :p0` where `:p0` has BOOL value `true`
+  - Test that `ExpressionTranslator.Translate(x => x.IsActive && x.Age > 18, context)` produces `(#attr0 = :p0) AND (#attr1 > :p1)` where `:p0` has BOOL value `true`
+  - Create test file: `Oproto.FluentDynamoDb.UnitTests/Expressions/ExpressionTranslatorBooleanBugExplorationTests.cs`
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests FAIL (this is correct - it proves the bug exists by showing invalid output like `NOT (#attr0)` or bare `#attr0`)
+  - Document counterexamples found (e.g., "Translate(x => !x.IsDeleted) produces `NOT (#attr0)` instead of `#attr0 = :p0` with BOOL false")
+  - Mark task complete when tests are written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Boolean NOT Expressions and Explicit Comparisons Unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs (cases where `isBugCondition` returns false)
+  - Observe: `ExpressionTranslator.Translate(x => !(x.Age > 18), context)` produces `NOT (#attr0 > :p0)` on unfixed code
+  - Observe: `ExpressionTranslator.Translate(x => !(x.Name == "John"), context)` produces `NOT (#attr0 = :p0)` on unfixed code
+  - Observe: `ExpressionTranslator.Translate(x => x.IsActive == true, context)` produces `#attr0 = :p0` with BOOL true on unfixed code
+  - Observe: `ExpressionTranslator.Translate(x => x.IsDeleted == false, context)` produces `#attr0 = :p0` with BOOL false on unfixed code
+  - Observe: `ExpressionTranslator.Translate(x => !(x.Name.Contains("test")), context)` produces `NOT (contains(#attr0, :p0))` on unfixed code
+  - Observe: `ExpressionTranslator.Translate(x => x.IsActive == true && x.Age > 18, context)` produces `(#attr0 = :p0) AND (#attr1 > :p1)` on unfixed code
+  - Write property-based tests asserting these observed outputs are preserved across the non-bug-condition input domain
+  - Property: for all negated comparison expressions (NOT with non-boolean-member operand), the translator produces `NOT (...)` wrapping
+  - Property: for all explicit boolean comparisons (`x.BoolProp == true/false`), the translator produces `#attrN = :pM` with correct BOOL value
+  - Create test file: `Oproto.FluentDynamoDb.UnitTests/Expressions/ExpressionTranslatorBooleanPreservationTests.cs`
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 3. Fix for bare boolean expression translation in ExpressionTranslator
+  - [x] 3.1 Create TranslateBooleanMemberAsCondition helper method
+    - Add private helper method to ExpressionTranslator class in Oproto.FluentDynamoDb/Expressions/ExpressionTranslator.cs
+    - Method takes a `MemberExpression` (or the already-visited attribute path string), a `bool boolValue`, and an `ExpressionContext`
+    - Method registers a BOOL attribute value (true or false) in `context.AttributeValues`
+    - Method returns `{attributePath} = :pN` string
+    - Helper centralizes the boolean-to-equality translation logic used by VisitUnary, VisitBinary, and top-level handling
+    - _Bug_Condition: isBugCondition(input) where input.Operand IS MemberExpression AND input.Operand.Type == typeof(bool) AND IsEntityPropertyAccess(input.Operand)_
+    - _Expected_Behavior: Returns "{attrPath} = :pN" with context.AttributeValues[":pN"].BOOL == boolValue_
+    - _Preservation: Non-boolean members are never passed to this helper_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 3.2 Modify `VisitUnary` to detect boolean member operand in NOT
+    - In `VisitUnary` method (~line 864 of ExpressionTranslator.cs), before the existing `NOT (...)` wrapping logic
+    - Add check: if `node.Operand` is a `MemberExpression` (or resolves to one through Convert) with `Type == typeof(bool)` AND `IsEntityPropertyAccess(node.Operand, entityParameter)` is true
+    - If condition matches: visit the operand to get the attribute path, then call `TranslateBooleanMemberAsCondition` with `boolValue = false`
+    - If condition does NOT match: fall through to existing `NOT (...)` wrapping behavior (preserves `!(x.Age > 18)`, `!(x.Name.Contains("test"))`)
+    - _Bug_Condition: isBugCondition(input) where input IS UnaryExpression(Not) AND input.Operand IS boolean MemberExpression_
+    - _Expected_Behavior: Produces "#attrN = :pM" where :pM has BOOL value false_
+    - _Preservation: Non-boolean NOT operands (comparisons, method calls) continue to produce "NOT (...)" wrapping_
+    - _Requirements: 2.1, 2.3, 3.1, 3.2, 3.4_
+  - [x] 3.3 Modify `VisitBinary` to detect bare boolean member in AND/OR operands
+    - In `VisitBinary` method, when handling `AndAlso` or `OrElse` binary expressions
+    - Before visiting left/right operands, check if the operand is a `MemberExpression` with `Type == typeof(bool)` AND `IsEntityPropertyAccess(operand, entityParameter)`
+    - If condition matches for an operand: call `TranslateBooleanMemberAsCondition` with `boolValue = true` instead of normal `Visit`
+    - If condition does NOT match: use normal `Visit` dispatch (preserves all existing comparison and method call operands)
+    - Handle both left and right operands independently
+    - _Bug_Condition: isBugCondition(input) where input IS MemberExpression(bool) used as operand of AND/OR_
+    - _Expected_Behavior: Boolean operands in AND/OR produce "#attrN = :pM" with BOOL true_
+    - _Preservation: Non-boolean operands of AND/OR continue to be visited normally_
+    - _Requirements: 2.2, 2.4, 3.5_
+  - [x] 3.4 Handle top-level bare boolean body in `Translate` method
+    - In the public `Translate` method (entry point), after extracting the lambda body
+    - Check if the body expression is a `MemberExpression` with `Type == typeof(bool)` AND `IsEntityPropertyAccess(body, entityParameter)`
+    - If condition matches: call `TranslateBooleanMemberAsCondition` with `boolValue = true`
+    - If condition does NOT match: proceed with normal `Visit` dispatch
+    - This handles the case `x => x.IsActive` used as a standalone lambda (top-level body is just a member access)
+    - _Bug_Condition: isBugCondition(input) where input IS top-level MemberExpression(bool) body_
+    - _Expected_Behavior: Top-level boolean member produces "#attrN = :pM" with BOOL true_
+    - _Preservation: Non-boolean top-level expressions (comparisons, etc.) unaffected_
+    - _Requirements: 2.2, 2.4_
+  - [x] 3.5 Ensure nested boolean property support works correctly
+    - Verify that `TranslateBooleanMemberAsCondition` correctly handles nested property paths (e.g., `x.Settings.IsEnabled` producing `#attr0.#attr1`)
+    - The existing `VisitMember` already builds document paths for nested access; ensure the helper visits the member to get the full path before appending `= :pN`
+    - Test with `!x.Settings.IsEnabled` and `x.Settings.IsEnabled` patterns
+    - _Bug_Condition: Nested boolean MemberExpression (multi-level property access with bool type)_
+    - _Expected_Behavior: Nested boolean produces "#attrN.#attrM = :pK" with correct BOOL value_
+    - _Preservation: Nested non-boolean properties unaffected_
+    - _Requirements: 2.3, 2.4_
+  - [x] 3.6 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Bare Boolean Expression Produces Valid Equality Comparison
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior (assertions for `#attrN = :pM` with correct BOOL values)
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 3.7 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Boolean NOT Expressions and Explicit Comparisons Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all preservation tests still pass after fix (no regressions introduced)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run `dotnet test` to execute all unit tests in the solution
+  - Verify all existing tests in `ExpressionTranslatorOperatorTests.cs` still pass (especially `Translate_LogicalNotOperator_ShouldGenerateCorrectExpression` and `Translate_BooleanComparison_ShouldGenerateCorrectExpression`)
+  - Verify all existing tests in `ExpressionTranslatorNestedPropertyTests.cs` still pass (especially `Translate_NestedPropertyWithNotOperator_ShouldGenerateCorrectExpression` and `Translate_NestedBooleanProperty_ShouldGenerateCorrectExpression`)
+  - Verify new exploration tests from task 1 now pass
+  - Verify preservation tests from task 2 still pass
+  - Ensure no regressions across the entire test suite
+  - Ask the user if questions arise
