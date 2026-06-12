@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.0.5] - 2026-06-11
+
 - **Missing GSI/LSI on Table Creation** - Fixed two bugs that prevented Global Secondary Indexes and Local Secondary Indexes from being provisioned during programmatic table creation:
   1. `IntegrationTestBase.CreateTableAsync<TEntity>()` manually constructed a `CreateTableRequest` without reading `metadata.Indexes`, so entities with GSIs/LSIs got tables without any secondary indexes. Now delegates to `TableCreator.CreateAsync()` which already handles indexes correctly.
   2. The source-generated multi-entity `CreateTableAsync` only used the default entity's metadata, omitting indexes from non-default entities. Now aggregates indexes from all entities sharing the table into a merged metadata before calling `TableCreator`.
