@@ -142,6 +142,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     /// <summary>
     /// Creates a DynamoDB table for the specified entity type using its metadata.
     /// The table is automatically tracked for cleanup after the test completes.
+    /// Delegates to TableCreator which handles partition key, sort key, GSIs, LSIs,
+    /// attribute definitions, and billing mode.
     /// </summary>
     /// <typeparam name="TEntity">The entity type that implements IDynamoDbEntity.</typeparam>
     /// <returns>A task representing the asynchronous operation.</returns>
@@ -149,60 +151,15 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     {
         var metadata = TEntity.GetEntityMetadata();
         
-        // Find partition key property
-        var partitionKeyProp = metadata.Properties.FirstOrDefault(p => p.IsPartitionKey);
-        if (partitionKeyProp == null)
+        var creator = new Oproto.FluentDynamoDb.Provisioning.TableCreator();
+        await creator.CreateAsync(DynamoDb, TableName, metadata, new Oproto.FluentDynamoDb.Provisioning.TableCreationOptions
         {
-            throw new InvalidOperationException(
-                $"Entity {typeof(TEntity).Name} does not have a partition key property");
-        }
-        
-        var request = new CreateTableRequest
-        {
-            TableName = TableName,
-            KeySchema = new List<KeySchemaElement>
-            {
-                new KeySchemaElement
-                {
-                    AttributeName = partitionKeyProp.AttributeName,
-                    KeyType = KeyType.HASH
-                }
-            },
-            AttributeDefinitions = new List<AttributeDefinition>
-            {
-                new AttributeDefinition
-                {
-                    AttributeName = partitionKeyProp.AttributeName,
-                    AttributeType = GetScalarAttributeType(partitionKeyProp.PropertyType)
-                }
-            },
+            WaitForActive = true,
             BillingMode = BillingMode.PAY_PER_REQUEST
-        };
+        });
         
-        // Add sort key if present
-        var sortKeyProp = metadata.Properties.FirstOrDefault(p => p.IsSortKey);
-        if (sortKeyProp != null)
-        {
-            request.KeySchema.Add(new KeySchemaElement
-            {
-                AttributeName = sortKeyProp.AttributeName,
-                KeyType = KeyType.RANGE
-            });
-            
-            request.AttributeDefinitions.Add(new AttributeDefinition
-            {
-                AttributeName = sortKeyProp.AttributeName,
-                AttributeType = GetScalarAttributeType(sortKeyProp.PropertyType)
-            });
-        }
-        
-        await DynamoDb.CreateTableAsync(request);
         _tablesToCleanup.Add(TableName);
-        
         Console.WriteLine($"[Setup] Created table: {TableName}");
-        
-        // Wait for table to be active
-        await WaitForTableActiveAsync(TableName);
     }
     
     /// <summary>

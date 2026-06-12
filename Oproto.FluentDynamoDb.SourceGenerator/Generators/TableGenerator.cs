@@ -215,7 +215,7 @@ internal static class TableGenerator
         // Generate CreateTableAsync method for table creation
         if (defaultEntity != null)
         {
-            TableCreationGenerator.GenerateCreateTableAsyncMethodForMultiEntity(sb, defaultEntity);
+            TableCreationGenerator.GenerateCreateTableAsyncMethodForMultiEntity(sb, defaultEntity, entities);
         }
         else
         {

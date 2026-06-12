@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Missing GSI/LSI on Table Creation** - Fixed two bugs that prevented Global Secondary Indexes and Local Secondary Indexes from being provisioned during programmatic table creation:
+  1. `IntegrationTestBase.CreateTableAsync<TEntity>()` manually constructed a `CreateTableRequest` without reading `metadata.Indexes`, so entities with GSIs/LSIs got tables without any secondary indexes. Now delegates to `TableCreator.CreateAsync()` which already handles indexes correctly.
+  2. The source-generated multi-entity `CreateTableAsync` only used the default entity's metadata, omitting indexes from non-default entities. Now aggregates indexes from all entities sharing the table into a merged metadata before calling `TableCreator`.
+
 ## [1.0.4] - 2026-06-11
 
 - **Bare Boolean Expression Translation** - Fixed `ExpressionTranslator` producing invalid DynamoDB syntax for bare boolean property access in filter and condition expressions. `!x.IsDeleted` generated `NOT (#attr0)` and `x.IsActive` generated just `#attr0` — neither is a valid DynamoDB condition. They now correctly translate to `#attr0 = :p0` with the appropriate BOOL value (false for negation, true for affirmative). Affects top-level booleans, booleans in compound AND/OR expressions, and nested boolean properties (e.g., `x.Settings.IsEnabled`).
