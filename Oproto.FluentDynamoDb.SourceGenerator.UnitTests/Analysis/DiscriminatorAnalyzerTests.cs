@@ -173,8 +173,8 @@ public partial class TestEntity { }";
         result.Pattern.Should().Be("*USER*ADMIN*");
         result.Strategy.Should().Be(DiscriminatorStrategy.Complex);
         result.IsValid.Should().BeTrue();
-        diagnostics.Should().HaveCount(1);
-        diagnostics[0].Id.Should().Be("DISC003");
+        // Multi-wildcard patterns ending with * are valid hierarchical patterns — no DISC003
+        diagnostics.Should().BeEmpty();
     }
 
     [Fact]

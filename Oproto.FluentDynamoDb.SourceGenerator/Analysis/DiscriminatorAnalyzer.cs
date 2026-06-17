@@ -323,19 +323,30 @@ internal static class DiscriminatorAnalyzer
 
         if (wildcardCount == 2)
         {
-            // Two wildcards - must be at both ends
+            // Two wildcards - valid if at both ends (*text*) or as multi-segment pattern (text*text*)
             if (pattern.StartsWith("*") && pattern.EndsWith("*"))
             {
                 // Valid: *text*
                 return null;
             }
+            else if (pattern.EndsWith("*"))
+            {
+                // Valid: multi-segment pattern like "INVOICE#*#LINE#*"
+                return null;
+            }
             else
             {
-                return "Two wildcards must be at both the start and end of the pattern (e.g., '*text*')";
+                return "Two wildcards must either be at both ends (e.g., '*text*') or the pattern must end with a wildcard (e.g., 'PREFIX#*#SUFFIX#*')";
             }
         }
 
-        // More than 2 wildcards - complex pattern
-        return "Complex patterns with more than 2 wildcards are not supported. Use simple patterns like 'USER#*', '*#USER', or '*USER*'";
+        // More than 2 wildcards - still valid as complex multi-segment pattern if it ends with *
+        if (pattern.EndsWith("*"))
+        {
+            // Valid: multi-segment hierarchical pattern like "A#*#B#*#C#*"
+            return null;
+        }
+
+        return "Complex patterns with multiple wildcards must end with a wildcard (e.g., 'PREFIX#*#SUFFIX#*')";
     }
 }

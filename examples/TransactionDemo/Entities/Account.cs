@@ -22,7 +22,9 @@ namespace TransactionDemo.Entities;
 /// with a single Query operation using the partition key.
 /// </para>
 /// </remarks>
-[DynamoDbTable("transaction-demo", IsDefault = true)]
+[DynamoDbTable("transaction-demo", IsDefault = true,
+    DiscriminatorProperty = "sk",
+    DiscriminatorValue = "PROFILE")]
 [GenerateEntityProperty(Name = "Accounts")]
 [Scannable]
 public partial class Account

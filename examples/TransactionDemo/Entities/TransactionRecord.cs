@@ -29,7 +29,9 @@ namespace TransactionDemo.Entities;
 /// <item><description>Uniqueness via the transaction ID suffix</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbTable("transaction-demo")]
+[DynamoDbTable("transaction-demo",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "TXN#*")]
 [GenerateEntityProperty(Name = "Transactions")]
 public partial class TransactionRecord
 {

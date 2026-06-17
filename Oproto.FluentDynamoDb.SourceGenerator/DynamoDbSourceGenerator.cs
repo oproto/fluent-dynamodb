@@ -131,14 +131,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
     {
         var (entities, projectionContexts) = input;
 
-        // First, process all entities and collect valid entity models
+        // First pass: collect all valid entity models and report diagnostics
         var validEntityModels = new List<EntityModel>();
-        
-        // Discover extension methods marked with [GenerateWrapper] once for all entities
-        Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
-
-        // Track generated nested UpdateModel types to avoid duplicates across entities
-        var generatedNestedUpdateModels = new HashSet<string>();
 
         foreach (var (entity, diagnostics) in entities)
         {
@@ -151,7 +145,55 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             if (entity == null) continue;
 
             validEntityModels.Add(entity);
+        }
 
+        // Pre-pass: count entities per table for MatchesEntity tier determination
+        var entityCountByTable = validEntityModels
+            .Where(e => !string.IsNullOrEmpty(e.TableName) && !e.TableName.StartsWith("_entity_"))
+            .GroupBy(e => e.TableName)
+            .ToDictionary(g => g.Key!, g => g.Count());
+
+        foreach (var entity in validEntityModels)
+        {
+            if (!string.IsNullOrEmpty(entity.TableName) && entityCountByTable.TryGetValue(entity.TableName, out var count))
+            {
+                entity.TableEntityCount = count;
+            }
+        }
+
+        // Group entities by table name for table class generation
+        var entitiesByTable = GroupEntitiesByTableName(validEntityModels);
+
+        // Validate default entity and namespace configuration for each table
+        foreach (var tableGroup in entitiesByTable)
+        {
+            ValidateDefaultEntity(tableGroup.Value, context);
+            ValidateTableNamespaceConsistency(tableGroup.Value, context);
+        }
+
+        // Overlap analysis pass: detect discriminator pattern overlaps within each table group
+        // IMPORTANT: This must run BEFORE entity code generation so that OverlappingPatterns
+        // is populated when GenerateDiscriminatorCheck emits exclusion guards.
+        foreach (var tableGroup in entitiesByTable)
+        {
+            var tableEntities = tableGroup.Value;
+
+            var overlapDiagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
+            foreach (var diagnostic in overlapDiagnostics)
+            {
+                context.ReportDiagnostic(diagnostic);
+            }
+        }
+
+        // Second pass: generate entity implementations and other source code
+        // Discover extension methods marked with [GenerateWrapper] once for all entities
+        Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
+
+        // Track generated nested UpdateModel types to avoid duplicates across entities
+        var generatedNestedUpdateModels = new HashSet<string>();
+
+        foreach (var entity in validEntityModels)
+        {
             // Generate optimized entity implementation with mapping methods, Keys, and Fields
             var sourceCode = GenerateOptimizedEntityImplementation(entity);
             context.AddSource($"{entity.ClassName}.g.cs", sourceCode);
@@ -223,15 +265,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             }
         }
 
-        // Group entities by table name for table class generation
-        var entitiesByTable = GroupEntitiesByTableName(validEntityModels);
-
-        // Validate default entity and namespace configuration for each table
-        foreach (var tableGroup in entitiesByTable)
-        {
-            ValidateDefaultEntity(tableGroup.Value, context);
-            ValidateTableNamespaceConsistency(tableGroup.Value, context);
-        }
+        // Group entities by table name for table class generation (already done in pre-pass)
+        // entitiesByTable was populated before entity generation
 
         // Generate table classes for each table group
         foreach (var tableGroup in entitiesByTable)

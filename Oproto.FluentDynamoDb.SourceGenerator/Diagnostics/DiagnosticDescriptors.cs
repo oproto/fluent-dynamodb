@@ -623,7 +623,7 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Projections with many properties may not provide significant performance benefits.");
 
-    // Discriminator Configuration Diagnostics (DISC001-DISC003)
+    // Discriminator Configuration Diagnostics (DISC001-DISC005)
 
     /// <summary>
     /// Warning when both DiscriminatorValue and DiscriminatorPattern are specified.
@@ -660,6 +660,30 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Discriminator patterns must use valid syntax with '*' as wildcard. Complex patterns with multiple wildcards in non-standard positions may not be supported.");
+
+    /// <summary>
+    /// Error when two overlapping discriminator patterns have the same specificity score (ambiguous).
+    /// </summary>
+    public static readonly DiagnosticDescriptor AmbiguousOverlappingDiscriminatorPatterns = new(
+        "DISC004",
+        "Ambiguous overlapping discriminator patterns",
+        "Ambiguous overlapping discriminator patterns: '{0}' on {1} and '{2}' on {3} have the same specificity score on property '{4}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Two overlapping discriminator patterns with the same specificity score cannot be automatically resolved. Change one pattern to be more or less specific to resolve the ambiguity.");
+
+    /// <summary>
+    /// Informational diagnostic when overlapping discriminator patterns are resolved by specificity ordering.
+    /// </summary>
+    public static readonly DiagnosticDescriptor OverlappingDiscriminatorPatternResolved = new(
+        "DISC005",
+        "Overlapping discriminator pattern resolved",
+        "Overlapping discriminator pattern resolved: {0} excludes pattern '{1}' from more-specific entity {2}",
+        "DynamoDb",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Overlapping discriminator patterns were resolved by specificity ordering. The less-specific entity's MatchesEntity method will exclude items matching the more-specific pattern.");
 
     // Security Diagnostics (SEC001-SEC002)
 

@@ -1,551 +1,321 @@
-# Comprehensive Discriminator System Design
+# Design Document: Discriminator Enhancement — Most-Specific Pattern Matching
 
 ## Overview
 
-This design enhances the discriminator system to support multiple discriminator strategies used in single-table DynamoDB designs:
-1. **Attribute-based discriminators** (e.g., `entity_type = "USER"`)
-2. **Sort key prefix patterns** (e.g., `SK = "USER#123"`)
-3. **GSI-specific discriminators** (different from primary key discriminators)
-4. **Composite key patterns** (e.g., `PK = "TENANT#abc", SK = "USER#123"`)
+This feature enhances the existing discriminator system in the Oproto.FluentDynamoDb source generator to support most-specific pattern matching when multiple entities share a DynamoDB table and have overlapping wildcard discriminator patterns. The enhancement is entirely compile-time: the source generator analyzes all entity patterns within a table group, computes specificity scores, detects overlaps, and generates exclusion guards in the `MatchesEntity` method so that each DynamoDB item is claimed by exactly one entity type.
 
-## Problem Statement
+The primary use case is hierarchical sort key designs where parent and child entities share a common key prefix (e.g., `INVOICE#*` vs `INVOICE#*#LINE#*`). Today, both entities' `MatchesEntity` methods would return true for a child item. After this enhancement, the parent's method will exclude items that match the more-specific child pattern.
 
-Current implementation:
-- Hardcodes discriminator property as `"entity_type"`
-- Doesn't support sort-key-based discriminators
-- Doesn't handle GSI-specific discriminator strategies
-- Assumes discriminator is always a simple attribute value match
+No runtime library changes are required. All logic is resolved at compile time via pattern analysis and code generation.
 
-Real-world single-table designs use various discriminator strategies:
-- Sort key prefixes: `USER#`, `ORDER#`, `PRODUCT#`
-- Composite patterns: `TENANT#abc#USER#123`
-- GSI sort keys with different patterns than primary keys
-- Attribute-based types for some queries, key-based for others
+## Architecture
 
-## Design Goals
+The feature integrates into the existing source generator pipeline at three points:
 
-1. **Flexibility**: Support all common discriminator patterns
-2. **Backward Compatibility**: Existing code continues to work
-3. **Type Safety**: Compile-time validation where possible
-4. **Performance**: No runtime reflection or string parsing overhead
-5. **Clarity**: Clear, intuitive API for developers
-
-## Discriminator Strategies
-
-### 1. Attribute-Based Discriminator
-
-**Use Case**: Simple type field in the item
-```csharp
-[DynamoDbTable("MyTable", 
-    DiscriminatorProperty = "entity_type",
-    DiscriminatorValue = "USER")]
-public partial class User { }
+```mermaid
+flowchart TD
+    A[DynamoDbSourceGenerator.Execute] --> B[Collect valid entity models]
+    B --> C[Pre-pass: count entities per table]
+    C --> D["**NEW: Overlap Analysis Pass**<br/>PatternOverlapAnalyzer.Analyze()"]
+    D --> E[Report overlap diagnostics]
+    E --> F[Entity code generation loop]
+    F --> G["MapperGenerator.GenerateDiscriminatorCheck<br/>**MODIFIED: accepts overlap info**"]
 ```
 
-**DynamoDB Item**:
-```json
-{
-  "PK": "USER#123",
-  "SK": "METADATA",
-  "entity_type": "USER",
-  "name": "John"
-}
-```
+### Key Architectural Decisions
 
-### 2. Sort Key Prefix Pattern
+1. **Overlap analysis runs in `DynamoDbSourceGenerator.Execute`** after `GroupEntitiesByTableName` sets `TableEntityCount` but before the per-entity generation loop. This gives us a complete view of all entities per table.
 
-**Use Case**: Entity type encoded in sort key
-```csharp
-[DynamoDbTable("MyTable",
-    DiscriminatorProperty = "SK",
-    DiscriminatorPattern = "USER#*")]
-public partial class User { }
-```
+2. **Overlap information is stored on `DiscriminatorConfig`** as a list of more-specific patterns to exclude. This avoids changing the `EntityModel` shape significantly and keeps the data close to where it's consumed in `GenerateDiscriminatorCheck`.
 
-**DynamoDB Item**:
-```json
-{
-  "PK": "TENANT#abc",
-  "SK": "USER#123",
-  "name": "John"
-}
-```
+3. **Specificity is a simple segment count** — split the pattern on `*`, count non-empty segments. No regex. No weighting. This is deterministic and easy to reason about.
 
-### 3. Sort Key Exact Match
+4. **ExactMatch always wins** — assigned `int.MaxValue` specificity so it beats any wildcard pattern regardless of segment count.
 
-**Use Case**: Fixed sort key value for entity type
-```csharp
-[DynamoDbTable("MyTable",
-    DiscriminatorProperty = "SK",
-    DiscriminatorValue = "METADATA")]
-public partial class UserMetadata { }
-```
+5. **Overlap detection uses structural analysis** — two patterns overlap if one pattern's literal prefix/suffix is compatible with the other's structure. This avoids runtime string matching at compile time.
 
-**DynamoDB Item**:
-```json
-{
-  "PK": "USER#123",
-  "SK": "METADATA",
-  "email": "john@example.com"
-}
-```
+## Components and Interfaces
 
-### 4. GSI-Specific Discriminator
+### New: `PatternOverlapAnalyzer` (Analysis/)
 
-**Use Case**: Different discriminator strategy for GSI queries
-```csharp
-[DynamoDbTable("MyTable")]
-public partial class User 
-{
-    [GlobalSecondaryIndex("StatusIndex",
-        DiscriminatorProperty = "GSI1SK",
-        DiscriminatorPattern = "USER#*")]
-    public string Status { get; set; }
-}
-```
-
-**DynamoDB Item**:
-```json
-{
-  "PK": "TENANT#abc",
-  "SK": "USER#123",
-  "GSI1PK": "STATUS#ACTIVE",
-  "GSI1SK": "USER#2024-01-15",
-  "name": "John"
-}
-```
-
-## Attribute Design
-
-### Enhanced DynamoDbTableAttribute
+Static class responsible for analyzing overlap relationships between discriminator patterns within a table group.
 
 ```csharp
-[AttributeUsage(AttributeTargets.Class)]
-public class DynamoDbTableAttribute : Attribute
+internal static class PatternOverlapAnalyzer
 {
-    public string TableName { get; }
-    
     /// <summary>
-    /// The property name containing the discriminator (e.g., "entity_type", "SK", "PK").
-    /// If null, no discriminator validation is performed.
+    /// Analyzes all entities in a table group for discriminator pattern overlaps.
+    /// Populates DiscriminatorConfig.OverlappingPatterns for entities that need exclusion guards.
+    /// Reports diagnostics for ambiguous overlaps (same score) and resolved overlaps (info).
     /// </summary>
-    public string? DiscriminatorProperty { get; set; }
-    
+    public static List<Diagnostic> Analyze(List<EntityModel> tableEntities);
+
     /// <summary>
-    /// The exact value to match for this entity type.
-    /// Mutually exclusive with DiscriminatorPattern.
+    /// Computes the specificity score for a discriminator configuration.
+    /// ExactMatch returns int.MaxValue; wildcard patterns return count of non-empty literal segments.
     /// </summary>
-    public string? DiscriminatorValue { get; set; }
-    
+    public static int ComputeSpecificityScore(DiscriminatorConfig config);
+
     /// <summary>
-    /// A pattern to match for this entity type (supports * wildcard).
-    /// Examples: "USER#*", "*#USER#*", "USER"
-    /// Mutually exclusive with DiscriminatorValue.
+    /// Determines whether two discriminator patterns on the same property could match the same value.
     /// </summary>
-    public string? DiscriminatorPattern { get; set; }
-    
-    /// <summary>
-    /// Legacy property for backward compatibility.
-    /// Equivalent to setting DiscriminatorProperty="entity_type" and DiscriminatorValue.
-    /// </summary>
-    [Obsolete("Use DiscriminatorProperty and DiscriminatorValue instead")]
-    public string? EntityDiscriminator { get; set; }
+    public static bool PatternsOverlap(DiscriminatorConfig a, DiscriminatorConfig b);
 }
 ```
 
-### Enhanced GlobalSecondaryIndexAttribute
+### Modified: `DiscriminatorConfig` (Models/)
+
+Add a property to hold the list of more-specific patterns that this entity must exclude:
 
 ```csharp
-[AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
-public class GlobalSecondaryIndexAttribute : Attribute
-{
-    public string IndexName { get; }
-    public bool IsPartitionKey { get; set; }
-    public bool IsSortKey { get; set; }
-    
-    /// <summary>
-    /// GSI-specific discriminator property (overrides table-level discriminator for this GSI).
-    /// </summary>
-    public string? DiscriminatorProperty { get; set; }
-    
-    /// <summary>
-    /// GSI-specific discriminator value.
-    /// </summary>
-    public string? DiscriminatorValue { get; set; }
-    
-    /// <summary>
-    /// GSI-specific discriminator pattern.
-    /// </summary>
-    public string? DiscriminatorPattern { get; set; }
-}
-```
-
-## Pattern Matching Logic
-
-### Pattern Syntax
-
-- `*` - Wildcard matching zero or more characters
-- Exact string - Must match exactly
-- No regex support (for performance and simplicity)
-
-### Examples
-
-| Pattern | Matches | Doesn't Match |
-|---------|---------|---------------|
-| `USER#*` | `USER#123`, `USER#abc` | `ADMIN#123`, `USER` |
-| `*#USER#*` | `TENANT#abc#USER#123` | `USER#123`, `TENANT#abc` |
-| `USER` | `USER` | `USER#123`, `USERS` |
-| `*USER*` | `USER`, `USER#123`, `ADMIN#USER` | `USR`, `ADMINS` |
-
-### Generated Matching Code
-
-For attribute-based exact match:
-```csharp
-public static bool MatchesDiscriminator(Dictionary<string, AttributeValue> item)
-{
-    if (!item.TryGetValue("entity_type", out var attr))
-        return false;
-    return attr.S == "USER";
-}
-```
-
-For sort key pattern:
-```csharp
-public static bool MatchesDiscriminator(Dictionary<string, AttributeValue> item)
-{
-    if (!item.TryGetValue("SK", out var attr))
-        return false;
-    var value = attr.S;
-    return value != null && value.StartsWith("USER#");
-}
-```
-
-For complex pattern `*#USER#*`:
-```csharp
-public static bool MatchesDiscriminator(Dictionary<string, AttributeValue> item)
-{
-    if (!item.TryGetValue("SK", out var attr))
-        return false;
-    var value = attr.S;
-    return value != null && value.Contains("#USER#");
-}
-```
-
-## Source Generator Changes
-
-### EntityModel Enhancement
-
-```csharp
-public class EntityModel
+internal class DiscriminatorConfig
 {
     // ... existing properties ...
-    
-    /// <summary>
-    /// Discriminator configuration for the entity.
-    /// </summary>
-    public DiscriminatorConfig? Discriminator { get; set; }
-}
 
-public class DiscriminatorConfig
+    /// <summary>
+    /// Gets or sets the list of more-specific overlapping patterns that this entity's
+    /// MatchesEntity method must exclude. Each entry contains the pattern string and
+    /// the strategy to use for the exclusion check.
+    /// Populated by PatternOverlapAnalyzer during the overlap analysis pass.
+    /// </summary>
+    public List<ExclusionPattern> OverlappingPatterns { get; set; } = new();
+}
+```
+
+### New: `ExclusionPattern` (Models/)
+
+Lightweight model representing a single exclusion guard to generate:
+
+```csharp
+internal class ExclusionPattern
 {
     /// <summary>
-    /// The property name containing the discriminator (e.g., "entity_type", "SK").
+    /// The entity class name that owns the more-specific pattern (for comments in generated code).
     /// </summary>
-    public string PropertyName { get; set; } = string.Empty;
-    
+    public string EntityName { get; set; } = string.Empty;
+
     /// <summary>
-    /// The exact value to match (if using exact match strategy).
+    /// The original pattern string of the more-specific entity.
     /// </summary>
-    public string? ExactValue { get; set; }
-    
+    public string Pattern { get; set; } = string.Empty;
+
     /// <summary>
-    /// The pattern to match (if using pattern match strategy).
-    /// </summary>
-    public string? Pattern { get; set; }
-    
-    /// <summary>
-    /// The matching strategy to use.
+    /// The matching strategy for the exclusion check (StartsWith, EndsWith, Contains, ExactMatch).
     /// </summary>
     public DiscriminatorStrategy Strategy { get; set; }
-}
 
-public enum DiscriminatorStrategy
-{
-    None,
-    ExactMatch,
-    StartsWith,
-    EndsWith,
-    Contains,
-    Custom
-}
-```
-
-### IndexModel Enhancement
-
-```csharp
-public class IndexModel
-{
-    // ... existing properties ...
-    
     /// <summary>
-    /// GSI-specific discriminator configuration (overrides entity-level discriminator).
+    /// The literal text to use in the exclusion check (extracted from the pattern).
     /// </summary>
-    public DiscriminatorConfig? GsiDiscriminator { get; set; }
+    public string LiteralText { get; set; } = string.Empty;
 }
 ```
 
-### ProjectionModel Enhancement
+### Modified: `MapperGenerator.GenerateDiscriminatorCheck`
 
-```csharp
-public class ProjectionModel
-{
-    // ... existing properties ...
-    
-    /// <summary>
-    /// Discriminator configuration for the projection (inherited from source entity).
-    /// </summary>
-    public DiscriminatorConfig? Discriminator { get; set; }
-    
-    /// <summary>
-    /// GSI-specific discriminator if this projection is for a specific GSI.
-    /// </summary>
-    public DiscriminatorConfig? GsiDiscriminator { get; set; }
-}
+The existing method is extended to emit exclusion guards when `DiscriminatorConfig.OverlappingPatterns` is non-empty. The generated code structure becomes:
+
+```
+1. Key presence checks (unchanged)
+2. Discriminator value extraction (unchanged)
+3. Positive match check for this entity's pattern
+4. **NEW: For each exclusion pattern, emit early-return-false if value also matches**
+5. Return true
 ```
 
-## Projection Expression Generation
+### New Diagnostic Descriptors
 
-### Including Discriminator in Projection
+| ID | Severity | Condition |
+|----|----------|-----------|
+| `DISC004` | Error | Two overlapping patterns have the same specificity score (ambiguous) |
+| `DISC005` | Info | Overlapping patterns resolved by specificity ordering |
 
-The projection expression must include the discriminator property:
+## Data Models
 
-```csharp
-public static string GenerateProjectionExpression(ProjectionModel projection)
-{
-    var attributeNames = new List<string>();
-    
-    // Add projection properties
-    foreach (var property in projection.Properties)
-    {
-        if (!string.IsNullOrEmpty(property.AttributeName))
-            attributeNames.Add(property.AttributeName);
-    }
-    
-    // Add discriminator property if configured
-    if (projection.Discriminator != null)
-    {
-        var discriminatorAttr = projection.Discriminator.PropertyName;
-        if (!attributeNames.Contains(discriminatorAttr))
-            attributeNames.Add(discriminatorAttr);
-    }
-    
-    // Add GSI discriminator if different from entity discriminator
-    if (projection.GsiDiscriminator != null && 
-        projection.GsiDiscriminator.PropertyName != projection.Discriminator?.PropertyName)
-    {
-        var gsiDiscriminatorAttr = projection.GsiDiscriminator.PropertyName;
-        if (!attributeNames.Contains(gsiDiscriminatorAttr))
-            attributeNames.Add(gsiDiscriminatorAttr);
-    }
-    
-    return string.Join(", ", attributeNames);
-}
+### Specificity Scoring Algorithm
+
+```
+Score(config):
+  if config.Strategy == ExactMatch:
+    return int.MaxValue
+  segments = config.Pattern.Split('*')
+  return segments.Count(s => s.Length > 0)
 ```
 
-## Hydration with Discriminator Validation
+Examples:
+| Pattern | Segments after split | Non-empty | Score |
+|---------|---------------------|-----------|-------|
+| `"INVOICE#*"` | `["INVOICE#", ""]` | `["INVOICE#"]` | 1 |
+| `"INVOICE#*#LINE#*"` | `["INVOICE#", "#LINE#", ""]` | `["INVOICE#", "#LINE#"]` | 2 |
+| `"*#AUDIT"` | `["", "#AUDIT"]` | `["#AUDIT"]` | 1 |
+| `"*#LINE#*"` | `["", "#LINE#", ""]` | `["#LINE#"]` | 1 |
+| `"A#*#B#*#C#*"` | `["A#", "#B#", "#C#", ""]` | `["A#", "#B#", "#C#"]` | 3 |
+| `"USER"` (exact) | N/A | N/A | int.MaxValue |
 
-### Generated FromDynamoDb Method
+### Overlap Detection Logic
 
+Two patterns overlap if a single string value could satisfy both. The detection uses structural rules:
+
+1. **Same strategy, compatible literals**: e.g., `"INVOICE#*"` (StartsWith "INVOICE#") overlaps `"INVOICE#*#LINE#*"` (Contains "#LINE#" + StartsWith "INVOICE#") because any string starting with "INVOICE#" and containing "#LINE#" matches both.
+
+2. **ExactMatch vs pattern**: An ExactMatch value `"INVOICE#123"` overlaps a StartsWith pattern `"INVOICE#*"` if the exact value matches the pattern.
+
+3. **Different properties**: Never overlap, regardless of pattern content.
+
+4. **Conservative approach**: When structural analysis is ambiguous, assume overlap. False positives (unnecessary exclusion guards) are harmless — they just add a redundant check. False negatives (missed overlaps) cause incorrect behavior.
+
+### Generated Code Example
+
+For entities `Invoice` (pattern `"INVOICE#*"`, score 1) and `InvoiceLine` (pattern `"INVOICE#*#LINE#*"`, score 2):
+
+**InvoiceLine.MatchesEntity** (most specific — unchanged):
 ```csharp
-public static TProjection FromDynamoDb(Dictionary<string, AttributeValue> item)
+public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
 {
-    if (item == null)
-        throw new ArgumentNullException(nameof(item));
-    
-    try
-    {
-        // Validate discriminator
-        if (!MatchesDiscriminator(item))
-        {
-            throw DiscriminatorMismatchException.Create(
-                typeof(TProjection),
-                expectedDiscriminator: "USER#*",
-                actualDiscriminator: GetDiscriminatorValue(item));
-        }
-        
-        var projection = new TProjection();
-        // ... property mapping ...
-        return projection;
-    }
-    catch (Exception ex) when (ex is not DiscriminatorMismatchException)
-    {
-        throw new DynamoDbMappingException(...);
-    }
-}
+    if (!item.ContainsKey("pk")) return false;
+    if (!item.ContainsKey("sk")) return false;
 
-private static bool MatchesDiscriminator(Dictionary<string, AttributeValue> item)
-{
-    if (!item.TryGetValue("SK", out var attr))
+    if (!item.TryGetValue("sk", out var discriminatorValue) || discriminatorValue.S == null)
         return false;
-    var value = attr.S;
-    return value != null && value.StartsWith("USER#");
-}
 
-private static string? GetDiscriminatorValue(Dictionary<string, AttributeValue> item)
-{
-    if (!item.TryGetValue("SK", out var attr))
-        return null;
-    return attr.S;
+    return discriminatorValue.S.StartsWith("INVOICE#") && discriminatorValue.S.Contains("#LINE#");
 }
 ```
 
-## Query Extensions Enhancement
+**Invoice.MatchesEntity** (less specific — with exclusion guard):
+```csharp
+public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+{
+    if (!item.ContainsKey("pk")) return false;
+    if (!item.ContainsKey("sk")) return false;
 
-### Multi-Entity Query Support
+    if (!item.TryGetValue("sk", out var discriminatorValue) || discriminatorValue.S == null)
+        return false;
+
+    // Positive match: this entity's pattern
+    if (!discriminatorValue.S.StartsWith("INVOICE#"))
+        return false;
+
+    // Exclusion: more-specific pattern from InvoiceLine (score: 2)
+    if (discriminatorValue.S.Contains("#LINE#"))
+        return false;
+
+    return true;
+}
+```
+
+### Execution Flow in DynamoDbSourceGenerator.Execute
 
 ```csharp
-public static async Task<List<TResult>> ToListAsync<TResult>(
-    this QueryRequestBuilder builder,
-    CancellationToken cancellationToken = default)
-    where TResult : class, new()
+// After GroupEntitiesByTableName and before entity generation loop:
+foreach (var tableGroup in entitiesByTable)
 {
-    // Apply projection
-    builder = ApplyProjectionIfNeeded<TResult>(builder);
+    var tableEntities = tableGroup.Value;
     
-    // Execute query
-    var response = await builder.ExecuteAsync(cancellationToken);
-    
-    // Hydrate with discriminator filtering
-    return HydrateResults<TResult>(response.Items);
-}
-
-private static List<TResult> HydrateResults<TResult>(List<Dictionary<string, AttributeValue>> items)
-    where TResult : class, new()
-{
-    var results = new List<TResult>();
-    var fromDynamoDbMethod = GetFromDynamoDbMethod<TResult>();
-    
-    foreach (var item in items)
+    // NEW: Analyze discriminator pattern overlaps within this table group
+    var overlapDiagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
+    foreach (var diagnostic in overlapDiagnostics)
     {
-        try
-        {
-            // FromDynamoDb will validate discriminator and throw if mismatch
-            var result = fromDynamoDbMethod.Invoke(null, new object[] { item }) as TResult;
-            if (result != null)
-                results.Add(result);
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is DiscriminatorMismatchException)
-        {
-            // Item doesn't match this projection type - skip it
-            // This is expected in multi-entity queries
-            continue;
-        }
-        catch (Exception ex)
-        {
-            // Other errors should propagate
-            throw;
-        }
+        context.ReportDiagnostic(diagnostic);
     }
-    
-    return results;
 }
 ```
 
-## Migration Path
+## Correctness Properties
 
-### Backward Compatibility
+*A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-1. **Legacy `EntityDiscriminator` property**: Automatically maps to new system
-   ```csharp
-   // Old way (still works)
-   [DynamoDbTable("MyTable", EntityDiscriminator = "USER")]
-   
-   // Equivalent to:
-   [DynamoDbTable("MyTable", 
-       DiscriminatorProperty = "entity_type",
-       DiscriminatorValue = "USER")]
-   ```
+### Property 1: Specificity score equals non-empty literal segment count
 
-2. **No discriminator specified**: No validation performed (current behavior)
+*For any* valid discriminator pattern string containing wildcard characters, the computed specificity score SHALL equal the number of non-empty strings produced by splitting the pattern on the `*` character.
 
-3. **Gradual adoption**: Can mix old and new styles in same codebase
+**Validates: Requirements 1.3, 2.2**
 
-### Migration Examples
+### Property 2: ExactMatch always scores higher than any wildcard pattern
 
-#### Example 1: Simple Attribute Discriminator
-```csharp
-// Before
-[DynamoDbTable("MyTable", EntityDiscriminator = "USER")]
-public partial class User { }
+*For any* discriminator pattern containing at least one wildcard character, the specificity score of an ExactMatch discriminator SHALL be strictly greater than the wildcard pattern's specificity score.
 
-// After (explicit)
-[DynamoDbTable("MyTable",
-    DiscriminatorProperty = "entity_type",
-    DiscriminatorValue = "USER")]
-public partial class User { }
-```
+**Validates: Requirements 2.4**
 
-#### Example 2: Sort Key Pattern
-```csharp
-// Before (not supported)
-// Had to manually filter results
+### Property 3: Overlap detection is symmetric and property-scoped
 
-// After
-[DynamoDbTable("MyTable",
-    DiscriminatorProperty = "SK",
-    DiscriminatorPattern = "USER#*")]
-public partial class User { }
-```
+*For any* two discriminator configurations A and B, `PatternsOverlap(A, B)` SHALL return true if and only if `PatternsOverlap(B, A)` returns true, AND shall return false when A and B have different DiscriminatorProperty values regardless of pattern content.
 
-#### Example 3: GSI-Specific Discriminator
-```csharp
-// Before (not supported)
+**Validates: Requirements 1.6, 2.1**
 
-// After
-[DynamoDbTable("MyTable")]
-public partial class User 
-{
-    [GlobalSecondaryIndex("StatusIndex",
-        DiscriminatorProperty = "GSI1SK",
-        DiscriminatorPattern = "USER#*")]
-    public string Status { get; set; }
-}
-```
+### Property 4: Mutual exclusivity of MatchesEntity across overlapping entities
 
-## Performance Considerations
+*For any* table entity group with overlapping discriminator patterns and any discriminator string value that matches at least one entity's pattern, exactly one entity's generated MatchesEntity logic (positive match minus exclusions) SHALL claim that value.
 
-1. **Pattern Compilation**: Patterns are analyzed at compile-time and converted to optimal runtime checks
-2. **No Regex**: Simple string operations (StartsWith, Contains, EndsWith) for performance
-3. **Early Exit**: Discriminator check happens before property mapping
-4. **Zero Allocation**: Pattern matching uses string methods that don't allocate
+**Validates: Requirements 1.1, 1.4**
+
+### Property 5: Exclusion list contains all and only higher-scoring overlapping patterns
+
+*For any* entity in a table group with overlapping patterns, its `OverlappingPatterns` list SHALL contain exactly those entities whose specificity score is strictly higher than its own AND whose pattern overlaps with its pattern on the same DiscriminatorProperty.
+
+**Validates: Requirements 1.7, 3.4**
+
+### Property 6: Exclusion guard uses the correct string operation
+
+*For any* exclusion pattern entry, the generated string operation (StartsWith, EndsWith, Contains, or equality) SHALL match the `Strategy` of the more-specific entity's discriminator configuration.
+
+**Validates: Requirements 3.1, 3.2**
+
+### Property 7: Non-overlapping entities produce no exclusion logic or overlap diagnostics
+
+*For any* table entity group where no two entities have overlapping discriminator patterns, the generated MatchesEntity code SHALL contain no exclusion guards AND no overlap-related diagnostics (DISC004, DISC005) SHALL be emitted.
+
+**Validates: Requirements 1.5, 4.1, 4.3, 4.4**
+
+### Property 8: Ambiguous same-score overlaps produce an error diagnostic
+
+*For any* pair of entities in the same table group with overlapping patterns on the same DiscriminatorProperty AND the same specificity score, the analyzer SHALL emit a diagnostic with severity Error containing both entity names.
+
+**Validates: Requirements 2.3**
+
+### Property 9: Resolved overlaps produce an informational diagnostic
+
+*For any* pair of entities in the same table group with overlapping patterns on the same DiscriminatorProperty AND different specificity scores, the analyzer SHALL emit a diagnostic with severity Info containing the less-specific entity name, the more-specific entity name, and the excluded pattern.
+
+**Validates: Requirements 2.5**
+
+## Error Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| Two overlapping patterns with same specificity score | Emit `DISC004` error diagnostic. Do NOT generate exclusion logic — the ambiguity must be resolved by the developer. |
+| Pattern with `Strategy = Complex` (multi-wildcard, non-standard position) | Conservatively assume overlap with any other pattern on the same property. Score using standard segment-count algorithm. |
+| Entity with `Discriminator = null` or `IsValid = false` | Skip entirely during overlap analysis (these entities use Tier 2/3 key-only checks). |
+| Single-entity table | Skip overlap analysis (nothing to compare against). |
+| ExactMatch vs ExactMatch overlap | Impossible — two exact values either match (same string = same entity, which is a different error) or don't overlap. |
+| Overlap analysis produces empty exclusion list | No exclusion code generated — existing behavior preserved. |
 
 ## Testing Strategy
 
-### Unit Tests
+### Property-Based Tests (using FsCheck or equivalent)
 
-1. Pattern parsing and validation
-2. Discriminator matching logic generation
-3. Projection expression inclusion of discriminator properties
-4. Backward compatibility with legacy EntityDiscriminator
+The feature is well-suited for property-based testing because:
+- The specificity scoring function is pure (input pattern → output score)
+- Overlap detection is a pure predicate (two configs → bool)
+- The exclusion list construction is deterministic given a set of entities
+- Mutual exclusivity can be verified by generating random discriminator values and checking exactly one entity claims each
+
+**Configuration**: Minimum 100 iterations per property test.
+
+**PBT Library**: FsCheck (standard .NET property-based testing library, integrates with xUnit).
+
+**Tag format**: `Feature: discriminator-enhancement, Property {N}: {property text}`
+
+### Unit Tests (example-based)
+
+- Specific pattern pairs from the requirements (e.g., `INVOICE#*` vs `INVOICE#*#LINE#*`)
+- Three-entity hierarchies (e.g., `INVOICE#*`, `INVOICE#*#LINE#*`, `INVOICE#*#LINE#*#ADJUSTMENT#*`)
+- ExactMatch vs wildcard precedence
+- Generated code structure verification (exclusion placement between positive match and return)
+- Diagnostic message content verification
+- Backward compatibility regression: entities with non-overlapping patterns produce byte-identical generated code
 
 ### Integration Tests
 
-1. Attribute-based discriminator queries
-2. Sort key pattern matching
-3. GSI-specific discriminator queries
-4. Multi-entity queries with mixed discriminator strategies
-5. Migration from legacy to new discriminator system
-
-## Open Questions
-
-1. **Should we support multiple discriminators?** (e.g., both PK and SK patterns)
-2. **Should we support OR logic?** (e.g., match "USER#*" OR "ADMIN#*")
-3. **Should we support custom discriminator functions?** (for complex logic)
-4. **How to handle discriminator in composite entity queries?**
-
-## Future Enhancements
-
-1. **Discriminator inference**: Automatically detect discriminator patterns from entity definitions
-2. **Query optimization**: Use discriminator in query conditions when possible
-3. **Discriminator registry**: Central registry of all discriminators for debugging
-4. **Visual tooling**: IDE support for visualizing discriminator patterns
+- End-to-end source generator test: define entities with overlapping patterns, run the generator, compile the output, and execute `MatchesEntity` with test data
+- Verify no new warnings/errors for existing test entities that have non-overlapping patterns
