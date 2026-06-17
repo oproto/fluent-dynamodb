@@ -469,16 +469,14 @@ public class MapperGeneratorTests
         CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert - DynamoDB entity discriminator logic
-        result.Should().Contain("// Check entity discriminator",
-            "should document entity discriminator check");
-        result.Should().Contain("S =",
-            "should use String (S) attribute type for entity discriminator");
+        result.Should().Contain("// Discriminator check on \"entity_type\"",
+            "should document discriminator check with property name");
+        result.Should().Contain("TryGetValue(\"entity_type\"",
+            "should check for entity_type attribute");
         result.Should().Contain("== \"TEST_ENTITY\"",
             "should check for exact entity discriminator value");
         result.Should().Contain("EntityDiscriminator = \"TEST_ENTITY\"",
             "should set entity discriminator in metadata");
-        result.Should().Contain("sortKey.StartsWith(\"TEST_ENTITY#\")",
-            "should check sort key pattern for entity discriminator");
     }
 
     [Fact]

@@ -57,6 +57,26 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-16]
+
+### MatchesEntity Three-Tier Discrimination — Behavioral Fix
+
+**Category:** Clarification
+
+**Summary:** Added warnings and best practices to `docs/advanced-topics/Discriminators.md` and `docs/advanced-topics/MultiEntityTables.md` documenting that multi-entity tables without discriminator configuration will only check key attribute presence for entity type filtering. Without a discriminator, items from different entity types sharing the same key structure may pass the `MatchesEntity` check, leading to wrong-type hydration.
+
+### File: docs/advanced-topics/Discriminators.md
+
+**Change:** Added "Best Practice 6: Always Configure Discriminators on Multi-Entity Tables" section with a prominent warning block explaining the Tier 3 behavior, code examples showing the risky pattern vs the correct pattern, and guidance that single-entity tables do not need discriminators.
+
+**Reason:** The `MatchesEntity` method now uses a three-tier approach. Tier 3 (multi-entity without discriminator) only checks key attributes — users need to understand this tradeoff and configure discriminators explicitly.
+
+### File: docs/advanced-topics/MultiEntityTables.md
+
+**Change:** Added "Best Practice 7: Always Configure Discriminators" section with a warning block and code example, cross-linking to the Discriminators guide.
+
+**Reason:** Multi-entity table users should be warned at the point where they're configuring multi-entity tables, not only in the discriminator-specific docs.
+
 ## [2026-04-30]
 
 ### Index Attribute Redesign — Breaking API Change

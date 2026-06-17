@@ -1,3 +1,4 @@
+using Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using System.Text;
 
@@ -3613,61 +3614,95 @@ internal static class MapperGenerator
         sb.AppendLine("        public static bool MatchesEntity(Dictionary<string, AttributeValue> item)");
         sb.AppendLine("        {");
 
-        // Check entity discriminator first if present
-        if (!string.IsNullOrEmpty(entity.EntityDiscriminator))
+        // Tier 1: Entity has discriminator configured → use discriminator as sole check
+        if (entity.Discriminator != null && entity.Discriminator.IsValid)
         {
-            sb.AppendLine($"            // Check entity discriminator");
-            sb.AppendLine($"            if (item.TryGetValue(\"EntityType\", out var entityTypeValue))");
-            sb.AppendLine("            {");
-            sb.AppendLine($"                return entityTypeValue.S == \"{entity.EntityDiscriminator}\";");
-            sb.AppendLine("            }");
-            sb.AppendLine();
+            GenerateDiscriminatorCheck(sb, entity);
+        }
+        // Tier 2: Single-entity table → minimal structural check (key attributes only)
+        else if (entity.TableEntityCount == 1)
+        {
+            GenerateKeyAttributeOnlyCheck(sb, entity, "Single-entity table: key attributes are sufficient");
+        }
+        // Tier 3: Multi-entity table without discriminator → key-attribute-only check
+        else
+        {
+            GenerateKeyAttributeOnlyCheck(sb, entity, "Multi-entity table without discriminator: key attributes only");
         }
 
-        // Use sort key pattern matching for entity type discrimination
-        var sortKeyProperty = entity.SortKeyProperty;
-        if (sortKeyProperty != null && !string.IsNullOrEmpty(entity.EntityDiscriminator))
-        {
-            sb.AppendLine("            // Check sort key pattern for entity type discrimination");
-            sb.AppendLine($"            if (item.TryGetValue(\"{sortKeyProperty.AttributeName}\", out var sortKeyValue))");
-            sb.AppendLine("            {");
-            sb.AppendLine("                var sortKey = sortKeyValue.S != null ? sortKeyValue.S : string.Empty;");
-
-            // Generate pattern matching based on entity discriminator
-            if (entity.EntityDiscriminator.Contains("*"))
-            {
-                // Wildcard pattern matching
-                var pattern = entity.EntityDiscriminator.Replace("*", "");
-                sb.AppendLine($"                return sortKey.StartsWith(\"{pattern}\");");
-            }
-            else
-            {
-                // Exact pattern matching
-                sb.AppendLine($"                return sortKey == \"{entity.EntityDiscriminator}\" || sortKey.StartsWith(\"{entity.EntityDiscriminator}#\");");
-            }
-
-            sb.AppendLine("            }");
-            sb.AppendLine();
-        }
-
-        // Check if required attributes exist
-        var requiredAttributes = entity.Properties
-            .Where(p => p.HasAttributeMapping && (p.IsPartitionKey || !p.IsNullable))
-            .ToArray();
-
-        if (requiredAttributes.Length > 0)
-        {
-            sb.AppendLine("            // Check if required attributes exist");
-            foreach (var property in requiredAttributes)
-            {
-                sb.AppendLine($"            if (!item.ContainsKey(\"{property.AttributeName}\"))");
-                sb.AppendLine("                return false;");
-            }
-            sb.AppendLine();
-        }
-
-        sb.AppendLine("            return true;");
         sb.AppendLine("        }");
+    }
+
+    private static void GenerateDiscriminatorCheck(StringBuilder sb, EntityModel entity)
+    {
+        var disc = entity.Discriminator!;
+        var propertyName = disc.PropertyName;
+
+        // First check key attributes exist
+        GenerateKeyPresenceChecks(sb, entity);
+
+        sb.AppendLine($"            // Discriminator check on \"{propertyName}\"");
+        sb.AppendLine($"            if (!item.TryGetValue(\"{propertyName}\", out var discriminatorValue) || discriminatorValue.S == null)");
+        sb.AppendLine("                return false;");
+        sb.AppendLine();
+
+        switch (disc.Strategy)
+        {
+            case DiscriminatorStrategy.ExactMatch:
+                sb.AppendLine($"            return discriminatorValue.S == \"{disc.ExactValue}\";");
+                break;
+
+            case DiscriminatorStrategy.StartsWith:
+                var startsWithText = DiscriminatorAnalyzer.GetPatternText(disc.Pattern!, disc.Strategy);
+                sb.AppendLine($"            return discriminatorValue.S.StartsWith(\"{startsWithText}\");");
+                break;
+
+            case DiscriminatorStrategy.EndsWith:
+                var endsWithText = DiscriminatorAnalyzer.GetPatternText(disc.Pattern!, disc.Strategy);
+                sb.AppendLine($"            return discriminatorValue.S.EndsWith(\"{endsWithText}\");");
+                break;
+
+            case DiscriminatorStrategy.Contains:
+                var containsText = DiscriminatorAnalyzer.GetPatternText(disc.Pattern!, disc.Strategy);
+                sb.AppendLine($"            return discriminatorValue.S.Contains(\"{containsText}\");");
+                break;
+
+            case DiscriminatorStrategy.Complex:
+                // For complex patterns, fall back to key-attribute check
+                sb.AppendLine("            // Complex pattern: fall back to key check");
+                sb.AppendLine("            return true;");
+                break;
+
+            default:
+                sb.AppendLine("            return true;");
+                break;
+        }
+    }
+
+    private static void GenerateKeyAttributeOnlyCheck(StringBuilder sb, EntityModel entity, string comment)
+    {
+        sb.AppendLine($"            // {comment}");
+        GenerateKeyPresenceChecks(sb, entity);
+        sb.AppendLine("            return true;");
+    }
+
+    private static void GenerateKeyPresenceChecks(StringBuilder sb, EntityModel entity)
+    {
+        var pkProperty = entity.PartitionKeyProperty;
+        if (pkProperty != null)
+        {
+            sb.AppendLine($"            if (!item.ContainsKey(\"{pkProperty.AttributeName}\"))");
+            sb.AppendLine("                return false;");
+        }
+
+        var skProperty = entity.SortKeyProperty;
+        if (skProperty != null)
+        {
+            sb.AppendLine($"            if (!item.ContainsKey(\"{skProperty.AttributeName}\"))");
+            sb.AppendLine("                return false;");
+        }
+
+        sb.AppendLine();
     }
 
     private static void GenerateGetEntityMetadataMethod(StringBuilder sb, EntityModel entity)

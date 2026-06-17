@@ -34,7 +34,9 @@ namespace TransactionDemo.Entities;
 /// <item><description>BatchWrite operations that include this entity type</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbTable("transaction-demo")]
+[DynamoDbTable("transaction-demo",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "FIN#*")]
 [GenerateEntityProperty(Name = "FinancialTransactions")]
 [RequireWriteTransaction]
 public partial class FinancialTransaction

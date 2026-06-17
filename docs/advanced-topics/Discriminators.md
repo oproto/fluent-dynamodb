@@ -485,6 +485,47 @@ public async Task Query_WithDiscriminator_ReturnsOnlyMatchingEntities()
 }
 ```
 
+### 6. Always Configure Discriminators on Multi-Entity Tables
+
+> **Important:** On multi-entity tables (multiple entity classes sharing the same `[DynamoDbTable]` name), the generated `MatchesEntity()` method uses only key attribute presence (partition key and sort key) to determine entity type membership when no discriminator is configured. This means any item with matching key attributes will pass the filter — including items belonging to a *different* entity type on the same table.
+
+Without a discriminator, queries may return items from the wrong entity type, leading to hydration errors or incorrect data. Always configure a discriminator when multiple entities share a table:
+
+```csharp
+// ❌ RISKY: No discriminator on a multi-entity table
+// Items from Order, Invoice, or any other entity with the same key structure
+// will all pass the MatchesEntity check for User
+[DynamoDbTable("shared-table")]
+public partial class User { ... }
+
+[DynamoDbTable("shared-table")]
+public partial class Order { ... }
+
+// ✅ CORRECT: Explicit discriminator prevents cross-type contamination
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "entity_type",
+    DiscriminatorValue = "USER")]
+public partial class User { ... }
+
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "entity_type",
+    DiscriminatorValue = "ORDER")]
+public partial class Order { ... }
+
+// ✅ ALSO CORRECT: Sort key pattern as discriminator
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "USER#*")]
+public partial class User { ... }
+
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "ORDER#*")]
+public partial class Order { ... }
+```
+
+Single-entity tables (only one entity class references the table name) do not need a discriminator — key attribute presence is sufficient for type identification.
+
 ## Common Patterns
 
 ### Multi-Tenant with Entity Type

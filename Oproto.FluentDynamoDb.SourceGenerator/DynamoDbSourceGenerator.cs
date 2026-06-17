@@ -131,14 +131,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
     {
         var (entities, projectionContexts) = input;
 
-        // First, process all entities and collect valid entity models
+        // First pass: collect all valid entity models and report diagnostics
         var validEntityModels = new List<EntityModel>();
-        
-        // Discover extension methods marked with [GenerateWrapper] once for all entities
-        Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
-
-        // Track generated nested UpdateModel types to avoid duplicates across entities
-        var generatedNestedUpdateModels = new HashSet<string>();
 
         foreach (var (entity, diagnostics) in entities)
         {
@@ -151,7 +145,31 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             if (entity == null) continue;
 
             validEntityModels.Add(entity);
+        }
 
+        // Pre-pass: count entities per table for MatchesEntity tier determination
+        var entityCountByTable = validEntityModels
+            .Where(e => !string.IsNullOrEmpty(e.TableName) && !e.TableName.StartsWith("_entity_"))
+            .GroupBy(e => e.TableName)
+            .ToDictionary(g => g.Key!, g => g.Count());
+
+        foreach (var entity in validEntityModels)
+        {
+            if (!string.IsNullOrEmpty(entity.TableName) && entityCountByTable.TryGetValue(entity.TableName, out var count))
+            {
+                entity.TableEntityCount = count;
+            }
+        }
+
+        // Second pass: generate entity implementations and other source code
+        // Discover extension methods marked with [GenerateWrapper] once for all entities
+        Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
+
+        // Track generated nested UpdateModel types to avoid duplicates across entities
+        var generatedNestedUpdateModels = new HashSet<string>();
+
+        foreach (var entity in validEntityModels)
+        {
             // Generate optimized entity implementation with mapping methods, Keys, and Fields
             var sourceCode = GenerateOptimizedEntityImplementation(entity);
             context.AddSource($"{entity.ClassName}.g.cs", sourceCode);

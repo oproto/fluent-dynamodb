@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **MatchesEntity Silent Item Drops** - Fixed the source-generated `MatchesEntity` method silently dropping legitimate items from Query, Scan, and Get results. The method used attribute-presence checks on ALL non-nullable properties as a heuristic for entity type discrimination, causing false negatives when any non-nullable property was missing from a DynamoDB item — even when the item legitimately belonged to that entity type. This affected empty collections (not persisted by DynamoDB), schema evolution (new properties added after items were written), and sparse writes (items written with partial attributes). The fix replaces the overly strict heuristic with a three-tier approach:
+  - **Tier 1** (discriminator configured): Uses only the discriminator check (`DiscriminatorProperty`/`DiscriminatorValue`/`DiscriminatorPattern`) to determine entity type membership — no data attribute checks
+  - **Tier 2** (single-entity table): Uses only key attribute presence (pk/sk) since no type discrimination is needed
+  - **Tier 3** (multi-entity table without discriminator): Uses only key attribute presence, accepting the tradeoff of possible wrong-type hydration vs silent data loss
+  - Also fixes the legacy `EntityDiscriminator` attribute name: the old code hard-coded `"EntityType"` but the actual DynamoDB attribute (as mapped by `DiscriminatorAnalyzer`) is `"entity_type"`
+  - **Migration note**: Multi-entity tables that previously relied on the over-filtering behavior (non-key attribute checks acting as implicit type discrimination) should add explicit discriminator configuration via `DiscriminatorProperty`/`DiscriminatorValue` to maintain correct entity type filtering
+
 ## [1.0.5] - 2026-06-11
 
 - **Missing GSI/LSI on Table Creation** - Fixed two bugs that prevented Global Secondary Indexes and Local Secondary Indexes from being provisioned during programmatic table creation:

@@ -1,0 +1,112 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - MatchesEntity Drops Valid Items When Non-Key Attributes Are Missing
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists in `GenerateMatchesEntityMethod`
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases:
+    - Entity with valid `DiscriminatorConfig` (ExactMatch/StartsWith/EndsWith/Contains strategies) and item matching discriminator but missing a non-key non-nullable attribute (e.g., empty collection)
+    - Entity on single-entity table (`TableEntityCount == 1`) with item containing key attributes but missing a non-key non-nullable attribute
+  - Test Setup:
+    - Create `EntityModel` objects with `Discriminator.IsValid == true` (various strategies) and non-nullable properties (including collections)
+    - Create `EntityModel` objects with `TableEntityCount == 1` and non-nullable properties
+    - Call `GenerateMatchesEntityMethod` on the unfixed code to produce the generated C# source
+  - Test Assertions (expected behavior after fix):
+    - For Tier 1 (discriminator configured): generated code should NOT contain `ContainsKey` checks for non-key data attributes (e.g., "phones", "middleName")
+    - For Tier 1: generated code should contain discriminator-based check using the configured `PropertyName` and strategy
+    - For Tier 2 (single-entity table): generated code should only check key attributes, not non-key non-nullable attributes
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (generated code still checks all non-nullable properties - this proves the bug exists)
+  - Document counterexamples: e.g., "Generated code contains `if (!item.ContainsKey(\"phones\")) return false;` even when discriminator is configured and valid"
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.3, 2.4_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Matching Items and Missing Keys Are Rejected
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs (items that SHOULD return false):
+    - Observe: Entity with discriminator + item missing partition key → returns `false`
+    - Observe: Entity with discriminator + item missing sort key → returns `false`
+    - Observe: Entity with discriminator + item where discriminator value does NOT match → returns `false`
+    - Observe: Entity without discriminator on multi-entity table + item missing key attributes → returns `false`
+  - Write property-based tests capturing observed rejection behavior:
+    - **Key Attribute Absence**: For all entity configurations (any tier), items missing pk or sk (when applicable) must return `false` from generated `MatchesEntity` code
+    - **Discriminator Mismatch**: For entities with valid discriminator, items where discriminator value does not match configured value/pattern must return `false`
+    - **Method Signature**: For all entities, generated code must contain exact signature `public static bool MatchesEntity(Dictionary<string, AttributeValue> item)`
+  - Property-based test generates random `EntityModel` objects and random DynamoDB items to verify universal rejection properties
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (these rejection behaviors are correct in both old and new code)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.4, 3.5_
+
+- [x] 3. Fix MatchesEntity generation with three-tier discriminator logic
+  - [x] 3.1 Add `TableEntityCount` property to `EntityModel.cs`
+    - Add `public int TableEntityCount { get; set; } = 1;` to `EntityModel`
+    - Include XML doc comment explaining purpose (used by MatchesEntity tier determination)
+    - _Bug_Condition: isBugCondition(entity, item) where entity.TableEntityCount == 1 OR entity.Discriminator.IsValid_
+    - _Expected_Behavior: Entity knows its table context for tier selection_
+    - _Preservation: Default value of 1 means existing single-entity behavior is safe_
+    - _Requirements: 2.4_
+
+  - [x] 3.2 Populate `TableEntityCount` in `DynamoDbSourceGenerator.cs`
+    - Add pre-pass before entity implementation generation loop
+    - Group valid entity models by `TableName` (excluding `_entity_` prefixed names)
+    - Set `entity.TableEntityCount` for each entity based on group count
+    - Ensure this runs BEFORE `GenerateEntityImplementation` calls
+    - _Bug_Condition: isBugCondition requires isSingleEntityTable = entity.TableEntityCount == 1_
+    - _Expected_Behavior: Each entity knows how many entities share its table_
+    - _Preservation: Entities on multi-entity tables get count > 1, preserving discrimination need_
+    - _Requirements: 2.4, 2.5_
+
+  - [x] 3.3 Rewrite `GenerateMatchesEntityMethod` in `MapperGenerator.cs`
+    - Replace entire method body with three-tier logic:
+      - **Tier 1**: `entity.Discriminator?.IsValid == true` → discriminator-only check via `GenerateDiscriminatorCheck`
+      - **Tier 2**: `entity.TableEntityCount == 1` → key-attribute-only check (single-entity table)
+      - **Tier 3**: else → key-attribute-only check (multi-entity, no discriminator)
+    - Add `GenerateDiscriminatorCheck` helper: checks key presence, then discriminator property presence with strategy-based matching (ExactMatch, StartsWith, EndsWith, Contains, Complex)
+    - Add `GenerateKeyAttributeOnlyCheck` helper: checks pk/sk presence only, returns true
+    - Add `GenerateKeyPresenceChecks` helper: emits `ContainsKey` for pk and sk (if applicable)
+    - Remove all non-key non-nullable property presence checks from generated code
+    - _Bug_Condition: isBugCondition(entity, item) — current code checks ALL non-nullable attributes_
+    - _Expected_Behavior: Fixed code uses only discriminator or key attributes for entity matching_
+    - _Preservation: Key attribute checks retained; discriminator mismatch still returns false_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2_
+
+  - [x] 3.4 Verify legacy `EntityDiscriminator` backward compatibility
+    - Confirm `DiscriminatorAnalyzer` maps legacy `EntityDiscriminator = "MyType"` to `DiscriminatorConfig` with `PropertyName = "entity_type"`, `ExactValue = "MyType"`, `Strategy = ExactMatch`
+    - Verify the new Tier 1 code generates correct check using the analyzer's mapped property name
+    - Verify attribute name matches what's actually stored in DynamoDB (check existing tests/usage for "EntityType" vs "entity_type")
+    - _Preservation: Legacy EntityDiscriminator must continue to work_
+    - _Requirements: 3.4_
+
+  - [x] 3.5 Shut down build server and rebuild
+    - Run `dotnet build-server shutdown` to clear cached source generator
+    - Run `dotnet build` to verify clean compilation
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+  - [x] 3.6 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - MatchesEntity Accepts Valid Items With Discriminator/Key Match
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior (discriminator-only or key-only checks)
+    - When this test passes, it confirms: discriminator-configured entities no longer check non-key attributes; single-entity tables only check key attributes
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+
+  - [x] 3.7 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Matching Items and Missing Keys Are Rejected
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions in rejection behavior)
+    - Confirm: items missing key attributes still rejected; discriminator mismatches still rejected; method signature unchanged
+    - _Requirements: 3.1, 3.2, 3.4, 3.5_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run `dotnet build-server shutdown` then `dotnet build` for clean build
+  - Run `dotnet test` to execute full test suite
+  - Verify no existing tests are broken by the change
+  - Verify exploration test (Property 1) passes
+  - Verify preservation tests (Property 2) pass
+  - Ask the user if questions arise about legacy attribute name mapping or edge cases
