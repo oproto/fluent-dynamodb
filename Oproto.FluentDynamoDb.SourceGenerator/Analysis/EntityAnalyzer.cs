@@ -1309,7 +1309,32 @@ internal class EntityAnalyzer
             propertyModel.ComplexType.IsJsonBlob ||
             propertyModel.ComplexType.IsBlobStorage);
 
-        if (!isComplexType && !IsSupportedPropertyType(propertyModel.PropertyType))
+        // Check if the property type is an enum using the semantic model
+        var isEnum = false;
+        if (propertyModel.PropertyDeclaration != null)
+        {
+            var propertySymbol = semanticModel.GetDeclaredSymbol(propertyModel.PropertyDeclaration) as IPropertySymbol;
+            if (propertySymbol != null)
+            {
+                var typeSymbol = propertySymbol.Type;
+
+                // Direct enum type
+                if (typeSymbol.TypeKind == TypeKind.Enum)
+                {
+                    isEnum = true;
+                }
+                // Nullable<T> where T is an enum
+                else if (typeSymbol is INamedTypeSymbol namedType &&
+                         namedType.IsGenericType &&
+                         namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
+                         namedType.TypeArguments[0].TypeKind == TypeKind.Enum)
+                {
+                    isEnum = true;
+                }
+            }
+        }
+
+        if (!isComplexType && !isEnum && !IsSupportedPropertyType(propertyModel.PropertyType))
         {
             ReportDiagnostic(DiagnosticDescriptors.UnsupportedPropertyType,
                 propertyModel.PropertyDeclaration?.Identifier.GetLocation(),
