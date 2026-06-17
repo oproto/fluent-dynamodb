@@ -57,6 +57,26 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-20]
+
+### Overlapping Discriminator Pattern Resolution — New Feature Documentation
+
+**Category:** Clarification
+
+**Summary:** Added a new "Overlapping Pattern Resolution" section to `docs/advanced-topics/Discriminators.md` documenting the most-specific pattern matching feature for overlapping discriminator patterns on multi-entity tables.
+
+### File: docs/advanced-topics/Discriminators.md
+
+**Change:** Added comprehensive "Overlapping Pattern Resolution" section covering:
+- How specificity scoring works (split on `*`, count non-empty literal segments)
+- ExactMatch always wins precedence
+- Complete Invoice/InvoiceLine hierarchy example without `entity_type` attribute
+- Generated exclusion guard code examples
+- DISC004 (error) and DISC005 (info) compile-time diagnostics
+- When overlap resolution does and does not apply
+
+**Reason:** New source generator feature enables automatic disambiguation of overlapping discriminator patterns using compile-time specificity analysis. Users need to understand how the feature works, what diagnostics they may encounter, and how to resolve DISC004 ambiguity errors.
+
 ## [2026-06-16]
 
 ### MatchesEntity Three-Tier Discrimination — Behavioral Fix

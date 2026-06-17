@@ -3646,6 +3646,19 @@ internal static class MapperGenerator
         sb.AppendLine("                return false;");
         sb.AppendLine();
 
+        // When there are overlapping patterns, restructure to emit positive match + exclusion guards + return true
+        if (disc.OverlappingPatterns.Count > 0)
+        {
+            GenerateDiscriminatorCheckWithExclusions(sb, disc);
+        }
+        else
+        {
+            GenerateDiscriminatorCheckSimple(sb, disc);
+        }
+    }
+
+    private static void GenerateDiscriminatorCheckSimple(StringBuilder sb, DiscriminatorConfig disc)
+    {
         switch (disc.Strategy)
         {
             case DiscriminatorStrategy.ExactMatch:
@@ -3668,15 +3681,238 @@ internal static class MapperGenerator
                 break;
 
             case DiscriminatorStrategy.Complex:
-                // For complex patterns, fall back to key-attribute check
-                sb.AppendLine("            // Complex pattern: fall back to key check");
-                sb.AppendLine("            return true;");
+                // For complex patterns with multiple wildcards, generate a compound check
+                // using the first segment as StartsWith and internal segments as Contains
+                GenerateComplexPatternCheck(sb, disc.Pattern!, "return");
                 break;
 
             default:
                 sb.AppendLine("            return true;");
                 break;
         }
+    }
+
+    private static void GenerateDiscriminatorCheckWithExclusions(StringBuilder sb, DiscriminatorConfig disc)
+    {
+        // Step 1: Positive match check — return false if this entity's pattern doesn't match
+        sb.AppendLine("            // Positive match: this entity's pattern");
+        switch (disc.Strategy)
+        {
+            case DiscriminatorStrategy.ExactMatch:
+                sb.AppendLine($"            if (discriminatorValue.S != \"{disc.ExactValue}\")");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.StartsWith:
+                var startsWithText = DiscriminatorAnalyzer.GetPatternText(disc.Pattern!, disc.Strategy);
+                sb.AppendLine($"            if (!discriminatorValue.S.StartsWith(\"{startsWithText}\"))");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.EndsWith:
+                var endsWithText = DiscriminatorAnalyzer.GetPatternText(disc.Pattern!, disc.Strategy);
+                sb.AppendLine($"            if (!discriminatorValue.S.EndsWith(\"{endsWithText}\"))");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.Contains:
+                var containsText = DiscriminatorAnalyzer.GetPatternText(disc.Pattern!, disc.Strategy);
+                sb.AppendLine($"            if (!discriminatorValue.S.Contains(\"{containsText}\"))");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.Complex:
+                // For complex patterns, generate compound negative check
+                GenerateComplexPatternCheck(sb, disc.Pattern!, "negated");
+                break;
+
+            default:
+                break;
+        }
+
+        sb.AppendLine();
+
+        // Step 2: Exclusion guards — return false if a more-specific pattern matches
+        foreach (var exclusion in disc.OverlappingPatterns)
+        {
+            var score = ComputeExclusionScore(exclusion);
+            sb.AppendLine($"            // Exclusion: more-specific pattern from {exclusion.EntityName} (score: {score})");
+
+            switch (exclusion.Strategy)
+            {
+                case DiscriminatorStrategy.StartsWith:
+                    sb.AppendLine($"            if (discriminatorValue.S.StartsWith(\"{exclusion.LiteralText}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.EndsWith:
+                    sb.AppendLine($"            if (discriminatorValue.S.EndsWith(\"{exclusion.LiteralText}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.Contains:
+                    sb.AppendLine($"            if (discriminatorValue.S.Contains(\"{exclusion.LiteralText}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.ExactMatch:
+                    sb.AppendLine($"            if (discriminatorValue.S == \"{exclusion.LiteralText}\")");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.Complex:
+                    GenerateComplexExclusionCheck(sb, exclusion.Pattern);
+                    break;
+
+                default:
+                    sb.AppendLine($"            // Unsupported exclusion strategy for {exclusion.EntityName}");
+                    break;
+            }
+
+            sb.AppendLine();
+        }
+
+        // Step 3: Return true — passed all checks
+        sb.AppendLine("            return true;");
+    }
+
+    /// <summary>
+    /// Computes the specificity score for an exclusion pattern to include in generated code comments.
+    /// Uses the same algorithm as PatternOverlapAnalyzer.ComputeSpecificityScore.
+    /// </summary>
+    private static int ComputeExclusionScore(ExclusionPattern exclusion)
+    {
+        if (exclusion.Strategy == DiscriminatorStrategy.ExactMatch)
+        {
+            return int.MaxValue;
+        }
+
+        if (string.IsNullOrEmpty(exclusion.Pattern))
+        {
+            return 0;
+        }
+
+        var segments = exclusion.Pattern.Split('*');
+        return segments.Count(s => s.Length > 0);
+    }
+
+    /// <summary>
+    /// Generates code for a Complex pattern (multi-wildcard) discriminator check.
+    /// Decomposes the pattern into a StartsWith check for the first segment and
+    /// Contains checks for each internal segment.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append to.</param>
+    /// <param name="pattern">The complex pattern string (e.g., "INVOICE#*#LINE#*").</param>
+    /// <param name="mode">"return" generates a return statement; "negated" generates return false if not matching.</param>
+    private static void GenerateComplexPatternCheck(StringBuilder sb, string pattern, string mode)
+    {
+        var segments = pattern.Split('*');
+        var nonEmptySegments = segments.Where(s => s.Length > 0).ToList();
+
+        if (nonEmptySegments.Count == 0)
+        {
+            if (mode == "return")
+            {
+                sb.AppendLine("            return true;");
+            }
+            return;
+        }
+
+        if (mode == "return")
+        {
+            // Generate: return discriminatorValue.S.StartsWith("X") && discriminatorValue.S.Contains("Y") && ...
+            var conditions = new List<string>();
+
+            // First segment: use StartsWith if it's the actual prefix (pattern doesn't start with *)
+            if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
+            {
+                conditions.Add($"discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+                for (int i = 1; i < nonEmptySegments.Count; i++)
+                {
+                    conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                }
+            }
+            else
+            {
+                // Pattern starts with wildcard — all segments use Contains
+                foreach (var segment in nonEmptySegments)
+                {
+                    conditions.Add($"discriminatorValue.S.Contains(\"{segment}\")");
+                }
+            }
+
+            sb.AppendLine($"            return {string.Join(" && ", conditions)};");
+        }
+        else if (mode == "negated")
+        {
+            // Generate: if (!StartsWith("X") || !Contains("Y")) return false;
+            var conditions = new List<string>();
+
+            if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
+            {
+                conditions.Add($"!discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+                for (int i = 1; i < nonEmptySegments.Count; i++)
+                {
+                    conditions.Add($"!discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                }
+            }
+            else
+            {
+                foreach (var segment in nonEmptySegments)
+                {
+                    conditions.Add($"!discriminatorValue.S.Contains(\"{segment}\")");
+                }
+            }
+
+            sb.AppendLine($"            if ({string.Join(" || ", conditions)})");
+            sb.AppendLine("                return false;");
+        }
+    }
+
+    /// <summary>
+    /// Generates an exclusion guard for a Complex-strategy pattern.
+    /// If the discriminator value matches ALL segments of the more-specific pattern, returns false.
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append to.</param>
+    /// <param name="pattern">The complex pattern string (e.g., "INVOICE#*#LINE#*").</param>
+    private static void GenerateComplexExclusionCheck(StringBuilder sb, string pattern)
+    {
+        var segments = pattern.Split('*');
+        var nonEmptySegments = segments.Where(s => s.Length > 0).ToList();
+
+        if (nonEmptySegments.Count == 0)
+        {
+            return;
+        }
+
+        // Generate: if (StartsWith("X") && Contains("Y") && ...) return false;
+        var conditions = new List<string>();
+
+        if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
+        {
+            conditions.Add($"discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+            for (int i = 1; i < nonEmptySegments.Count; i++)
+            {
+                conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+            }
+        }
+        else
+        {
+            foreach (var segment in nonEmptySegments)
+            {
+                conditions.Add($"discriminatorValue.S.Contains(\"{segment}\")");
+            }
+        }
+
+        if (conditions.Count == 1)
+        {
+            sb.AppendLine($"            if ({conditions[0]})");
+        }
+        else
+        {
+            sb.AppendLine($"            if ({string.Join(" && ", conditions)})");
+        }
+        sb.AppendLine("                return false;");
     }
 
     private static void GenerateKeyAttributeOnlyCheck(StringBuilder sb, EntityModel entity, string comment)

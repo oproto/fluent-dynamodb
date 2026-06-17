@@ -161,6 +161,30 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             }
         }
 
+        // Group entities by table name for table class generation
+        var entitiesByTable = GroupEntitiesByTableName(validEntityModels);
+
+        // Validate default entity and namespace configuration for each table
+        foreach (var tableGroup in entitiesByTable)
+        {
+            ValidateDefaultEntity(tableGroup.Value, context);
+            ValidateTableNamespaceConsistency(tableGroup.Value, context);
+        }
+
+        // Overlap analysis pass: detect discriminator pattern overlaps within each table group
+        // IMPORTANT: This must run BEFORE entity code generation so that OverlappingPatterns
+        // is populated when GenerateDiscriminatorCheck emits exclusion guards.
+        foreach (var tableGroup in entitiesByTable)
+        {
+            var tableEntities = tableGroup.Value;
+
+            var overlapDiagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
+            foreach (var diagnostic in overlapDiagnostics)
+            {
+                context.ReportDiagnostic(diagnostic);
+            }
+        }
+
         // Second pass: generate entity implementations and other source code
         // Discover extension methods marked with [GenerateWrapper] once for all entities
         Dictionary<string, List<ExtensionMethodInfo>>? extensionMethods = null;
@@ -241,15 +265,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             }
         }
 
-        // Group entities by table name for table class generation
-        var entitiesByTable = GroupEntitiesByTableName(validEntityModels);
-
-        // Validate default entity and namespace configuration for each table
-        foreach (var tableGroup in entitiesByTable)
-        {
-            ValidateDefaultEntity(tableGroup.Value, context);
-            ValidateTableNamespaceConsistency(tableGroup.Value, context);
-        }
+        // Group entities by table name for table class generation (already done in pre-pass)
+        // entitiesByTable was populated before entity generation
 
         // Generate table classes for each table group
         foreach (var tableGroup in entitiesByTable)

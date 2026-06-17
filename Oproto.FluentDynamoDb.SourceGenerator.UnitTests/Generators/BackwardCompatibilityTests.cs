@@ -449,7 +449,7 @@ namespace TestNamespace
         public List<OperatingHoursEntity> OperatingHours { get; set; } = new();
     }
 
-    [DynamoDbTable(""locations"", DiscriminatorProperty = ""sk"", DiscriminatorPattern = ""*#HOURS#*"")]
+    [DynamoDbTable(""locations"", DiscriminatorProperty = ""sk"", DiscriminatorPattern = ""LOCATION#*#HOURS#*"")]
     public partial class OperatingHoursEntity
     {
         [PartitionKey(Prefix = ""TENANT"")]

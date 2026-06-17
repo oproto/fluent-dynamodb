@@ -3,11 +3,11 @@ using Oproto.FluentDynamoDb.Attributes;
 namespace Oproto.FluentDynamoDb.IntegrationTests.TestEntities;
 
 /// <summary>
-/// Test entity using contains pattern discriminator.
+/// Test entity using prefix pattern discriminator.
 /// </summary>
 [DynamoDbTable("test-multi-entity",
     DiscriminatorProperty = "sk",
-    DiscriminatorPattern = "*#PRODUCT#*")]
+    DiscriminatorPattern = "PRODUCT#*")]
 public partial class ProductEntity
 {
     [PartitionKey]

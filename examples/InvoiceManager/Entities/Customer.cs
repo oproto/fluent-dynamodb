@@ -35,8 +35,8 @@ namespace InvoiceManager.Entities;
 /// </para>
 /// </remarks>
 [DynamoDbTable("invoices",
-    DiscriminatorProperty = "entity_type",
-    DiscriminatorValue = "CUSTOMER")]
+    DiscriminatorProperty = "sk",
+    DiscriminatorValue = "PROFILE")]
 [GenerateEntityProperty(Name = "Customers")]
 [Scannable]
 public partial class Customer
@@ -55,12 +55,6 @@ public partial class Customer
     [SortKey]
     [DynamoDbAttribute("sk")]
     public string Sk { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the entity type discriminator.
-    /// </summary>
-    [DynamoDbAttribute("entity_type")]
-    public string EntityType { get; set; } = "CUSTOMER";
 
     /// <summary>
     /// Gets or sets the unique customer identifier.

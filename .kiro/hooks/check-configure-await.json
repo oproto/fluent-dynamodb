@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Check ConfigureAwait(false)",
+      "description": "When a C# file in a library project is edited, reminds the agent to ensure all await calls use .ConfigureAwait(false). Does not apply to test projects, examples, or the source generator.",
+      "trigger": "PostFileSave",
+      "matcher": "(Oproto\\.FluentDynamoDb/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.Streams/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.FluentResults/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.Geospatial/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.Encryption\\.Kms/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.BlobStorage\\.S3/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.Logging\\.Extensions/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.SystemTextJson/.*[^/]*\\.cs$|Oproto\\.FluentDynamoDb\\.NewtonsoftJson/.*[^/]*\\.cs$)",
+      "action": {
+        "type": "agent",
+        "prompt": "If you added any await statements in this file, verify they all use .ConfigureAwait(false). This is a library project and all awaits must use ConfigureAwait(false) to prevent deadlocks in consumer applications with a SynchronizationContext. Do NOT apply this to XML doc comments, only to actual executable code."
+      },
+      "enabled": true
+    }
+  ]
+}

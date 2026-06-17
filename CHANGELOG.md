@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Most-Specific Pattern Matching for Overlapping Discriminators** - The source generator now automatically disambiguates overlapping discriminator patterns using compile-time specificity analysis. When multiple entities on the same table have patterns that could match the same value (e.g., `INVOICE#*` and `INVOICE#*#LINE#*`), the generator:
+  - Computes a specificity score for each pattern by counting non-empty literal segments after splitting on `*`
+  - Generates exclusion guards in the less-specific entity's `MatchesEntity` method to prevent it from claiming items that match a more-specific entity
+  - Ensures `ExactMatch` discriminators always take precedence over wildcard patterns
+  - Emits `DISC004` (Error) when two overlapping patterns have the same specificity score (ambiguous — developer must resolve)
+  - Emits `DISC005` (Info) when overlapping patterns are automatically resolved by specificity ordering
+  - Eliminates the need for a dedicated `entity_type` attribute in hierarchical sort key designs where parent/child entities share a common key prefix
+
 ### Fixed
 
 - **MatchesEntity Silent Item Drops** - Fixed the source-generated `MatchesEntity` method silently dropping legitimate items from Query, Scan, and Get results. The method used attribute-presence checks on ALL non-nullable properties as a heuristic for entity type discrimination, causing false negatives when any non-nullable property was missing from a DynamoDB item — even when the item legitimately belonged to that entity type. This affected empty collections (not persisted by DynamoDB), schema evolution (new properties added after items were written), and sparse writes (items written with partial attributes). The fix replaces the overly strict heuristic with a three-tier approach:

@@ -30,6 +30,14 @@ internal class DiscriminatorConfig
     /// </summary>
     public bool IsValid => !string.IsNullOrEmpty(PropertyName) && 
                           (Strategy != DiscriminatorStrategy.None);
+
+    /// <summary>
+    /// Gets or sets the list of more-specific overlapping patterns that this entity's
+    /// MatchesEntity method must exclude. Each entry contains the pattern string and
+    /// the strategy to use for the exclusion check.
+    /// Populated by PatternOverlapAnalyzer during the overlap analysis pass.
+    /// </summary>
+    public List<ExclusionPattern> OverlappingPatterns { get; set; } = new();
 }
 
 /// <summary>

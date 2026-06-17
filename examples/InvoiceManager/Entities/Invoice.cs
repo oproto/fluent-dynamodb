@@ -42,8 +42,8 @@ namespace InvoiceManager.Entities;
 /// </para>
 /// </remarks>
 [DynamoDbTable("invoices", IsDefault = true,
-    DiscriminatorProperty = "entity_type",
-    DiscriminatorValue = "INVOICE")]
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "INVOICE#*")]
 [GenerateEntityProperty(Name = "Invoices")]
 public partial class Invoice
 {
@@ -60,12 +60,6 @@ public partial class Invoice
     [SortKey(Prefix = "INVOICE")]
     [DynamoDbAttribute("sk")]
     public string Sk { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the entity type discriminator.
-    /// </summary>
-    [DynamoDbAttribute("entity_type")]
-    public string EntityType { get; set; } = "INVOICE";
 
     /// <summary>
     /// Gets or sets the invoice number.

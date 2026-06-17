@@ -36,8 +36,8 @@ namespace InvoiceManager.Entities;
 /// </list>
 /// </remarks>
 [DynamoDbTable("invoices",
-    DiscriminatorProperty = "entity_type",
-    DiscriminatorValue = "INVOICE_LINE")]
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "INVOICE#*#LINE#*")]
 [GenerateEntityProperty(Name = "InvoiceLines")]
 public partial class InvoiceLine
 {
@@ -54,12 +54,6 @@ public partial class InvoiceLine
     [SortKey]
     [DynamoDbAttribute("sk")]
     public string Sk { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the entity type discriminator.
-    /// </summary>
-    [DynamoDbAttribute("entity_type")]
-    public string EntityType { get; set; } = "INVOICE_LINE";
 
     /// <summary>
     /// Gets or sets the line number within the invoice.
