@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Emits `DISC005` (Info) when overlapping patterns are automatically resolved by specificity ordering
   - Eliminates the need for a dedicated `entity_type` attribute in hierarchical sort key designs where parent/child entities share a common key prefix
 
+### Improved
+
+- **Discriminator Pattern Overlap Analysis** - Refined the `PatternOverlapAnalyzer` to perform structural analysis of literal segments for Contains and Complex patterns, eliminating false-positive DISC004 errors for common multi-entity table designs:
+  - **Contains patterns** (`*literal*`) now use substring analysis instead of conservatively assuming overlap. Two Contains patterns only overlap if one literal is a substring of the other (e.g., `*#DEDUCTION#*` and `*#GARNISHMENT#*` are correctly identified as non-overlapping)
+  - **Complex patterns** (multi-wildcard, e.g., `EMPLOYEE#*#DEDUCTION#*`) now use structural segment comparison. Same-structure patterns are non-overlapping if any corresponding segment pair is distinguishing (neither is a substring of the other)
+  - **Cross-strategy Complex patterns** (Complex vs StartsWith/EndsWith/Contains) check whether all segments of the simpler pattern appear in the more complex pattern's text
+  - Conservative behavior is preserved: when analysis is inconclusive (e.g., degenerate all-wildcard patterns), overlap is assumed to avoid false negatives
+  - Common payroll/HR pattern (`EMPLOYEE#*#PAYRATE#*`, `EMPLOYEE#*#DEDUCTION#*`, `EMPLOYEE#*#GARNISHMENT#*`) now compiles cleanly without spurious DISC004 errors
+
 ### Fixed
 
 - **`nameof()` and Compile-Time Constant Resolution in Attributes** - Fixed `EntityAnalyzer` silently ignoring `nameof()` expressions and `const` variables used as positional arguments in `[Computed]` and `[Extracted]` attributes. Both `ExtractComputedKeyAttributes()` and `ExtractExtractedKeyAttributes()` only matched `LiteralExpressionSyntax`, causing `nameof(Property)` (an `InvocationExpressionSyntax`) and const references (an `IdentifierNameSyntax`) to be skipped — resulting in empty `SourceProperties`, empty `SourceProperty`, or default `Index = 0`. The fix adds a `semanticModel.GetConstantValue()` fallback after the existing literal check, resolving any compile-time constant expression to its value while preserving the fast-path for string and integer literals.
