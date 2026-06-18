@@ -199,10 +199,10 @@ internal static class PatternOverlapAnalyzer
     /// </summary>
     private static bool WildcardPatternsOverlap(DiscriminatorConfig a, DiscriminatorConfig b)
     {
-        // If either is Complex, conservatively assume overlap
+        // If either is Complex, use structural segment analysis
         if (a.Strategy == DiscriminatorStrategy.Complex || b.Strategy == DiscriminatorStrategy.Complex)
         {
-            return true;
+            return ComplexPatternsOverlap(a, b);
         }
 
         var literalA = DiscriminatorAnalyzer.GetPatternText(a.Pattern!, a.Strategy);
@@ -235,9 +235,10 @@ internal static class PatternOverlapAnalyzer
                 literalA.EndsWith(literalB, StringComparison.Ordinal) ||
                 literalB.EndsWith(literalA, StringComparison.Ordinal),
 
-            // Two Contains patterns: conservatively assume overlap
-            // (a string could contain both substrings)
-            DiscriminatorStrategy.Contains => true,
+            // Two Contains patterns overlap if one literal is a substring of the other
+            DiscriminatorStrategy.Contains =>
+                literalA.IndexOf(literalB, StringComparison.Ordinal) >= 0 ||
+                literalB.IndexOf(literalA, StringComparison.Ordinal) >= 0,
 
             _ => true // Conservative default
         };
@@ -267,6 +268,99 @@ internal static class PatternOverlapAnalyzer
         //   EndsWith("#AUDIT") + Contains("#DATA#") → no substring relationship
         return literalA.IndexOf(literalB, StringComparison.Ordinal) >= 0 ||
                literalB.IndexOf(literalA, StringComparison.Ordinal) >= 0;
+    }
+
+    /// <summary>
+    /// Determines if two literal segments at the same structural position could appear
+    /// at the same location in a matching string. Two segments "can match" if one is
+    /// a substring of the other (a more general segment subsumes a more specific one).
+    /// </summary>
+    /// <param name="segmentA">First literal segment.</param>
+    /// <param name="segmentB">Second literal segment.</param>
+    /// <returns>True if the segments are structurally compatible (could match same substring); false if distinguishing.</returns>
+    private static bool SegmentsCanMatch(string segmentA, string segmentB)
+    {
+        return segmentA.IndexOf(segmentB, StringComparison.Ordinal) >= 0 ||
+               segmentB.IndexOf(segmentA, StringComparison.Ordinal) >= 0;
+    }
+
+    /// <summary>
+    /// Extracts non-empty literal segments from a pattern by splitting on '*'.
+    /// Example: "EMPLOYEE#*#DEDUCTION#*" → ["EMPLOYEE#", "#DEDUCTION#"]
+    /// Example: "*#DEDUCTION#*" → ["#DEDUCTION#"]
+    /// </summary>
+    private static string[] GetLiteralSegments(string pattern)
+    {
+        return pattern.Split('*')
+            .Where(s => s.Length > 0)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Determines if two patterns have wildcards in the same boundary positions.
+    /// "EMPLOYEE#*#DEDUCTION#*" and "EMPLOYEE#*#GARNISHMENT#*" have the same structure:
+    ///   both start with a literal, have a wildcard, then another literal, then end with wildcard.
+    /// "EMPLOYEE#*#DEDUCTION#*" and "*#DEDUCTION#*" do NOT have the same structure:
+    ///   one starts with literal, the other starts with wildcard.
+    /// </summary>
+    private static bool HasSameWildcardStructure(string patternA, string patternB)
+    {
+        bool aStartsWithWildcard = patternA.StartsWith("*");
+        bool bStartsWithWildcard = patternB.StartsWith("*");
+        bool aEndsWithWildcard = patternA.EndsWith("*");
+        bool bEndsWithWildcard = patternB.EndsWith("*");
+
+        return aStartsWithWildcard == bStartsWithWildcard &&
+               aEndsWithWildcard == bEndsWithWildcard;
+    }
+
+    /// <summary>
+    /// Determines if two patterns overlap when at least one is Complex (multi-wildcard).
+    /// For same-structure patterns, checks if any corresponding segment pair is distinguishing.
+    /// For different-structure patterns, uses a conservative approach checking if all segments
+    /// of the shorter pattern appear as substrings in the longer pattern's full text.
+    /// </summary>
+    private static bool ComplexPatternsOverlap(DiscriminatorConfig a, DiscriminatorConfig b)
+    {
+        var segmentsA = GetLiteralSegments(a.Pattern!);
+        var segmentsB = GetLiteralSegments(b.Pattern!);
+
+        // Conservative fallback for empty segments
+        if (segmentsA.Length == 0 || segmentsB.Length == 0)
+        {
+            return true;
+        }
+
+        // Same segment count AND same wildcard boundary structure
+        if (segmentsA.Length == segmentsB.Length && HasSameWildcardStructure(a.Pattern!, b.Pattern!))
+        {
+            // Patterns have identical structure (wildcards in same positions).
+            // They are non-overlapping if ANY corresponding segment pair is distinguishing.
+            for (int i = 0; i < segmentsA.Length; i++)
+            {
+                if (!SegmentsCanMatch(segmentsA[i], segmentsB[i]))
+                {
+                    return false; // Found a distinguishing segment — cannot overlap
+                }
+            }
+            return true; // All segments are compatible — could overlap
+        }
+
+        // Different structures — conservative approach
+        // Check if ALL segments of the shorter pattern appear as substrings
+        // in the full pattern text of the longer one.
+        var shorterSegments = segmentsA.Length <= segmentsB.Length ? segmentsA : segmentsB;
+        var longerPattern = segmentsA.Length <= segmentsB.Length ? b.Pattern! : a.Pattern!;
+
+        foreach (var segment in shorterSegments)
+        {
+            if (longerPattern.IndexOf(segment, StringComparison.Ordinal) < 0)
+            {
+                return false; // A required segment isn't present — cannot overlap
+            }
+        }
+
+        return true; // All shorter segments found in longer pattern — conservatively overlap
     }
 
     /// <summary>

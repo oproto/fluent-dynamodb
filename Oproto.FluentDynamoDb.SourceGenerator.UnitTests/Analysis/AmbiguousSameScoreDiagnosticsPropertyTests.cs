@@ -229,7 +229,8 @@ public class AmbiguousSameScoreDiagnosticsPropertyTests
 
     /// <summary>
     /// Generates pairs of entities with same-score Contains patterns that overlap.
-    /// Contains patterns conservatively always overlap.
+    /// Contains patterns overlap when one literal is a substring of the other.
+    /// Both patterns must have the same specificity score (1 non-empty segment each).
     /// </summary>
     private static Gen<EntityPair> GenSameScoreContainsPair()
     {
@@ -237,20 +238,21 @@ public class AmbiguousSameScoreDiagnosticsPropertyTests
             "Report", "Audit", "Log", "Event", "Metric",
             "Alert", "Signal", "Trace", "Record", "Entry");
 
-        // Contains patterns: *literal* — all have 1 non-empty segment, and Contains always overlaps
+        // Contains patterns where one literal is a substring of the other (ensuring overlap)
+        // Both have 1 non-empty segment → same score
         var genPatternPair = Gen.Elements(
-            ("*#LINE#*", "*#DATA#*"),
-            ("*#META#*", "*#INFO#*"),
-            ("*#ITEM#*", "*#NODE#*"),
-            ("*#USER#*", "*#ROLE#*"),
-            ("*#TYPE#*", "*#KIND#*")
+            ("*ORDER*", "*ORD*"),           // "ORD" ⊂ "ORDER"
+            ("*#LINE#ITEM#*", "*#LINE#*"),  // "#LINE#" ⊂ "#LINE#ITEM#"
+            ("*METADATA*", "*DATA*"),       // "DATA" ⊂ "METADATA"
+            ("*#USER#*", "*USER*"),         // "USER" ⊂ "#USER#"
+            ("*INVOICE*", "*VOICE*")        // "VOICE" ⊂ "INVOICE"
         );
 
         return genClassName.Two().SelectMany(names =>
             genPatternPair.Select(patterns =>
             {
                 var (nameA, nameB) = names;
-                if (nameA == nameB) nameB = nameB + "Ext";
+                if (nameA == nameB) nameB += "Ext";
 
                 var entityA = CreateEntity(nameA, "sk", patterns.Item1, DiscriminatorStrategy.Contains);
                 var entityB = CreateEntity(nameB, "sk", patterns.Item2, DiscriminatorStrategy.Contains);

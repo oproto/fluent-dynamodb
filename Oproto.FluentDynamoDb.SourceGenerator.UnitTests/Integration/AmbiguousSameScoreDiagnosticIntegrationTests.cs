@@ -146,11 +146,12 @@ public class AmbiguousSameScoreDiagnosticIntegrationTests
     }
 
     /// <summary>
-    /// Overlapping same-score with Contains strategy: Two entities with patterns "*#DATA#*" and "*#INFO#*"
-    /// (both Contains, both score 1) conservatively overlap. DISC004 error diagnostic should be emitted.
+    /// Non-overlapping same-score with Contains strategy: Two entities with patterns "*#DATA#*" and "*#INFO#*"
+    /// (both Contains, both score 1) do NOT overlap because neither "#DATA#" is a substring of "#INFO#"
+    /// nor "#INFO#" is a substring of "#DATA#". No DISC004 diagnostic should be emitted.
     /// </summary>
     [Fact]
-    public void Analyze_OverlappingSameScoreContainsPatterns_EmitsDISC004Diagnostic()
+    public void Analyze_NonOverlappingSameScoreContainsPatterns_EmitsNoDISC004Diagnostic()
     {
         // Arrange
         var entityA = new EntityModel
@@ -188,20 +189,27 @@ public class AmbiguousSameScoreDiagnosticIntegrationTests
         // Act
         var diagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
 
-        // Assert — DISC004 error should be emitted (Contains patterns conservatively overlap)
+        // Assert — no DISC004 error should be emitted (Contains patterns no longer overlap
+        // when neither literal is a substring of the other)
         var disc004Diagnostics = diagnostics
             .Where(d => d.Id == "DISC004")
             .ToList();
 
-        disc004Diagnostics.Should().HaveCount(1,
-            "Contains patterns conservatively overlap, producing a DISC004 error");
+        disc004Diagnostics.Should().BeEmpty(
+            "Contains patterns '*#DATA#*' and '*#INFO#*' should not overlap because " +
+            "neither '#DATA#' nor '#INFO#' is a substring of the other");
 
-        var diagnostic = disc004Diagnostics.Single();
-        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        // Verify no DISC005 info diagnostic either
+        var disc005Diagnostics = diagnostics
+            .Where(d => d.Id == "DISC005")
+            .ToList();
 
-        var message = diagnostic.GetMessage();
-        message.Should().Contain("DataNode");
-        message.Should().Contain("InfoNode");
+        disc005Diagnostics.Should().BeEmpty(
+            "non-overlapping patterns should not produce any overlap-related diagnostics");
+
+        // Verify no exclusion patterns were added
+        entityA.Discriminator.OverlappingPatterns.Should().BeEmpty();
+        entityB.Discriminator.OverlappingPatterns.Should().BeEmpty();
     }
 
     /// <summary>
