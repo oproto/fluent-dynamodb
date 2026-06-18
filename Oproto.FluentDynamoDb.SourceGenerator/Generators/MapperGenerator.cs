@@ -133,7 +133,9 @@ internal static class MapperGenerator
             GenerateToDynamoDbMethod(sb, entity);
             GenerateFromDynamoDbSingleMethod(sb, entity);
             GenerateFromDynamoDbMultiMethod(sb, entity);
-            // Generate async multi-item method that delegates to sync path (required by IDynamoDbEntity interface)
+            // Generate async delegating methods that wrap sync path (required for composite assembly
+            // where parent entities call ChildEntity.FromDynamoDbAsync on non-encrypted children)
+            GenerateFromDynamoDbSingleAsyncDelegatingMethod(sb, entity);
             GenerateFromDynamoDbMultiAsyncDelegatingMethod(sb, entity);
         }
 
@@ -2152,6 +2154,37 @@ internal static class MapperGenerator
         sb.AppendLine("                    .WithContext(\"ItemCount\", items.Count)");
         sb.AppendLine("                    .WithContext(\"MappingType\", \"MultiItem\");");
         sb.AppendLine("            }");
+        sb.AppendLine("        }");
+    }
+
+    /// <summary>
+    /// Generates a single-item FromDynamoDbAsync method for entities WITHOUT blob/encryption properties.
+    /// This method delegates to the synchronous FromDynamoDb(item) method wrapped in Task.FromResult,
+    /// enabling parent entities to call ChildEntity.FromDynamoDbAsync(item, ...) uniformly during
+    /// async composite assembly regardless of whether the child has encryption.
+    /// </summary>
+    private static void GenerateFromDynamoDbSingleAsyncDelegatingMethod(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Asynchronously creates an entity instance from a single DynamoDB item.");
+        sb.AppendLine("        /// For entities without blob storage or encryption, this delegates to the synchronous single-item method.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <typeparam name=\"TSelf\">The entity type implementing IDynamoDbEntity.</typeparam>");
+        sb.AppendLine("        /// <param name=\"item\">The DynamoDB item to map from.</param>");
+        sb.AppendLine("        /// <param name=\"blobProvider\">Optional blob storage provider (not used for this entity).</param>");
+        sb.AppendLine("        /// <param name=\"fieldEncryptor\">Optional field encryptor (not used for this entity).</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger.</param>");
+        sb.AppendLine("        /// <param name=\"cancellationToken\">Cancellation token (not used for synchronous delegation).</param>");
+        sb.AppendLine("        /// <returns>A task that resolves to a mapped entity instance.</returns>");
+        sb.AppendLine($"        public static Task<TSelf> FromDynamoDbAsync<TSelf>(");
+        sb.AppendLine("            Dictionary<string, AttributeValue> item,");
+        sb.AppendLine("            IBlobStorageProvider? blobProvider,");
+        sb.AppendLine("            IFieldEncryptor? fieldEncryptor,");
+        sb.AppendLine("            FluentDynamoDbOptions? options,");
+        sb.AppendLine("            CancellationToken cancellationToken) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        sb.AppendLine("            return Task.FromResult(FromDynamoDb<TSelf>(item, options));");
         sb.AppendLine("        }");
     }
 

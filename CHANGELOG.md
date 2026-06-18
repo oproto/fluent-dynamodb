@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ToCompositeEntityAsync` Fails to Populate `[RelatedEntity]` Collections on Encrypted Entities** - Fixed the generated multi-item `FromDynamoDbAsync(IList<...> items, ...)` overload discarding all items after index 0, causing `ToCompositeEntityAsync` to return entities with empty related collections when the parent entity has `[Encrypted]` or `[BlobReference]` properties. The fix:
   - Implements full composite assembly logic in the generated async multi-item method — primary entity identification via regex exclusion of `[RelatedEntity]` sort key patterns, async deserialization of matching related items via `await ChildEntity.FromDynamoDbAsync(...)`, and collection population
   - Adds `FromDynamoDbAsync<TSelf>(IList<...> items, ...)` as a static abstract member on `IDynamoDbEntity`, enabling `ToCompositeEntityAsync` to call the async multi-item path directly without hydrator routing
+  - Generates a single-item `FromDynamoDbAsync(Dictionary<...> item, ...)` delegating method for non-encrypted entities, so parent composite assembly can uniformly call `ChildEntity.FromDynamoDbAsync(item, ...)` regardless of the child's encryption status
   - Routes `ToCompositeEntityAsync` through the async path unconditionally, eliminating the behavioral split between encrypted and non-encrypted parent entities
   - Child entities with `[Encrypted]` properties are now correctly decrypted during composite assembly regardless of the parent's encryption status
 
