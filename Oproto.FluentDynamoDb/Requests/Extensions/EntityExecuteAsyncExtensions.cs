@@ -5,6 +5,7 @@ using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Hydration;
 using Oproto.FluentDynamoDb.Mapping;
 using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -561,17 +562,12 @@ public static class EntityExecuteAsyncExtensions
             if (items.Count == 0)
                 return null;
 
-            // Check if a hydrator is registered for async deserialization (encrypted/blob entities)
             var options = builder.GetOptions();
-            var hydrator = options.HydratorRegistry?.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                var blobProvider = options.BlobStorageProvider;
-                return await hydrator.HydrateAsync(items, blobProvider, options, cancellationToken).ConfigureAwait(false);
-            }
 
-            // Use multi-item FromDynamoDb to combine all items into single entity
-            return T.FromDynamoDb<T>(items, builder.GetOptions());
+            // Always use async composite assembly path — this ensures both encrypted and
+            // non-encrypted parent entities go through the same full composite assembly logic
+            // (primary entity identification, related entity pattern matching, collection population)
+            return await T.FromDynamoDbAsync<T>(items, options?.BlobStorageProvider, options?.FieldEncryptor, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -645,19 +641,10 @@ public static class EntityExecuteAsyncExtensions
             if (items.Count == 0)
                 return null;
 
-            // Check if a hydrator is registered for this entity type (AOT-safe)
+            // Always use async composite assembly path — this ensures both encrypted and
+            // non-encrypted parent entities go through the same full composite assembly logic
             var options = builder.GetOptions();
-            var hydrator = options.HydratorRegistry.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                // Entity has blob references - use registered hydrator (no reflection)
-                return await hydrator.HydrateAsync(items, blobProvider, options, cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                // Entity doesn't have blob references - use synchronous method
-                return T.FromDynamoDb<T>(items, options);
-            }
+            return await T.FromDynamoDbAsync<T>(items, blobProvider, options?.FieldEncryptor, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {

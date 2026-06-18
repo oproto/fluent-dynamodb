@@ -10,6 +10,8 @@ using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 using System.Linq.Expressions;
 
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 namespace Oproto.FluentDynamoDb.UnitTests.Expressions;
 
 /// <summary>
@@ -349,6 +351,7 @@ internal class TestEntityWithMetadata : IDynamoDbEntity
     public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
     public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
     public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
 
     /// <summary>
     /// Returns entity metadata that maps property names to DynamoDB attribute names.
