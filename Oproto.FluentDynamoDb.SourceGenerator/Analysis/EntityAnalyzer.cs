@@ -835,10 +835,22 @@ internal class EntityAnalyzer
 
             foreach (var arg in computedAttr.ArgumentList.Arguments)
             {
-                // Skip named arguments for now, handle positional arguments (source properties)
-                if (arg.NameEquals == null && arg.Expression is LiteralExpressionSyntax literal)
+                // Skip named arguments, handle positional arguments (source properties)
+                if (arg.NameEquals != null)
+                    continue;
+
+                if (arg.Expression is LiteralExpressionSyntax literal)
                 {
                     sourceProperties.Add(literal.Token.ValueText);
+                }
+                else
+                {
+                    // Fallback: resolve compile-time constants (nameof, const, etc.)
+                    var constantValue = semanticModel.GetConstantValue(arg.Expression);
+                    if (constantValue.HasValue && constantValue.Value is string strValue)
+                    {
+                        sourceProperties.Add(strValue);
+                    }
                 }
             }
 
@@ -883,12 +895,42 @@ internal class EntityAnalyzer
             {
                 extractedModel.SourceProperty = sourcePropertyLiteral.Token.ValueText;
             }
+            else
+            {
+                // Fallback: resolve compile-time constants (nameof, const, etc.)
+                var constantValue = semanticModel.GetConstantValue(args[0].Expression);
+                if (constantValue.HasValue && constantValue.Value is string strValue)
+                {
+                    extractedModel.SourceProperty = strValue;
+                }
+            }
 
             // Second argument: index
             if (args[1].Expression is LiteralExpressionSyntax indexLiteral &&
                 int.TryParse(indexLiteral.Token.ValueText, out var index))
             {
                 extractedModel.Index = index;
+            }
+            else
+            {
+                // Fallback: resolve compile-time constants (const int, etc.)
+                var indexConstant = semanticModel.GetConstantValue(args[1].Expression);
+                if (indexConstant.HasValue && indexConstant.Value is int intValue)
+                {
+                    extractedModel.Index = intValue;
+                }
+                else if (indexConstant.HasValue)
+                {
+                    // Handle other integer types (short, byte, etc.)
+                    try
+                    {
+                        extractedModel.Index = Convert.ToInt32(indexConstant.Value);
+                    }
+                    catch
+                    {
+                        // If conversion fails, leave Index at default (0)
+                    }
+                }
             }
         }
 
