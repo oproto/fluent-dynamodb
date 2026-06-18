@@ -42,7 +42,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Remove="RealworldExample/**" />
+        <Compile Remove="Examples/**" />
+        <None Remove="Examples/**" />
+        <EmbeddedResource Remove="Examples/**" />
     </ItemGroup>
 
     <!-- Include README in package -->

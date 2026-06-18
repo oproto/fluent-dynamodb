@@ -1,5 +1,7 @@
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Metadata;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.Entities;
 
@@ -155,4 +157,30 @@ public sealed class DynamicEntity : IDynamoDbEntity
         TtlAttributeName = null,
         IsDynamicEntity = true // Key flag for expression translator
     };
+
+    /// <summary>
+    /// Asynchronously creates a DynamicEntity instance from multiple DynamoDB items.
+    /// For DynamicEntity, this uses only the first item since DynamicEntity doesn't support multi-item entities.
+    /// </summary>
+    /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>
+    /// <param name="items">The collection of DynamoDB items.</param>
+    /// <param name="blobProvider">Optional blob storage provider (not used for DynamicEntity).</param>
+    /// <param name="fieldEncryptor">Optional field encryptor (not used for DynamicEntity).</param>
+    /// <param name="options">Optional configuration options.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A DynamicEntity with attributes from the first item.</returns>
+    /// <exception cref="ArgumentException">Thrown when the items collection is empty.</exception>
+    public static Task<TSelf> FromDynamoDbAsync<TSelf>(
+        IList<Dictionary<string, AttributeValue>> items,
+        IBlobStorageProvider? blobProvider,
+        IFieldEncryptor? fieldEncryptor,
+        FluentDynamoDbOptions? options,
+        CancellationToken cancellationToken) where TSelf : IDynamoDbEntity
+    {
+        if (items.Count == 0)
+            throw new ArgumentException("Items collection cannot be empty", nameof(items));
+
+        // DynamicEntity doesn't support multi-item entities or encryption, use first item
+        return Task.FromResult(FromDynamoDb<TSelf>(items[0], options));
+    }
 }
