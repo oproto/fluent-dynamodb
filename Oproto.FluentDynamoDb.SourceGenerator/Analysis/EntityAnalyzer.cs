@@ -2077,20 +2077,6 @@ internal class EntityAnalyzer
                 extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
                 extractedProperty.PropertyName, extractedKey.Index, extractedKey.SourceProperty);
         }
-
-        // Check if source property is also computed (potential circular dependency)
-        var sourceProperty = entityModel.Properties.FirstOrDefault(p => p.PropertyName == extractedKey.SourceProperty);
-        if (sourceProperty?.IsComputed == true)
-        {
-            // This is allowed but we should check for circular dependencies
-            var computedSourceProperties = sourceProperty.ComputedKey?.SourceProperties ?? Array.Empty<string>();
-            if (computedSourceProperties.Contains(extractedProperty.PropertyName))
-            {
-                ReportDiagnostic(DiagnosticDescriptors.CircularKeyDependency,
-                    extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
-                    $"{extractedProperty.PropertyName} -> {extractedKey.SourceProperty} -> {extractedProperty.PropertyName}");
-            }
-        }
     }
 
     private void ValidateComputedKeyFormat(PropertyModel computedProperty, ComputedKeyModel computedKey)
