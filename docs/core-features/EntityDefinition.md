@@ -416,6 +416,73 @@ public static class OrderKeys
 }
 ```
 
+### Non-String Key Types
+
+Partition keys and sort keys can use non-string .NET types such as enums, numeric types, `Guid`, `DateTime`, `DateOnly`, and `TimeOnly`. The source generator automatically handles the correct DynamoDB serialization:
+
+```csharp
+[DynamoDbTable("sensors")]
+public partial class SensorReading
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public int SensorId { get; set; }
+    
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public DateTime Timestamp { get; set; }
+}
+```
+
+The generated accessor methods use the native .NET type as the parameter and construct the correct `AttributeValue` internally:
+
+```csharp
+// Generated: Get(int pK, DateTime sK) with correct DynamoDB AttributeValue construction
+var reading = await table.SensorReadings.Get(42, dateTime).GetItemAsync();
+await table.SensorReadings.Delete(42, dateTime).DeleteAsync();
+```
+
+**Supported non-string key types:**
+
+| .NET Type | DynamoDB Type | Serialization |
+|-----------|--------------|---------------|
+| `int`, `long`, `double`, `decimal`, etc. | N (number) | `.ToString()` |
+| `Guid` | S (string) | `.ToString()` |
+| `DateTime` | S (string) | `.ToString("O")` (ISO 8601) |
+| `DateOnly` | S (string) | `.ToString("O", CultureInfo.InvariantCulture)` |
+| `TimeOnly` | S (string) | `.ToString("O", CultureInfo.InvariantCulture)` |
+| Enum types | S (string) | `.ToString()` (name) or `.ToString("D")` (numeric) |
+| `bool` | BOOL | Direct value |
+
+**Custom formats** via `[DynamoDbAttribute(Format = "...")]`:
+
+```csharp
+// Enum with numeric representation
+[SortKey]
+[DynamoDbAttribute("sk", Format = "D")]
+public MyEnum Category { get; set; }
+
+// DateTime with custom format
+[SortKey]
+[DynamoDbAttribute("sk", Format = "yyyy-MM-dd")]
+public DateTime EventDate { get; set; }
+
+// DateTime with UTC normalization
+[SortKey]
+[DynamoDbAttribute("sk", DateTimeKind = DateTimeKind.Utc)]
+public DateTime CreatedAt { get; set; }
+```
+
+**Nullable key types** are also supported — the generated code uses `.Value` before serialization:
+
+```csharp
+[PartitionKey]
+[DynamoDbAttribute("pk")]
+public int? Score { get; set; }
+```
+
+> **Note:** When a non-string key has a `Prefix` configured or is `[Computed]`, the parameter type remains `string` and uses `.WithKey()` as before — the caller supplies the fully-formed prefixed string value.
+
 ### Key Prefixes
 
 Add prefixes to partition and sort keys for better organization:

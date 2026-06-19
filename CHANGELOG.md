@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Non-String Key Accessor Compilation Errors** - Fixed the source generator producing uncompilable code for entities with non-string key types (enum, int, long, Guid, DateTime, DateOnly, TimeOnly, nullable value types) that have no prefix and are not computed. The generated accessor methods (Get, Update, Delete, ConditionCheck) and table-level key overloads now emit `.SetKey(k => { ... })` with inline `AttributeValue` construction instead of `.WithKey()` when the key parameter is a non-string type. This ensures the generated code compiles correctly by constructing the `AttributeValue` with the appropriate DynamoDB type (`N` for numerics, `S` for strings/enums/Guids/dates) and respecting `Format`, `DateTimeKind`, and nullable `.Value` accessor patterns. Entities with string keys, prefixed keys, or computed keys continue to use `.WithKey()` unchanged.
+
 - **Tautological Exclusion Guard Detection** - Fixed the source generator's `PatternOverlapAnalyzer` silently generating contradictory `MatchesEntity` code when a computed exclusion guard is identical to the entity's own positive match criterion. This caused `MatchesEntity` to always return `false` for affected entities (e.g., a Contains-strategy entity `*#ROLE#*` overlapping with a Complex-strategy entity `USER#*#ROLE#*`). The fix adds compile-time detection via a new `DISC006` diagnostic error instead of generating unreachable code. Valid hierarchies (e.g., `USER#*` with `USER#*#ROLE#*`) are unaffected.
 
 - **NuGet Package Including Examples Code** - Fixed the `Oproto.FluentDynamoDb/Examples/` folder being compiled into the library DLL and shipped in the NuGet package. Removed the folder entirely.
