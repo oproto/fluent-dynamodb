@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tautological Exclusion Guard Detection** - Fixed the source generator's `PatternOverlapAnalyzer` silently generating contradictory `MatchesEntity` code when a computed exclusion guard is identical to the entity's own positive match criterion. This caused `MatchesEntity` to always return `false` for affected entities (e.g., a Contains-strategy entity `*#ROLE#*` overlapping with a Complex-strategy entity `USER#*#ROLE#*`). The fix adds compile-time detection via a new `DISC006` diagnostic error instead of generating unreachable code. Valid hierarchies (e.g., `USER#*` with `USER#*#ROLE#*`) are unaffected.
+
 - **NuGet Package Including Examples Code** - Fixed the `Oproto.FluentDynamoDb/Examples/` folder being compiled into the library DLL and shipped in the NuGet package. Removed the folder entirely.
 
 - **`ToCompositeEntityAsync` Fails to Populate `[RelatedEntity]` Collections on Encrypted Entities** - Fixed the generated multi-item `FromDynamoDbAsync(IList<...> items, ...)` overload discarding all items after index 0, causing `ToCompositeEntityAsync` to return entities with empty related collections when the parent entity has `[Encrypted]` or `[BlobReference]` properties. The fix:
