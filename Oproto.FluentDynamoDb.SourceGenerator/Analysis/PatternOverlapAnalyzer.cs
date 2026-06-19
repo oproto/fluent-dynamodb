@@ -152,18 +152,39 @@ internal static class PatternOverlapAnalyzer
                         moreSpecificConfig = configB;
                     }
 
-                    // Add exclusion pattern to the less-specific entity
+                    // Create exclusion pattern from the more-specific entity
                     var exclusion = CreateExclusionPattern(moreSpecific, moreSpecificConfig);
-                    lessSpecific.Discriminator!.OverlappingPatterns.Add(exclusion);
 
-                    // DISC005: Informational — overlap resolved
-                    var diagnostic = Diagnostic.Create(
-                        DiagnosticDescriptors.OverlappingDiscriminatorPatternResolved,
-                        Location.None,
-                        lessSpecific.ClassName,
-                        GetDisplayPattern(moreSpecificConfig),
-                        moreSpecific.ClassName);
-                    diagnostics.Add(diagnostic);
+                    // Check if the exclusion is tautological (same as the entity's own positive match)
+                    if (IsTautologicalExclusion(lessSpecific.Discriminator!, exclusion))
+                    {
+                        // DISC006: Tautological exclusion guard detected — do NOT add to OverlappingPatterns
+                        var strategyName = exclusion.Strategy.ToString();
+                        var diagnostic = Diagnostic.Create(
+                            DiagnosticDescriptors.TautologicalExclusionGuard,
+                            Location.None,
+                            lessSpecific.ClassName,
+                            GetDisplayPattern(lessSpecific.Discriminator!),
+                            GetDisplayPattern(moreSpecificConfig),
+                            moreSpecific.ClassName,
+                            strategyName,
+                            exclusion.LiteralText);
+                        diagnostics.Add(diagnostic);
+                    }
+                    else
+                    {
+                        // Valid exclusion — add to OverlappingPatterns and emit DISC005
+                        lessSpecific.Discriminator!.OverlappingPatterns.Add(exclusion);
+
+                        // DISC005: Informational — overlap resolved
+                        var diagnostic = Diagnostic.Create(
+                            DiagnosticDescriptors.OverlappingDiscriminatorPatternResolved,
+                            Location.None,
+                            lessSpecific.ClassName,
+                            GetDisplayPattern(moreSpecificConfig),
+                            moreSpecific.ClassName);
+                        diagnostics.Add(diagnostic);
+                    }
                 }
             }
         }
@@ -427,6 +448,48 @@ internal static class PatternOverlapAnalyzer
             Strategy = config.Strategy,
             LiteralText = literalText
         };
+    }
+
+    /// <summary>
+    /// Determines whether an exclusion pattern is tautological — i.e., it uses the same strategy
+    /// and literal text as the less-specific entity's own positive match criterion. A tautological
+    /// exclusion would make the entity's MatchesEntity method always return false.
+    /// </summary>
+    /// <param name="lessSpecificConfig">The discriminator config of the less-specific entity.</param>
+    /// <param name="exclusion">The computed exclusion pattern to check.</param>
+    /// <returns>True if the exclusion is tautological; false otherwise.</returns>
+    private static bool IsTautologicalExclusion(DiscriminatorConfig lessSpecificConfig, ExclusionPattern exclusion)
+    {
+        var positiveStrategy = lessSpecificConfig.Strategy;
+        string positiveLiteral;
+
+        switch (positiveStrategy)
+        {
+            case DiscriminatorStrategy.ExactMatch:
+                positiveLiteral = lessSpecificConfig.ExactValue ?? string.Empty;
+                break;
+            case DiscriminatorStrategy.StartsWith:
+                positiveLiteral = DiscriminatorAnalyzer.GetPatternText(lessSpecificConfig.Pattern!, DiscriminatorStrategy.StartsWith);
+                break;
+            case DiscriminatorStrategy.EndsWith:
+                positiveLiteral = DiscriminatorAnalyzer.GetPatternText(lessSpecificConfig.Pattern!, DiscriminatorStrategy.EndsWith);
+                break;
+            case DiscriminatorStrategy.Contains:
+                positiveLiteral = DiscriminatorAnalyzer.GetPatternText(lessSpecificConfig.Pattern!, DiscriminatorStrategy.Contains);
+                break;
+            case DiscriminatorStrategy.Complex:
+                // For Complex, use the first non-empty segment (StartsWith portion)
+                var segments = lessSpecificConfig.Pattern!.Split('*');
+                positiveLiteral = segments.FirstOrDefault(s => s.Length > 0) ?? string.Empty;
+                // Normalize Complex to StartsWith for comparison
+                positiveStrategy = DiscriminatorStrategy.StartsWith;
+                break;
+            default:
+                return false;
+        }
+
+        return exclusion.Strategy == positiveStrategy
+               && string.Equals(exclusion.LiteralText, positiveLiteral, StringComparison.Ordinal);
     }
 
     /// <summary>

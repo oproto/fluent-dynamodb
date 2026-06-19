@@ -623,7 +623,7 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Projections with many properties may not provide significant performance benefits.");
 
-    // Discriminator Configuration Diagnostics (DISC001-DISC005)
+    // Discriminator Configuration Diagnostics (DISC001-DISC006)
 
     /// <summary>
     /// Warning when both DiscriminatorValue and DiscriminatorPattern are specified.
@@ -684,6 +684,18 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "Overlapping discriminator patterns were resolved by specificity ordering. The less-specific entity's MatchesEntity method will exclude items matching the more-specific pattern.");
+
+    /// <summary>
+    /// Error when a computed exclusion guard is tautological — identical to the entity's own positive match.
+    /// </summary>
+    public static readonly DiagnosticDescriptor TautologicalExclusionGuard = new(
+        "DISC006",
+        "Tautological exclusion guard detected",
+        "Entity '{0}' (pattern '{1}') cannot exclude pattern '{2}' from entity '{3}' because the exclusion check ({4}(\"{5}\")) is identical to the entity's own positive match. This would make MatchesEntity always return false.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A computed exclusion guard is tautological — it uses the same strategy and literal as the entity's own positive match criterion. This indicates the pattern hierarchy cannot be automatically resolved. Consider redesigning the discriminator patterns to use distinct literals.");
 
     // Security Diagnostics (SEC001-SEC002)
 

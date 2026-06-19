@@ -724,6 +724,7 @@ The source generator emits diagnostics to keep you informed about overlap resolu
 |----|----------|-------------|
 | `DISC004` | Error | Two overlapping patterns have the **same** specificity score. The generator cannot determine precedence — you must resolve the ambiguity (e.g., add more structure to one pattern or use a dedicated `DiscriminatorValue`). |
 | `DISC005` | Info | Overlapping patterns detected and automatically resolved by specificity ordering. No action required — this is informational. |
+| `DISC006` | Error | A computed exclusion guard is **tautological** — it uses the same strategy and literal as the entity's own positive match. The generated `MatchesEntity` would always return `false`. Redesign your discriminator patterns. |
 
 **Example DISC004 error:**
 ```csharp
@@ -740,6 +741,26 @@ public partial class PendingItem { ... }
 - Add more literal structure to one pattern so scores differ
 - Use `DiscriminatorValue` (ExactMatch) for one entity
 - Use different `DiscriminatorProperty` values so patterns don't overlap
+
+**Example DISC006 error:**
+```csharp
+// ❌ TAUTOLOGICAL: exclusion guard would contradict positive match
+[DynamoDbTable("entities", DiscriminatorProperty = "sk", DiscriminatorPattern = "*#ROLE#*")]
+public partial class RoleItem { ... }
+
+[DynamoDbTable("entities", DiscriminatorProperty = "sk", DiscriminatorPattern = "USER#*#ROLE#*")]
+public partial class UserRole { ... }
+// RoleItem uses Contains("#ROLE#") as its positive check.
+// The computed exclusion from UserRole is also Contains("#ROLE#") — identical!
+// This would make RoleItem.MatchesEntity always return false — DISC006 emitted
+```
+
+This happens when a Contains-strategy entity (e.g., `*#ROLE#*`) overlaps with a Complex-strategy entity (e.g., `USER#*#ROLE#*`) that shares the same internal segment. The exclusion extraction heuristic produces the same literal that the less-specific entity already uses for its positive match.
+
+**Resolving DISC006:**
+- Use a `StartsWith` pattern for the less-specific entity (e.g., `USER#*` instead of `*#ROLE#*`) so the positive match and exclusion use different strategies/literals
+- Use a dedicated `DiscriminatorValue` (ExactMatch) for one of the entities
+- Redesign your key structure so the overlapping entities use distinct discriminator segments
 
 ### When Overlap Resolution Does NOT Apply
 
