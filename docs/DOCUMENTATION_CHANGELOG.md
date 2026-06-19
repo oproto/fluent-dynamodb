@@ -59,6 +59,18 @@ Entries may be categorized as:
 
 ## [2026-06-19]
 
+### Non-String Key Type Support — Bugfix Clarification
+
+**Category:** Clarification
+
+**Summary:** Added documentation clarifying that non-string key types (enum, int, long, Guid, DateTime, DateOnly, TimeOnly, and nullable value types) are fully supported as partition keys and sort keys when they have no prefix and are not computed. Previously, the source generator produced uncompilable code for these configurations. The fix ensures correct `AttributeValue` construction in generated accessor methods.
+
+### File: docs/core-features/EntityDefinition.md
+
+**Change:** Added "Non-String Key Types" section documenting support for entities with non-string partition/sort key types (enum, int, Guid, DateTime, etc.) without prefixes. Includes examples showing that the source generator correctly handles type-appropriate DynamoDB serialization (numeric types as `N`, string/enum/Guid/date types as `S`).
+
+**Reason:** The source generator previously produced uncompilable code (CS1503 errors) for entities with non-string key types that had no prefix and were not computed. After the bugfix, non-string keys are a first-class supported pattern that should be documented.
+
 ### Tautological Exclusion Guard Detection — New Diagnostic (DISC006)
 
 **Category:** Clarification

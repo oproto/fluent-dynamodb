@@ -1524,7 +1524,7 @@ internal static class MapperGenerator
         };
     }
 
-    private static string GetToAttributeValueExpression(PropertyModel property, string valueExpression)
+    internal static string GetToAttributeValueExpression(PropertyModel property, string valueExpression)
     {
         var baseType = GetBaseType(property.PropertyType);
         
@@ -1573,7 +1573,7 @@ internal static class MapperGenerator
         };
     }
 
-    private static string GenerateDateTimeToAttributeValue(PropertyModel property, string valueExpression)
+    internal static string GenerateDateTimeToAttributeValue(PropertyModel property, string valueExpression)
     {
         var convertedValue = valueExpression;
         
@@ -1594,7 +1594,7 @@ internal static class MapperGenerator
         return $"new AttributeValue {{ S = {convertedValue}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
     }
 
-    private static string GenerateFormattedToAttributeValue(PropertyModel property, string valueExpression)
+    internal static string GenerateFormattedToAttributeValue(PropertyModel property, string valueExpression)
     {
         var baseType = GetBaseType(property.PropertyType);
         var format = property.Format!;
@@ -1624,6 +1624,12 @@ internal static class MapperGenerator
 
         // For TimeOnly with format
         if (baseType is "TimeOnly" or "System.TimeOnly")
+        {
+            return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
+        }
+
+        // For enum types with format (e.g., Format="D" for numeric representation)
+        if (IsEnumType(property.PropertyType))
         {
             return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
         }
@@ -4767,7 +4773,7 @@ internal static class MapperGenerator
         sb.AppendLine("                    },");
     }
 
-    private static string GetBaseType(string typeName)
+    internal static string GetBaseType(string typeName)
     {
         // Remove nullable annotations and generic type parameters
         var baseType = typeName.TrimEnd('?');
@@ -4851,7 +4857,7 @@ internal static class MapperGenerator
         };
     }
 
-    private static bool IsEnumType(string typeName)
+    internal static bool IsEnumType(string typeName)
     {
         // This is a simplified check - in a real implementation, we'd use semantic analysis
         // For now, assume any type not in our known primitives might be an enum
