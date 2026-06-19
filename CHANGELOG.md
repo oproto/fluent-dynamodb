@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-06-19
+
 ### Fixed
 
 - **DYNDB033 False Positive on Computed↔Extracted Bidirectional Mapping** - Fixed the source generator's `EntityAnalyzer` incorrectly reporting DYNDB033 "Circular dependency detected between computed properties" when `[Computed]` and `[Extracted]` attributes form a valid bidirectional mapping pattern on the same property pair. The `[Computed]` attribute operates on the write path (composing source properties into a key) while `[Extracted]` operates on the read path (decomposing the key back into components) — these cannot form a circular dependency. The fix removes the over-broad cross-check from `ValidateExtractedProperty`, relying on the existing DFS-based `ValidateComputedKeyCircularDependencies` which correctly catches genuine Computed→Computed cycles.
