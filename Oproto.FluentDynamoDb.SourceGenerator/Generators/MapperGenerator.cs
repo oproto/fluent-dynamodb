@@ -1569,7 +1569,7 @@ internal static class MapperGenerator
             "Ulid" or "System.Ulid" => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             "byte[]" or "System.Byte[]" => $"new AttributeValue {{ B = new System.IO.MemoryStream({valueExpression}) }}",
             _ when property.IsEnum => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
-            _ => $"new AttributeValue {{ S = {valueExpression} != null ? {valueExpression}.ToString() : \"\" }}"
+            _ => $"new AttributeValue {{ S = {actualValue}.ToString() }}"
         };
     }
 
