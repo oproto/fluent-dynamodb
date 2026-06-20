@@ -210,6 +210,34 @@ public class NonStringKeyAccessorPreservationTests
         generatedCode.Should().NotContain(".SetKey(");
     }
 
+    /// <summary>
+    /// Test 9: Non-string sort key WITH prefix (customer scenario).
+    /// Entity with [SortKey(Prefix = "TOPIC")] SnsSubscriptionTopic Topic — verify parameter type is string and .WithKey() used.
+    /// Preservation: prefix forces string parameter type even for enum sort keys, so .WithKey() works.
+    /// </summary>
+    [Fact]
+    public void NonStringSortKey_WithPrefix_ShouldUseWithKeyAndStringParameter()
+    {
+        // Arrange - mirrors the customer's UserSubscription entity
+        var entity = CreateCompositeKeyEntity(
+            pkType: "string",
+            pkAttributeName: "PK",
+            skType: "SnsSubscriptionTopic",
+            skAttributeName: "SK",
+            pkPrefix: "USER",
+            skPrefix: "TOPIC");
+
+        // Act
+        var generatedCode = TableGenerator.GenerateTableClass(entity);
+
+        // Assert — prefix on enum SK means parameter type is string and .WithKey() is used
+        generatedCode.Should().Contain("Get(string");
+        generatedCode.Should().Contain(".WithKey(\"PK\", pK, \"SK\", sK)");
+        generatedCode.Should().NotContain(".SetKey(");
+        // The parameter type should be string, NOT the enum type
+        generatedCode.Should().NotContain("SnsSubscriptionTopic");
+    }
+
     #region Helper Methods
 
     private static EntityModel CreateSingleKeyEntity(

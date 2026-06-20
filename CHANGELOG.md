@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Extracted Property Type Conversion** - Fixed the source generator producing uncompilable code for `[Extracted]` properties with non-string types (enums, int, long, decimal, etc.). The `MapperGenerator.GenerateExtractedKeyLogic` method unconditionally assigned the raw `string` result of `Split()` without type conversion, causing CS0029 compile errors. The `KeysGenerator.GetExtractionExpression` method relied on a name-based `IsEnumType` heuristic that only matched type names containing "Status", "Type", "Kind", or "State" — enums with other names (e.g., `SnsSubscriptionTopic`) silently generated broken code. The fix adds a `PropertyModel.IsEnum` flag set from Roslyn semantic analysis (`ITypeSymbol.TypeKind == TypeKind.Enum`) and applies type-aware conversion (`Enum.Parse<T>()`, `int.Parse()`, etc.) in both code generation paths. The broken `IsEnumType` heuristic methods in both `KeysGenerator` and `MapperGenerator` have been removed.
+
 ## [1.0.6] - 2026-06-19
 
 ### Fixed
