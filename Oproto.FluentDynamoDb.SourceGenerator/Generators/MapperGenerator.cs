@@ -1568,7 +1568,7 @@ internal static class MapperGenerator
             "Guid" or "System.Guid" => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             "Ulid" or "System.Ulid" => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             "byte[]" or "System.Byte[]" => $"new AttributeValue {{ B = new System.IO.MemoryStream({valueExpression}) }}",
-            _ when IsEnumType(property.PropertyType) => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
+            _ when property.IsEnum => $"new AttributeValue {{ S = {actualValue}.ToString() }}",
             _ => $"new AttributeValue {{ S = {valueExpression} != null ? {valueExpression}.ToString() : \"\" }}"
         };
     }
@@ -1629,7 +1629,7 @@ internal static class MapperGenerator
         }
 
         // For enum types with format (e.g., Format="D" for numeric representation)
-        if (IsEnumType(property.PropertyType))
+        if (property.IsEnum)
         {
             return $"new AttributeValue {{ S = {valueExpression}.ToString(\"{format}\", System.Globalization.CultureInfo.InvariantCulture) }}";
         }
@@ -3761,8 +3761,12 @@ internal static class MapperGenerator
             "Guid" or "System.Guid" => $"Guid.Parse({valueExpression}.S)",
             "Ulid" or "System.Ulid" => $"Ulid.Parse({valueExpression}.S)",
             "byte[]" or "System.Byte[]" => $"{valueExpression}.B.ToArray()",
-            _ when IsEnumType(property.PropertyType) => $"Enum.Parse<{baseType}>({valueExpression}.S)",
-            _ => $"{valueExpression}.S"
+            _ when property.IsEnum => $"Enum.Parse<{baseType}>({valueExpression}.S)",
+            // Fallback for unrecognized non-primitive types: treat as enum (matches the
+            // ToDynamoDb pattern where unknown types serialize via .ToString()).
+            // This ensures correct behavior both when IsEnum is explicitly set by the
+            // EntityAnalyzer and when PropertyModel is constructed without semantic analysis.
+            _ => $"Enum.Parse<{baseType}>({valueExpression}.S)"
         };
 
         return conversion;
@@ -4857,27 +4861,6 @@ internal static class MapperGenerator
         };
     }
 
-    internal static bool IsEnumType(string typeName)
-    {
-        // This is a simplified check - in a real implementation, we'd use semantic analysis
-        // For now, assume any type not in our known primitives might be an enum
-        var baseType = GetBaseType(typeName);
-        var knownPrimitives = new[]
-        {
-            "string", "int", "long", "double", "float", "decimal", "bool", "DateTime", "DateTimeOffset",
-            "Guid", "byte[]", "System.String", "System.Int32", "System.Int64", "System.Double",
-            "System.Single", "System.Decimal", "System.Boolean", "System.DateTime", "System.DateTimeOffset",
-            "System.Guid", "System.Byte[]", "Ulid", "System.Ulid",
-            "DateOnly", "TimeOnly", "System.DateOnly", "System.TimeOnly"
-        };
-
-        return !knownPrimitives.Contains(baseType) &&
-               !baseType.StartsWith("System.Collections.Generic.") &&
-               !baseType.StartsWith("List<") &&
-               !baseType.StartsWith("IList<") &&
-               !baseType.StartsWith("ICollection<") &&
-               !baseType.StartsWith("IEnumerable<");
-    }
 
     private static string GetCollectionElementType(string collectionType)
     {
@@ -5019,8 +5002,10 @@ internal static class MapperGenerator
             "TimeOnly" or "System.TimeOnly" => $"new AttributeValue {{ S = {valueExpression}.ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture) }}",
             "Guid" or "System.Guid" => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
             "Ulid" or "System.Ulid" => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
-            _ when IsEnumType(elementType) => $"new AttributeValue {{ S = {valueExpression}.ToString() }}",
-            _ => $"new AttributeValue {{ S = {valueExpression} != null ? {valueExpression}.ToString() : \"\" }}"
+            // Heuristic for collection elements: if it's not a known primitive type, it's likely
+            // an enum or user-defined type that serializes via .ToString(). No PropertyModel is
+            // available here, so we use a negative-match against known primitives.
+            _ => $"new AttributeValue {{ S = {valueExpression}.ToString() }}"
         };
     }
 
@@ -5348,14 +5333,54 @@ internal static class MapperGenerator
         var index = extractedKey.Index;
         var separator = extractedKey.Separator;
 
+        var partsVariable = $"{sourceProperty.ToLowerInvariant()}Parts";
+        var valueExpression = $"{partsVariable}[{index}]";
+        var conversionExpression = GetExtractedPropertyConversionExpression(extractedProperty, valueExpression);
+
         sb.AppendLine($"            if (!string.IsNullOrEmpty(entity.{escapedSourceProperty}))");
         sb.AppendLine("            {");
-        sb.AppendLine($"                var {sourceProperty.ToLowerInvariant()}Parts = entity.{escapedSourceProperty}.Split('{separator}');");
-        sb.AppendLine($"                if ({sourceProperty.ToLowerInvariant()}Parts.Length > {index})");
+        sb.AppendLine($"                var {partsVariable} = entity.{escapedSourceProperty}.Split('{separator}');");
+        sb.AppendLine($"                if ({partsVariable}.Length > {index})");
         sb.AppendLine("                {");
-        sb.AppendLine($"                    entity.{escapedPropertyName} = {sourceProperty.ToLowerInvariant()}Parts[{index}];");
+        sb.AppendLine($"                    entity.{escapedPropertyName} = {conversionExpression};");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
+    }
+
+    /// <summary>
+    /// Gets the type-aware conversion expression for an extracted property value.
+    /// Mirrors KeysGenerator.GetExtractionExpression logic but uses PropertyModel.IsEnum
+    /// for reliable enum detection instead of name-based heuristics.
+    /// </summary>
+    private static string GetExtractedPropertyConversionExpression(PropertyModel extractedProperty, string valueExpression)
+    {
+        var baseType = GetBaseType(extractedProperty.PropertyType);
+
+        // Check enum first using the reliable Roslyn-based IsEnum flag
+        if (extractedProperty.IsEnum)
+        {
+            return $"Enum.Parse<{baseType}>({valueExpression})";
+        }
+
+        return baseType switch
+        {
+            "string" or "String" or "System.String" => valueExpression,
+            "int" or "System.Int32" => $"int.Parse({valueExpression})",
+            "long" or "System.Int64" => $"long.Parse({valueExpression})",
+            "double" or "System.Double" => $"double.Parse({valueExpression})",
+            "float" or "System.Single" => $"float.Parse({valueExpression})",
+            "decimal" or "System.Decimal" => $"decimal.Parse({valueExpression})",
+            "bool" or "System.Boolean" => $"bool.Parse({valueExpression})",
+            "DateTime" or "System.DateTime" => $"DateTime.Parse({valueExpression})",
+            "DateTimeOffset" or "System.DateTimeOffset" => $"DateTimeOffset.Parse({valueExpression})",
+            "Guid" or "System.Guid" => $"Guid.Parse({valueExpression})",
+            "Ulid" or "System.Ulid" => $"Ulid.Parse({valueExpression})",
+            // Any non-primitive type in an extracted property context must be an enum —
+            // extracted properties can only be simple types parseable from string split parts.
+            // The IsEnum flag is set from Roslyn semantic analysis; this fallback handles
+            // cases where the flag isn't explicitly set (e.g., programmatic model construction).
+            _ => $"Enum.Parse<{baseType}>({valueExpression})"
+        };
     }
 
     private static void GenerateEncryptedPropertyToAttributeValue(StringBuilder sb, PropertyModel property, EntityModel entity)

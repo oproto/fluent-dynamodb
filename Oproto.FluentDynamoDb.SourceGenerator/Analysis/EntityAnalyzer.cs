@@ -1376,6 +1376,8 @@ internal class EntityAnalyzer
             }
         }
 
+        propertyModel.IsEnum = isEnum;
+
         if (!isComplexType && !isEnum && !IsSupportedPropertyType(propertyModel.PropertyType))
         {
             ReportDiagnostic(DiagnosticDescriptors.UnsupportedPropertyType,

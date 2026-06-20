@@ -844,7 +844,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -906,7 +906,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -978,7 +978,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         var updateBuilderClassName = $"{entity.ClassName}UpdateBuilder";
         
         if (sortKey == null)
@@ -1032,7 +1032,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -1097,7 +1097,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -1196,7 +1196,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -1306,7 +1306,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         if (sortKey == null)
         {
@@ -1345,7 +1345,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -1628,7 +1628,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -1681,7 +1681,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -1744,7 +1744,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         var updateBuilderClassName = $"{entity.ClassName}UpdateBuilder";
         
         if (sortKey == null)
@@ -1767,7 +1767,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -1800,7 +1800,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -1881,7 +1881,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -1974,7 +1974,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         if (sortKey == null)
         {
@@ -1995,7 +1995,7 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
@@ -2262,7 +2262,7 @@ internal static class TableGenerator
         }
 
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         if (sortKey == null)
         {
@@ -2273,7 +2273,7 @@ internal static class TableGenerator
         {
             // Composite key table
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
             GenerateCompositeKeyOverloads(sb, entity, partitionKey, pkAttributeName, pkPropertyType, sortKey, skAttributeName, skPropertyType);
         }
     }
@@ -3264,6 +3264,25 @@ internal static class TableGenerator
     {
         // Remove nullable annotation for parameter types
         return propertyType.TrimEnd('?');
+    }
+
+    /// <summary>
+    /// Gets the parameter type for a key property in generated accessor methods.
+    /// When a key has a prefix or is computed, the parameter type is always "string"
+    /// because the caller supplies the fully-formed prefixed/computed key value.
+    /// When a key has no prefix and is not computed, the native .NET type is used.
+    /// </summary>
+    private static string GetKeyParameterType(PropertyModel key)
+    {
+        var hasPrefix = !string.IsNullOrEmpty(key.KeyFormat?.Prefix);
+        var isComputed = key.IsComputed;
+        
+        if (hasPrefix || isComputed)
+        {
+            return "string";
+        }
+        
+        return GetCSharpType(key.PropertyType);
     }
 
     /// <summary>

@@ -43,6 +43,13 @@ internal class PropertyModel
     public bool IsNullable { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether this property's type is an enum.
+    /// Set from Roslyn semantic analysis (<c>ITypeSymbol.TypeKind == TypeKind.Enum</c>) during entity analysis,
+    /// providing reliable enum detection without name-based heuristics.
+    /// </summary>
+    public bool IsEnum { get; set; }
+
+    /// <summary>
     /// Gets or sets the key format information for partition/sort keys.
     /// </summary>
     public KeyFormatModel? KeyFormat { get; set; }
