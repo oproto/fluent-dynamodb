@@ -1,5 +1,7 @@
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Metadata;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.Entities;
 
@@ -54,4 +56,23 @@ public interface IDynamoDbEntity : IReadOnlyEntity
 
     // FromDynamoDb(single item) and GetPartitionKey are inherited from IReadOnlyEntity
     // GetEntityMetadata() is inherited from IEntityMetadataProvider
+
+    /// <summary>
+    /// Asynchronously creates an entity instance from multiple DynamoDB items.
+    /// Used for composite entity assembly where a single logical entity spans multiple DynamoDB items,
+    /// with support for encrypted fields and blob storage properties on both parent and child entities.
+    /// </summary>
+    /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>
+    /// <param name="items">The collection of DynamoDB items that belong to the same entity.</param>
+    /// <param name="blobProvider">Optional blob storage provider for resolving blob references.</param>
+    /// <param name="fieldEncryptor">Optional field encryptor for decrypting encrypted properties.</param>
+    /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
+    /// <param name="cancellationToken">Cancellation token for async operations.</param>
+    /// <returns>A task that resolves to the mapped entity instance with populated related collections.</returns>
+    static abstract Task<TSelf> FromDynamoDbAsync<TSelf>(
+        IList<Dictionary<string, AttributeValue>> items,
+        IBlobStorageProvider? blobProvider,
+        IFieldEncryptor? fieldEncryptor,
+        FluentDynamoDbOptions? options,
+        CancellationToken cancellationToken) where TSelf : IDynamoDbEntity;
 }

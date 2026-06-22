@@ -485,6 +485,47 @@ public async Task Query_WithDiscriminator_ReturnsOnlyMatchingEntities()
 }
 ```
 
+### 6. Always Configure Discriminators on Multi-Entity Tables
+
+> **Important:** On multi-entity tables (multiple entity classes sharing the same `[DynamoDbTable]` name), the generated `MatchesEntity()` method uses only key attribute presence (partition key and sort key) to determine entity type membership when no discriminator is configured. This means any item with matching key attributes will pass the filter — including items belonging to a *different* entity type on the same table.
+
+Without a discriminator, queries may return items from the wrong entity type, leading to hydration errors or incorrect data. Always configure a discriminator when multiple entities share a table:
+
+```csharp
+// ❌ RISKY: No discriminator on a multi-entity table
+// Items from Order, Invoice, or any other entity with the same key structure
+// will all pass the MatchesEntity check for User
+[DynamoDbTable("shared-table")]
+public partial class User { ... }
+
+[DynamoDbTable("shared-table")]
+public partial class Order { ... }
+
+// ✅ CORRECT: Explicit discriminator prevents cross-type contamination
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "entity_type",
+    DiscriminatorValue = "USER")]
+public partial class User { ... }
+
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "entity_type",
+    DiscriminatorValue = "ORDER")]
+public partial class Order { ... }
+
+// ✅ ALSO CORRECT: Sort key pattern as discriminator
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "USER#*")]
+public partial class User { ... }
+
+[DynamoDbTable("shared-table",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "ORDER#*")]
+public partial class Order { ... }
+```
+
+Single-entity tables (only one entity class references the table name) do not need a discriminator — key attribute presence is sufficient for type identification.
+
 ## Common Patterns
 
 ### Multi-Tenant with Entity Type
@@ -561,6 +602,174 @@ public partial class OrderItem
     public string SortKey { get; set; } = string.Empty;
 }
 ```
+
+## Overlapping Pattern Resolution
+
+When multiple entities on the same table have discriminator patterns that could match the same string value, the source generator automatically resolves the ambiguity using **most-specific pattern matching**. This eliminates the need for a dedicated `entity_type` attribute in hierarchical sort key designs.
+
+### How Specificity Scoring Works
+
+The source generator computes a specificity score for each discriminator pattern at compile time:
+
+1. Split the pattern string on the `*` character
+2. Count the number of resulting non-empty literal segments
+3. The higher the count, the more specific the pattern
+
+| Pattern | Segments after split | Non-empty literals | Score |
+|---------|---------------------|--------------------|-------|
+| `INVOICE#*` | `["INVOICE#", ""]` | `["INVOICE#"]` | 1 |
+| `INVOICE#*#LINE#*` | `["INVOICE#", "#LINE#", ""]` | `["INVOICE#", "#LINE#"]` | 2 |
+| `*#AUDIT` | `["", "#AUDIT"]` | `["#AUDIT"]` | 1 |
+| `A#*#B#*#C#*` | `["A#", "#B#", "#C#", ""]` | `["A#", "#B#", "#C#"]` | 3 |
+
+**ExactMatch always wins:** A `DiscriminatorValue` (exact match) is assigned the maximum possible score, so it always takes precedence over any wildcard pattern regardless of segment count.
+
+### Example: Invoice / InvoiceLine Hierarchy
+
+Consider a table with invoices and their line items, using hierarchical sort keys:
+
+```csharp
+[DynamoDbTable("invoices",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "INVOICE#*")]
+public partial class Invoice
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("invoices",
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "INVOICE#*#LINE#*")]
+public partial class InvoiceLine
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("amount")]
+    public decimal Amount { get; set; }
+}
+```
+
+**DynamoDB Items:**
+```json
+{ "pk": "CUSTOMER#C1", "sk": "INVOICE#INV-001", "invoiceNumber": "INV-001" }
+{ "pk": "CUSTOMER#C1", "sk": "INVOICE#INV-001#LINE#1", "amount": 50.00 }
+{ "pk": "CUSTOMER#C1", "sk": "INVOICE#INV-001#LINE#2", "amount": 75.00 }
+```
+
+Both patterns start with `INVOICE#`, so the sort key `INVOICE#INV-001#LINE#1` would match both `INVOICE#*` (StartsWith "INVOICE#") and `INVOICE#*#LINE#*` (StartsWith "INVOICE#" + Contains "#LINE#"). The source generator resolves this:
+
+- `INVOICE#*` → score 1
+- `INVOICE#*#LINE#*` → score 2 (more specific)
+
+No `entity_type` attribute is required. The generated code handles disambiguation automatically.
+
+### Generated Exclusion Guards
+
+For the less-specific entity (`Invoice`), the source generator emits an **exclusion guard** — an additional check that returns `false` if the value also matches a more-specific pattern:
+
+**Generated `Invoice.MatchesEntity`** (simplified):
+```csharp
+public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+{
+    if (!item.TryGetValue("sk", out var discriminatorValue) || discriminatorValue.S == null)
+        return false;
+
+    // Positive match: this entity's pattern (INVOICE#*)
+    if (!discriminatorValue.S.StartsWith("INVOICE#"))
+        return false;
+
+    // Exclusion: more-specific pattern from InvoiceLine (INVOICE#*#LINE#*)
+    if (discriminatorValue.S.Contains("#LINE#"))
+        return false;
+
+    return true;
+}
+```
+
+**Generated `InvoiceLine.MatchesEntity`** (most-specific — no exclusion needed):
+```csharp
+public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+{
+    if (!item.TryGetValue("sk", out var discriminatorValue) || discriminatorValue.S == null)
+        return false;
+
+    return discriminatorValue.S.StartsWith("INVOICE#") && discriminatorValue.S.Contains("#LINE#");
+}
+```
+
+The exclusion guard ensures that each DynamoDB item is claimed by exactly one entity type. The less-specific entity excludes values that match more-specific patterns, while the most-specific entity requires no exclusion logic.
+
+For multi-level hierarchies (three or more overlapping patterns), each entity excludes all patterns with a higher specificity score than its own.
+
+### Compile-Time Diagnostics
+
+The source generator emits diagnostics to keep you informed about overlap resolution:
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| `DISC004` | Error | Two overlapping patterns have the **same** specificity score. The generator cannot determine precedence — you must resolve the ambiguity (e.g., add more structure to one pattern or use a dedicated `DiscriminatorValue`). |
+| `DISC005` | Info | Overlapping patterns detected and automatically resolved by specificity ordering. No action required — this is informational. |
+| `DISC006` | Error | A computed exclusion guard is **tautological** — it uses the same strategy and literal as the entity's own positive match. The generated `MatchesEntity` would always return `false`. Redesign your discriminator patterns. |
+
+**Example DISC004 error:**
+```csharp
+// ❌ AMBIGUOUS: both patterns have score 1
+[DynamoDbTable("entities", DiscriminatorProperty = "sk", DiscriminatorPattern = "INVOICE#*")]
+public partial class Invoice { ... }
+
+[DynamoDbTable("entities", DiscriminatorProperty = "sk", DiscriminatorPattern = "*#PENDING")]
+public partial class PendingItem { ... }
+// A value like "INVOICE#123#PENDING" could match both — DISC004 emitted
+```
+
+**Resolving DISC004:**
+- Add more literal structure to one pattern so scores differ
+- Use `DiscriminatorValue` (ExactMatch) for one entity
+- Use different `DiscriminatorProperty` values so patterns don't overlap
+
+**Example DISC006 error:**
+```csharp
+// ❌ TAUTOLOGICAL: exclusion guard would contradict positive match
+[DynamoDbTable("entities", DiscriminatorProperty = "sk", DiscriminatorPattern = "*#ROLE#*")]
+public partial class RoleItem { ... }
+
+[DynamoDbTable("entities", DiscriminatorProperty = "sk", DiscriminatorPattern = "USER#*#ROLE#*")]
+public partial class UserRole { ... }
+// RoleItem uses Contains("#ROLE#") as its positive check.
+// The computed exclusion from UserRole is also Contains("#ROLE#") — identical!
+// This would make RoleItem.MatchesEntity always return false — DISC006 emitted
+```
+
+This happens when a Contains-strategy entity (e.g., `*#ROLE#*`) overlaps with a Complex-strategy entity (e.g., `USER#*#ROLE#*`) that shares the same internal segment. The exclusion extraction heuristic produces the same literal that the less-specific entity already uses for its positive match.
+
+**Resolving DISC006:**
+- Use a `StartsWith` pattern for the less-specific entity (e.g., `USER#*` instead of `*#ROLE#*`) so the positive match and exclusion use different strategies/literals
+- Use a dedicated `DiscriminatorValue` (ExactMatch) for one of the entities
+- Redesign your key structure so the overlapping entities use distinct discriminator segments
+
+### When Overlap Resolution Does NOT Apply
+
+Overlap analysis only applies when:
+- Both entities are in the same table group (same `[DynamoDbTable]` name)
+- Both entities use the same `DiscriminatorProperty`
+- Both patterns could match the same string value
+
+Entities with different `DiscriminatorProperty` values are never considered overlapping, regardless of pattern content.
 
 ## Troubleshooting
 

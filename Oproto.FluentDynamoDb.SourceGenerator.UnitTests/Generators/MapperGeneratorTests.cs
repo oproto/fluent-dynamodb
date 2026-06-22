@@ -469,16 +469,14 @@ public class MapperGeneratorTests
         CompilationVerifier.AssertGeneratedCodeCompiles(result, entitySource);
 
         // Assert - DynamoDB entity discriminator logic
-        result.Should().Contain("// Check entity discriminator",
-            "should document entity discriminator check");
-        result.Should().Contain("S =",
-            "should use String (S) attribute type for entity discriminator");
+        result.Should().Contain("// Discriminator check on \"entity_type\"",
+            "should document discriminator check with property name");
+        result.Should().Contain("TryGetValue(\"entity_type\"",
+            "should check for entity_type attribute");
         result.Should().Contain("== \"TEST_ENTITY\"",
             "should check for exact entity discriminator value");
         result.Should().Contain("EntityDiscriminator = \"TEST_ENTITY\"",
             "should set entity discriminator in metadata");
-        result.Should().Contain("sortKey.StartsWith(\"TEST_ENTITY#\")",
-            "should check sort key pattern for entity discriminator");
     }
 
     [Fact]
@@ -812,9 +810,13 @@ public class MapperGeneratorTests
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine("using System.Threading;");
+            sb.AppendLine("using System.Threading.Tasks;");
             sb.AppendLine("using Amazon.DynamoDBv2.Model;");
             sb.AppendLine("using Oproto.FluentDynamoDb.Entities;");
             sb.AppendLine("using Oproto.FluentDynamoDb.Metadata;");
+            sb.AppendLine("using Oproto.FluentDynamoDb.Providers.BlobStorage;");
+            sb.AppendLine("using Oproto.FluentDynamoDb.Providers.Encryption;");
             sb.AppendLine();
             sb.AppendLine($"namespace {entity.Namespace}");
             sb.AppendLine("{");
@@ -837,6 +839,11 @@ public class MapperGeneratorTests
             sb.AppendLine("        public static TSelf FromDynamoDb<TSelf>(IList<Dictionary<string, AttributeValue>> items, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
             sb.AppendLine("        {");
             sb.AppendLine($"            return (TSelf)(object)new {entityType}();");
+            sb.AppendLine("        }");
+            sb.AppendLine();
+            sb.AppendLine("        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, Oproto.FluentDynamoDb.FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity");
+            sb.AppendLine("        {");
+            sb.AppendLine($"            return Task.FromResult((TSelf)(object)new {entityType}());");
             sb.AppendLine("        }");
             sb.AppendLine();
             sb.AppendLine("        public static string GetPartitionKey(Dictionary<string, AttributeValue> item)");

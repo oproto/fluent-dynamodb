@@ -7,7 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-06-22
+
 ### Fixed
+
+- **Extracted Property Type Conversion** - Fixed the source generator producing uncompilable code for `[Extracted]` properties with non-string types (enums, int, long, decimal, etc.). The `MapperGenerator.GenerateExtractedKeyLogic` method unconditionally assigned the raw `string` result of `Split()` without type conversion, causing CS0029 compile errors. The `KeysGenerator.GetExtractionExpression` method relied on a name-based `IsEnumType` heuristic that only matched type names containing "Status", "Type", "Kind", or "State" — enums with other names (e.g., `SnsSubscriptionTopic`) silently generated broken code. The fix adds a `PropertyModel.IsEnum` flag set from Roslyn semantic analysis (`ITypeSymbol.TypeKind == TypeKind.Enum`) and applies type-aware conversion (`Enum.Parse<T>()`, `int.Parse()`, etc.) in both code generation paths. The broken `IsEnumType` heuristic methods in both `KeysGenerator` and `MapperGenerator` have been removed.
+
+- **DYNDB033 False Positive on Computed↔Extracted Bidirectional Mapping** - Fixed the source generator's `EntityAnalyzer` incorrectly reporting DYNDB033 "Circular dependency detected between computed properties" when `[Computed]` and `[Extracted]` attributes form a valid bidirectional mapping pattern on the same property pair. The `[Computed]` attribute operates on the write path (composing source properties into a key) while `[Extracted]` operates on the read path (decomposing the key back into components) — these cannot form a circular dependency. The fix removes the over-broad cross-check from `ValidateExtractedProperty`, relying on the existing DFS-based `ValidateComputedKeyCircularDependencies` which correctly catches genuine Computed→Computed cycles.
+
+- **Non-String Key Accessor Compilation Errors** - Fixed the source generator producing uncompilable code for entities with non-string key types (enum, int, long, Guid, DateTime, DateOnly, TimeOnly, nullable value types) that have no prefix and are not computed. The generated accessor methods (Get, Update, Delete, ConditionCheck) and table-level key overloads now emit `.SetKey(k => { ... })` with inline `AttributeValue` construction instead of `.WithKey()` when the key parameter is a non-string type. This ensures the generated code compiles correctly by constructing the `AttributeValue` with the appropriate DynamoDB type (`N` for numerics, `S` for strings/enums/Guids/dates) and respecting `Format`, `DateTimeKind`, and nullable `.Value` accessor patterns. Entities with string keys, prefixed keys, or computed keys continue to use `.WithKey()` unchanged.
+
+- **Tautological Exclusion Guard Detection** - Fixed the source generator's `PatternOverlapAnalyzer` silently generating contradictory `MatchesEntity` code when a computed exclusion guard is identical to the entity's own positive match criterion. This caused `MatchesEntity` to always return `false` for affected entities (e.g., a Contains-strategy entity `*#ROLE#*` overlapping with a Complex-strategy entity `USER#*#ROLE#*`). The fix adds compile-time detection via a new `DISC006` diagnostic error instead of generating unreachable code. Valid hierarchies (e.g., `USER#*` with `USER#*#ROLE#*`) are unaffected.
+
+- **NuGet Package Including Examples Code** - Fixed the `Oproto.FluentDynamoDb/Examples/` folder being compiled into the library DLL and shipped in the NuGet package. Removed the folder entirely.
+
+- **`ToCompositeEntityAsync` Fails to Populate `[RelatedEntity]` Collections on Encrypted Entities** - Fixed the generated multi-item `FromDynamoDbAsync(IList<...> items, ...)` overload discarding all items after index 0, causing `ToCompositeEntityAsync` to return entities with empty related collections when the parent entity has `[Encrypted]` or `[BlobReference]` properties. The fix:
+  - Implements full composite assembly logic in the generated async multi-item method — primary entity identification via regex exclusion of `[RelatedEntity]` sort key patterns, async deserialization of matching related items via `await ChildEntity.FromDynamoDbAsync(...)`, and collection population
+  - Adds `FromDynamoDbAsync<TSelf>(IList<...> items, ...)` as a static abstract member on `IDynamoDbEntity`, enabling `ToCompositeEntityAsync` to call the async multi-item path directly without hydrator routing
+  - Generates a single-item `FromDynamoDbAsync(Dictionary<...> item, ...)` delegating method for non-encrypted entities, so parent composite assembly can uniformly call `ChildEntity.FromDynamoDbAsync(item, ...)` regardless of the child's encryption status
+  - Routes `ToCompositeEntityAsync` through the async path unconditionally, eliminating the behavioral split between encrypted and non-encrypted parent entities
+  - Child entities with `[Encrypted]` properties are now correctly decrypted during composite assembly regardless of the parent's encryption status
+
+### Removed
+
+- **Obsolete In-Project Examples** - Removed the `Oproto.FluentDynamoDb/Examples/` folder containing outdated manual entity/table implementations that predated the source generator. The canonical examples now live in the `examples/` solution folder and use the current source-generator patterns.
+- **ManualTableImplementationTests** - Removed unit tests that depended on the deleted example classes. The underlying builder functionality is still covered by other tests.
+- **Stale RealworldExample exclusion** - Cleaned up a `<Compile Remove="RealworldExample/**" />` entry in the csproj for a folder that no longer exists.
+
+### Added
+
+- **Most-Specific Pattern Matching for Overlapping Discriminators** - The source generator now automatically disambiguates overlapping discriminator patterns using compile-time specificity analysis. When multiple entities on the same table have patterns that could match the same value (e.g., `INVOICE#*` and `INVOICE#*#LINE#*`), the generator:
+  - Computes a specificity score for each pattern by counting non-empty literal segments after splitting on `*`
+  - Generates exclusion guards in the less-specific entity's `MatchesEntity` method to prevent it from claiming items that match a more-specific entity
+  - Ensures `ExactMatch` discriminators always take precedence over wildcard patterns
+  - Emits `DISC004` (Error) when two overlapping patterns have the same specificity score (ambiguous — developer must resolve)
+  - Emits `DISC005` (Info) when overlapping patterns are automatically resolved by specificity ordering
+  - Eliminates the need for a dedicated `entity_type` attribute in hierarchical sort key designs where parent/child entities share a common key prefix
+
+### Improved
+
+- **Discriminator Pattern Overlap Analysis** - Refined the `PatternOverlapAnalyzer` to perform structural analysis of literal segments for Contains and Complex patterns, eliminating false-positive DISC004 errors for common multi-entity table designs:
+  - **Contains patterns** (`*literal*`) now use substring analysis instead of conservatively assuming overlap. Two Contains patterns only overlap if one literal is a substring of the other (e.g., `*#DEDUCTION#*` and `*#GARNISHMENT#*` are correctly identified as non-overlapping)
+  - **Complex patterns** (multi-wildcard, e.g., `EMPLOYEE#*#DEDUCTION#*`) now use structural segment comparison. Same-structure patterns are non-overlapping if any corresponding segment pair is distinguishing (neither is a substring of the other)
+  - **Cross-strategy Complex patterns** (Complex vs StartsWith/EndsWith/Contains) check whether all segments of the simpler pattern appear in the more complex pattern's text
+  - Conservative behavior is preserved: when analysis is inconclusive (e.g., degenerate all-wildcard patterns), overlap is assumed to avoid false negatives
+  - Common payroll/HR pattern (`EMPLOYEE#*#PAYRATE#*`, `EMPLOYEE#*#DEDUCTION#*`, `EMPLOYEE#*#GARNISHMENT#*`) now compiles cleanly without spurious DISC004 errors
+
+### Fixed
+
+- **`nameof()` and Compile-Time Constant Resolution in Attributes** - Fixed `EntityAnalyzer` silently ignoring `nameof()` expressions and `const` variables used as positional arguments in `[Computed]` and `[Extracted]` attributes. Both `ExtractComputedKeyAttributes()` and `ExtractExtractedKeyAttributes()` only matched `LiteralExpressionSyntax`, causing `nameof(Property)` (an `InvocationExpressionSyntax`) and const references (an `IdentifierNameSyntax`) to be skipped — resulting in empty `SourceProperties`, empty `SourceProperty`, or default `Index = 0`. The fix adds a `semanticModel.GetConstantValue()` fallback after the existing literal check, resolving any compile-time constant expression to its value while preserving the fast-path for string and integer literals.
+
+- **Enum Type Validation in Source Generator** - Fixed `EntityAnalyzer.IsSupportedPropertyType()` incorrectly rejecting user-defined enum types with diagnostic DYNDB009 ("type not supported for DynamoDB mapping"). The downstream `MapperGenerator` already handled enum serialization correctly via `.ToString()` / `Enum.Parse<T>()`, but the validator's hardcoded type allowlist had no enum detection logic. The fix uses the Roslyn semantic model (`TypeKind.Enum`) to identify enum types — including nullable enums (`Status?`) — before the DYNDB009 check, allowing them to flow through to the mapper. Collections of enums (`List<Status>`, `HashSet<Status>`) were already accepted by the collection type check.
+
+- **MatchesEntity Silent Item Drops** - Fixed the source-generated `MatchesEntity` method silently dropping legitimate items from Query, Scan, and Get results. The method used attribute-presence checks on ALL non-nullable properties as a heuristic for entity type discrimination, causing false negatives when any non-nullable property was missing from a DynamoDB item — even when the item legitimately belonged to that entity type. This affected empty collections (not persisted by DynamoDB), schema evolution (new properties added after items were written), and sparse writes (items written with partial attributes). The fix replaces the overly strict heuristic with a three-tier approach:
+  - **Tier 1** (discriminator configured): Uses only the discriminator check (`DiscriminatorProperty`/`DiscriminatorValue`/`DiscriminatorPattern`) to determine entity type membership — no data attribute checks
+  - **Tier 2** (single-entity table): Uses only key attribute presence (pk/sk) since no type discrimination is needed
+  - **Tier 3** (multi-entity table without discriminator): Uses only key attribute presence, accepting the tradeoff of possible wrong-type hydration vs silent data loss
+  - Also fixes the legacy `EntityDiscriminator` attribute name: the old code hard-coded `"EntityType"` but the actual DynamoDB attribute (as mapped by `DiscriminatorAnalyzer`) is `"entity_type"`
+  - **Migration note**: Multi-entity tables that previously relied on the over-filtering behavior (non-key attribute checks acting as implicit type discrimination) should add explicit discriminator configuration via `DiscriminatorProperty`/`DiscriminatorValue` to maintain correct entity type filtering
 
 ## [1.0.5] - 2026-06-11
 

@@ -7,6 +7,8 @@ using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
 
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 namespace Oproto.FluentDynamoDb.UnitTests.Requests;
 
 /// <summary>
@@ -337,6 +339,7 @@ public class DirectSdkRequestPropertyTests
         public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
 
         public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
 
         public static EntityMetadata GetEntityMetadata()
             => new EntityMetadata

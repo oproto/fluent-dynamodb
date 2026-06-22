@@ -57,6 +57,72 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-19]
+
+### Non-String Key Type Support — Bugfix Clarification
+
+**Category:** Clarification
+
+**Summary:** Added documentation clarifying that non-string key types (enum, int, long, Guid, DateTime, DateOnly, TimeOnly, and nullable value types) are fully supported as partition keys and sort keys when they have no prefix and are not computed. Previously, the source generator produced uncompilable code for these configurations. The fix ensures correct `AttributeValue` construction in generated accessor methods.
+
+### File: docs/core-features/EntityDefinition.md
+
+**Change:** Added "Non-String Key Types" section documenting support for entities with non-string partition/sort key types (enum, int, Guid, DateTime, etc.) without prefixes. Includes examples showing that the source generator correctly handles type-appropriate DynamoDB serialization (numeric types as `N`, string/enum/Guid/date types as `S`).
+
+**Reason:** The source generator previously produced uncompilable code (CS1503 errors) for entities with non-string key types that had no prefix and were not computed. After the bugfix, non-string keys are a first-class supported pattern that should be documented.
+
+### Tautological Exclusion Guard Detection — New Diagnostic (DISC006)
+
+**Category:** Clarification
+
+**Summary:** Added documentation for the new DISC006 diagnostic to the "Overlapping Pattern Resolution" section in `docs/advanced-topics/Discriminators.md`. DISC006 fires when a computed exclusion guard is tautological — identical to the entity's own positive match criterion — which would make `MatchesEntity` always return `false`.
+
+### File: docs/advanced-topics/Discriminators.md
+
+**Change:** Updated the "Compile-Time Diagnostics" table to include DISC006 (Error severity). Added a complete example showing when DISC006 fires (Contains-strategy entity `*#ROLE#*` overlapping with Complex-strategy entity `USER#*#ROLE#*`), an explanation of why this happens, and resolution steps (use StartsWith instead of Contains, use ExactMatch, or redesign key structure).
+
+**Reason:** New source generator bugfix detects tautological exclusion guards at compile time (emitting DISC006 error) instead of silently generating unreachable code. Users encountering this diagnostic need to understand what it means and how to fix their discriminator patterns.
+
+## [2026-06-20]
+
+### Overlapping Discriminator Pattern Resolution — New Feature Documentation
+
+**Category:** Clarification
+
+**Summary:** Added a new "Overlapping Pattern Resolution" section to `docs/advanced-topics/Discriminators.md` documenting the most-specific pattern matching feature for overlapping discriminator patterns on multi-entity tables.
+
+### File: docs/advanced-topics/Discriminators.md
+
+**Change:** Added comprehensive "Overlapping Pattern Resolution" section covering:
+- How specificity scoring works (split on `*`, count non-empty literal segments)
+- ExactMatch always wins precedence
+- Complete Invoice/InvoiceLine hierarchy example without `entity_type` attribute
+- Generated exclusion guard code examples
+- DISC004 (error), DISC005 (info), and DISC006 (error) compile-time diagnostics
+- When overlap resolution does and does not apply
+
+**Reason:** New source generator feature enables automatic disambiguation of overlapping discriminator patterns using compile-time specificity analysis. Users need to understand how the feature works, what diagnostics they may encounter, and how to resolve DISC004 ambiguity errors and DISC006 tautological exclusion errors.
+
+## [2026-06-16]
+
+### MatchesEntity Three-Tier Discrimination — Behavioral Fix
+
+**Category:** Clarification
+
+**Summary:** Added warnings and best practices to `docs/advanced-topics/Discriminators.md` and `docs/advanced-topics/MultiEntityTables.md` documenting that multi-entity tables without discriminator configuration will only check key attribute presence for entity type filtering. Without a discriminator, items from different entity types sharing the same key structure may pass the `MatchesEntity` check, leading to wrong-type hydration.
+
+### File: docs/advanced-topics/Discriminators.md
+
+**Change:** Added "Best Practice 6: Always Configure Discriminators on Multi-Entity Tables" section with a prominent warning block explaining the Tier 3 behavior, code examples showing the risky pattern vs the correct pattern, and guidance that single-entity tables do not need discriminators.
+
+**Reason:** The `MatchesEntity` method now uses a three-tier approach. Tier 3 (multi-entity without discriminator) only checks key attributes — users need to understand this tradeoff and configure discriminators explicitly.
+
+### File: docs/advanced-topics/MultiEntityTables.md
+
+**Change:** Added "Best Practice 7: Always Configure Discriminators" section with a warning block and code example, cross-linking to the Discriminators guide.
+
+**Reason:** Multi-entity table users should be warned at the point where they're configuring multi-entity tables, not only in the discriminator-specific docs.
+
 ## [2026-04-30]
 
 ### Index Attribute Redesign — Breaking API Change

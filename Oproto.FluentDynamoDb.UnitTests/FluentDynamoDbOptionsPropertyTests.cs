@@ -384,6 +384,7 @@ internal class TestEntity : IDynamoDbEntity
     public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
     public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
     public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
     public static EntityMetadata GetEntityMetadata() => new() { TableName = "test-table" };
 }
 
@@ -1039,6 +1040,7 @@ internal class TestEntityForDefaultOptions : IDynamoDbEntity
     public static string GetPartitionKey(Dictionary<string, AttributeValue> item) => string.Empty;
     public static bool MatchesEntity(Dictionary<string, AttributeValue> item) => true;
     public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
     public static EntityMetadata GetEntityMetadata() => new() { TableName = "test-table" };
 }
 

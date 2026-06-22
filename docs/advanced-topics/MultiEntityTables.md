@@ -1163,6 +1163,27 @@ public partial class EcommerceTable
 }
 ```
 
+### 7. Always Configure Discriminators
+
+> **Important:** Without a discriminator, the generated `MatchesEntity()` method only checks key attribute presence (partition key and sort key). On a multi-entity table, this means items from *any* entity type with matching key structure will pass the filter, potentially causing wrong-type hydration or unexpected data in query results.
+
+Always configure discriminators on multi-entity tables to ensure correct entity type filtering:
+
+```csharp
+// ✅ CORRECT: Discriminator ensures only Order items are returned
+[DynamoDbTable("ecommerce", IsDefault = true,
+    DiscriminatorProperty = "entity_type",
+    DiscriminatorValue = "ORDER")]
+public partial class Order { ... }
+
+[DynamoDbTable("ecommerce",
+    DiscriminatorProperty = "entity_type",
+    DiscriminatorValue = "ORDER_LINE")]
+public partial class OrderLine { ... }
+```
+
+See [Discriminators](Discriminators.md) for configuration options including attribute-based, sort key pattern, and partition key pattern strategies.
+
 
 ## Migration from Single-Entity Tables
 

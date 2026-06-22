@@ -288,7 +288,7 @@ internal static class KeysGenerator
             sb.AppendLine($"{indent}    if (parts.Length <= {index})");
             sb.AppendLine($"{indent}        throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {index + 1}, got {{parts.Length}}.\");");
             sb.AppendLine();
-            sb.AppendLine($"{indent}    return {GetExtractionExpression("parts[" + index + "]", extractedProperty.PropertyType)};");
+            sb.AppendLine($"{indent}    return {GetExtractionExpression("parts[" + index + "]", extractedProperty.PropertyType, extractedProperty.IsEnum)};");
         }
         else
         {
@@ -298,7 +298,7 @@ internal static class KeysGenerator
             sb.AppendLine();
 
             var returnValues = returnProperties.Select(p =>
-                $"{p.PropertyName}: {GetExtractionExpression($"parts[{p.ExtractedKey!.Index}]", p.PropertyType)}");
+                $"{p.PropertyName}: {GetExtractionExpression($"parts[{p.ExtractedKey!.Index}]", p.PropertyType, p.IsEnum)}");
             sb.AppendLine($"{indent}    return ({string.Join(", ", returnValues)});");
         }
 
@@ -308,13 +308,16 @@ internal static class KeysGenerator
     /// <summary>
     /// Gets the expression to convert a string component to the target property type.
     /// </summary>
-    private static string GetExtractionExpression(string valueExpression, string propertyType)
+    /// <param name="valueExpression">The string expression to convert (e.g., "parts[0]").</param>
+    /// <param name="propertyType">The target property type name.</param>
+    /// <param name="isEnum">Whether the property type is an enum, as determined by Roslyn semantic analysis.</param>
+    private static string GetExtractionExpression(string valueExpression, string propertyType, bool isEnum)
     {
         var baseType = GetBaseType(propertyType);
 
         return baseType switch
         {
-            "string" => valueExpression,
+            "string" or "String" or "System.String" => valueExpression,
             "int" or "System.Int32" => $"int.Parse({valueExpression})",
             "long" or "System.Int64" => $"long.Parse({valueExpression})",
             "double" or "System.Double" => $"double.Parse({valueExpression})",
@@ -325,8 +328,11 @@ internal static class KeysGenerator
             "DateTimeOffset" or "System.DateTimeOffset" => $"DateTimeOffset.Parse({valueExpression})",
             "Guid" or "System.Guid" => $"Guid.Parse({valueExpression})",
             "Ulid" or "System.Ulid" => $"Ulid.Parse({valueExpression})",
-            _ when IsEnumType(propertyType) => $"Enum.Parse<{baseType}>({valueExpression})",
-            _ => valueExpression
+            // Any non-primitive type in an extracted property context must be an enum —
+            // extracted properties can only be simple types parseable from string split parts.
+            // The isEnum flag is set from Roslyn semantic analysis; this fallback handles
+            // cases where the flag isn't explicitly set (e.g., programmatic model construction).
+            _ => $"Enum.Parse<{baseType}>({valueExpression})"
         };
     }
 
@@ -747,13 +753,13 @@ internal static class KeysGenerator
             return $"{parameterName}.ToString(\"yyyy-MM-ddTHH:mm:ss.fffZ\")";
         }
 
-        // Handle numeric types and enums
-        if (IsNumericType(propertyType) || IsEnumType(propertyType))
+        // Handle numeric types
+        if (IsNumericType(propertyType))
         {
             return $"{parameterName}.ToString()";
         }
 
-        // Default to ToString() for other types
+        // Default to ToString() for other types (including enums)
         return $"{parameterName}.ToString()";
     }
 
@@ -789,19 +795,6 @@ internal static class KeysGenerator
         };
 
         return numericTypes.Contains(propertyType);
-    }
-
-    /// <summary>
-    /// Determines if a type is an enum (simplified check).
-    /// </summary>
-    private static bool IsEnumType(string propertyType)
-    {
-        // This is a simplified check - in a real implementation, we'd use semantic model
-        // to determine if the type is actually an enum
-        return propertyType.Contains("Status") ||
-               propertyType.Contains("Type") ||
-               propertyType.Contains("Kind") ||
-               propertyType.Contains("State");
     }
 
     /// <summary>

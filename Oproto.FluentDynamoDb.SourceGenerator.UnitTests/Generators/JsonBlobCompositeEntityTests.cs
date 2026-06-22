@@ -23,6 +23,8 @@ using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 using Oproto.FluentDynamoDb.SystemTextJson;
 
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
 /// <summary>
@@ -1448,6 +1450,7 @@ public class JsonBlobTestEntity : IDynamoDbEntity
     }
 
     public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
 }
 
 /// <summary>
@@ -1532,6 +1535,7 @@ public class JsonBlobListTestEntity : IDynamoDbEntity
     }
 
     public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
 }
 
 /// <summary>
@@ -1666,6 +1670,7 @@ public class CompositeParentTestEntity : IDynamoDbEntity
     }
 
     public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
 }
 
 /// <summary>
@@ -1756,6 +1761,7 @@ public class CompositeChildTestEntity : IDynamoDbEntity
     }
 
     public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
 }
 
 /// <summary>

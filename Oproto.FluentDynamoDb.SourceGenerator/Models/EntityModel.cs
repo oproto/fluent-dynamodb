@@ -93,6 +93,12 @@ internal class EntityModel
     public bool IsDefault { get; set; }
 
     /// <summary>
+    /// Gets or sets the number of entities sharing the same table.
+    /// Used by MatchesEntity generation to determine single-entity vs multi-entity table behavior.
+    /// </summary>
+    public int TableEntityCount { get; set; } = 1;
+
+    /// <summary>
     /// Gets or sets the entity property configuration.
     /// Controls how the entity accessor property is generated on the table class.
     /// </summary>

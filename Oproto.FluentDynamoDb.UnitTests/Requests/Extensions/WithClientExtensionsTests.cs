@@ -8,6 +8,8 @@ using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 namespace Oproto.FluentDynamoDb.UnitTests.Requests.Extensions;
 
 public class WithClientExtensionsTests
@@ -56,6 +58,7 @@ public class WithClientExtensionsTests
     
 
         public static bool RequiresWriteTransaction => false;
+        public static Task<TSelf> FromDynamoDbAsync<TSelf>(IList<Dictionary<string, AttributeValue>> items, IBlobStorageProvider? blobProvider, IFieldEncryptor? fieldEncryptor, FluentDynamoDbOptions? options, CancellationToken cancellationToken) where TSelf : IDynamoDbEntity => Task.FromResult(FromDynamoDb<TSelf>(items, options));
     }
     private readonly IAmazonDynamoDB _originalClient = Substitute.For<IAmazonDynamoDB>();
     private readonly IAmazonDynamoDB _scopedClient = Substitute.For<IAmazonDynamoDB>();

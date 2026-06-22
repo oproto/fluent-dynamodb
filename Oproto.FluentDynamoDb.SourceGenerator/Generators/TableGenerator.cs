@@ -844,7 +844,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -852,7 +852,7 @@ internal static class TableGenerator
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -860,7 +860,14 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"        /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
             sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}) =>");
-            sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            if (NeedsSetKeyApproach(partitionKey))
+            {
+                sb.AppendLine($"            _table.Get<{entity.ClassName}>(){GenerateSetKeySingle(partitionKey, paramName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            }
             sb.AppendLine();
             
             // GetAsync express-route method (conditionally generated)
@@ -899,9 +906,10 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -910,7 +918,14 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
             sb.AppendLine($"        /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
             sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-            sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            if (NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey))
+            {
+                sb.AppendLine($"            _table.Get<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            }
             sb.AppendLine();
             
             // GetAsync express-route method (conditionally generated)
@@ -963,13 +978,13 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         var updateBuilderClassName = $"{entity.ClassName}UpdateBuilder";
         
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -982,7 +997,14 @@ internal static class TableGenerator
             sb.AppendLine($"        {{");
             sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
             sb.AppendLine($"            builder.ForTable(_table.Name);");
-            sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {paramName});");
+            if (NeedsSetKeyApproach(partitionKey))
+            {
+                sb.AppendLine($"            builder{GenerateSetKeySingle(partitionKey, paramName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {paramName});");
+            }
             sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
             sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
             sb.AppendLine($"            return builder;");
@@ -1010,9 +1032,10 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -1026,7 +1049,14 @@ internal static class TableGenerator
             sb.AppendLine($"        {{");
             sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
             sb.AppendLine($"            builder.ForTable(_table.Name);");
-            sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            if (NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey))
+            {
+                sb.AppendLine($"            builder{GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            }
             sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
             sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
             sb.AppendLine($"            return builder;");
@@ -1067,7 +1097,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -1075,7 +1105,7 @@ internal static class TableGenerator
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -1083,7 +1113,14 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"        /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
             sb.AppendLine($"        {modifier} DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {paramName}) =>");
-            sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            if (NeedsSetKeyApproach(partitionKey))
+            {
+                sb.AppendLine($"            _table.Delete<{entity.ClassName}>(){GenerateSetKeySingle(partitionKey, paramName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            }
             sb.AppendLine();
             
             // DeleteAsync express-route method (conditionally generated)
@@ -1159,9 +1196,10 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -1170,7 +1208,14 @@ internal static class TableGenerator
             sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
             sb.AppendLine($"        /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
             sb.AppendLine($"        {modifier} DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-            sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            if (NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey))
+            {
+                sb.AppendLine($"            _table.Delete<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            }
             sb.AppendLine();
             
             // DeleteAsync express-route method (conditionally generated)
@@ -1261,12 +1306,12 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -1286,16 +1331,24 @@ internal static class TableGenerator
             sb.AppendLine($"        /// </code>");
             sb.AppendLine($"        /// </example>");
             sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {paramName}) =>");
-            sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            if (NeedsSetKeyApproach(partitionKey))
+            {
+                sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>(){GenerateSetKeySingle(partitionKey, paramName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+            }
             sb.AppendLine();
         }
         else
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -1316,7 +1369,14 @@ internal static class TableGenerator
             sb.AppendLine($"        /// </code>");
             sb.AppendLine($"        /// </example>");
             sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-            sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            if (NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey))
+            {
+                sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+            }
+            else
+            {
+                sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+            }
             sb.AppendLine();
         }
     }
@@ -1568,7 +1628,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -1576,7 +1636,7 @@ internal static class TableGenerator
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -1621,9 +1681,10 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -1683,13 +1744,13 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         var updateBuilderClassName = $"{entity.ClassName}UpdateBuilder";
         
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -1706,9 +1767,10 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -1738,7 +1800,7 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         // Determine whether to generate traditional async methods
         var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
@@ -1746,7 +1808,7 @@ internal static class TableGenerator
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -1819,9 +1881,10 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -1911,12 +1974,12 @@ internal static class TableGenerator
         }
         
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         if (sortKey == null)
         {
             // Single partition key
-            var paramName = ToCamelCase(pkAttributeName);
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key).");
@@ -1932,9 +1995,10 @@ internal static class TableGenerator
         {
             // Composite key
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            var pkParamName = ToCamelCase(pkAttributeName);
-            var skParamName = ToCamelCase(skAttributeName);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+            var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+            var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
@@ -2198,25 +2262,25 @@ internal static class TableGenerator
         }
 
         var pkAttributeName = partitionKey.AttributeName;
-        var pkPropertyType = GetCSharpType(partitionKey.PropertyType);
+        var pkPropertyType = GetKeyParameterType(partitionKey);
         
         if (sortKey == null)
         {
             // Single partition key table
-            GenerateSingleKeyOverloads(sb, entity, pkAttributeName, pkPropertyType);
+            GenerateSingleKeyOverloads(sb, entity, partitionKey, pkAttributeName, pkPropertyType);
         }
         else
         {
             // Composite key table
             var skAttributeName = sortKey.AttributeName;
-            var skPropertyType = GetCSharpType(sortKey.PropertyType);
-            GenerateCompositeKeyOverloads(sb, entity, pkAttributeName, pkPropertyType, skAttributeName, skPropertyType);
+            var skPropertyType = GetKeyParameterType(sortKey);
+            GenerateCompositeKeyOverloads(sb, entity, partitionKey, pkAttributeName, pkPropertyType, sortKey, skAttributeName, skPropertyType);
         }
     }
 
-    private static void GenerateSingleKeyOverloads(StringBuilder sb, EntityModel entity, string pkAttributeName, string pkPropertyType)
+    private static void GenerateSingleKeyOverloads(StringBuilder sb, EntityModel entity, PropertyModel partitionKey, string pkAttributeName, string pkPropertyType)
     {
-        var paramName = ToCamelCase(pkAttributeName);
+        var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
         
         // Get overload
         sb.AppendLine($"    /// <summary>");
@@ -2225,7 +2289,14 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
         sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        if (NeedsSetKeyApproach(partitionKey))
+        {
+            sb.AppendLine($"        Get<{entity.ClassName}>(){GenerateSetKeySingle(partitionKey, paramName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        }
         sb.AppendLine();
         
         // Update overload
@@ -2235,7 +2306,14 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
         sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        if (NeedsSetKeyApproach(partitionKey))
+        {
+            sb.AppendLine($"        Update<{entity.ClassName}>(){GenerateSetKeySingle(partitionKey, paramName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        }
         sb.AppendLine();
         
         // Delete overload
@@ -2245,7 +2323,14 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
         sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        if (NeedsSetKeyApproach(partitionKey))
+        {
+            sb.AppendLine($"        Delete<{entity.ClassName}>(){GenerateSetKeySingle(partitionKey, paramName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        }
         sb.AppendLine();
         
         // ConditionCheck overload
@@ -2267,15 +2352,24 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </code>");
         sb.AppendLine($"    /// </example>");
         sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {paramName}) =>");
-        sb.AppendLine($"        ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        if (NeedsSetKeyApproach(partitionKey))
+        {
+            sb.AppendLine($"        ConditionCheck<{entity.ClassName}>(){GenerateSetKeySingle(partitionKey, paramName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName});");
+        }
         sb.AppendLine();
     }
 
     private static void GenerateCompositeKeyOverloads(StringBuilder sb, EntityModel entity, 
-        string pkAttributeName, string pkPropertyType, string skAttributeName, string skPropertyType)
+        PropertyModel partitionKey, string pkAttributeName, string pkPropertyType,
+        PropertyModel sortKey, string skAttributeName, string skPropertyType)
     {
-        var pkParamName = ToCamelCase(pkAttributeName);
-        var skParamName = ToCamelCase(skAttributeName);
+        var useSetKey = NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey);
+        var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
+        var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
         
         // Get overload
         sb.AppendLine($"    /// <summary>");
@@ -2285,7 +2379,14 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
         sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        if (useSetKey)
+        {
+            sb.AppendLine($"        Get<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        }
         sb.AppendLine();
         
         // Update overload
@@ -2296,7 +2397,14 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>An UpdateItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
         sb.AppendLine($"    public UpdateItemRequestBuilder<{entity.ClassName}> Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        if (useSetKey)
+        {
+            sb.AppendLine($"        Update<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        Update<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        }
         sb.AppendLine();
         
         // Delete overload
@@ -2307,7 +2415,14 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
         sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
         sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        if (useSetKey)
+        {
+            sb.AppendLine($"        Delete<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        }
         sb.AppendLine();
         
         // ConditionCheck overload
@@ -2330,7 +2445,14 @@ internal static class TableGenerator
         sb.AppendLine($"    /// </code>");
         sb.AppendLine($"    /// </example>");
         sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-        sb.AppendLine($"        ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        if (useSetKey)
+        {
+            sb.AppendLine($"        ConditionCheck<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+        }
+        else
+        {
+            sb.AppendLine($"        ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+        }
         sb.AppendLine();
     }
 
@@ -3142,6 +3264,60 @@ internal static class TableGenerator
     {
         // Remove nullable annotation for parameter types
         return propertyType.TrimEnd('?');
+    }
+
+    /// <summary>
+    /// Gets the parameter type for a key property in generated accessor methods.
+    /// When a key has a prefix or is computed, the parameter type is always "string"
+    /// because the caller supplies the fully-formed prefixed/computed key value.
+    /// When a key has no prefix and is not computed, the native .NET type is used.
+    /// </summary>
+    private static string GetKeyParameterType(PropertyModel key)
+    {
+        var hasPrefix = !string.IsNullOrEmpty(key.KeyFormat?.Prefix);
+        var isComputed = key.IsComputed;
+        
+        if (hasPrefix || isComputed)
+        {
+            return "string";
+        }
+        
+        return GetCSharpType(key.PropertyType);
+    }
+
+    /// <summary>
+    /// Determines whether a key property requires the SetKey approach instead of WithKey.
+    /// Returns true when the key has a non-string type, no prefix, and is not computed.
+    /// </summary>
+    private static bool NeedsSetKeyApproach(PropertyModel key)
+    {
+        var csharpType = GetCSharpType(key.PropertyType);
+        var isStringType = csharpType is "string" or "String" or "System.String";
+        var hasPrefix = !string.IsNullOrEmpty(key.KeyFormat?.Prefix);
+        var isComputed = key.IsComputed;
+
+        return !isStringType && !hasPrefix && !isComputed;
+    }
+
+    /// <summary>
+    /// Generates SetKey lambda code for a single key property.
+    /// Example output: .SetKey(k => { k["pk"] = new AttributeValue { N = pK.ToString() }; })
+    /// </summary>
+    private static string GenerateSetKeySingle(PropertyModel key, string paramName)
+    {
+        var avExpression = MapperGenerator.GetToAttributeValueExpression(key, paramName);
+        return $".SetKey(k => {{ k[\"{key.AttributeName}\"] = {avExpression}; }})";
+    }
+
+    /// <summary>
+    /// Generates SetKey lambda code for composite keys (partition + sort).
+    /// Example output: .SetKey(k => { k["PK"] = new AttributeValue { S = pK }; k["SK"] = new AttributeValue { S = sK.ToString() }; })
+    /// </summary>
+    private static string GenerateSetKeyComposite(PropertyModel partitionKey, string pkParamName, PropertyModel sortKey, string skParamName)
+    {
+        var pkAvExpression = MapperGenerator.GetToAttributeValueExpression(partitionKey, pkParamName);
+        var skAvExpression = MapperGenerator.GetToAttributeValueExpression(sortKey, skParamName);
+        return $".SetKey(k => {{ k[\"{partitionKey.AttributeName}\"] = {pkAvExpression}; k[\"{sortKey.AttributeName}\"] = {skAvExpression}; }})";
     }
 
     private static string ToCamelCase(string text)

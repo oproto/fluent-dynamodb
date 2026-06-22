@@ -1,6 +1,8 @@
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Metadata;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
+using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.UnitTests.TestHelpers;
 
@@ -52,4 +54,12 @@ public class TestEntityBase : IDynamoDbEntity
         Indexes = Array.Empty<IndexMetadata>(),
         Relationships = Array.Empty<RelationshipMetadata>()
     };
+
+    public static Task<TSelf> FromDynamoDbAsync<TSelf>(
+        IList<Dictionary<string, AttributeValue>> items,
+        IBlobStorageProvider? blobProvider,
+        IFieldEncryptor? fieldEncryptor,
+        FluentDynamoDbOptions? options,
+        CancellationToken cancellationToken) where TSelf : IDynamoDbEntity
+        => Task.FromResult(FromDynamoDb<TSelf>(items, options));
 }

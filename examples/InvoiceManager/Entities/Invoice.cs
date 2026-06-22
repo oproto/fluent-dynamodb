@@ -41,7 +41,9 @@ namespace InvoiceManager.Entities;
 /// related InvoiceLine entities returned in the same query.
 /// </para>
 /// </remarks>
-[DynamoDbTable("invoices", IsDefault = true)]
+[DynamoDbTable("invoices", IsDefault = true,
+    DiscriminatorProperty = "sk",
+    DiscriminatorPattern = "INVOICE#*")]
 [GenerateEntityProperty(Name = "Invoices")]
 public partial class Invoice
 {
