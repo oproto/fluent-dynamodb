@@ -207,6 +207,7 @@ internal static class HydratorGenerator
     {
         var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
 
+        // Generate a single SerializeAsync with keyInputMode parameter (defaults to KeyInputMode.Default)
         sb.AppendLine();
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Serializes a {entity.ClassName} to DynamoDB attributes, storing blob references.");
@@ -214,12 +215,14 @@ internal static class HydratorGenerator
         sb.AppendLine($"        /// <param name=\"entity\">The entity to serialize.</param>");
         sb.AppendLine($"        /// <param name=\"blobProvider\">The blob storage provider for storing blob references.</param>");
         sb.AppendLine($"        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc.</param>");
+        sb.AppendLine($"        /// <param name=\"keyInputMode\">The key input mode controlling how key prefixes are applied during serialization.</param>");
         sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token.</param>");
         sb.AppendLine($"        /// <returns>The DynamoDB attributes.</returns>");
         sb.AppendLine($"        public async Task<Dictionary<string, AttributeValue>> SerializeAsync(");
         sb.AppendLine($"            {entity.ClassName} entity,");
         sb.AppendLine($"            IBlobStorageProvider? blobProvider,");
         sb.AppendLine($"            FluentDynamoDbOptions? options = null,");
+        sb.AppendLine($"            KeyInputMode keyInputMode = KeyInputMode.Default,");
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
         sb.AppendLine($"            ArgumentNullException.ThrowIfNull(entity);");

@@ -195,6 +195,7 @@ internal static class MapperGenerator
 
     private static void GenerateToDynamoDbMethod(StringBuilder sb, EntityModel entity)
     {
+        // Generate the existing overload that now delegates to the new one with KeyInputMode.Default
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// High-performance conversion from entity to DynamoDB AttributeValue dictionary.");
@@ -207,6 +208,28 @@ internal static class MapperGenerator
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
+        sb.AppendLine("            return ToDynamoDb(entity, options, KeyInputMode.Default);");
+        sb.AppendLine("        }");
+
+        // Generate the new overload with KeyInputMode parameter
+        GenerateToDynamoDbMethodWithKeyInputMode(sb, entity);
+    }
+
+    private static void GenerateToDynamoDbMethodWithKeyInputMode(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// High-performance conversion from entity to DynamoDB AttributeValue dictionary.");
+        sb.AppendLine("        /// Applies key prefix logic based on the resolved KeyInputMode.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <typeparam name=\"TSelf\">The entity type implementing IDynamoDbEntity.</typeparam>");
+        sb.AppendLine("        /// <param name=\"entity\">The entity instance to convert.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc. If null, default behavior is used.</param>");
+        sb.AppendLine("        /// <param name=\"keyInputMode\">The KeyInputMode controlling prefix application behavior.</param>");
+        sb.AppendLine("        /// <returns>A dictionary of DynamoDB AttributeValues representing the entity.</returns>");
+        sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
         
         // Generate entry logging
         sb.Append(LoggingCodeGenerator.GenerateToDynamoDbEntryLogging(entity.ClassName));
@@ -214,6 +237,10 @@ internal static class MapperGenerator
         
         sb.AppendLine($"            if (entity is not {entity.ClassName} typedEntity)");
         sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{entity.GetType().Name}}\", nameof(entity));");
+        sb.AppendLine();
+
+        // Resolve the KeyInputMode at the top
+        sb.AppendLine("            var resolvedMode = Oproto.FluentDynamoDb.Utility.KeyInputModeResolver.Resolve(keyInputMode, options ?? new FluentDynamoDbOptions());");
         sb.AppendLine();
 
         // Wrap entire mapping operation in try-catch
@@ -244,6 +271,9 @@ internal static class MapperGenerator
             GeneratePropertyToAttributeValue(sb, property, entity);
         }
 
+        // Generate key prefix application for eligible key properties
+        GenerateKeyPrefixApplication(sb, entity);
+
         // Generate dynamic fields inclusion if enabled
         if (entity.EnableDynamicFields)
         {
@@ -267,6 +297,37 @@ internal static class MapperGenerator
         sb.AppendLine("                throw;");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
+    }
+
+    /// <summary>
+    /// Generates key prefix application logic for eligible key properties.
+    /// Applies KeyPrefixHelper.ApplyKeyPrefix for non-computed key properties that have a prefix configured.
+    /// Also handles GSI/LSI properties that carry a [PartitionKey]/[SortKey] attribute with a prefix.
+    /// </summary>
+    private static void GenerateKeyPrefixApplication(StringBuilder sb, EntityModel entity)
+    {
+        var keyPropertiesWithPrefix = entity.Properties.Where(p =>
+            (p.IsPartitionKey || p.IsSortKey) &&
+            !p.IsComputed &&
+            p.KeyFormat != null &&
+            !string.IsNullOrEmpty(p.KeyFormat.Prefix)).ToArray();
+
+        if (keyPropertiesWithPrefix.Length == 0)
+            return;
+
+        sb.AppendLine();
+        sb.AppendLine("                // Apply key prefix logic for eligible key properties");
+        foreach (var property in keyPropertiesWithPrefix)
+        {
+            var attributeName = property.AttributeName;
+            var escapedPropertyName = EscapePropertyName(property.PropertyName);
+            var prefix = property.KeyFormat!.Prefix!;
+            var separator = property.KeyFormat.Separator;
+
+            // Null check before prefix application
+            sb.AppendLine($"                ArgumentNullException.ThrowIfNull(typedEntity.{escapedPropertyName}, nameof(typedEntity.{escapedPropertyName}));");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = Oproto.FluentDynamoDb.Utility.KeyPrefixHelper.ApplyKeyPrefix(typedEntity.{escapedPropertyName}, \"{prefix}\", \"{separator}\", resolvedMode) }};");
+        }
     }
 
     private static void GenerateDynamicFieldsInclusion(StringBuilder sb)
@@ -307,6 +368,37 @@ internal static class MapperGenerator
         sb.AppendLine("        /// </summary>");
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        
+        if (hasBlobStorage && hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage and encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use ToDynamoDbAsync with an IBlobStorageProvider and IFieldEncryptor instead.\");");
+        }
+        else if (hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use ToDynamoDbAsync with an IFieldEncryptor instead.\");");
+        }
+        else
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use ToDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        }
+        
+        sb.AppendLine("        }");
+
+        // Generate the new overload with KeyInputMode parameter (also a stub for async-only entities)
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Stub method for interface compliance. This entity requires async methods.");
+        sb.AppendLine("        /// Use ToDynamoDbAsync instead.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
         if (hasBlobStorage && hasEncryptedProperties)

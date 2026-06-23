@@ -63,10 +63,10 @@ public class InterfaceHierarchyValidationTest
         // Test IDynamoDbEntity method signatures
         var entityType = typeof(IDynamoDbEntity);
         
-        // Should have ToDynamoDb method
+        // Should have ToDynamoDb methods (original + overload with KeyInputMode)
         var toDynamoDbMethods = entityType.GetMethods()
             .Where(m => m.Name == "ToDynamoDb" && m.IsGenericMethodDefinition).ToArray();
-        Assert.Single(toDynamoDbMethods);
+        Assert.Equal(2, toDynamoDbMethods.Length);
         
         var toDynamoDbMethod = toDynamoDbMethods[0];
         Assert.True(toDynamoDbMethod.IsStatic);

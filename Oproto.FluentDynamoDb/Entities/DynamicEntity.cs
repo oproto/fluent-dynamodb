@@ -74,6 +74,23 @@ public sealed class DynamicEntity : IDynamoDbEntity
     }
 
     /// <summary>
+    /// Converts a DynamicEntity instance to a DynamoDB AttributeValue dictionary with KeyInputMode.
+    /// DynamicEntity does not have key prefix configuration, so the keyInputMode is ignored.
+    /// </summary>
+    /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>
+    /// <param name="entity">The entity instance to convert.</param>
+    /// <param name="options">Optional configuration options. Not used for DynamicEntity.</param>
+    /// <param name="keyInputMode">The KeyInputMode (ignored for DynamicEntity since it has no key prefix configuration).</param>
+    /// <returns>A dictionary of attribute names to AttributeValue objects.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the entity is not a DynamicEntity.</exception>
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity
+    {
+        // DynamicEntity has no key prefix configuration, delegate to the base overload
+        return ToDynamoDb(entity, options);
+    }
+
+    /// <summary>
     /// Creates a DynamicEntity instance from a single DynamoDB item.
     /// </summary>
     /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>

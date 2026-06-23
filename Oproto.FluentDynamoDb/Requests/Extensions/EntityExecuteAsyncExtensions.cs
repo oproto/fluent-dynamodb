@@ -710,7 +710,7 @@ public static class EntityExecuteAsyncExtensions
             if (hydrator != null)
             {
                 // Entity has blob references - use registered hydrator's serialize method (no reflection)
-                attributeDict = await hydrator.SerializeAsync(item, blobProvider, options, cancellationToken).ConfigureAwait(false);
+                attributeDict = await hydrator.SerializeAsync(item, blobProvider, options, cancellationToken: cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -1076,7 +1076,7 @@ public static class EntityExecuteAsyncExtensions
                 {
                     var entity = builder.GetDeferredEntity()!;
                     var blobProvider = options.BlobStorageProvider;
-                    var item = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken).ConfigureAwait(false);
+                    var item = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken: cancellationToken).ConfigureAwait(false);
                     builder.SetResolvedItem(item);
                 }
             }

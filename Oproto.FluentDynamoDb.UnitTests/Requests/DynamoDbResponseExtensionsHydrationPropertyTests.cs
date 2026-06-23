@@ -213,6 +213,9 @@ public class TestHydrationEntity : IDynamoDbEntity
     {
         ["id"] = new AttributeValue { S = ((TestHydrationEntity)(object)entity).Id }
     };
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
     
     public static EntityMetadata GetEntityMetadata() => new()
     {
@@ -249,6 +252,9 @@ public class AnotherTestEntity : IDynamoDbEntity
     {
         ["name"] = new AttributeValue { S = ((AnotherTestEntity)(object)entity).Name }
     };
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
     
     public static EntityMetadata GetEntityMetadata() => new()
     {
