@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.Utility;
 /// <summary>
 /// Resolves KeyInputMode.Default to the actual configured mode.
 /// </summary>
-internal static class KeyInputModeResolver
+public static class KeyInputModeResolver
 {
     /// <summary>
     /// Resolves the effective key input mode. If the specified mode is Default,
@@ -15,7 +15,7 @@ internal static class KeyInputModeResolver
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when an undefined KeyInputMode enum value is specified.
     /// </exception>
-    internal static KeyInputMode Resolve(KeyInputMode specified, FluentDynamoDbOptions options)
+    public static KeyInputMode Resolve(KeyInputMode specified, FluentDynamoDbOptions options)
     {
         return specified switch
         {

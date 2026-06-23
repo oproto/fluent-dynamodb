@@ -3,7 +3,7 @@ namespace Oproto.FluentDynamoDb.Utility;
 /// <summary>
 /// Applies key prefix transformations based on the resolved KeyInputMode.
 /// </summary>
-internal static class KeyPrefixHelper
+public static class KeyPrefixHelper
 {
     /// <summary>
     /// Applies the appropriate prefix transformation to a key value based on the resolved mode.
@@ -14,7 +14,7 @@ internal static class KeyPrefixHelper
     /// <param name="mode">The resolved KeyInputMode (must not be Default).</param>
     /// <returns>The transformed key value.</returns>
     /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
-    internal static string ApplyKeyPrefix(string value, string? prefix, string separator, KeyInputMode mode)
+    public static string ApplyKeyPrefix(string value, string? prefix, string separator, KeyInputMode mode)
     {
         ArgumentNullException.ThrowIfNull(value);
 

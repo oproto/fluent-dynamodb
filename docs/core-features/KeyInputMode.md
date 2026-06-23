@@ -267,6 +267,128 @@ public string Pk { get; set; } = string.Empty;
 //   "12345"       → "ORDER_12345" (prepends prefix+separator)
 ```
 
+## Per-Call KeyInputMode Parameter on Generated Accessors
+
+When the source generator detects that an entity has a string key with a configured prefix and no typed parameter convenience overload (see [Computed Key Overloads](ComputedKeyOverloads.md)), it adds an optional `KeyInputMode mode = KeyInputMode.Default` parameter to the generated Get, Delete, Update, and ConditionCheck accessor methods. This lets you override the global default on a per-call basis.
+
+### When the Parameter Appears
+
+The `KeyInputMode mode` parameter is generated when **all** of the following are true:
+
+1. At least one key is a `string` type with a configured prefix (e.g., `[PartitionKey(Prefix = "ORDER")]`)
+2. No typed parameter convenience overload is generated for that entity (i.e., the entity has no computed key with ≥2 source properties, or the typed overload would be ambiguous)
+
+The parameter is **not** generated when:
+- No key has a prefix configured
+- A typed overload exists (the typed overload handles raw values; the string overload is unambiguously for pre-built keys)
+- All keys are non-string types (int, Guid, enum)
+
+### Parameter Position
+
+The parameter is positioned after key parameters and before any `CancellationToken`:
+
+```csharp
+// Generated accessor signature
+public GetItemRequestBuilder<Order> Get(
+    string pK, 
+    string sK, 
+    KeyInputMode mode = KeyInputMode.Default)
+```
+
+### Per-Call Override Examples
+
+```csharp
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "LINE")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+```
+
+#### Auto Mode (Default)
+
+```csharp
+// Default — resolves to Auto from FluentDynamoDbOptions
+var order = await table.Orders.Get("12345", "001").GetItemAsync();
+// DynamoDB receives pk = "ORDER#12345", sk = "LINE#001"
+// (Auto detects missing prefix and prepends it)
+
+// Already-prefixed values pass through unchanged
+var order = await table.Orders.Get("ORDER#12345", "LINE#001").GetItemAsync();
+// DynamoDB receives pk = "ORDER#12345", sk = "LINE#001"
+```
+
+#### Value Mode
+
+```csharp
+// Always prepend prefix — use when passing raw component values
+var order = await table.Orders.Get("12345", "001", KeyInputMode.Value).GetItemAsync();
+// DynamoDB receives pk = "ORDER#12345", sk = "LINE#001"
+```
+
+#### Raw Mode
+
+```csharp
+// Pass through unchanged — caller is responsible for correct key format
+var order = await table.Orders.Get("ORDER#12345", "LINE#001", KeyInputMode.Raw).GetItemAsync();
+// DynamoDB receives pk = "ORDER#12345", sk = "LINE#001"
+
+// ⚠️ Without prefix, the raw value goes to DynamoDB as-is
+var order = await table.Orders.Get("12345", "001", KeyInputMode.Raw).GetItemAsync();
+// DynamoDB receives pk = "12345", sk = "001" — probably wrong!
+```
+
+### Convenience Async Methods
+
+The same parameter propagates to `GetAsync`, `DeleteAsync`, and their FluentResults variants:
+
+```csharp
+// GetAsync convenience method
+var order = await table.Orders.GetAsync("12345", "001", mode: KeyInputMode.Value);
+// DynamoDB receives pk = "ORDER#12345", sk = "LINE#001"
+
+// DeleteAsync convenience method
+await table.Orders.DeleteAsync("12345", "001", mode: KeyInputMode.Raw);
+```
+
+### Table-Level Methods
+
+Table-level methods also receive the `KeyInputMode` parameter and pass it through to the entity accessor:
+
+```csharp
+// Table-level Get
+var order = await table.Get("12345", "001", KeyInputMode.Value).GetItemAsync();
+```
+
+### Interaction with Prefix Configuration
+
+The `KeyInputMode` parameter interacts with each key's prefix independently:
+
+```csharp
+[DynamoDbTable("Mixed")]
+public partial class MixedEntity
+{
+    [PartitionKey(Prefix = "PFX")]  // Has prefix
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]  // No prefix
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+// The resolved mode applies to pk (which has prefix) but sk passes through unchanged
+var item = await table.Mixed.Get("123", "sort-value", KeyInputMode.Value).GetItemAsync();
+// pk: "PFX#123" (prefix applied via Value mode)
+// sk: "sort-value" (no prefix configured — unchanged regardless of mode)
+```
+
 ## Error Handling
 
 | Scenario | Exception | Message |
@@ -279,3 +401,4 @@ public string Pk { get; set; } = string.Empty;
 
 - [Configuration Guide](Configuration.md) — Full `FluentDynamoDbOptions` configuration reference
 - [Entity Definition](EntityDefinition.md) — Defining entities with key prefixes
+- [Computed Key Overloads](ComputedKeyOverloads.md) — Typed parameter overloads for computed keys

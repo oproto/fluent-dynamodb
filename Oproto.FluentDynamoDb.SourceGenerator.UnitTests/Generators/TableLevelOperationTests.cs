@@ -645,6 +645,86 @@ namespace TestNamespace
             "table-level Update should pass pk to accessor");
     }
 
+    [Fact]
+    public void TableLevelOperations_WithComputedKey_GeneratesTypedOverloads()
+    {
+        // Arrange - Entity with computed PK (multiple source properties) and simple SK
+        var source = @"
+using System;
+using Oproto.FluentDynamoDb.Attributes;
+
+namespace TestNamespace
+{
+    [DynamoDbTable(""events-table"", IsDefault = true)]
+    public partial class Event
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        [Computed(""Year"", ""Month"", ""Day"", Separator = ""#"")]
+        public string Pk { get; set; } = string.Empty;
+
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string Sk { get; set; } = string.Empty;
+
+        [Extracted(""Pk"", 0)]
+        public int Year { get; set; }
+
+        [Extracted(""Pk"", 1)]
+        public int Month { get; set; }
+
+        [Extracted(""Pk"", 2)]
+        public int Day { get; set; }
+    }
+
+    [DynamoDbTable(""events-table"")]
+    public partial class EventDetail
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Pk { get; set; } = string.Empty;
+
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string Sk { get; set; } = string.Empty;
+    }
+}";
+
+        // Act
+        var result = GenerateCode(source);
+
+        // Assert
+        result.Diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+        
+        var tableFiles = result.GeneratedSources
+            .Where(s => s.FileName.Contains("EventsTableTable.g.cs"))
+            .ToArray();
+        
+        tableFiles.Should().HaveCount(1);
+        
+        var tableCode = tableFiles[0].SourceText.ToString();
+        
+        // Table-level typed overloads should exist for Get, Delete, Update, ConditionCheck
+        tableCode.Should().Contain("public GetItemRequestBuilder<Event> Get(int year, int month, int day, string sK)",
+            "table-level typed Get overload should be generated");
+        tableCode.Should().Contain("public DeleteItemRequestBuilder<Event> Delete(int year, int month, int day, string sK)",
+            "table-level typed Delete overload should be generated");
+        tableCode.Should().Contain("public EventUpdateBuilder Update(int year, int month, int day, string sK)",
+            "table-level typed Update overload should be generated");
+        tableCode.Should().Contain("public ConditionCheckBuilder<Event> ConditionCheck(int year, int month, int day, string sK)",
+            "table-level typed ConditionCheck overload should be generated");
+        
+        // Typed overloads should delegate to entity accessor
+        tableCode.Should().Contain("Events.Get(year, month, day, sK)",
+            "typed Get should delegate to entity accessor");
+        tableCode.Should().Contain("Events.Delete(year, month, day, sK)",
+            "typed Delete should delegate to entity accessor");
+        tableCode.Should().Contain("Events.Update(year, month, day, sK)",
+            "typed Update should delegate to entity accessor");
+        tableCode.Should().Contain("Events.ConditionCheck(year, month, day, sK)",
+            "typed ConditionCheck should delegate to entity accessor");
+    }
+
     private static GeneratorTestResult GenerateCode(string source)
     {
         var compilation = CSharpCompilation.Create(
