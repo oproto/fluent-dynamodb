@@ -86,6 +86,12 @@ public sealed class FluentDynamoDbOptions
     public ReturnValue? DefaultReturnValues { get; private init; }
 
     /// <summary>
+    /// Gets the default key input mode used when operations specify KeyInputMode.Default.
+    /// Default value: KeyInputMode.Auto
+    /// </summary>
+    public KeyInputMode DefaultKeyInputMode { get; private init; } = KeyInputMode.Auto;
+
+    /// <summary>
     /// Creates a new options instance with the specified logger.
     /// </summary>
     /// <param name="logger">The logger to use. If null, uses NoOpLogger.Instance.</param>
@@ -261,6 +267,22 @@ public sealed class FluentDynamoDbOptions
         => CloneWith(defaultReturnValues: value);
 
     /// <summary>
+    /// Creates a new options instance with the specified default key input mode.
+    /// </summary>
+    /// <param name="mode">The key input mode to use as the default. Cannot be KeyInputMode.Default.</param>
+    /// <returns>A new FluentDynamoDbOptions instance with the specified key input mode.</returns>
+    /// <exception cref="ArgumentException">Thrown when KeyInputMode.Default is specified.</exception>
+    public FluentDynamoDbOptions UseKeyInputMode(KeyInputMode mode)
+    {
+        if (mode == KeyInputMode.Default)
+            throw new ArgumentException(
+                "KeyInputMode.Default is only valid as a per-call parameter value. " +
+                "Specify Auto, Value, or Raw for the global default.",
+                nameof(mode));
+        return CloneWith(defaultKeyInputMode: mode);
+    }
+
+    /// <summary>
     /// Creates a clone of this options instance with the specified overrides.
     /// </summary>
     private FluentDynamoDbOptions CloneWith(
@@ -275,6 +297,7 @@ public sealed class FluentDynamoDbOptions
         ReturnConsumedCapacity? defaultReturnConsumedCapacity = null,
         ReturnItemCollectionMetrics? defaultReturnItemCollectionMetrics = null,
         ReturnValue? defaultReturnValues = null,
+        KeyInputMode? defaultKeyInputMode = null,
         bool setJsonSerializer = false,
         bool setBlobStorageProvider = false,
         bool setBlobStorageStrategy = false)
@@ -291,7 +314,8 @@ public sealed class FluentDynamoDbOptions
             DefaultConsistentRead = defaultConsistentRead ?? DefaultConsistentRead,
             DefaultReturnConsumedCapacity = defaultReturnConsumedCapacity ?? DefaultReturnConsumedCapacity,
             DefaultReturnItemCollectionMetrics = defaultReturnItemCollectionMetrics ?? DefaultReturnItemCollectionMetrics,
-            DefaultReturnValues = defaultReturnValues ?? DefaultReturnValues
+            DefaultReturnValues = defaultReturnValues ?? DefaultReturnValues,
+            DefaultKeyInputMode = defaultKeyInputMode ?? DefaultKeyInputMode
         };
     }
 }

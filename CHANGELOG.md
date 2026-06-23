@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **KeyInputMode Enum** - New `KeyInputMode` enum (`Default`, `Auto`, `Value`, `Raw`) that controls how key values are interpreted before being sent to DynamoDB operations. `Auto` mode intelligently detects whether a prefix is already applied; `Value` mode always prepends; `Raw` mode passes through unchanged.
+- **FluentDynamoDbOptions.DefaultKeyInputMode** - New `DefaultKeyInputMode` property (defaults to `KeyInputMode.Auto`) and `UseKeyInputMode(mode)` fluent configuration method for setting the global default key interpretation strategy.
+- **KeyInputModeResolver** - Internal utility that resolves `KeyInputMode.Default` to the actual configured mode from options.
+- **KeyPrefixHelper** - Internal utility that applies prefix transformations based on the resolved mode, using ordinal case-sensitive comparison for Auto mode detection.
+
 ## [1.0.6] - 2026-06-22
 
 ### Fixed
