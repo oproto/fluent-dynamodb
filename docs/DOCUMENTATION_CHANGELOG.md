@@ -359,3 +359,13 @@ var encryptorOptions = new AwsEncryptionSdkOptions
 - SetAt/RemoveAt extension methods for list operations
 
 **Reason:** Previous changelog entries have been applied to all derived documentation. Starting fresh reduces file size and improves maintainability while ensuring all documentation sources are in sync.
+
+## [2025-07-14]
+
+### New Documentation
+
+### File: docs/core-features/KeyInputMode.md
+
+**Description:** Added comprehensive documentation for the new `KeyInputMode` enum and its integration with `FluentDynamoDbOptions`. Documents all four modes (Default, Auto, Value, Raw), configuration options, examples for each mode, and migration guidance for existing users.
+
+**Category:** New Feature Documentation
