@@ -248,6 +248,156 @@ public class RelatedEntityMappingTests
 
     #endregion
 
+    #region Inferred Type Mapping Tests (EntityType = null)
+
+    /// <summary>
+    /// Verifies that when EntityType is null and the relationship is a collection,
+    /// the generated code infers the element type from PropertyType and uses FromDynamoDb
+    /// rather than emitting a TODO stub or creating an empty instance.
+    /// 
+    /// **Validates: Requirements 2.1**
+    /// </summary>
+    [Fact]
+    public void GenerateEntityImplementation_WithCollectionRelationship_EntityTypeNull_UsesFromDynamoDb()
+    {
+        // Arrange - Create entity with [RelatedEntity] collection where EntityType is NOT specified
+        var entity = new EntityModel
+        {
+            ClassName = "ParentEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            IsMultiItemEntity = true,
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Pk",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Sk",
+                    AttributeName = "sk",
+                    PropertyType = "string",
+                    IsSortKey = true
+                }
+            },
+            Relationships = new[]
+            {
+                new RelationshipModel
+                {
+                    PropertyName = "Children",
+                    SortKeyPattern = "CHILD#*",
+                    EntityType = null,
+                    IsCollection = true,
+                    PropertyType = "List<ChildEntity>",
+                    ChildEntityHasRelationships = false,
+                    ChildEntityRelationships = Array.Empty<RelationshipModel>()
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Assert - Verify FromDynamoDb is called with the inferred element type
+        result.Should().Contain("ChildEntity.FromDynamoDb<ChildEntity>(item, options)",
+            "generated code should call FromDynamoDb using the element type inferred from the collection PropertyType");
+
+        // Verify no TODO stubs remain
+        result.Should().NotContain("// TODO",
+            "generated code should not contain TODO comments - the stub should be replaced with actual deserialization");
+
+        // Verify no empty instance creation
+        result.Should().NotContain("new ChildEntity()",
+            "generated code should not create empty instances - it should deserialize using FromDynamoDb");
+
+        // Verify try/catch with logging is present
+        result.Should().Contain("try",
+            "generated code should use try/catch for graceful error handling");
+        result.Should().Contain("catch (Exception ex)",
+            "generated code should catch exceptions during related entity deserialization");
+        result.Should().Contain("LogWarning",
+            "generated code should log warnings when deserialization fails");
+        result.Should().Contain("RelatedEntityMappingFailed",
+            "generated code should use RelatedEntityMappingFailed event ID");
+    }
+
+    /// <summary>
+    /// Verifies that when EntityType is null and the relationship is a single entity (not a collection),
+    /// the generated code infers the property type and uses FromDynamoDb
+    /// rather than emitting a TODO stub or creating an empty instance.
+    /// 
+    /// **Validates: Requirements 2.3**
+    /// </summary>
+    [Fact]
+    public void GenerateEntityImplementation_WithSingleRelationship_EntityTypeNull_UsesFromDynamoDb()
+    {
+        // Arrange - Create entity with [RelatedEntity] single where EntityType is NOT specified
+        var entity = new EntityModel
+        {
+            ClassName = "ParentEntity",
+            Namespace = "TestNamespace",
+            TableName = "test-table",
+            IsMultiItemEntity = true,
+            Properties = new[]
+            {
+                new PropertyModel
+                {
+                    PropertyName = "Pk",
+                    AttributeName = "pk",
+                    PropertyType = "string",
+                    IsPartitionKey = true
+                },
+                new PropertyModel
+                {
+                    PropertyName = "Sk",
+                    AttributeName = "sk",
+                    PropertyType = "string",
+                    IsSortKey = true
+                }
+            },
+            Relationships = new[]
+            {
+                new RelationshipModel
+                {
+                    PropertyName = "Summary",
+                    SortKeyPattern = "SUMMARY",
+                    EntityType = null,
+                    IsCollection = false,
+                    PropertyType = "SummaryInfo",
+                    ChildEntityHasRelationships = false,
+                    ChildEntityRelationships = Array.Empty<RelationshipModel>()
+                }
+            }
+        };
+
+        // Act
+        var result = MapperGenerator.GenerateEntityImplementation(entity);
+
+        // Assert - Verify FromDynamoDb is called with the inferred property type
+        result.Should().Contain("SummaryInfo.FromDynamoDb<SummaryInfo>(item, options)",
+            "generated code should call FromDynamoDb using the property type inferred from the single entity PropertyType");
+
+        // Verify no TODO stubs remain
+        result.Should().NotContain("// TODO",
+            "generated code should not contain TODO comments - the stub should be replaced with actual deserialization");
+
+        // Verify no empty instance creation
+        result.Should().NotContain("new SummaryInfo()",
+            "generated code should not create empty instances - it should deserialize using FromDynamoDb");
+
+        // Verify try/catch error handling is present
+        result.Should().Contain("try",
+            "generated code should use try/catch for graceful error handling");
+        result.Should().Contain("catch (Exception ex)",
+            "generated code should catch exceptions during related entity deserialization");
+    }
+
+    #endregion
+
     #region Error Handling Tests
 
     /// <summary>

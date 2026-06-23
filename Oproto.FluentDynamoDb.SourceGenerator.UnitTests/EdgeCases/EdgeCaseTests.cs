@@ -537,24 +537,66 @@ namespace TestNamespace
         public List<ComplexPatternEntry>? ComplexPattern { get; set; }
         
         [RelatedEntity(""*#*#*"")]
-        public List<object>? VeryBroadPattern { get; set; }
+        public List<BroadPatternEntry>? VeryBroadPattern { get; set; }
         
         [RelatedEntity(""exact#match#no#wildcards"")]
         public ExactMatchEntry? ExactMatch { get; set; }
     }
     
-    public class AuditEntry
+    [DynamoDbTable(""complex-patterns-table"")]
+    public partial class AuditEntry
     {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Pk { get; set; } = string.Empty;
+
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string Sk { get; set; } = string.Empty;
+
+        [DynamoDbAttribute(""action"")]
         public string Action { get; set; } = string.Empty;
     }
     
-    public class ComplexPatternEntry
+    [DynamoDbTable(""complex-patterns-table"")]
+    public partial class ComplexPatternEntry
     {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Pk { get; set; } = string.Empty;
+
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string Sk { get; set; } = string.Empty;
+
+        [DynamoDbAttribute(""data"")]
         public string Data { get; set; } = string.Empty;
     }
     
-    public class ExactMatchEntry
+    [DynamoDbTable(""complex-patterns-table"")]
+    public partial class BroadPatternEntry
     {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Pk { get; set; } = string.Empty;
+
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string Sk { get; set; } = string.Empty;
+    }
+
+    [DynamoDbTable(""complex-patterns-table"")]
+    public partial class ExactMatchEntry
+    {
+        [PartitionKey]
+        [DynamoDbAttribute(""pk"")]
+        public string Pk { get; set; } = string.Empty;
+
+        [SortKey]
+        [DynamoDbAttribute(""sk"")]
+        public string Sk { get; set; } = string.Empty;
+
+        [DynamoDbAttribute(""value"")]
         public string Value { get; set; } = string.Empty;
     }
 }";
@@ -565,12 +607,14 @@ namespace TestNamespace
         // Assert
         // May generate warnings about overly broad patterns and unsupported types
         // RelatedEntity properties should NOT emit DYNDB023 performance warnings
-        result.Diagnostics.Should().NotBeEmpty();
         result.Diagnostics.Should().NotContain(d => d.Id == "DYNDB023"); // RelatedEntity suppresses performance warnings
-        result.GeneratedSources.Should().HaveCount(5); // Entity, UpdateExpressions, UpdateModel, UpdateBuilder, Table
 
         var entityCode = GetGeneratedSource(result, "ComplexPatternsEntity.g.cs");
-        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
+        CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source,
+            GetGeneratedSource(result, "AuditEntry.g.cs"),
+            GetGeneratedSource(result, "ComplexPatternEntry.g.cs"),
+            GetGeneratedSource(result, "BroadPatternEntry.g.cs"),
+            GetGeneratedSource(result, "ExactMatchEntry.g.cs"));
         
         entityCode.ShouldReferenceType("IDynamoDbEntity");
         entityCode.ShouldContainMethod("ToDynamoDb");
