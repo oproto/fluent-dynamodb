@@ -1103,6 +1103,20 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "When both ProjectionType = KeysOnly and [UseProjection] are specified, the [UseProjection] attribute takes precedence. The auto-generated Keys Only projection record will not be generated. Consider removing one of these configurations to avoid confusion.");
 
+    // Computed Key Accessor Overload Diagnostics (FDDB080-FDDB081)
+
+    /// <summary>
+    /// Error when a source property in a computed key cannot be resolved to an entity property.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnresolvableComputedKeySourceProperty = new(
+        "FDDB080",
+        "Unresolvable source property in computed key",
+        "Cannot resolve source property '{0}' for computed key on '{1}.{2}'. Convenience overload will not be generated.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A source property referenced in a computed key's SourceProperties array could not be found in the entity's property collection. The typed parameter convenience overload will not be generated for this entity.");
+
     // Index Attribute Redesign Diagnostics (DYNDB120-DYNDB127)
 
     /// <summary>

@@ -57,6 +57,24 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-07-03]
+
+### New Documentation: Computed Key Typed Parameter Overloads
+
+**Category:** New Feature Documentation
+
+### File: docs/core-features/ComputedKeyOverloads.md
+
+**Description:** Added comprehensive documentation for the new typed parameter convenience overloads generated for entities with computed keys. Documents when overloads are generated vs. skipped, before/after patterns, parameter type resolution, computed key with prefix handling, both-keys-computed scenarios, consistency across CRUD methods, table-level overloads, and the relationship with KeyInputMode.
+
+### Updated Documentation: KeyInputMode Per-Call Parameter on Generated Accessors
+
+**Category:** New Feature Documentation
+
+### File: docs/core-features/KeyInputMode.md
+
+**Description:** Added "Per-Call KeyInputMode Parameter on Generated Accessors" section documenting when the `KeyInputMode mode` parameter appears on generated accessor methods, its position in the signature, per-call override examples for Auto/Value/Raw modes, propagation to convenience async methods and table-level methods, and interaction with prefix configuration on individual keys.
+
 ## [2026-06-19]
 
 ### Non-String Key Type Support — Bugfix Clarification
