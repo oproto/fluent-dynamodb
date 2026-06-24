@@ -2,7 +2,7 @@ name: PR Validation
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'release/**', 'hotfix/**' ]
     types: [opened, synchronize, reopened]
 
 env:

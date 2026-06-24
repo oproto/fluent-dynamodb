@@ -2551,9 +2551,18 @@ internal static class MapperGenerator
         }
         else
         {
-            sb.AppendLine($"                            // Generic mapping to {elementType}");
-            sb.AppendLine($"                            var relatedEntity = new {elementType}();");
-            sb.AppendLine($"                            {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
+            sb.AppendLine($"                            // Map related entity using inferred type: {elementType}");
+            sb.AppendLine("                            try");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                var relatedEntity = await {elementType}.FromDynamoDbAsync<{elementType}>(item, blobProvider, fieldEncryptor, options, cancellationToken).ConfigureAwait(false);");
+            sb.AppendLine($"                                {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
+            sb.AppendLine("                            }");
+            sb.AppendLine("                            catch (Exception ex)");
+            sb.AppendLine("                            {");
+            sb.AppendLine($"                                options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                                    \"Failed to deserialize related entity {{EntityType}} with sort key {{SortKey}}: {{Error}}\",");
+            sb.AppendLine($"                                    \"{elementType}\", sortKey, ex.Message);");
+            sb.AppendLine("                            }");
         }
 
         sb.AppendLine("                        }");
@@ -4087,11 +4096,43 @@ internal static class MapperGenerator
 
         if (IsComplexType(elementType))
         {
-            // For complex types, we'd need to reconstruct the object
-            sb.AppendLine($"                    // TODO: Implement complex type reconstruction for {elementType}");
-            sb.AppendLine($"                    // For now, create default instance");
-            sb.AppendLine($"                    var {collectionProperty.PropertyName.ToLowerInvariant()}Item = new {elementType}();");
-            sb.AppendLine($"                    {collectionProperty.PropertyName.ToLowerInvariant()}List.Add({collectionProperty.PropertyName.ToLowerInvariant()}Item);");
+            var varPrefix = collectionProperty.PropertyName.ToLowerInvariant();
+            // Complex type: deserialize from Map AttributeValue
+            sb.AppendLine($"                    if ({varPrefix}Value.M != null && {varPrefix}Value.M.Count > 0)");
+            sb.AppendLine("                    {");
+            sb.AppendLine("                        try");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            var {varPrefix}Item = {elementType}.FromDynamoDb<{elementType}>({varPrefix}Value.M, options);");
+            sb.AppendLine($"                            {varPrefix}List.Add({varPrefix}Item);");
+            sb.AppendLine("                        }");
+            sb.AppendLine("                        catch (Exception ex)");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                                \"Failed to deserialize collection element {{ElementType}}: {{Error}}\",");
+            sb.AppendLine($"                                \"{elementType}\", ex.Message);");
+            sb.AppendLine("                        }");
+            sb.AppendLine("                    }");
+            sb.AppendLine($"                    else if ({varPrefix}Value.L != null && {varPrefix}Value.L.Count > 0)");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        // List of Maps - deserialize each entry");
+            sb.AppendLine($"                        foreach (var listEntry in {varPrefix}Value.L)");
+            sb.AppendLine("                        {");
+            sb.AppendLine("                            if (listEntry.M != null && listEntry.M.Count > 0)");
+            sb.AppendLine("                            {");
+            sb.AppendLine("                                try");
+            sb.AppendLine("                                {");
+            sb.AppendLine($"                                    var {varPrefix}Item = {elementType}.FromDynamoDb<{elementType}>(listEntry.M, options);");
+            sb.AppendLine($"                                    {varPrefix}List.Add({varPrefix}Item);");
+            sb.AppendLine("                                }");
+            sb.AppendLine("                                catch (Exception ex)");
+            sb.AppendLine("                                {");
+            sb.AppendLine($"                                    options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                                        \"Failed to deserialize collection element {{ElementType}}: {{Error}}\",");
+            sb.AppendLine($"                                        \"{elementType}\", ex.Message);");
+            sb.AppendLine("                                }");
+            sb.AppendLine("                            }");
+            sb.AppendLine("                        }");
+            sb.AppendLine("                    }");
         }
         else
         {
@@ -5117,11 +5158,19 @@ internal static class MapperGenerator
         }
         else
         {
-            // Generic mapping - create instance of element type
-            sb.AppendLine($"                        // Generic mapping to {elementType}");
-            sb.AppendLine($"                        var relatedEntity = new {elementType}();");
-            sb.AppendLine($"                        // TODO: Implement generic property mapping for {elementType}");
-            sb.AppendLine($"                        {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
+            // Generic mapping - use inferred element type for deserialization
+            sb.AppendLine($"                        // Map related entity using inferred type: {elementType}");
+            sb.AppendLine("                        try");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            var relatedEntity = {elementType}.FromDynamoDb<{elementType}>(item, options);");
+            sb.AppendLine($"                            {relationship.PropertyName.ToLowerInvariant()}Items.Add(relatedEntity);");
+            sb.AppendLine("                        }");
+            sb.AppendLine("                        catch (Exception ex)");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                                \"Failed to deserialize related entity {{EntityType}} with sort key {{SortKey}}: {{Error}}\",");
+            sb.AppendLine($"                                \"{elementType}\", sortKey, ex.Message);");
+            sb.AppendLine("                        }");
         }
 
         sb.AppendLine("                    }");
@@ -5214,10 +5263,18 @@ internal static class MapperGenerator
         }
         else
         {
-            // Generic mapping - create instance of property type
-            sb.AppendLine($"                        // Generic mapping to {propertyType}");
-            sb.AppendLine($"                        entity.{relationship.PropertyName} = new {propertyType}();");
-            sb.AppendLine($"                        // TODO: Implement generic property mapping for {propertyType}");
+            // Generic mapping - use inferred type for deserialization
+            sb.AppendLine($"                        // Map related entity using inferred type: {propertyType}");
+            sb.AppendLine("                        try");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            entity.{relationship.PropertyName} = {propertyType}.FromDynamoDb<{propertyType}>(item, options);");
+            sb.AppendLine("                        }");
+            sb.AppendLine("                        catch (Exception ex)");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.RelatedEntityMappingFailed,");
+            sb.AppendLine($"                                \"Failed to deserialize related entity {{EntityType}} with sort key {{SortKey}}: {{Error}}\",");
+            sb.AppendLine($"                                \"{propertyType}\", sortKey, ex.Message);");
+            sb.AppendLine("                        }");
             sb.AppendLine("                        break; // Found the related entity");
         }
 

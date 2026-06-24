@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-06-23
+
+### Fixed
+
+- **`[RelatedEntity]` Generic Mapping Not Deserializing Items When `EntityType` Is Omitted** - Fixed the source generator emitting a TODO stub (`new ElementType()`) instead of calling `FromDynamoDb` when a `[RelatedEntity]` attribute does not explicitly specify `EntityType`. The framework now infers the entity type from the property's generic type parameter (e.g., `UserSubscription` from `List<UserSubscription>`) and generates proper deserialization calls. This affected `ToCompositeEntityAsync` returning collections with correct item counts but all-default property values. The fix applies to sync collection mapping, async collection mapping, and single entity mapping paths. Specifying `EntityType = typeof(T)` explicitly continues to work as before.
+
+- **Complex-Type Collection Properties Not Deserialized in Multi-Item `FromDynamoDb` Path** - Fixed the source generator emitting a TODO stub for complex-type collection elements (e.g., `List<Address>` where `Address` is a `[DynamoDbEntity]`) during multi-item entity reconstruction. The generated code now properly deserializes Map AttributeValues via `FromDynamoDb` and handles List-of-Maps as a fallback, with try/catch error handling for graceful degradation. This only affected composite entities retrieved via `ToCompositeEntityAsync` that also had complex-type collection properties alongside `[RelatedEntity]` relationships.
+
 ## [1.0.6] - 2026-06-22
 
 ### Fixed
