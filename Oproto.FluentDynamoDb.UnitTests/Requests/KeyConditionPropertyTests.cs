@@ -30,6 +30,9 @@ public class KeyConditionPropertyTests
         public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity
             => new() { [PkAttributeName] = new AttributeValue { S = "test" } };
 
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+            where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
+
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
             => (TSelf)(object)new SimpleKeyTestEntity();
 
@@ -67,6 +70,9 @@ public class KeyConditionPropertyTests
                 [PkAttributeName] = new AttributeValue { S = "test" },
                 [SkAttributeName] = new AttributeValue { S = "test" }
             };
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+            where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
 
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
             => (TSelf)(object)new CompositeKeyTestEntity();

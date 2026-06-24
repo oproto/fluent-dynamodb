@@ -79,7 +79,7 @@ public class TransactionWriteBuilder
                 if (hydrator != null && entity != null)
                 {
                     var blobProvider = options.BlobStorageProvider;
-                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, ct).ConfigureAwait(false);
+                    var serialized = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken: ct).ConfigureAwait(false);
                     builder.SetResolvedItem(serialized);
                     _items[itemIndex].Put.Item = serialized;
                 }

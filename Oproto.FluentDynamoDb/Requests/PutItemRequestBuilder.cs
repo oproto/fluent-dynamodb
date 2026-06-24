@@ -77,6 +77,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
     private TEntity? _entity;
     private bool _hasDeferredEntity;
     private KeyCondition _keyCondition = KeyCondition.None;
+    private KeyInputMode _keyInputMode = KeyInputMode.Default;
 
     /// <summary>
     /// Gets the response metadata from the most recent PutItem execution.
@@ -237,6 +238,34 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
         _keyCondition = condition;
         return this;
     }
+
+    /// <summary>
+    /// Overrides the KeyInputMode used for prefix application during Put serialization.
+    /// When not called, KeyInputMode.Default is used (resolved from FluentDynamoDbOptions.DefaultKeyInputMode).
+    /// </summary>
+    /// <param name="mode">The KeyInputMode to use for this Put operation.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <example>
+    /// <code>
+    /// // Pass key values through unchanged (no prefix application)
+    /// await table.Users.Put(user).WithKeyMode(KeyInputMode.Raw).PutAsync();
+    /// 
+    /// // Always prepend configured prefix
+    /// await table.Users.Put(user).WithKeyMode(KeyInputMode.Value).PutAsync();
+    /// </code>
+    /// </example>
+    public PutItemRequestBuilder<TEntity> WithKeyMode(KeyInputMode mode)
+    {
+        _keyInputMode = mode;
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the KeyInputMode configured for this builder.
+    /// Used by extension methods to propagate the mode to serialization.
+    /// </summary>
+    /// <returns>The configured KeyInputMode.</returns>
+    public KeyInputMode GetKeyInputMode() => _keyInputMode;
 
     /// <summary>
     /// Applies the key condition to the request's condition expression.
@@ -420,13 +449,11 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
             return this;
         }
 
-        // No hydrator registered — try synchronous serialization.
-        // For encrypted entities whose hydrator hasn't been registered yet,
-        // the generated ToDynamoDb stub throws NotSupportedException.
-        // Catch that and defer serialization to async execution time.
+        // No hydrator registered — perform synchronous serialization.
+        // Pass _keyInputMode to the new overload for prefix application.
         try
         {
-            _req.Item = TEntity.ToDynamoDb(entity, _options);
+            _req.Item = TEntity.ToDynamoDb(entity, _options, _keyInputMode);
         }
         catch (NotSupportedException)
         {
@@ -538,7 +565,7 @@ public class PutItemRequestBuilder<TEntity> : IWithAttributeNames<PutItemRequest
             if (hydrator != null && _entity != null)
             {
                 var blobProvider = _options.BlobStorageProvider;
-                var item = await hydrator.SerializeAsync(_entity, blobProvider, _options, cancellationToken).ConfigureAwait(false);
+                var item = await hydrator.SerializeAsync(_entity, blobProvider, _options, _keyInputMode, cancellationToken).ConfigureAwait(false);
                 SetResolvedItem(item);
             }
         }

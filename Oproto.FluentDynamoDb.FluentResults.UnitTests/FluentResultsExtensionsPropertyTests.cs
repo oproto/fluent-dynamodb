@@ -1822,6 +1822,9 @@ public partial class PropertyTestEntity : IDynamoDbEntity
         };
     }
 
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
+
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {
         var entity = new PropertyTestEntity

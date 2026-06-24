@@ -44,11 +44,13 @@ public interface IAsyncEntityHydrator<TEntity> where TEntity : class
     /// <param name="entity">The entity to serialize.</param>
     /// <param name="blobProvider">The blob storage provider for storing blob references. Null for encryption-only entities.</param>
     /// <param name="options">Optional configuration options including logger, JSON serializer, etc.</param>
+    /// <param name="keyInputMode">The key input mode controlling how key prefixes are applied during serialization. Defaults to KeyInputMode.Default which resolves from options.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The DynamoDB attributes.</returns>
     Task<Dictionary<string, AttributeValue>> SerializeAsync(
         TEntity entity,
         IBlobStorageProvider? blobProvider,
         FluentDynamoDbOptions? options = null,
+        KeyInputMode keyInputMode = KeyInputMode.Default,
         CancellationToken cancellationToken = default);
 }

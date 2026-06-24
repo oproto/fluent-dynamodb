@@ -28,6 +28,17 @@ public interface IDynamoDbEntity : IReadOnlyEntity
         where TSelf : IDynamoDbEntity;
 
     /// <summary>
+    /// Converts an entity instance to a DynamoDB AttributeValue dictionary with KeyInputMode for prefix application.
+    /// </summary>
+    /// <typeparam name="TSelf">The entity type implementing this interface.</typeparam>
+    /// <param name="entity">The entity instance to convert.</param>
+    /// <param name="options">Optional configuration options including logger, JSON serializer, etc. If null, default behavior is used.</param>
+    /// <param name="keyInputMode">The KeyInputMode controlling how key prefixes are applied during serialization.</param>
+    /// <returns>A dictionary of attribute names to AttributeValue objects.</returns>
+    static abstract Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity;
+
+    /// <summary>
     /// Creates an entity instance from multiple DynamoDB items.
     /// Used for multi-item entities where a single logical entity spans multiple DynamoDB items.
     /// </summary>

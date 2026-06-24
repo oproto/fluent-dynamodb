@@ -57,6 +57,42 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-23]
+
+### New Documentation: Put Key Prefix Automatic Application
+
+**Category:** Added
+
+### File: docs/core-features/PutKeyPrefixBehavior.md
+
+**Description:** Added documentation explaining automatic key prefix application during Put operations. Covers how Auto mode detects and applies prefixes to key properties, how Value mode always prepends the prefix, how Raw mode passes key values unchanged, computed key exclusion, and per-call `WithKeyMode(KeyInputMode)` overrides. Includes code examples for each mode and migration guidance for existing users.
+
+**Before:**
+```csharp
+// Manual prefix construction required before Put
+var order = new Order
+{
+    Pk = Order.Keys.Pk(orderId),  // "ORDER#12345"
+    Sk = Order.Keys.Sk(lineId),   // "LINE#abc"
+    Total = 99.99m
+};
+await table.Orders.Put(order).PutAsync();
+```
+
+**After:**
+```csharp
+// Auto mode applies prefix automatically during Put serialization
+var order = new Order
+{
+    Pk = orderId,   // Automatically becomes "ORDER#12345"
+    Sk = lineId,    // Automatically becomes "LINE#abc"
+    Total = 99.99m
+};
+await table.Orders.Put(order).PutAsync();
+```
+
+**Reason:** Put operations now automatically apply configured key prefixes during serialization based on the resolved `KeyInputMode`. This eliminates the most common source of bugs for new library users who forgot to call `Entity.Keys.Pk(value)` before Put operations. Existing code using `Entity.Keys.Pk(value)` continues to work unchanged because Auto mode detects the prefix is already present and passes through.
+
 ## [2026-07-03]
 
 ### New Documentation: Computed Key Typed Parameter Overloads

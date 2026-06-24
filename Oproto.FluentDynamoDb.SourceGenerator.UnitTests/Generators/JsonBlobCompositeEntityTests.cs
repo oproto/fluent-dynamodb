@@ -1401,6 +1401,9 @@ public class JsonBlobTestEntity : IDynamoDbEntity
         return item;
     }
 
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
+
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {
         var entity = new JsonBlobTestEntity
@@ -1486,6 +1489,9 @@ public class JsonBlobListTestEntity : IDynamoDbEntity
 
         return item;
     }
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {
@@ -1592,6 +1598,9 @@ public class CompositeParentTestEntity : IDynamoDbEntity
 
         return item;
     }
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {
@@ -1708,6 +1717,9 @@ public class CompositeChildTestEntity : IDynamoDbEntity
 
         return item;
     }
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {

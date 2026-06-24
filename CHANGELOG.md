@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **FluentDynamoDbOptions.DefaultKeyInputMode** - New `DefaultKeyInputMode` property (defaults to `KeyInputMode.Auto`) and `UseKeyInputMode(mode)` fluent configuration method for setting the global default key interpretation strategy.
 - **KeyInputModeResolver** - Internal utility that resolves `KeyInputMode.Default` to the actual configured mode from options.
 - **KeyPrefixHelper** - Internal utility that applies prefix transformations based on the resolved mode, using ordinal case-sensitive comparison for Auto mode detection.
+- **Automatic Key Prefix Application During Put Serialization** - The source generator now emits `ToDynamoDb` code that automatically applies configured key prefixes to partition key and sort key values during Put serialization, using `KeyPrefixHelper.ApplyKeyPrefix` with the resolved `KeyInputMode`. This eliminates the most common source of bugs for new users who previously had to manually call `Entity.Keys.Pk(value)` before Put operations. A new `ToDynamoDb` overload accepting `KeyInputMode` is generated alongside the existing overload (which delegates with `KeyInputMode.Default` for backward compatibility). Computed keys are excluded from prefix application. `PutItemRequestBuilder` exposes a new `WithKeyMode(KeyInputMode)` builder method for per-operation overrides, and `IAsyncEntityHydrator<TEntity>` gains a new `SerializeAsync` overload accepting `KeyInputMode` for entities with encrypted or blob properties.
 
 ## [1.0.6] - 2026-06-22
 

@@ -105,6 +105,7 @@ public class EncryptionPutRegressionTests
             Arg.Any<EncryptionOnlyTestEntity>(),
             Arg.Any<Providers.BlobStorage.IBlobStorageProvider>(),
             Arg.Any<FluentDynamoDbOptions>(),
+            Arg.Any<KeyInputMode>(),
             Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
@@ -152,6 +153,7 @@ public class EncryptionPutRegressionTests
             Arg.Any<EncryptionOnlyTestEntity>(),
             Arg.Any<Providers.BlobStorage.IBlobStorageProvider>(),
             Arg.Any<FluentDynamoDbOptions>(),
+            Arg.Any<KeyInputMode>(),
             Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
