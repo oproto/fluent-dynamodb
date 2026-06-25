@@ -1,7 +1,7 @@
 namespace Oproto.FluentDynamoDb.Metadata;
 
 /// <summary>
-/// Metadata about a computed field that concatenates multiple source property values.
+/// Metadata about a computed field that reconstructs a value from multiple source properties using a format string.
 /// </summary>
 public class ComputedFieldMetadata
 {
@@ -11,18 +11,8 @@ public class ComputedFieldMetadata
     public string[] SourceProperties { get; set; } = Array.Empty<string>();
 
     /// <summary>
-    /// Gets or sets the separator used between source values during concatenation.
+    /// Gets or sets the format string used to reconstruct the computed value via string.Format().
+    /// Always non-null at runtime. Contains positional placeholders {0} through {N-1}.
     /// </summary>
-    public string Separator { get; set; } = "#";
-
-    /// <summary>
-    /// Gets or sets the optional prefix prepended to the computed value.
-    /// Null if no prefix is configured.
-    /// </summary>
-    public string? Prefix { get; set; }
-
-    /// <summary>
-    /// Gets or sets the separator between the prefix and the computed value.
-    /// </summary>
-    public string? PrefixSeparator { get; set; }
+    public string Format { get; set; } = "{0}";
 }

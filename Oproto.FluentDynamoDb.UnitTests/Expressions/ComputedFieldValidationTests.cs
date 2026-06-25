@@ -183,7 +183,7 @@ public class ComputedFieldValidationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "Department", "Category" },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 },
                 new PropertyMetadata
@@ -243,9 +243,7 @@ public class ComputedFieldValidationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "Region", "Department", "Category" },
-                        Separator = "#",
-                        Prefix = "ORDER",
-                        PrefixSeparator = "#"
+                        Format = "ORDER#{0}#{1}#{2}"
                     }
                 }
             }
@@ -293,7 +291,7 @@ public class ComputedFieldValidationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "FieldA1", "FieldA2" },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 },
                 new PropertyMetadata
@@ -318,7 +316,7 @@ public class ComputedFieldValidationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "FieldB1", "FieldB2" },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 }
             }

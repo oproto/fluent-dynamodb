@@ -160,6 +160,22 @@ Lower-level manual approaches for dynamic scenarios. Covers:
 - Dynamic query building
 - Mixing approaches
 
+### [Internal Architecture](InternalArchitecture.md)
+Understand how internal components work together. Covers:
+- Architecture overview and component layers
+- IDynamoDbEntity interface and request builders
+- ExpressionTranslator pipeline
+- Source generator pipeline and generated artifacts
+- Extension method generation
+
+### [Computed Field Format Normalization](ComputedFieldFormatNormalization.md)
+Internal refactoring of computed field metadata representation. Covers:
+- `ComputedFieldMetadata` simplified to `SourceProperties` + `Format` (removed `Separator`/`Prefix`/`PrefixSeparator`)
+- Format string generation rules and examples
+- Unified runtime recomputation via `string.Format`
+- FDDB090 diagnostic for placeholder count mismatch
+- Impact on contributors (user-facing API unchanged)
+
 ### [Advanced Type System](AdvancedTypes.md)
 Use DynamoDB's native collection types, TTL, JSON blobs, and external storage. Covers:
 - Native Maps, Sets, and Lists

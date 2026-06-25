@@ -111,6 +111,23 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
     {
         var properties = new List<PropertyMetadata>();
 
+        // Build the format string from separator/prefix parameters
+        // (mirrors what ComputeFormatString does at compile time)
+        var placeholders = string.Join(
+            separator,
+            Enumerable.Range(0, sourceProperties.Length).Select(i => $"{{{i}}}"));
+
+        string format;
+        if (!string.IsNullOrEmpty(prefix))
+        {
+            var pSep = prefixSeparator ?? separator;
+            format = $"{prefix}{pSep}{placeholders}";
+        }
+        else
+        {
+            format = placeholders;
+        }
+
         // Add the computed field itself
         properties.Add(new PropertyMetadata
         {
@@ -120,9 +137,7 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
             ComputedField = new ComputedFieldMetadata
             {
                 SourceProperties = sourceProperties,
-                Separator = separator,
-                Prefix = prefix,
-                PrefixSeparator = prefixSeparator
+                Format = format
             }
         });
 
@@ -166,6 +181,7 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
     /// </summary>
     private EntityMetadata CreateMultiComputedFieldMetadata(string separator = "#")
     {
+        var format = $"{{0}}{separator}{{1}}";
         return new EntityMetadata
         {
             TableName = "TestTable",
@@ -179,7 +195,7 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "SourceA1", "SourceA2" },
-                        Separator = separator
+                        Format = format
                     }
                 },
                 new PropertyMetadata
@@ -190,7 +206,7 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "SourceB1", "SourceB2" },
-                        Separator = separator
+                        Format = format
                     }
                 },
                 new PropertyMetadata
@@ -230,6 +246,7 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
     /// </summary>
     private EntityMetadata CreateExtractedComputedFieldMetadata(string separator = "#")
     {
+        var format = $"{{0}}{separator}{{1}}";
         return new EntityMetadata
         {
             TableName = "TestTable",
@@ -243,7 +260,7 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "Source1", "Source2" },
-                        Separator = separator
+                        Format = format
                     }
                 },
                 new PropertyMetadata

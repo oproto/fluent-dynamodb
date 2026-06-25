@@ -4820,18 +4820,9 @@ internal static class MapperGenerator
             var computedKey = property.ComputedKey!;
             var sourcePropsArray = string.Join(", ", computedKey.SourceProperties.Select(s => $"\"{EscapeString(s)}\""));
 
-            sb.AppendLine("                        ComputedField = new ComputedFieldMetadata");
-            sb.AppendLine("                        {");
-            sb.AppendLine($"                            SourceProperties = new[] {{ {sourcePropsArray} }},");
-            sb.AppendLine($"                            Separator = \"{EscapeString(computedKey.Separator)}\",");
-
-            // Populate Prefix and PrefixSeparator from key attribute configuration if available
-            if (property.KeyFormat != null && !string.IsNullOrEmpty(property.KeyFormat.Prefix))
-            {
-                sb.AppendLine($"                            Prefix = \"{EscapeString(property.KeyFormat.Prefix)}\",");
-                sb.AppendLine($"                            PrefixSeparator = \"{EscapeString(property.KeyFormat.Separator)}\"");
-            }
-            else
+            // Determine the effective key format for format string computation
+            var effectiveKeyFormat = property.KeyFormat;
+            if (effectiveKeyFormat == null || string.IsNullOrEmpty(effectiveKeyFormat.Prefix))
             {
                 // Check if this computed property is a GSI key with prefix from index configuration
                 var matchingIndex = entity.Indexes.FirstOrDefault(idx =>
@@ -4847,13 +4838,18 @@ internal static class MapperGenerator
                         if (!string.IsNullOrEmpty(prefix))
                         {
                             var separator = indexFormat.Substring(prefix.Length, firstPlaceholder - prefix.Length);
-                            sb.AppendLine($"                            Prefix = \"{EscapeString(prefix)}\",");
-                            sb.AppendLine($"                            PrefixSeparator = \"{EscapeString(separator)}\"");
+                            effectiveKeyFormat = new KeyFormatModel { Prefix = prefix, Separator = separator };
                         }
                     }
                 }
             }
 
+            var formatString = ComputeFormatString(computedKey, effectiveKeyFormat);
+
+            sb.AppendLine("                        ComputedField = new ComputedFieldMetadata");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            SourceProperties = new[] {{ {sourcePropsArray} }},");
+            sb.AppendLine($"                            Format = \"{EscapeString(formatString)}\"");
             sb.AppendLine("                        },");
         }
 
@@ -5929,9 +5925,39 @@ internal static class MapperGenerator
     }
 
     /// <summary>
+    /// Computes the format string for a computed field based on its configuration.
+    /// Called at compile time during metadata emission.
+    /// </summary>
+    /// <param name="computedKey">The computed key model containing separator and format information.</param>
+    /// <param name="keyFormat">Optional key format model containing prefix information.</param>
+    /// <returns>A .NET composite format string for use with string.Format().</returns>
+    internal static string ComputeFormatString(ComputedKeyModel computedKey, KeyFormatModel? keyFormat)
+    {
+        // 1. If explicit Format is specified, use it directly (highest priority)
+        if (computedKey.HasCustomFormat)
+            return computedKey.Format!;
+
+        // 2. Build format from Separator (+ optional key Prefix)
+        var sourceCount = computedKey.SourceProperties.Length;
+
+        // Generate placeholders: "{0}#{1}#{2}" for separator="#", 3 sources
+        var placeholders = string.Join(
+            computedKey.Separator,
+            Enumerable.Range(0, sourceCount).Select(i => $"{{{i}}}"));
+
+        // Prepend key prefix if configured
+        if (keyFormat != null && !string.IsNullOrEmpty(keyFormat.Prefix))
+        {
+            return $"{keyFormat.Prefix}{keyFormat.Separator}{placeholders}";
+        }
+
+        return placeholders;
+    }
+
+    /// <summary>
     /// Escapes a string for use in generated C# string literals.
     /// </summary>
-    private static string EscapeString(string value)
+    internal static string EscapeString(string value)
     {
         if (string.IsNullOrEmpty(value))
             return value;

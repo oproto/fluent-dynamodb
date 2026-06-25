@@ -102,6 +102,11 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Usage: [Entity Definition](core-features/EntityDefinition.md#computed-keys-with-format-strings)
 - Examples: [Entity Definition](core-features/EntityDefinition.md#multi-property-computed-keys)
 
+**Computed Field Format Normalization**
+- Internal refactoring: [Computed Field Format Normalization](advanced-topics/ComputedFieldFormatNormalization.md)
+- Format string rules: [Computed Field Format Normalization](advanced-topics/ComputedFieldFormatNormalization.md#format-string-generation-rules)
+- FDDB090 diagnostic: [Computed Field Format Normalization](advanced-topics/ComputedFieldFormatNormalization.md#fddb090-diagnostic)
+
 **Condition Expressions**
 - Basic usage: [Basic Operations](core-features/BasicOperations.md#conditional-operations)
 - Expression formatting: [Expression Formatting](core-features/ExpressionFormatting.md)

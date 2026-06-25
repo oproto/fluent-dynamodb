@@ -57,6 +57,58 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-07-06]
+
+### Internal Simplification: ComputedFieldMetadata Format Normalization
+
+**Category:** Pattern Update
+
+### File: Oproto.FluentDynamoDb/Metadata/ComputedFieldMetadata.cs
+
+**Before:**
+```csharp
+public class ComputedFieldMetadata
+{
+    public string[] SourceProperties { get; set; } = Array.Empty<string>();
+    public string Separator { get; set; } = "#";
+    public string? Prefix { get; set; }
+    public string? PrefixSeparator { get; set; }
+}
+```
+
+**After:**
+```csharp
+public class ComputedFieldMetadata
+{
+    public string[] SourceProperties { get; set; } = Array.Empty<string>();
+    public string Format { get; set; } = "{0}";
+}
+```
+
+**Reason:** Internal simplification — all computed field configurations (Separator, Prefix, PrefixSeparator) are now pre-compiled into a single format string at source-generator time. The runtime only needs `string.Format(Format, values)` to reconstruct computed values, aligning the Update path with the existing Put and Key builder paths. The user-facing `ComputedAttribute` API is unchanged.
+
+---
+
+### New Diagnostic: FDDB090 — Format Placeholder Count Mismatch
+
+**Category:** New Feature Documentation
+
+### File: Oproto.FluentDynamoDb.SourceGenerator/Diagnostics/DiagnosticDescriptors.cs
+
+**Before:**
+No `FDDB090` diagnostic existed.
+
+**After:**
+```csharp
+// FDDB090 is emitted when an explicit Format placeholder count doesn't match source property count
+// Severity: Error
+// Message: "Computed property '{0}' has format '{1}' with {2} placeholders but {3} source properties"
+```
+
+**Reason:** Compile-time validation of format string correctness. When a user specifies an explicit `Format` on a `ComputedAttribute`, the source generator now verifies that the number of positional placeholders (`{0}`, `{1}`, etc.) matches the number of declared source properties, and emits an error diagnostic if they don't match.
+
+---
+
 ## [2026-07-05]
 
 ### New Documentation: Computed Field Updates
