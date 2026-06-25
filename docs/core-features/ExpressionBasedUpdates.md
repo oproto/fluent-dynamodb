@@ -1686,6 +1686,7 @@ public async Task Update_GeneratesCorrectExpression()
 
 ## See Also
 
+- **[Computed Field Updates](ComputedFieldUpdates.md)** - Source-property-based updates for computed fields
 - **[Basic Operations](BasicOperations.md)** - Traditional string-based update operations
 - **[Expression Formatting](ExpressionFormatting.md)** - Format string syntax and examples
 - **[Entity Definition](EntityDefinition.md)** - Define entities with attributes

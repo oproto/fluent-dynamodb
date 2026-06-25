@@ -4653,7 +4653,7 @@ internal static class MapperGenerator
         // Generate property metadata
         foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
         {
-            GeneratePropertyMetadata(sb, property);
+            GeneratePropertyMetadata(sb, property, entity);
         }
 
         sb.AppendLine("                },");
@@ -4745,7 +4745,7 @@ internal static class MapperGenerator
         sb.AppendLine("        }");
     }
 
-    private static void GeneratePropertyMetadata(StringBuilder sb, PropertyModel property)
+    private static void GeneratePropertyMetadata(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
         sb.AppendLine("                    new PropertyMetadata");
         sb.AppendLine("                    {");
@@ -4812,6 +4812,68 @@ internal static class MapperGenerator
         if (property.DateTimeKind.HasValue)
         {
             sb.AppendLine($"                        DateTimeKind = DateTimeKind.{property.DateTimeKind.Value}");
+        }
+
+        // Add ComputedField metadata for non-key computed properties
+        if (property.IsComputed && !property.IsPartitionKey && !property.IsSortKey)
+        {
+            var computedKey = property.ComputedKey!;
+            var sourcePropsArray = string.Join(", ", computedKey.SourceProperties.Select(s => $"\"{EscapeString(s)}\""));
+
+            sb.AppendLine("                        ComputedField = new ComputedFieldMetadata");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            SourceProperties = new[] {{ {sourcePropsArray} }},");
+            sb.AppendLine($"                            Separator = \"{EscapeString(computedKey.Separator)}\",");
+
+            // Populate Prefix and PrefixSeparator from key attribute configuration if available
+            if (property.KeyFormat != null && !string.IsNullOrEmpty(property.KeyFormat.Prefix))
+            {
+                sb.AppendLine($"                            Prefix = \"{EscapeString(property.KeyFormat.Prefix)}\",");
+                sb.AppendLine($"                            PrefixSeparator = \"{EscapeString(property.KeyFormat.Separator)}\"");
+            }
+            else
+            {
+                // Check if this computed property is a GSI key with prefix from index configuration
+                var matchingIndex = entity.Indexes.FirstOrDefault(idx =>
+                    idx.PartitionKeyProperty == property.PropertyName && !string.IsNullOrEmpty(idx.PartitionKeyFormat));
+                if (matchingIndex != null)
+                {
+                    // Parse the prefix from the index format string
+                    var indexFormat = matchingIndex.PartitionKeyFormat!;
+                    var firstPlaceholder = indexFormat.IndexOf("{0}");
+                    if (firstPlaceholder > 0)
+                    {
+                        var prefix = indexFormat.Substring(0, firstPlaceholder).TrimEnd('#', '_', '-', ':', '|');
+                        if (!string.IsNullOrEmpty(prefix))
+                        {
+                            var separator = indexFormat.Substring(prefix.Length, firstPlaceholder - prefix.Length);
+                            sb.AppendLine($"                            Prefix = \"{EscapeString(prefix)}\",");
+                            sb.AppendLine($"                            PrefixSeparator = \"{EscapeString(separator)}\"");
+                        }
+                    }
+                }
+            }
+
+            sb.AppendLine("                        },");
+        }
+
+        // Add ExtractedField metadata for extracted properties
+        if (property.ExtractedKey != null)
+        {
+            sb.AppendLine("                        ExtractedField = new ExtractedFieldMetadata");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            SourceProperty = \"{EscapeString(property.ExtractedKey.SourceProperty)}\",");
+            sb.AppendLine($"                            Index = {property.ExtractedKey.Index}");
+            sb.AppendLine("                        },");
+        }
+
+        // Add ComputedFieldTarget for source properties of non-key computed fields
+        var targetComputedField = entity.Properties.FirstOrDefault(p =>
+            p.IsComputed && !p.IsPartitionKey && !p.IsSortKey &&
+            p.ComputedKey!.SourceProperties.Contains(property.PropertyName));
+        if (targetComputedField != null)
+        {
+            sb.AppendLine($"                        ComputedFieldTarget = \"{EscapeString(targetComputedField.PropertyName)}\",");
         }
 
         sb.AppendLine("                    },");
@@ -5861,6 +5923,22 @@ internal static class MapperGenerator
         }
 
         return propertyName;
+    }
+
+    /// <summary>
+    /// Escapes a string for use in generated C# string literals.
+    /// </summary>
+    private static string EscapeString(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return value;
+
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
     }
 
     /// <summary>
