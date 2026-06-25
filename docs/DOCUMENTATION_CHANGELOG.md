@@ -57,6 +57,44 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-07-05]
+
+### New Documentation: Computed Field Updates
+
+**Category:** New Feature Documentation
+
+### File: docs/core-features/ComputedFieldUpdates.md
+
+**Description:** Added comprehensive documentation for the computed field update model redesign. Documents the source-property-based update pattern (setting source properties to trigger automatic recomputation of computed field values), update model property exclusions (key properties, extracted-of-keys, source-of-key-computed excluded at compile time), direct assignment as an alternative, and the three new runtime diagnostics (FDDB071, FDDB072, FDDB073). Includes complete examples for GSI key updates via source properties, multiple independent computed fields, conditional updates, and best practices.
+
+**Key Sections:**
+- Update Model Property Exclusions — what's included/excluded and why
+- Source-Property-Based Updates — automatic recomputation pattern with prefix handling
+- Direct Assignment — alternative approach for pre-computed values
+- Diagnostics (FDDB071, FDDB072, FDDB073) — causes, messages, and fixes
+- Examples — GSI key updates, multiple computed fields, conditional patterns
+- Best Practices — prefer source properties, local variables, don't mix approaches
+
+**Before (runtime error):**
+```csharp
+// Previously, setting key properties threw at runtime
+.Set(x => new ProductUpdateModel { Pk = "new-value" })
+// Threw InvalidUpdateOperationException at runtime
+```
+
+**After (compile-time error):**
+```csharp
+// Now, key properties are excluded from the update model entirely
+// .Set(x => new ProductUpdateModel { Pk = "new-value" })
+// ↑ Compile error: ProductUpdateModel does not contain 'Pk'
+
+// Source-property-based update for non-key computed fields:
+.Set(x => new ProductUpdateModel { Status = "Active", Region = "US-East" })
+// Automatically generates: SET #gsi1pk = :p0 (value: "Active#US-East")
+```
+
+**Reason:** New feature enables type-safe computed field updates with automatic recomputation, replacing manual string concatenation and preventing common bugs (partial updates, mixed assignment, entity parameter references).
+
 ## [2026-06-23]
 
 ### New Documentation: Put Key Prefix Automatic Application

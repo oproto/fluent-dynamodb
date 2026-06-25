@@ -219,8 +219,13 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             var updateExpressionsCode = UpdateExpressionsGenerator.GenerateUpdateExpressionsClass(entity);
             context.AddSource($"{entity.ClassName}UpdateExpressions.g.cs", updateExpressionsCode);
 
-            var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity);
+            var updateModelDiagnostics = new List<Diagnostic>();
+            var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity, updateModelDiagnostics);
             context.AddSource($"{entity.ClassName}UpdateModel.g.cs", updateModelCode);
+            foreach (var diagnostic in updateModelDiagnostics)
+            {
+                context.ReportDiagnostic(diagnostic);
+            }
 
             // Generate nested UpdateModel classes for properties with [DynamoDbMap] attribute
             // where the property type has [DynamoDbEntity] attribute

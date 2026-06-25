@@ -301,6 +301,13 @@ public class UpdateExpressionTranslator
         var addOperations = new List<string>();
         var removeOperations = new List<string>();
         var deleteOperations = new List<string>();
+        
+        // Track pending computed field source property assignments for later recomputation
+        var pendingComputedAssignments = new Dictionary<string, object?>();
+        
+        // Track properties that went through the normal SET/ADD/REMOVE/DELETE flow
+        // (used to detect mixed direct + source assignment for computed fields)
+        var directlyAssignedProperties = new HashSet<string>();
 
         // Process each property assignment
         foreach (var binding in memberInit.Bindings)
@@ -334,8 +341,27 @@ public class UpdateExpressionTranslator
                 continue;
             }
 
+            // Check if this is a source/extracted property of a computed field
+            if (context.EntityMetadata != null && IsComputedSourceProperty(propertyName, context))
+            {
+                // FDDB071: Validate the value does not reference the entity parameter.
+                // Computed fields are evaluated client-side and require known values at translation time.
+                if (ReferencesEntityParameter(valueExpression, parameter))
+                {
+                    ComputedFieldDiagnostics.ThrowEntityParameterReference(propertyName);
+                }
+
+                // Evaluate and store for later recomputation — do NOT generate a SET
+                var evaluatedValue = EvaluateExpression(valueExpression);
+                pendingComputedAssignments[propertyName] = evaluatedValue;
+                continue; // Skip normal operation classification
+            }
+
             // Determine operation type and translate
             var operation = ClassifyOperation(valueExpression, parameter, propertyName, context);
+            
+            // Track this property as directly assigned (for computed field mixed-assignment detection)
+            directlyAssignedProperties.Add(propertyName);
             
             switch (operation.Type)
             {
@@ -355,6 +381,14 @@ public class UpdateExpressionTranslator
                     // Property should be skipped - do not add any operation
                     break;
             }
+        }
+
+        // Post-processing: Validate and process computed field assignments
+        // This is called after all bindings have been processed to check completeness
+        // and generate the recomputed SET expression for computed fields.
+        if (context.EntityMetadata != null && pendingComputedAssignments.Count > 0)
+        {
+            ValidateAndProcessComputedFields(pendingComputedAssignments, directlyAssignedProperties, context, setOperations);
         }
 
         // Build combined expression
@@ -663,6 +697,51 @@ public class UpdateExpressionTranslator
             }
             return base.VisitParameter(node);
         }
+    }
+
+    /// <summary>
+    /// Determines whether a property is a source property or extracted property of a non-key computed field.
+    /// </summary>
+    /// <remarks>
+    /// A property is considered a computed source property if any of these conditions are true:
+    /// <list type="bullet">
+    /// <item><description>Its <see cref="PropertyMetadata.ComputedFieldTarget"/> is set (it is a direct source of a computed field)</description></item>
+    /// <item><description>Its <see cref="PropertyMetadata.ExtractedField"/> is set and the extracted source property is a non-key computed field</description></item>
+    /// </list>
+    /// <para>
+    /// This check is used to intercept source property assignments in the binding loop so that their
+    /// values are stored for later recomputation of the computed field, rather than generating
+    /// individual SET operations. It also enables FDDB071 validation: source properties of computed
+    /// fields must be assigned constant or local values and cannot reference the entity lambda parameter.
+    /// </para>
+    /// </remarks>
+    private static bool IsComputedSourceProperty(string propertyName, ExpressionContext context)
+    {
+        if (context.EntityMetadata == null)
+            return false;
+
+        var propertyMetadata = context.EntityMetadata.Properties
+            .FirstOrDefault(p => p.PropertyName == propertyName);
+
+        if (propertyMetadata == null)
+            return false;
+
+        // Check if this property is a direct source of a computed field
+        if (propertyMetadata.ComputedFieldTarget != null)
+            return true;
+
+        // Check if this property is an extracted property targeting a non-key computed field
+        if (propertyMetadata.ExtractedField != null)
+        {
+            var sourceProperty = context.EntityMetadata.Properties
+                .FirstOrDefault(p => p.PropertyName == propertyMetadata.ExtractedField.SourceProperty);
+
+            // If the source is a non-key computed field, this extracted property is a computed source
+            if (sourceProperty?.ComputedField != null && !sourceProperty.IsPartitionKey && !sourceProperty.IsSortKey)
+                return true;
+        }
+
+        return false;
     }
 
     private Operation TranslateSimpleSet(
@@ -2495,6 +2574,132 @@ public class UpdateExpressionTranslator
                 $"Key properties are immutable after item creation. To change a key value, delete the old item and create a new one with the new key.",
                 propertyName,
                 expression);
+        }
+    }
+
+    /// <summary>
+    /// Validates and processes computed field assignments after all bindings have been collected.
+    /// Checks FDDB072 (partial assignment) and FDDB073 (mixed assignment), then recomputes
+    /// the concatenated value and generates a SET expression for the computed field.
+    /// Each computed field is validated independently (Req 5.5).
+    /// </summary>
+    /// <param name="pendingComputedAssignments">Dictionary of source property names to their evaluated values.</param>
+    /// <param name="directlyAssignedProperties">Set of property names that were assigned in the normal SET/ADD/REMOVE/DELETE flow.</param>
+    /// <param name="context">The expression context containing entity metadata.</param>
+    /// <param name="setOperations">The list of SET operations to append the recomputed value to.</param>
+    private void ValidateAndProcessComputedFields(
+        Dictionary<string, object?> pendingComputedAssignments,
+        HashSet<string> directlyAssignedProperties,
+        ExpressionContext context,
+        List<string> setOperations)
+    {
+        var computedProperties = context.EntityMetadata!.Properties
+            .Where(p => p.ComputedField != null)
+            .ToList();
+
+        foreach (var computedProp in computedProperties)
+        {
+            var cf = computedProp.ComputedField!;
+            var computedFieldName = computedProp.PropertyName;
+
+            // Gather which source properties have been assigned
+            var assignedSources = new Dictionary<string, object?>();
+
+            // Check direct source properties (those with ComputedFieldTarget pointing to this field)
+            foreach (var sourceName in cf.SourceProperties)
+            {
+                if (pendingComputedAssignments.ContainsKey(sourceName))
+                {
+                    assignedSources[sourceName] = pendingComputedAssignments[sourceName];
+                }
+            }
+
+            // Also check extracted properties targeting this computed field
+            var extractedProps = context.EntityMetadata.Properties
+                .Where(p => p.ExtractedField?.SourceProperty == computedFieldName);
+            foreach (var extracted in extractedProps)
+            {
+                if (pendingComputedAssignments.ContainsKey(extracted.PropertyName))
+                {
+                    // Map extracted property to its corresponding source property by index
+                    var sourceIndex = extracted.ExtractedField!.Index;
+                    if (sourceIndex < cf.SourceProperties.Length)
+                    {
+                        var sourceName = cf.SourceProperties[sourceIndex];
+                        assignedSources[sourceName] = pendingComputedAssignments[extracted.PropertyName];
+                    }
+                }
+            }
+
+            bool directlyAssigned = directlyAssignedProperties.Contains(computedFieldName);
+            bool anySourceAssigned = assignedSources.Count > 0;
+
+            // FDDB073: Mixed direct + source assignment
+            if (directlyAssigned && anySourceAssigned)
+            {
+                ComputedFieldDiagnostics.ThrowMixedAssignment(computedFieldName);
+            }
+
+            if (anySourceAssigned)
+            {
+                // FDDB072: Partial source assignment
+                var missingSources = cf.SourceProperties
+                    .Where(s => !assignedSources.ContainsKey(s))
+                    .ToList();
+                if (missingSources.Count > 0)
+                {
+                    ComputedFieldDiagnostics.ThrowPartialSourceAssignment(computedFieldName, missingSources);
+                }
+
+                // Recompute: concatenate values in order
+                var parts = cf.SourceProperties
+                    .Select(s => assignedSources[s]?.ToString() ?? string.Empty)
+                    .ToArray();
+                var recomputedValue = string.Join(cf.Separator, parts);
+
+                // Apply prefix if configured
+                if (!string.IsNullOrEmpty(cf.Prefix))
+                {
+                    var prefixSep = cf.PrefixSeparator ?? cf.Separator;
+                    recomputedValue = cf.Prefix + prefixSep + recomputedValue;
+                }
+
+                // Generate SET for the computed field's DynamoDB attribute
+                var attributeName = GetAttributeName(computedFieldName, context);
+                var paramName = CaptureValue(recomputedValue, context, computedProp);
+                setOperations.Add($"{attributeName} = {paramName}");
+
+                // Also generate SET for source properties that have their own DynamoDB attribute.
+                // A source property with a non-empty AttributeName has an independent column in DynamoDB
+                // and must be updated alongside the computed field.
+                foreach (var sourceName in cf.SourceProperties)
+                {
+                    var sourcePropertyMetadata = context.EntityMetadata.Properties
+                        .FirstOrDefault(p => p.PropertyName == sourceName);
+                    if (sourcePropertyMetadata != null &&
+                        !string.IsNullOrEmpty(sourcePropertyMetadata.AttributeName))
+                    {
+                        var sourceAttrName = GetAttributeName(sourceName, context);
+                        var sourceValue = assignedSources[sourceName];
+                        var sourceParamName = CaptureValue(sourceValue, context, sourcePropertyMetadata);
+                        setOperations.Add($"{sourceAttrName} = {sourceParamName}");
+                    }
+                }
+
+                // Also generate SET for extracted properties that have their own DynamoDB attribute
+                // and were assigned (they map to a source property by index but may have their own column)
+                foreach (var extracted in extractedProps)
+                {
+                    if (pendingComputedAssignments.ContainsKey(extracted.PropertyName) &&
+                        !string.IsNullOrEmpty(extracted.AttributeName))
+                    {
+                        var extractedAttrName = GetAttributeName(extracted.PropertyName, context);
+                        var extractedValue = pendingComputedAssignments[extracted.PropertyName];
+                        var extractedParamName = CaptureValue(extractedValue, context, extracted);
+                        setOperations.Add($"{extractedAttrName} = {extractedParamName}");
+                    }
+                }
+            }
         }
     }
 
