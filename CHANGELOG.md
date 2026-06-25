@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Multi-Computed-Field-Target Data Loss** - Fixed `PropertyMetadata.ComputedFieldTarget` (typed `string?`) silently discarding all but the first computed field target when a source property contributes to multiple non-key computed fields. The `MapperGenerator` used `FirstOrDefault` to find a single matching computed field, losing additional targets. Renamed and retyped to `ComputedFieldTargets` (`string[]?`), updated the source generator to use `Where` to collect all matches, and updated `IsComputedSourceProperty` to check `ComputedFieldTargets?.Length > 0`. Single-target sources now emit a single-element array; non-sources remain null. No changes required to `ValidateAndProcessComputedFields` (already iterates all computed fields independently).
+
 ### Added
 
 - **Computed Field Update Model Redesign** - The source generator now excludes non-updatable properties (partition keys, sort keys, extracted properties of keys, and source properties of key-based computed fields) from generated update model classes, converting runtime errors into compile-time errors. Non-key computed fields and their source properties are included in the update model, enabling a source-property-based update path where setting all source properties triggers automatic recomputation of the concatenated computed field value. Three new runtime diagnostics enforce correctness: FDDB071 (source properties must be assigned constant/local values), FDDB072 (all source properties must be specified), and FDDB073 (cannot mix direct and source-based assignment). Each computed field is validated independently, and backwards compatibility is preserved for all existing non-key non-computed property updates.
