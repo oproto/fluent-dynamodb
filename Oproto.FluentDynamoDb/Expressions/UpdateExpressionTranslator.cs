@@ -2651,18 +2651,11 @@ public class UpdateExpressionTranslator
                     ComputedFieldDiagnostics.ThrowPartialSourceAssignment(computedFieldName, missingSources);
                 }
 
-                // Recompute: concatenate values in order
+                // Recompute: use string.Format with the pre-computed format string
                 var parts = cf.SourceProperties
-                    .Select(s => assignedSources[s]?.ToString() ?? string.Empty)
+                    .Select(s => (object)(assignedSources[s]?.ToString() ?? string.Empty))
                     .ToArray();
-                var recomputedValue = string.Join(cf.Separator, parts);
-
-                // Apply prefix if configured
-                if (!string.IsNullOrEmpty(cf.Prefix))
-                {
-                    var prefixSep = cf.PrefixSeparator ?? cf.Separator;
-                    recomputedValue = cf.Prefix + prefixSep + recomputedValue;
-                }
+                var recomputedValue = string.Format(cf.Format, parts);
 
                 // Generate SET for the computed field's DynamoDB attribute
                 var attributeName = GetAttributeName(computedFieldName, context);

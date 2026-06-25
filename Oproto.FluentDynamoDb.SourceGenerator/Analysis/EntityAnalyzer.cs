@@ -2120,7 +2120,16 @@ internal class EntityAnalyzer
                 }
             }
 
-            // Check if placeholder count matches source property count
+            // For explicit formats (HasCustomFormat), emit FDDB090 error on placeholder count mismatch
+            if (computedKey.HasCustomFormat && placeholderCount != computedKey.SourceProperties.Length)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.ComputedFormatPlaceholderMismatch,
+                    computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                    computedProperty.PropertyName, format, placeholderCount, computedKey.SourceProperties.Length);
+                return;
+            }
+
+            // Check if placeholder count exceeds source property count (general warning for non-explicit formats)
             if (placeholderCount > computedKey.SourceProperties.Length)
             {
                 ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,

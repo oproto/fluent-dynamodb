@@ -122,7 +122,7 @@ public class MultiComputedFieldTargetPreservationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { sourceName, otherSourceName },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 }
             }
@@ -162,7 +162,7 @@ public class MultiComputedFieldTargetPreservationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "SomeOtherProperty" },
-                        Separator = "#"
+                        Format = "{0}"
                     }
                 }
             }
@@ -213,7 +213,7 @@ public class MultiComputedFieldTargetPreservationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "SourceProp" },
-                        Separator = "#"
+                        Format = "{0}"
                     }
                     // Not a partition key or sort key — non-key computed field
                 }

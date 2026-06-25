@@ -1117,6 +1117,20 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A source property referenced in a computed key's SourceProperties array could not be found in the entity's property collection. The typed parameter convenience overload will not be generated for this entity.");
 
+    // Computed Key Format Validation Diagnostics (FDDB090)
+
+    /// <summary>
+    /// Error when a computed property's explicit format string has a placeholder count that doesn't match the source property count.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ComputedFormatPlaceholderMismatch = new(
+        "FDDB090",
+        "Format placeholder count mismatch",
+        "Computed property '{0}' has format '{1}' with {2} placeholders but {3} source properties",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The format string must contain exactly one placeholder ({0}, {1}, etc.) for each source property.");
+
     // Index Attribute Redesign Diagnostics (DYNDB120-DYNDB127)
 
     /// <summary>

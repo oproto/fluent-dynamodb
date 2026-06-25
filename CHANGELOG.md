@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **ComputedFieldMetadata Format Normalization** - `ComputedFieldMetadata` now uses a single `Format` property (pre-compiled .NET composite format string) instead of `Separator`, `Prefix`, and `PrefixSeparator` for runtime computed field recomputation. The source generator translates all computed field configurations into a format string at compile time, and all runtime paths (Put, Keys, Update) now use `string.Format(format, values)` exclusively. This is a non-breaking change for consumers — the user-facing `ComputedAttribute` API is unchanged.
+
 ### Fixed
 
 - **Multi-Computed-Field-Target Data Loss** - Fixed `PropertyMetadata.ComputedFieldTarget` (typed `string?`) silently discarding all but the first computed field target when a source property contributes to multiple non-key computed fields. The `MapperGenerator` used `FirstOrDefault` to find a single matching computed field, losing additional targets. Renamed and retyped to `ComputedFieldTargets` (`string[]?`), updated the source generator to use `Where` to collect all matches, and updated `IsComputedSourceProperty` to check `ComputedFieldTargets?.Length > 0`. Single-target sources now emit a single-element array; non-sources remain null. No changes required to `ValidateAndProcessComputedFields` (already iterates all computed fields independently).
@@ -22,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **KeyInputModeResolver** - Internal utility that resolves `KeyInputMode.Default` to the actual configured mode from options.
 - **KeyPrefixHelper** - Internal utility that applies prefix transformations based on the resolved mode, using ordinal case-sensitive comparison for Auto mode detection.
 - **Automatic Key Prefix Application During Put Serialization** - The source generator now emits `ToDynamoDb` code that automatically applies configured key prefixes to partition key and sort key values during Put serialization, using `KeyPrefixHelper.ApplyKeyPrefix` with the resolved `KeyInputMode`. This eliminates the most common source of bugs for new users who previously had to manually call `Entity.Keys.Pk(value)` before Put operations. A new `ToDynamoDb` overload accepting `KeyInputMode` is generated alongside the existing overload (which delegates with `KeyInputMode.Default` for backward compatibility). Computed keys are excluded from prefix application. `PutItemRequestBuilder` exposes a new `WithKeyMode(KeyInputMode)` builder method for per-operation overrides, and `IAsyncEntityHydrator<TEntity>` gains a new `SerializeAsync` overload accepting `KeyInputMode` for entities with encrypted or blob properties.
+- **FDDB090 Diagnostic for Format Placeholder Count Mismatch** - New compile-time error diagnostic `FDDB090` emitted when an explicit `Format` on `[Computed]` has a placeholder count that doesn't match the number of source properties. Message: "Computed property '{name}' has format '{format}' with {N} placeholders but {M} source properties". Catches configuration errors at build time instead of producing incorrect values at runtime.
+
+### Removed
+
+- **Separator, Prefix, PrefixSeparator from ComputedFieldMetadata** - Removed `Separator` (string), `Prefix` (string?), and `PrefixSeparator` (string?) properties from `ComputedFieldMetadata`. These are replaced by the single `Format` property. This is an internal breaking change with no impact on the user-facing `ComputedAttribute` API — existing entity configurations using `Separator`, `Prefix`, and `Format` continue to work identically.
 
 ## [1.0.7] - 2026-06-23
 

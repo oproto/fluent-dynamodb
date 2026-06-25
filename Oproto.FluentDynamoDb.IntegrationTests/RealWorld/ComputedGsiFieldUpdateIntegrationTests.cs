@@ -128,7 +128,7 @@ public class ComputedGsiFieldUpdateIntegrationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "Department", "Category" },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 },
                 new PropertyMetadata
@@ -261,7 +261,7 @@ public class ComputedGsiFieldUpdateIntegrationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "Department", "Category" },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 }
             }
@@ -509,7 +509,7 @@ public class ComputedGsiFieldUpdateIntegrationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "Status", "Region" },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 },
                 new PropertyMetadata
@@ -520,7 +520,7 @@ public class ComputedGsiFieldUpdateIntegrationTests
                     ComputedField = new ComputedFieldMetadata
                     {
                         SourceProperties = new[] { "Status", "Priority" },
-                        Separator = "#"
+                        Format = "{0}#{1}"
                     }
                 }
             }

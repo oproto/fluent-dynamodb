@@ -103,7 +103,7 @@ public class MultiComputedFieldTargetBugConditionTests
                         ComputedField = new ComputedFieldMetadata
                         {
                             SourceProperties = new[] { sourcePropertyName },
-                            Separator = "#"
+                            Format = "{0}"
                         }
                     });
                 }
