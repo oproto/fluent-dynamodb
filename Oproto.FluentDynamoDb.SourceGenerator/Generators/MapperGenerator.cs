@@ -4867,13 +4867,16 @@ internal static class MapperGenerator
             sb.AppendLine("                        },");
         }
 
-        // Add ComputedFieldTarget for source properties of non-key computed fields
-        var targetComputedField = entity.Properties.FirstOrDefault(p =>
-            p.IsComputed && !p.IsPartitionKey && !p.IsSortKey &&
-            p.ComputedKey!.SourceProperties.Contains(property.PropertyName));
-        if (targetComputedField != null)
+        // Add ComputedFieldTargets for source properties of non-key computed fields
+        var targetComputedFields = entity.Properties
+            .Where(p => p.IsComputed && !p.IsPartitionKey && !p.IsSortKey &&
+                        p.ComputedKey!.SourceProperties.Contains(property.PropertyName))
+            .Select(p => p.PropertyName)
+            .ToArray();
+        if (targetComputedFields.Length > 0)
         {
-            sb.AppendLine($"                        ComputedFieldTarget = \"{EscapeString(targetComputedField.PropertyName)}\",");
+            var targets = string.Join(", ", targetComputedFields.Select(t => $"\"{EscapeString(t)}\""));
+            sb.AppendLine($"                        ComputedFieldTargets = new[] {{ {targets} }},");
         }
 
         sb.AppendLine("                    },");

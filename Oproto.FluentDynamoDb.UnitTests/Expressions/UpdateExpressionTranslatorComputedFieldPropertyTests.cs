@@ -134,7 +134,7 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
                 PropertyName = sourceName,
                 AttributeName = sourceName.ToLowerInvariant(),
                 PropertyType = typeof(string),
-                ComputedFieldTarget = "ComputedField"
+                ComputedFieldTargets = new[] { "ComputedField" }
             });
         }
 
@@ -198,28 +198,28 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
                     PropertyName = "SourceA1",
                     AttributeName = "source_a1",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedA"
+                    ComputedFieldTargets = new[] { "ComputedA" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "SourceA2",
                     AttributeName = "source_a2",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedA"
+                    ComputedFieldTargets = new[] { "ComputedA" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "SourceB1",
                     AttributeName = "source_b1",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedB"
+                    ComputedFieldTargets = new[] { "ComputedB" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "SourceB2",
                     AttributeName = "source_b2",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedB"
+                    ComputedFieldTargets = new[] { "ComputedB" }
                 }
             }
         };
@@ -251,14 +251,14 @@ public class UpdateExpressionTranslatorComputedFieldPropertyTests
                     PropertyName = "Source1",
                     AttributeName = "source1",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedField"
+                    ComputedFieldTargets = new[] { "ComputedField" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "Source2",
                     AttributeName = "source2",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedField"
+                    ComputedFieldTargets = new[] { "ComputedField" }
                 },
                 new PropertyMetadata
                 {
