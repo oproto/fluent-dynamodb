@@ -111,14 +111,14 @@ public class ComputedGsiFieldUpdateIntegrationTests
                     PropertyName = "Department",
                     AttributeName = "department",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "Gsi1Pk"
+                    ComputedFieldTargets = new[] { "Gsi1Pk" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "Category",
                     AttributeName = "category",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "Gsi1Pk"
+                    ComputedFieldTargets = new[] { "Gsi1Pk" }
                 },
                 new PropertyMetadata
                 {
@@ -244,14 +244,14 @@ public class ComputedGsiFieldUpdateIntegrationTests
                     PropertyName = "Department",
                     AttributeName = "",  // No standalone DynamoDB attribute
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "Gsi1Pk"
+                    ComputedFieldTargets = new[] { "Gsi1Pk" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "Category",
                     AttributeName = "",  // No standalone DynamoDB attribute
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "Gsi1Pk"
+                    ComputedFieldTargets = new[] { "Gsi1Pk" }
                 },
                 new PropertyMetadata
                 {
@@ -406,6 +406,209 @@ public class ComputedGsiFieldUpdateIntegrationTests
         catEntry.Key.Should().NotBeNull("category attribute should be referenced");
         result.Should().Contain(catEntry.Key,
             "the SET expression should contain category attribute placeholder");
+    }
+
+    #endregion
+
+    #region Multi-Target: Status as Source of Both Gsi1Pk and Gsi2Pk
+
+    /// <summary>
+    /// Simulates an entity where Status is a shared source property contributing to
+    /// TWO non-key computed GSI fields (Gsi1Pk and Gsi2Pk).
+    /// - Gsi1Pk = Status + "#" + Region
+    /// - Gsi2Pk = Status + "#" + Priority
+    /// This exercises the multi-target fix: ComputedFieldTargets = new[] { "Gsi1Pk", "Gsi2Pk" }
+    /// </summary>
+    private class MultiTargetEntity
+    {
+        public string Pk { get; set; } = string.Empty;
+        public string Sk { get; set; } = string.Empty;
+        public string? Status { get; set; }
+        public string? Region { get; set; }
+        public string? Priority { get; set; }
+        public string? Gsi1Pk { get; set; }
+        public string? Gsi2Pk { get; set; }
+    }
+
+    private class MultiTargetUpdateExpressions
+    {
+        public UpdateExpressionProperty<string?> Status { get; } = new();
+        public UpdateExpressionProperty<string?> Region { get; } = new();
+        public UpdateExpressionProperty<string?> Priority { get; } = new();
+        public UpdateExpressionProperty<string?> Gsi1Pk { get; } = new();
+        public UpdateExpressionProperty<string?> Gsi2Pk { get; } = new();
+    }
+
+    private class MultiTargetUpdateModel
+    {
+        public string? Status { get; set; }
+        public string? Region { get; set; }
+        public string? Priority { get; set; }
+        public string? Gsi1Pk { get; set; }
+        public string? Gsi2Pk { get; set; }
+    }
+
+    /// <summary>
+    /// Creates EntityMetadata for the multi-target scenario:
+    /// - Status is a source of BOTH Gsi1Pk and Gsi2Pk (ComputedFieldTargets = new[] { "Gsi1Pk", "Gsi2Pk" })
+    /// - Region is a source of Gsi1Pk only
+    /// - Priority is a source of Gsi2Pk only
+    /// - Gsi1Pk = Computed("Status", "Region") separator "#"
+    /// - Gsi2Pk = Computed("Status", "Priority") separator "#"
+    /// </summary>
+    private EntityMetadata CreateMultiTargetEntityMetadata()
+    {
+        return new EntityMetadata
+        {
+            TableName = "MultiTargetEntities",
+            Properties = new[]
+            {
+                new PropertyMetadata
+                {
+                    PropertyName = "Pk",
+                    AttributeName = "pk",
+                    PropertyType = typeof(string),
+                    IsPartitionKey = true
+                },
+                new PropertyMetadata
+                {
+                    PropertyName = "Sk",
+                    AttributeName = "sk",
+                    PropertyType = typeof(string),
+                    IsSortKey = true
+                },
+                new PropertyMetadata
+                {
+                    PropertyName = "Status",
+                    AttributeName = "status",
+                    PropertyType = typeof(string),
+                    // Status is a source of BOTH Gsi1Pk and Gsi2Pk
+                    ComputedFieldTargets = new[] { "Gsi1Pk", "Gsi2Pk" }
+                },
+                new PropertyMetadata
+                {
+                    PropertyName = "Region",
+                    AttributeName = "region",
+                    PropertyType = typeof(string),
+                    // Region is only a source of Gsi1Pk
+                    ComputedFieldTargets = new[] { "Gsi1Pk" }
+                },
+                new PropertyMetadata
+                {
+                    PropertyName = "Priority",
+                    AttributeName = "priority",
+                    PropertyType = typeof(string),
+                    // Priority is only a source of Gsi2Pk
+                    ComputedFieldTargets = new[] { "Gsi2Pk" }
+                },
+                new PropertyMetadata
+                {
+                    PropertyName = "Gsi1Pk",
+                    AttributeName = "gsi1pk",
+                    PropertyType = typeof(string),
+                    ComputedField = new ComputedFieldMetadata
+                    {
+                        SourceProperties = new[] { "Status", "Region" },
+                        Separator = "#"
+                    }
+                },
+                new PropertyMetadata
+                {
+                    PropertyName = "Gsi2Pk",
+                    AttributeName = "gsi2pk",
+                    PropertyType = typeof(string),
+                    ComputedField = new ComputedFieldMetadata
+                    {
+                        SourceProperties = new[] { "Status", "Priority" },
+                        Separator = "#"
+                    }
+                }
+            }
+        };
+    }
+
+    /// <summary>
+    /// Validates Requirements 2.1, 2.2, 3.3, 3.4:
+    /// When Status (shared source) and all other required sources (Region, Priority)
+    /// are assigned, BOTH computed fields (Gsi1Pk and Gsi2Pk) are recomputed in the
+    /// emitted SET expression.
+    /// Bug_Condition: Source property in SourceProperties of 2+ non-key computed fields.
+    /// </summary>
+    [Fact]
+    public void MultiTarget_AssignAllSources_BothComputedFieldsRecomputed()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateMultiTargetEntityMetadata();
+        var context = CreateContext(metadata);
+
+        // Act: Assign Status (shared), Region (Gsi1Pk source), Priority (Gsi2Pk source)
+        Expression<Func<MultiTargetUpdateExpressions, MultiTargetUpdateModel>> expression =
+            x => new MultiTargetUpdateModel
+            {
+                Status = "Active",
+                Region = "US-East",
+                Priority = "High"
+            };
+
+        var result = translator.TranslateUpdateExpression(expression, context);
+
+        // Assert: Result should be a SET expression
+        result.Should().StartWith("SET");
+
+        // Both computed fields should be recomputed
+        var attributeValues = context.AttributeValues.AttributeValues;
+        attributeValues.Values.Should().Contain(av => av.S == "Active#US-East",
+            "Gsi1Pk should be recomputed as Status + '#' + Region");
+        attributeValues.Values.Should().Contain(av => av.S == "Active#High",
+            "Gsi2Pk should be recomputed as Status + '#' + Priority");
+
+        // Both computed fields' DynamoDB attributes should be in the SET expression
+        var attributeNames = context.AttributeNames.AttributeNames;
+        attributeNames.Values.Should().Contain("gsi1pk",
+            "Gsi1Pk computed field should appear in SET expression");
+        attributeNames.Values.Should().Contain("gsi2pk",
+            "Gsi2Pk computed field should appear in SET expression");
+
+        // Source properties should also get SET operations
+        attributeNames.Values.Should().Contain("status",
+            "shared source property Status should also be updated");
+        attributeNames.Values.Should().Contain("region",
+            "source property Region should also be updated");
+        attributeNames.Values.Should().Contain("priority",
+            "source property Priority should also be updated");
+    }
+
+    /// <summary>
+    /// Validates Requirements 2.1, 2.2, 3.3, 3.4:
+    /// When Status (shared source) and Region are assigned (but NOT Priority),
+    /// Gsi1Pk is recomputed successfully, but FDDB072 fires for Gsi2Pk because
+    /// its other required source (Priority) is missing.
+    /// Each computed field validates independently.
+    /// </summary>
+    [Fact]
+    public void MultiTarget_AssignSharedSourceOmitOneComputedFieldSource_FDDB072FiresForIncompleteOnly()
+    {
+        // Arrange
+        var translator = CreateTranslator();
+        var metadata = CreateMultiTargetEntityMetadata();
+        var context = CreateContext(metadata);
+
+        // Act: Assign Status (shared source) and Region (Gsi1Pk-only source)
+        // but do NOT assign Priority (Gsi2Pk-only source)
+        Expression<Func<MultiTargetUpdateExpressions, MultiTargetUpdateModel>> expression =
+            x => new MultiTargetUpdateModel
+            {
+                Status = "Active",
+                Region = "US-East"
+                // Priority intentionally omitted → Gsi2Pk is partially assigned
+            };
+
+        // Assert: FDDB072 should fire for Gsi2Pk (missing Priority)
+        var action = () => translator.TranslateUpdateExpression(expression, context);
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Gsi2Pk*")
+            .WithMessage("*Priority*");
     }
 
     #endregion

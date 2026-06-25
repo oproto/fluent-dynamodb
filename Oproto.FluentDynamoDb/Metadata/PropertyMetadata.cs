@@ -115,11 +115,11 @@ public class PropertyMetadata
     public ComputedFieldMetadata? ComputedField { get; set; }
 
     /// <summary>
-    /// If this property is a source property of a computed field,
-    /// contains the name of the target computed property.
+    /// If this property is a source property of one or more non-key computed fields,
+    /// contains the names of all target computed properties.
     /// Null if the property is not a source of any computed field.
     /// </summary>
-    public string? ComputedFieldTarget { get; set; }
+    public string[]? ComputedFieldTargets { get; set; }
 
     /// <summary>
     /// If this property is an extracted property targeting a computed field,

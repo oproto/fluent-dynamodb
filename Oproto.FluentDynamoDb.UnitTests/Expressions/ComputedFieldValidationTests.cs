@@ -166,14 +166,14 @@ public class ComputedFieldValidationTests
                     PropertyName = "Department",
                     AttributeName = "department",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "Gsi1Pk"
+                    ComputedFieldTargets = new[] { "Gsi1Pk" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "Category",
                     AttributeName = "category",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "Gsi1Pk"
+                    ComputedFieldTargets = new[] { "Gsi1Pk" }
                 },
                 new PropertyMetadata
                 {
@@ -219,21 +219,21 @@ public class ComputedFieldValidationTests
                     PropertyName = "Region",
                     AttributeName = "region",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "CompositeKey"
+                    ComputedFieldTargets = new[] { "CompositeKey" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "Department",
                     AttributeName = "department",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "CompositeKey"
+                    ComputedFieldTargets = new[] { "CompositeKey" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "Category",
                     AttributeName = "category",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "CompositeKey"
+                    ComputedFieldTargets = new[] { "CompositeKey" }
                 },
                 new PropertyMetadata
                 {
@@ -276,14 +276,14 @@ public class ComputedFieldValidationTests
                     PropertyName = "FieldA1",
                     AttributeName = "field_a1",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedA"
+                    ComputedFieldTargets = new[] { "ComputedA" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "FieldA2",
                     AttributeName = "field_a2",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedA"
+                    ComputedFieldTargets = new[] { "ComputedA" }
                 },
                 new PropertyMetadata
                 {
@@ -301,14 +301,14 @@ public class ComputedFieldValidationTests
                     PropertyName = "FieldB1",
                     AttributeName = "field_b1",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedB"
+                    ComputedFieldTargets = new[] { "ComputedB" }
                 },
                 new PropertyMetadata
                 {
                     PropertyName = "FieldB2",
                     AttributeName = "field_b2",
                     PropertyType = typeof(string),
-                    ComputedFieldTarget = "ComputedB"
+                    ComputedFieldTargets = new[] { "ComputedB" }
                 },
                 new PropertyMetadata
                 {

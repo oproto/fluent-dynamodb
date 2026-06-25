@@ -705,7 +705,7 @@ public class UpdateExpressionTranslator
     /// <remarks>
     /// A property is considered a computed source property if any of these conditions are true:
     /// <list type="bullet">
-    /// <item><description>Its <see cref="PropertyMetadata.ComputedFieldTarget"/> is set (it is a direct source of a computed field)</description></item>
+    /// <item><description>Its <see cref="PropertyMetadata.ComputedFieldTargets"/> has elements (it is a direct source of one or more computed fields)</description></item>
     /// <item><description>Its <see cref="PropertyMetadata.ExtractedField"/> is set and the extracted source property is a non-key computed field</description></item>
     /// </list>
     /// <para>
@@ -727,7 +727,7 @@ public class UpdateExpressionTranslator
             return false;
 
         // Check if this property is a direct source of a computed field
-        if (propertyMetadata.ComputedFieldTarget != null)
+        if (propertyMetadata.ComputedFieldTargets?.Length > 0)
             return true;
 
         // Check if this property is an extracted property targeting a non-key computed field
@@ -2605,7 +2605,7 @@ public class UpdateExpressionTranslator
             // Gather which source properties have been assigned
             var assignedSources = new Dictionary<string, object?>();
 
-            // Check direct source properties (those with ComputedFieldTarget pointing to this field)
+            // Check direct source properties (those with ComputedFieldTargets pointing to this field)
             foreach (var sourceName in cf.SourceProperties)
             {
                 if (pendingComputedAssignments.ContainsKey(sourceName))
