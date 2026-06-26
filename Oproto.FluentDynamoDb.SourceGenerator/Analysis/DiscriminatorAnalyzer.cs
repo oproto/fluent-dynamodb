@@ -179,7 +179,7 @@ internal static class DiscriminatorAnalyzer
     /// <summary>
     /// Determines the matching strategy based on the pattern.
     /// </summary>
-    private static DiscriminatorStrategy DeterminePatternStrategy(string pattern)
+    internal static DiscriminatorStrategy DeterminePatternStrategy(string pattern)
     {
         var wildcardCount = pattern.Count(c => c == '*');
 

@@ -1228,4 +1228,54 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "A DynamoDB index name cannot be used as both a Global Secondary Index and a Local Secondary Index within the same entity. Use distinct index names for GSI and LSI.");
+
+    // Unified Prefix/Computed/Discriminator Diagnostics (FDDB100-FDDB103)
+
+    /// <summary>
+    /// Error when a key property's Prefix conflicts with its explicit ComputedAttribute.Format.
+    /// The format string does not start with the expected prefix+separator.
+    /// </summary>
+    public static readonly DiagnosticDescriptor PrefixFormatConflict = new(
+        "FDDB100",
+        "Key prefix conflicts with explicit computed format",
+        "Property '{0}' has Prefix='{1}' (expecting format to start with '{2}') but ComputedAttribute.Format='{3}' does not match",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Error when an explicit DiscriminatorPattern on DynamoDbTableAttribute conflicts with
+    /// the pattern derived from the key format on the same attribute.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DiscriminatorKeyFormatConflict = new(
+        "FDDB101",
+        "Explicit discriminator pattern conflicts with key format",
+        "Entity '{0}' specifies DiscriminatorPattern on attribute '{1}' as '{2}' but the key format derives pattern '{3}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Warning when two entities have overlapping auto-derived discriminator patterns
+    /// with different specificity. Advisory only — exclusion guards are still generated.
+    /// </summary>
+    public static readonly DiagnosticDescriptor OverlappingAutoDerivedPatterns = new(
+        "FDDB102",
+        "Overlapping auto-derived discriminator patterns",
+        "Entities '{0}' and '{1}' have overlapping auto-derived patterns '{2}' and '{3}' on attribute '{4}' \u2014 consider adding more specificity to key formats",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Informational diagnostic when an explicit DiscriminatorPattern is redundant because
+    /// it exactly matches the auto-derived pattern from the key format.
+    /// </summary>
+    public static readonly DiagnosticDescriptor RedundantExplicitDiscriminator = new(
+        "FDDB103",
+        "Redundant explicit discriminator pattern",
+        "Entity '{0}' specifies DiscriminatorPattern='{1}' which is automatically derivable from the key format \u2014 the explicit specification can be removed",
+        "DynamoDb",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

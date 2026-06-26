@@ -47,12 +47,14 @@ Learn how to model complex relationships using multi-item entities and related d
 
 ### [Discriminators](Discriminators.md)
 Master flexible entity type identification for single-table designs. Covers:
+- **Auto-derivation from key formats** — discriminator patterns derived automatically from key prefixes and computed formats
 - Attribute-based discriminators
 - Sort key and partition key pattern discriminators
 - Pattern matching with wildcards
 - GSI-specific discriminators
 - Discriminator validation and error handling
 - Migration from legacy discriminator syntax
+- **Diagnostics (FDDB100–FDDB103)** — conflict detection for prefix/format, explicit vs derived, overlapping patterns, and redundancy
 
 ### [Field-Level Security](FieldLevelSecurity.md)
 Protect sensitive data with logging redaction and optional KMS-based encryption. Covers:

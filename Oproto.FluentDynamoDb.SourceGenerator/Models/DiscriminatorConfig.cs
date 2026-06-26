@@ -26,6 +26,13 @@ internal class DiscriminatorConfig
     public DiscriminatorStrategy Strategy { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this discriminator was auto-derived from the key format
+    /// rather than explicitly specified by the developer.
+    /// Used by FDDB102 (only warn about auto-derived pairs) and FDDB103 (redundancy detection).
+    /// </summary>
+    public bool IsAutoDerived { get; set; }
+
+    /// <summary>
     /// Gets a value indicating whether this discriminator configuration is valid.
     /// </summary>
     public bool IsValid => !string.IsNullOrEmpty(PropertyName) && 
