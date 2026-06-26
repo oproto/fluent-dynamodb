@@ -258,6 +258,286 @@ Pattern matching is optimized at compile-time:
 - No regular expressions or runtime parsing
 - Zero allocations during matching
 
+## Auto-Derived Discriminators from Key Formats
+
+The source generator can automatically derive discriminator patterns from key format configurations, eliminating the need to manually specify `DiscriminatorPattern` in most cases.
+
+### How It Works
+
+When a key property has a prefix (via `[PartitionKey(Prefix = "...")]` or `[SortKey(Prefix = "...")]`) or a computed format, the generator:
+
+1. Normalizes the key format into a format string (e.g., `"ORDER#{0}"`)
+2. Replaces all `{N}` placeholders with `*` wildcards to get the discriminator pattern (e.g., `"ORDER#*"`)
+3. Selects the best key property for discrimination (sort key preferred over partition key)
+4. Populates the entity's `DiscriminatorConfig` automatically
+
+### Before and After
+
+```csharp
+// BEFORE: Manual discriminator specification (redundant with key format)
+[DynamoDbTable("orders", DiscriminatorProperty = "sk", DiscriminatorPattern = "ORDER#*")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+// AFTER: Auto-derived — no manual discriminator needed
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+    // Auto-derived: DiscriminatorProperty = "sk", DiscriminatorPattern = "ORDER#*"
+}
+```
+
+### Derivation Rules
+
+| Key Configuration | NormalizedKeyFormat | Derived Pattern |
+|---|---|---|
+| `[SortKey(Prefix = "ORDER")]` | `"ORDER#{0}"` | `"ORDER#*"` |
+| `[SortKey(Prefix = "USER", Separator = "_")]` | `"USER_{0}"` | `"USER_*"` |
+| `[PartitionKey(Prefix = "CUST")]` | `"CUST#{0}"` | `"CUST#*"` |
+| `[SortKey]` (no prefix) | `"{0}"` | `null` (no discrimination) |
+| `[Computed("A", "B", Separator = "#")]` + `Prefix = "TENANT"` | `"TENANT#{0}#{1}"` | `"TENANT#*#*"` |
+| `[Computed("A", "B", Format = "TENANT#{0}#USER#{1}")]` | `"TENANT#{0}#USER#{1}"` | `"TENANT#*#USER#*"` |
+
+### Selection Priority
+
+When both partition key and sort key have derivable patterns, the sort key is preferred because sort keys typically carry entity-type semantics in single-table designs:
+
+```csharp
+[DynamoDbTable("shared-table")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "CUSTOMER")]  // Derives "CUSTOMER#*"
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "ORDER")]  // Derives "ORDER#*" ← selected for discrimination
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+// Generated MatchesEntity checks: item["sk"].S.StartsWith("ORDER#")
+```
+
+If the sort key has no useful pattern (no prefix, format is `"{0}"`), the partition key pattern is used as a fallback.
+
+### When Auto-Derivation Does Not Apply
+
+Auto-derivation is skipped when:
+- The entity already has an explicit `DiscriminatorProperty`/`DiscriminatorPattern`/`DiscriminatorValue` on `[DynamoDbTable]`
+- All key properties have trivial formats (`"{0}"` — no prefix, no computed format)
+- The derived pattern would start with `*` (no useful fixed prefix for discrimination)
+
+### Explicit Discriminators Still Supported
+
+Explicit discriminators are never overridden by auto-derivation. They remain necessary when:
+- Discrimination is based on a non-key attribute (e.g., `entity_type`)
+- The key format doesn't provide sufficient discrimination
+- You need `DiscriminatorValue` for exact match semantics
+
+```csharp
+// Explicit discriminator on non-key attribute — auto-derivation skipped
+[DynamoDbTable("entities",
+    DiscriminatorProperty = "entity_type",
+    DiscriminatorValue = "ORDER")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+}
+```
+
+### GSI Auto-Derivation
+
+GSI discriminators are also auto-derived when the GSI partition key property has a derivable pattern:
+
+```csharp
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [GsiPartitionKey("status-index")]
+    [DynamoDbAttribute("gsi1pk")]
+    public string StatusKey { get; set; } = string.Empty;
+    // If StatusKey has a NormalizedKeyFormat with a prefix (e.g., from a Prefix on
+    // a co-located key attribute or a Computed format), the GSI discriminator is
+    // auto-derived. Otherwise, no GSI discriminator is populated.
+}
+```
+
+### Single-Entity Tables
+
+For tables with only one entity, the pattern is still derived and stored internally (available for key building and metadata), but `MatchesEntity` generation may use the derived discriminator for stricter filtering. This is safe — the discriminator pattern always matches all items produced by the entity's own key format.
+
+## Compile-Time Diagnostics: FDDB100–FDDB103
+
+The source generator emits diagnostics when key format and discriminator configurations conflict or are redundant.
+
+### FDDB100 — Prefix Conflicts with Computed Format (Error)
+
+Emitted when a key property has both a `Prefix` on its key attribute and an explicit `Format` on `[Computed]` that doesn't start with the expected prefix+separator.
+
+```csharp
+// ❌ FDDB100: Property 'Pk' has Prefix='ORDER' (expecting format to start with 'ORDER#')
+//            but ComputedAttribute.Format='TENANT#{0}#{1}' does not match
+[PartitionKey(Prefix = "ORDER")]
+[DynamoDbAttribute("pk")]
+[Computed("CustomerId", "OrderId", Format = "TENANT#{0}#{1}")]
+public string Pk { get; set; } = string.Empty;
+
+// ✅ Fix: Align the format with the prefix
+[PartitionKey(Prefix = "ORDER")]
+[DynamoDbAttribute("pk")]
+[Computed("CustomerId", "OrderId", Format = "ORDER#{0}#{1}")]
+public string Pk { get; set; } = string.Empty;
+
+// ✅ Or remove the prefix (let the format be the sole definition)
+[PartitionKey]
+[DynamoDbAttribute("pk")]
+[Computed("CustomerId", "OrderId", Format = "TENANT#{0}#{1}")]
+public string Pk { get; set; } = string.Empty;
+```
+
+**Not emitted when:**
+- Prefix is null or empty
+- No explicit `Format` on `[Computed]` (separator-based concatenation is fine)
+- Format starts with the expected `"{Prefix}{Separator}"` string
+
+### FDDB101 — Explicit Discriminator Conflicts with Key Format (Error)
+
+Emitted when an explicit `DiscriminatorPattern` on `[DynamoDbTable]` references a key property whose derived pattern is different.
+
+```csharp
+// ❌ FDDB101: Entity 'Order' specifies DiscriminatorPattern on attribute 'sk' as 'USER#*'
+//            but the key format derives pattern 'ORDER#*'
+[DynamoDbTable("orders", DiscriminatorProperty = "sk", DiscriminatorPattern = "USER#*")]
+public partial class Order
+{
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+// ✅ Fix: Remove explicit discriminator (let it auto-derive)
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+// ✅ Or align the explicit pattern with the key format
+[DynamoDbTable("orders", DiscriminatorProperty = "sk", DiscriminatorPattern = "ORDER#*")]
+public partial class Order
+{
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+```
+
+**Not emitted when:**
+- The discriminator is auto-derived (not explicit)
+- The explicit pattern matches the derived pattern exactly (→ FDDB103 info instead)
+- The key property's derived pattern is null (trivial key — explicit supplements it)
+- The `DiscriminatorProperty` doesn't match any key property's DynamoDB attribute name
+
+### FDDB102 — Overlapping Auto-Derived Patterns (Warning)
+
+Emitted when two entities on the same table both have auto-derived discriminator patterns that overlap with different specificity. This is advisory — exclusion guards are still generated.
+
+```csharp
+// ⚠️ FDDB102: Entities 'Order' and 'OrderLine' have overlapping auto-derived patterns
+//            'ORDER#*' and 'ORDER#*#LINE#*' on attribute 'sk' — consider adding more
+//            specificity to key formats
+[DynamoDbTable("shared")]
+public partial class Order
+{
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+    // Auto-derived: "ORDER#*"
+}
+
+[DynamoDbTable("shared")]
+public partial class OrderLine
+{
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("OrderId", "LineId", Format = "ORDER#{0}#LINE#{1}")]
+    public string Sk { get; set; } = string.Empty;
+    // Auto-derived: "ORDER#*#LINE#*"
+}
+```
+
+The generator still produces correct exclusion guards (see [Overlapping Pattern Resolution](#overlapping-pattern-resolution) above). FDDB102 encourages you to consider whether the overlap is intentional.
+
+**Not emitted when:**
+- One or both patterns are explicit (manually specified) — only auto-derived pairs trigger this
+- Both patterns have the same specificity score (→ DISC004 error instead)
+
+### FDDB103 — Redundant Explicit Discriminator (Info)
+
+Emitted when an explicit `DiscriminatorPattern` exactly matches what would be auto-derived from the key format. The explicit specification can be safely removed.
+
+```csharp
+// ℹ️ FDDB103: Entity 'Order' specifies DiscriminatorPattern='ORDER#*' which is
+//            automatically derivable from the key format — the explicit specification
+//            can be removed
+[DynamoDbTable("orders", DiscriminatorProperty = "sk", DiscriminatorPattern = "ORDER#*")]
+public partial class Order
+{
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+// ✅ Simplified: remove redundant explicit discriminator
+[DynamoDbTable("orders")]
+public partial class Order
+{
+    [SortKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+```
+
+**Not emitted when:**
+- The entity uses `DiscriminatorValue` (exact match) — these are never considered redundant
+- The explicit pattern differs from the derived pattern (→ FDDB101 error instead)
+- The discriminator is already auto-derived
+
+### Diagnostic Summary
+
+| Code | Severity | Description | Action Required |
+|------|----------|-------------|-----------------|
+| FDDB100 | Error | Prefix conflicts with explicit computed format | Fix the conflict (align prefix with format, or remove one) |
+| FDDB101 | Error | Explicit discriminator contradicts key format | Fix the conflict (remove explicit, or align it) |
+| FDDB102 | Warning | Overlapping auto-derived patterns | Advisory — consider more specific key formats |
+| FDDB103 | Info | Redundant explicit discriminator | Optional cleanup — remove the explicit specification |
+
 ## GSI-Specific Discriminators
 
 Different discriminators can be used for GSI queries when the GSI uses different key structures.

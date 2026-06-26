@@ -118,19 +118,35 @@ internal static class PatternOverlapAnalyzer
 
                 if (scoreA == scoreB)
                 {
-                    // DISC004: Ambiguous overlap — same specificity score
                     var patternA = GetDisplayPattern(configA);
                     var patternB = GetDisplayPattern(configB);
 
-                    var diagnostic = Diagnostic.Create(
-                        DiagnosticDescriptors.AmbiguousOverlappingDiscriminatorPatterns,
-                        Location.None,
-                        patternA,
-                        entityA.ClassName,
-                        patternB,
-                        entityB.ClassName,
-                        configA.PropertyName);
-                    diagnostics.Add(diagnostic);
+                    if (configA.IsAutoDerived && configB.IsAutoDerived)
+                    {
+                        // FDDB102: Warning — both overlapping patterns are auto-derived
+                        var fddb102Diagnostic = Diagnostic.Create(
+                            DiagnosticDescriptors.OverlappingAutoDerivedPatterns,
+                            entityA.TypeDeclaration?.GetLocation(),
+                            entityA.ClassName,
+                            entityB.ClassName,
+                            patternA,
+                            patternB,
+                            configA.PropertyName);
+                        diagnostics.Add(fddb102Diagnostic);
+                    }
+                    else
+                    {
+                        // DISC004: Ambiguous overlap — same specificity score
+                        var diagnostic = Diagnostic.Create(
+                            DiagnosticDescriptors.AmbiguousOverlappingDiscriminatorPatterns,
+                            Location.None,
+                            patternA,
+                            entityA.ClassName,
+                            patternB,
+                            entityB.ClassName,
+                            configA.PropertyName);
+                        diagnostics.Add(diagnostic);
+                    }
                 }
                 else
                 {
@@ -150,6 +166,20 @@ internal static class PatternOverlapAnalyzer
                         moreSpecific = entityB;
                         lessSpecific = entityA;
                         moreSpecificConfig = configB;
+                    }
+
+                    // FDDB102: Warn when both overlapping patterns are auto-derived
+                    if (configA.IsAutoDerived && configB.IsAutoDerived)
+                    {
+                        var fddb102Diagnostic = Diagnostic.Create(
+                            DiagnosticDescriptors.OverlappingAutoDerivedPatterns,
+                            lessSpecific.TypeDeclaration?.GetLocation(),
+                            lessSpecific.ClassName,
+                            moreSpecific.ClassName,
+                            GetDisplayPattern(lessSpecific.Discriminator!),
+                            GetDisplayPattern(moreSpecificConfig),
+                            configA.PropertyName);
+                        diagnostics.Add(fddb102Diagnostic);
                     }
 
                     // Create exclusion pattern from the more-specific entity

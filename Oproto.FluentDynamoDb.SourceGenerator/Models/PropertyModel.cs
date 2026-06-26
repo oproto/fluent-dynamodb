@@ -184,4 +184,22 @@ internal class PropertyModel
     /// Gets a value indicating whether this property has coordinate storage configured.
     /// </summary>
     public bool HasCoordinateStorage => !string.IsNullOrEmpty(LatitudeAttributeName) && !string.IsNullOrEmpty(LongitudeAttributeName);
+
+    /// <summary>
+    /// Gets or sets the normalized key format string for this key property.
+    /// Populated by EntityAnalyzer for partition keys and sort keys.
+    /// For computed keys: uses the format computed by ComputeFormatString.
+    /// For non-computed keys with prefix: "{Prefix}{Separator}{0}".
+    /// For non-computed keys without prefix: "{0}".
+    /// Null for non-key properties.
+    /// </summary>
+    public string? NormalizedKeyFormat { get; set; }
+
+    /// <summary>
+    /// Gets or sets the discriminator pattern derived from NormalizedKeyFormat.
+    /// Computed by replacing each {N} placeholder with *.
+    /// Null when NormalizedKeyFormat is "{0}" (no discrimination capability)
+    /// or when the property is not a key property.
+    /// </summary>
+    public string? DerivedDiscriminatorPattern { get; set; }
 }
