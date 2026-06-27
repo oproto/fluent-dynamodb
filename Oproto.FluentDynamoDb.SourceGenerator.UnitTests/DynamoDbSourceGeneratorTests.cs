@@ -545,10 +545,12 @@ namespace TestNamespace
     /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
+        var schemaVersionSource = "[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]";
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] {
-                CSharpSyntaxTree.ParseText(source)
+                CSharpSyntaxTree.ParseText(source),
+                CSharpSyntaxTree.ParseText(schemaVersionSource)
             },
             DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

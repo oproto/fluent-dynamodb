@@ -57,6 +57,70 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-07-08]
+
+### New Feature Documentation: Schema Versioning Attribute
+
+**Category:** New Feature Documentation
+
+### File: docs/advanced-topics/SchemaVersioning.md
+
+**Description:** Added comprehensive documentation for the new `FluentDynamoDbSchemaVersionAttribute` assembly-level attribute, which provides a schema versioning mechanism that decouples generated code shapes from the NuGet package version. Consumers declare a target schema version, and the source generator uses that declaration to determine which code shape to emit.
+
+Documentation covers:
+- Purpose and motivation (graceful generated code evolution)
+- Consumer usage with `[assembly: FluentDynamoDbSchemaVersion(1, 0)]`
+- Versioning semantics (major = breaking changes, minor = additive-only)
+- Support window policy (N and N-1 major versions)
+- Migration guidance template for future version bumps
+- All seven new diagnostic codes (FDDB110–FDDB116)
+
+### New Diagnostics: FDDB110–FDDB116
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| FDDB110 | Warning | Assembly does not declare `[FluentDynamoDbSchemaVersion]` — defaults to 1.0 |
+| FDDB111 | Error | Declared schema version is below the minimum supported version |
+| FDDB112 | Error | Declared schema version is above the current (unrecognized future version) |
+| FDDB113 | Info | Declared version is older but still supported — upgrade available |
+| FDDB114 | Error | Major version must be at least 1 |
+| FDDB115 | Error | Minor version must be at least 0 |
+| FDDB116 | Error | Multiple `[FluentDynamoDbSchemaVersion]` attributes detected |
+
+**Before:**
+```csharp
+// No schema version declaration — consumer has no explicit contract with the
+// source generator about which code shape they target. Generated code may
+// change silently on NuGet package upgrade.
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+}
+```
+
+**After:**
+```csharp
+// Explicit schema version contract — consumer declares which generated code
+// shape they target. Generator emits compatible code and diagnostics guide
+// migration when needed.
+[assembly: FluentDynamoDbSchemaVersion(1, 0)]
+
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey(Prefix = "ORDER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+}
+```
+
+**Reason:** New schema versioning mechanism enables graceful generated code evolution. Consumers can now migrate at their own pace by bumping their declared version when ready to adopt new code shapes, rather than being forced to adapt on NuGet package upgrade. The attribute acts as a contract: the generator emits code compatible with the declared version, and consumers use only APIs from that version.
+
+---
+
 ## [2026-06-26]
 
 ### New Feature Documentation: Centralized Diagnostics Reference

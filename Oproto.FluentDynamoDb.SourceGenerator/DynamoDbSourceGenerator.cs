@@ -30,9 +30,13 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 predicate: static (s, _) => IsDynamoDbProjection(s),
                 transform: static (ctx, _) => ctx);
 
-        // Combine entity and projection classes for processing
+        // Access the compilation provider for schema version detection
+        var compilationProvider = context.CompilationProvider;
+
+        // Combine entity and projection classes with the compilation for processing
         var combined = entityClasses.Collect()
-            .Combine(projectionClasses.Collect());
+            .Combine(projectionClasses.Collect())
+            .Combine(compilationProvider);
 
         // Register code generation
         context.RegisterSourceOutput(combined, Execute);
@@ -126,10 +130,28 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static void Execute(
         SourceProductionContext context,
-        (ImmutableArray<(EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics)> Entities,
-         ImmutableArray<GeneratorSyntaxContext> ProjectionContexts) input)
+        ((ImmutableArray<(EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics)> Entities,
+         ImmutableArray<GeneratorSyntaxContext> ProjectionContexts) Left,
+         Compilation Compilation) input)
     {
-        var (entities, projectionContexts) = input;
+        var (entities, projectionContexts) = input.Left;
+        var compilation = input.Compilation;
+
+        // Schema version gate: detect and validate schema version before any code generation
+        var versionResult = SchemaVersionProvider.Detect(compilation);
+        if (versionResult.ShouldHaltGeneration)
+        {
+            foreach (var diagnostic in versionResult.Diagnostics)
+                context.ReportDiagnostic(diagnostic);
+            return; // No code generation
+        }
+
+        // Report non-fatal diagnostics (FDDB110, FDDB113, FDDB116)
+        foreach (var diagnostic in versionResult.Diagnostics)
+            context.ReportDiagnostic(diagnostic);
+
+        // Store the resolved schema version for future version-aware generation
+        var schemaVersion = versionResult.Version;
 
         // First pass: collect all valid entity models and report diagnostics
         var validEntityModels = new List<EntityModel>();
@@ -244,8 +266,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             // Discover extension methods for wrapper generation (do this once to avoid redundant work)
             if (extensionMethods == null && entity.SemanticModel != null)
             {
-                var compilation = entity.SemanticModel.Compilation;
-                var discovery = new ExtensionMethodDiscovery(compilation);
+                var entityCompilation = entity.SemanticModel.Compilation;
+                var discovery = new ExtensionMethodDiscovery(entityCompilation);
                 extensionMethods = discovery.DiscoverExtensionMethods();
                 
                 // Report any diagnostics from extension method discovery
