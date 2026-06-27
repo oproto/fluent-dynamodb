@@ -73,10 +73,6 @@ var result = await table.Users.Get(userId)
     .WithProjection("name, email, status")
     .GetItemAsyncResult();
 
-// With blob storage support
-var result = await table.Users.Get(userId)
-    .GetItemAsyncResult(blobProvider);
-
 // Handle result
 if (result.IsSuccess)
 {
@@ -97,9 +93,6 @@ var result = await table.Users.Put(user).PutAsyncResult();
 var result = await table.Users.Put(user)
     .Where(x => x.UserId.AttributeNotExists())
     .PutAsyncResult();
-
-// With blob storage
-var result = await table.Users.Put(user).PutAsyncResult(blobProvider);
 
 // Handle result
 if (result.IsFailed)
@@ -179,11 +172,6 @@ var result = await table.Users.Query()
     .Take(25)
     .ToListAsyncResult();
 
-// With blob storage
-var result = await table.Users.Query()
-    .Where(x => x.TenantId == tenantId)
-    .ToListAsyncResult(blobProvider);
-
 // Handle result
 if (result.IsSuccess)
 {
@@ -204,9 +192,6 @@ var result = await table.Logs.Scan()
     .Take(100)
     .ToListAsyncResult();
 
-// With blob storage
-var result = await table.Logs.Scan()
-    .ToListAsyncResult(blobProvider);
 ```
 
 ### Composite Entity Operations

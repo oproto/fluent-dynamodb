@@ -57,6 +57,50 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-27]
+
+### Removed Per-Call IBlobStorageProvider Examples from FluentResults Documentation
+
+**Category:** Pattern Update
+
+### File: docs/core-features/FluentResults.md
+
+**Description:** Removed four code examples that showed passing `IBlobStorageProvider` directly to FluentResults terminal methods. These overloads were removed as part of the hydration path consolidation (see CHANGELOG.md `[Unreleased]` → `### Removed`). Blob storage is now configured exclusively via `FluentDynamoDbOptions.WithBlobStorage(...)` at table construction time.
+
+**Before:**
+```csharp
+// With blob storage support
+var result = await table.Users.Get(userId)
+    .GetItemAsyncResult(blobProvider);
+
+// With blob storage
+var result = await table.Users.Put(user).PutAsyncResult(blobProvider);
+
+// With blob storage
+var result = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .ToListAsyncResult(blobProvider);
+
+// With blob storage
+var result = await table.Logs.Scan()
+    .ToListAsyncResult(blobProvider);
+```
+
+**After:**
+```csharp
+// All terminal methods resolve the blob provider automatically from options
+var result = await table.Users.Get(userId).GetItemAsyncResult();
+var result = await table.Users.Put(user).PutAsyncResult();
+var result = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .ToListAsyncResult();
+var result = await table.Logs.Scan().ToListAsyncResult();
+```
+
+**Reason:** The `IBlobStorageProvider` parameter overloads on `GetItemAsyncResult`, `PutAsyncResult`, and `ToListAsyncResult` have been removed. Blob storage is now configured at table construction time via `new FluentDynamoDbOptions().WithBlobStorage(provider)`. Documentation updated to reflect the only supported pattern.
+
+---
+
 ## [2026-07-08]
 
 ### New Feature Documentation: Schema Versioning Attribute
