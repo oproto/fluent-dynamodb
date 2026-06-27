@@ -57,6 +57,27 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-26]
+
+### New Feature Documentation: Centralized Diagnostics Reference
+
+**Category:** New Feature Documentation
+
+**Description:** Added `docs/diagnostics/` directory containing structured documentation for all 103 diagnostic codes emitted by the source generator. Organized into five prefix subdirectories:
+- `DYNDB/` — Core entity validation (62 codes)
+- `FDDB/` — Table/index generation (25 codes)
+- `PROJ/` — Projection model validation (8 codes)
+- `DISC/` — Discriminator configuration (6 codes)
+- `SEC/` — Security and package dependencies (2 codes)
+
+Each code has a dedicated markdown page with: code identifier, severity, message format, description, triggering example, and fix example.
+
+An index page at `docs/diagnostics/README.md` provides grouped tables with links to all per-code pages.
+
+**Reason:** The fluentdynamodb.dev website team can serve per-code diagnostic pages at the URL pattern `https://fluentdynamodb.dev/diagnostics/{CODE}` (e.g., `https://fluentdynamodb.dev/diagnostics/DYNDB001`). This matches the `helpLinkUri` now set on all `DiagnosticDescriptor` definitions, making diagnostics clickable directly from the IDE error list.
+
+---
+
 ## [2026-07-07]
 
 ### New Diagnostics: FDDB100–FDDB103 — Unified Key Format & Discriminator Conflict Detection
