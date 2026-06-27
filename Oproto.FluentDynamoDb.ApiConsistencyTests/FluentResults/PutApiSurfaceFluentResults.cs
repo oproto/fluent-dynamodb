@@ -3,7 +3,6 @@ using NSubstitute;
 using Oproto.FluentDynamoDb.ApiConsistencyTests.Entities;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.FluentResults;
-using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
 namespace Oproto.FluentDynamoDb.ApiConsistencyTests.FluentResults;
@@ -75,26 +74,6 @@ public class PutApiSurfaceFluentResults
     }
     
     [Fact(Skip = "API Surface Validation")]
-    public async Task PutAsyncResult_WithBlobProvider_ShouldCompile()
-    {
-        var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
-        var entity = new BasicPkEntity { PartitionKey = "1234", Name = "Test", Age = 25 };
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-
-        // === PutAsyncResult with blob provider overload ===
-        var result = await table.Put(entity).PutAsyncResult(blobProvider);
-        
-        // Entity accessor with blob provider
-        result = await table.BasicPkEntitys.Put(entity).PutAsyncResult(blobProvider);
-        
-        // With condition and blob provider (via entity accessor)
-        result = await table.BasicPkEntitys.Put(entity)
-            .Where(x => x.PartitionKey.AttributeNotExists())
-            .PutAsyncResult(blobProvider);
-    }
-    
-    [Fact(Skip = "API Surface Validation")]
     public async Task PutAsyncResult_WithCancellationToken_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
@@ -104,9 +83,5 @@ public class PutApiSurfaceFluentResults
 
         // === PutAsyncResult with cancellation token ===
         var result = await table.BasicPkEntitys.Put(entity).PutAsyncResult(cancellationToken);
-        
-        // With blob provider and cancellation token
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-        result = await table.BasicPkEntitys.Put(entity).PutAsyncResult(blobProvider, cancellationToken);
     }
 }
