@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`NormalizedKeyFormat` and `DerivedDiscriminatorPattern` on PropertyModel** - Two new properties on `PropertyModel` populated during entity analysis. `NormalizedKeyFormat` holds the full format string for key value assembly (e.g., `"ORDER#{0}"` for prefixed keys, `"TENANT#{0}#{1}"` for computed keys). `DerivedDiscriminatorPattern` holds the wildcard pattern derived by replacing `{N}` placeholders with `*` (null when the format is trivial `"{0}"`). These properties enable downstream discriminator selection and conflict detection.
 - **`IsAutoDerived` Flag on DiscriminatorConfig** - New boolean property distinguishing auto-derived discriminators from explicitly specified ones. Used by FDDB102 (only warns about auto-derived pairs) and FDDB103 (detects redundancy). Does not affect code generation — the `MatchesEntity` method produces identical logic regardless of derivation source.
 - **Centralized Diagnostics Reference with helpLinkUri** - Added `docs/diagnostics/` directory with structured documentation for all 103 diagnostic codes across five prefix groups (DYNDB, FDDB, PROJ, DISC, SEC). Each `DiagnosticDescriptor` now includes a `helpLinkUri` pointing to `https://fluentdynamodb.dev/diagnostics/{CODE}`, making diagnostic codes clickable in IDE error lists. Per-code pages include severity, message format, description, triggering example, and fix.
+- **`FluentDynamoDbSchemaVersionAttribute` Assembly-Level Attribute** - New `[assembly: FluentDynamoDbSchemaVersion(major, minor)]` attribute that declares which source generator schema version a consumer assembly targets. Schema versions are independent of the NuGet package version — multiple package versions may support the same schema version. Consumers upgrade generated code shapes at their own pace by bumping their declared version. The current schema version is 1.0. Usage:
+  ```csharp
+  [assembly: FluentDynamoDbSchemaVersion(1, 0)]
+  ```
+  Seven new diagnostics enforce the versioning contract:
+  - `FDDB110` (Warning): Assembly does not declare a schema version — defaults to 1.0
+  - `FDDB111` (Error): Declared version is older than the minimum supported — generation halted
+  - `FDDB112` (Error): Declared version is newer than the current — package update required
+  - `FDDB113` (Info): Declared version is supported but not current — upgrade available
+  - `FDDB114` (Error): Major version must be at least 1
+  - `FDDB115` (Error): Minor version must be at least 0
+  - `FDDB116` (Error): Multiple schema version attributes detected — generation halted
 
 ### Removed
 

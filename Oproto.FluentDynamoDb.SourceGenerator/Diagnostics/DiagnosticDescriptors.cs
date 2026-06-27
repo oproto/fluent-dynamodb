@@ -1381,4 +1381,97 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB103"));
+
+    // Schema Version Attribute Diagnostics (FDDB110-FDDB116)
+
+    /// <summary>
+    /// Warning when the assembly does not declare a schema version attribute, defaulting to 1.0.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MissingSchemaVersionAttribute = new(
+        "FDDB110",
+        "Missing schema version attribute",
+        "Assembly does not declare [FluentDynamoDbSchemaVersion]. Defaulting to schema version 1.0. Add [assembly: FluentDynamoDbSchemaVersion(1, 0)] to suppress this warning.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Every assembly using the FluentDynamoDb source generator should declare a schema version to explicitly state which generated code shape it targets.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB110"));
+
+    /// <summary>
+    /// Error when the declared schema version is below the minimum supported version.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DeclaredVersionBelowMinimum = new(
+        "FDDB111",
+        "Declared version below minimum supported",
+        "Declared schema version {0} is no longer supported. Minimum supported version is {1}. See {2} for migration guidance.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The declared schema version is older than the minimum version this generator supports. Update the schema version or pin to an older package version.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB111"));
+
+    /// <summary>
+    /// Error when the declared schema version is above the current supported version.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DeclaredVersionAboveCurrent = new(
+        "FDDB112",
+        "Declared version above current",
+        "Declared schema version {0} is not recognized. Maximum supported version is {1}. Update the Oproto.FluentDynamoDb package to a version that supports schema {0}.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The declared schema version is newer than what this generator supports. Update the Oproto.FluentDynamoDb NuGet package to a version that supports the declared schema version.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB112"));
+
+    /// <summary>
+    /// Info when the declared schema version is older but still supported, and an upgrade is available.
+    /// </summary>
+    public static readonly DiagnosticDescriptor OlderButSupportedVersion = new(
+        "FDDB113",
+        "Older-but-supported version, upgrade available",
+        "Schema version {0} is supported but not current. Consider upgrading to {1} for the latest generated code improvements. See {2}.",
+        "DynamoDb",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "The declared schema version is still supported but a newer version is available with improved generated code. Consider upgrading when ready.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB113"));
+
+    /// <summary>
+    /// Error when the major version in the schema version attribute is less than 1.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SchemaVersionMajorTooLow = new(
+        "FDDB114",
+        "Major version less than 1",
+        "FluentDynamoDbSchemaVersion major version must be at least 1, but was {0}.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The major component of the schema version must be at least 1. Provide a valid major version value.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB114"));
+
+    /// <summary>
+    /// Error when the minor version in the schema version attribute is less than 0.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SchemaVersionMinorTooLow = new(
+        "FDDB115",
+        "Minor version less than 0",
+        "FluentDynamoDbSchemaVersion minor version must be at least 0, but was {0}.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The minor component of the schema version must be at least 0. Provide a valid minor version value.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB115"));
+
+    /// <summary>
+    /// Error when multiple schema version attributes are detected (via IL manipulation).
+    /// </summary>
+    public static readonly DiagnosticDescriptor MultipleSchemaVersionAttributes = new(
+        "FDDB116",
+        "Multiple schema version attributes detected",
+        "Multiple [FluentDynamoDbSchemaVersion] attributes detected. Remove duplicate declarations.",
+        "FluentDynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Multiple schema version attributes were found on the assembly, likely via IL manipulation since AllowMultiple is false. Code generation is halted.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB116"));
 }

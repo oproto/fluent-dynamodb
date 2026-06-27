@@ -1609,6 +1609,67 @@ Must reference a blob provider package:
 
 ---
 
+## [FluentDynamoDbSchemaVersion]
+
+Declares the schema version of generated code that the assembly targets.
+
+### Purpose
+
+This assembly-level attribute tells the source generator which code shape to emit. Schema versions are independent of NuGet package versions — multiple package versions may support the same schema version. Consumers bump their declared schema version only when they are ready to adopt new generated code shapes.
+
+When absent, the generator defaults to schema version 1.0 and emits a `FDDB110` warning. When present with an unsupported version, the generator halts code generation and emits an error diagnostic with guidance.
+
+### Target
+
+`Assembly`
+
+### AllowMultiple
+
+`false`
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `major` | `int` | Yes | Major schema version (must be >= 1). Breaking changes to generated code increment this. |
+| `minor` | `int` | Yes | Minor schema version (must be >= 0). Additive, non-breaking changes increment this. |
+
+### Example
+
+```csharp
+// In a file like AssemblyInfo.cs or any .cs file in your project:
+using Oproto.FluentDynamoDb.Attributes;
+
+[assembly: FluentDynamoDbSchemaVersion(1, 0)]
+```
+
+### Behavior
+
+- The source generator reads this attribute once per compilation as an early gate before entity processing
+- If the declared version is below the minimum supported version, FDDB111 error is emitted and generation halts
+- If the declared version is above the current generator version, FDDB112 error is emitted and generation halts
+- If the declared version is older but still supported, FDDB113 info is emitted and generation proceeds with the appropriate code shape
+- If the attribute is missing, the generator defaults to version 1.0 and emits FDDB110 warning
+
+### Related Diagnostics
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| FDDB110 | Warning | Missing schema version attribute — defaulting to 1.0 |
+| FDDB111 | Error | Declared version below minimum supported |
+| FDDB112 | Error | Declared version above current (unrecognized) |
+| FDDB113 | Info | Older-but-supported version — upgrade available |
+| FDDB114 | Error | Major version less than 1 |
+| FDDB115 | Error | Minor version less than 0 |
+| FDDB116 | Error | Multiple attributes detected |
+
+### See Also
+
+- [Schema Versioning Guide](../advanced-topics/SchemaVersioning.md)
+- [Diagnostics Reference](../diagnostics/README.md)
+
+---
+
 ## Summary
 
 These attributes work together to define your DynamoDB entity schema:
@@ -1636,6 +1697,9 @@ These attributes work together to define your DynamoDB entity schema:
 
 ### Metadata Attributes
 13. **[Queryable]**: Document query capabilities ⚠️ *Deprecated in v0.9.0 - query capabilities now derived from key attributes*
+
+### Assembly-Level Attributes
+14. **[FluentDynamoDbSchemaVersion]**: Declares the target schema version for generated code
 
 The source generator reads these attributes at compile time and generates type-safe code for working with DynamoDB.
 

@@ -749,7 +749,8 @@ namespace TestNamespace
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] {
-                CSharpSyntaxTree.ParseText(source)
+                CSharpSyntaxTree.ParseText(source),
+                CSharpSyntaxTree.ParseText("[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]")
             },
             TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
