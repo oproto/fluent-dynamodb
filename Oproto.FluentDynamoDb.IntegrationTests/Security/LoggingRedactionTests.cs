@@ -8,6 +8,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Security;
 /// Integration tests for logging redaction of sensitive fields.
 /// Validates that sensitive field values are replaced with [REDACTED] in log output.
 /// </summary>
+[Collection("DynamoDB Local")]
 public class LoggingRedactionTests : IntegrationTestBase
 {
     public LoggingRedactionTests(DynamoDbLocalFixture fixture) : base(fixture)

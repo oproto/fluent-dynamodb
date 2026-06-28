@@ -142,8 +142,8 @@ public class HydratorGeneratorTests
         result.Should().NotBeNull();
         result.Should().Contain("ArgumentNullException.ThrowIfNull(item);",
             "should validate item parameter is not null");
-        result.Should().Contain("ArgumentNullException.ThrowIfNull(blobProvider);",
-            "should validate blobProvider parameter is not null");
+        result.Should().Contain("if (options == null && blobProvider == null)",
+            "should validate that at least one of options or blobProvider is provided");
         result.Should().Contain("ArgumentNullException.ThrowIfNull(items);",
             "should validate items parameter is not null");
         result.Should().Contain("if (items.Count == 0)",

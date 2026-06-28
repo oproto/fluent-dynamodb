@@ -6,6 +6,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Security;
 /// Integration tests for ambient encryption context flow using AsyncLocal.
 /// Validates thread-safety and context isolation between async operations.
 /// </summary>
+[Collection("DynamoDB Local")]
 public class AmbientContextFlowTests : IntegrationTestBase
 {
     public AmbientContextFlowTests(DynamoDbLocalFixture fixture) : base(fixture)

@@ -848,6 +848,12 @@ internal static class MapperGenerator
         {
             sb.AppendLine($"            // Combined with [Encrypted] - data will be encrypted before blob storage");
         }
+
+        // Resolve per-property blob provider via options.GetBlobProvider(...)
+        var blobProviderName = property.ComplexType?.BlobStorageProviderName;
+        var providerNameLiteral = blobProviderName != null ? $"\"{blobProviderName}\"" : "null";
+        sb.AppendLine($"            var blobProvider_{propertyName} = options.GetBlobProvider({providerNameLiteral});");
+
         sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
         sb.AppendLine("            {");
         
@@ -959,7 +965,7 @@ internal static class MapperGenerator
             sb.AppendLine("                            using var stream = new MemoryStream(bytes);");
         }
         
-        sb.AppendLine("                            var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken).ConfigureAwait(false);");
+        sb.AppendLine($"                            var reference = await blobProvider_{propertyName}.StoreAsync(stream, suggestedKey, cancellationToken).ConfigureAwait(false);");
         sb.AppendLine($"                            typedEntity.{escapedPropertyName}.SetReferenceKey(reference);");
         sb.AppendLine($"                            item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
         sb.AppendLine("                        }");
@@ -3383,11 +3389,16 @@ internal static class MapperGenerator
         var isEncrypted = property.Security?.IsEncrypted == true;
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
 
+        // Resolve per-property blob provider via options.GetBlobProvider(...)
+        var blobProviderName = property.ComplexType?.BlobStorageProviderName;
+        var providerNameLiteral = blobProviderName != null ? $"\"{blobProviderName}\"" : "null";
+
         sb.AppendLine($"            // BlobStorage property {propertyName} with BlobData<{innerType}> wrapper");
         if (isEncrypted)
         {
             sb.AppendLine($"            // Combined with [Encrypted] - data will be decrypted after blob retrieval");
         }
+        sb.AppendLine($"            var blobProvider_{propertyName} = options.GetBlobProvider({providerNameLiteral});");
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         sb.AppendLine("                try");
@@ -3527,7 +3538,7 @@ internal static class MapperGenerator
         sb.AppendLine($"                        // Create BlobData<{innerType}> from reference key");
         sb.AppendLine($"                        entity.{escapedPropertyName} = BlobData<{innerType}>.FromReferenceKey(");
         sb.AppendLine("                            referenceKey,");
-        sb.AppendLine("                            blobProvider,");
+        sb.AppendLine($"                            blobProvider_{propertyName},");
         sb.AppendLine("                            deserializer);");
         sb.AppendLine();
 
