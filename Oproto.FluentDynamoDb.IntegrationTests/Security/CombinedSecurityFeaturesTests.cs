@@ -9,6 +9,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Security;
 /// Integration tests for combined security features (encryption + logging redaction).
 /// Validates that both Sensitive and Encrypted attributes work together correctly.
 /// </summary>
+[Collection("DynamoDB Local")]
 public class CombinedSecurityFeaturesTests : IntegrationTestBase
 {
     public CombinedSecurityFeaturesTests(DynamoDbLocalFixture fixture) : base(fixture)

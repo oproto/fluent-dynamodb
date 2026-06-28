@@ -59,6 +59,84 @@ Entries may be categorized as:
 
 ## [2026-06-27]
 
+### New Feature Documentation: Named Blob Providers
+
+**Category:** New Feature Documentation
+
+### File: docs/core-features/NamedBlobProviders.md
+
+**Description:** Added comprehensive documentation for the Named Blob Providers feature, which extends `FluentDynamoDbOptions` to support registering multiple `IBlobStorageProvider` instances by name and extends the `[BlobStorage]` attribute with an optional `Provider` property for per-property blob backend routing.
+
+Documentation covers:
+- Motivation (multiple blob backends per entity)
+- `[BlobStorage(Provider = "name")]` attribute usage with examples
+- `FluentDynamoDbOptions` registration patterns (default + named providers)
+- `GetBlobProvider(string? name)` resolution behavior and error scenarios
+- Backwards compatibility (existing entities work unchanged)
+- Complete end-to-end example with multiple providers
+
+### New Attribute Property: `BlobStorageAttribute.Provider`
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Provider` | `string?` | `null` | Name of the blob storage provider to use. When null, the default provider is used. |
+
+**Before:**
+```csharp
+// Single provider for all blob properties — no per-property routing
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(new S3BlobProvider(s3Client, "my-bucket"));
+
+[DynamoDbTable("Documents")]
+public partial class Document
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [BlobStorage]
+    [DynamoDbAttribute("content")]
+    public Stream Content { get; set; } = Stream.Null;
+
+    [BlobStorage]
+    [DynamoDbAttribute("thumbnail")]
+    public Stream Thumbnail { get; set; } = Stream.Null;
+}
+// Both Content and Thumbnail use the same S3 bucket
+```
+
+**After:**
+```csharp
+// Multiple named providers for different blob properties
+var options = new FluentDynamoDbOptions()
+    .WithBlobStorage(new S3BlobProvider(s3Client, "default-bucket"))
+    .WithBlobStorage("images", new S3BlobProvider(s3Client, "images-bucket"))
+    .WithBlobStorage("documents", new S3BlobProvider(s3Client, "docs-bucket"));
+
+[DynamoDbTable("Documents")]
+public partial class Document
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [BlobStorage(Provider = "documents")]
+    [DynamoDbAttribute("content")]
+    public Stream Content { get; set; } = Stream.Null;
+
+    [BlobStorage(Provider = "images")]
+    [DynamoDbAttribute("thumbnail")]
+    public Stream Thumbnail { get; set; } = Stream.Null;
+}
+// Content routes to "docs-bucket", Thumbnail routes to "images-bucket"
+```
+
+**Reason:** New feature enables per-property blob provider routing. Entities can now store different blob properties in different backends (e.g., images in one S3 bucket, documents in another). The `Provider` property on `[BlobStorage]` specifies which named provider to use; when omitted, the default provider is used, preserving full backwards compatibility.
+
+---
+
+## [2026-06-27]
+
 ### Removed Per-Call IBlobStorageProvider Examples from FluentResults Documentation
 
 **Category:** Pattern Update
@@ -101,7 +179,7 @@ var result = await table.Logs.Scan().ToListAsyncResult();
 
 ---
 
-## [2026-07-08]
+## [2026-06-27]
 
 ### New Feature Documentation: Schema Versioning Attribute
 

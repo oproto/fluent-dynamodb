@@ -17,9 +17,13 @@ var table = new MyTable(new AmazonDynamoDBClient(), "TableName", new FluentDynam
 // Options
 var options = new FluentDynamoDbOptions()
     .WithLogger(logger)
-    .WithBlobStorage(new S3BlobProvider(...))
+    .WithBlobStorage(new S3BlobProvider(...))                    // Default provider
+    .WithBlobStorage("images", new S3BlobProvider(...))          // Named provider for [BlobStorage(Provider = "images")]
     .WithEncryption(new AwsEncryptionSdkFieldEncryptor(...))
     .UseConsistentRead(true);
+
+// Per-property blob provider: use [BlobStorage(Provider = "name")] to route
+// individual properties to specific named providers registered above.
 ```
 
 ## Entity Definition

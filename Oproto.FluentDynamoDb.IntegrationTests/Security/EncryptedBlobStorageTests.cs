@@ -7,6 +7,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Security;
 /// Integration tests for encrypted fields with external blob storage.
 /// Validates that encryption works correctly when combined with BlobReferenceAttribute.
 /// </summary>
+[Collection("DynamoDB Local")]
 public class EncryptedBlobStorageTests : IntegrationTestBase
 {
     public EncryptedBlobStorageTests(DynamoDbLocalFixture fixture) : base(fixture)

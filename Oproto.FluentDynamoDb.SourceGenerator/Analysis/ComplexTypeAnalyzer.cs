@@ -39,6 +39,7 @@ internal class ComplexTypeAnalyzer
         var blobStorageConfig = ExtractBlobStorageConfig(property);
         info.IsBlobStorage = blobStorageConfig.HasAttribute;
         info.BlobStorageLazyLoad = blobStorageConfig.LazyLoad;
+        info.BlobStorageProviderName = blobStorageConfig.ProviderName;
         info.BlobDataInnerType = blobStorageConfig.InnerType;
 
         // Extract element type for collections
@@ -54,14 +55,14 @@ internal class ComplexTypeAnalyzer
     /// <summary>
     /// Extracts BlobStorage attribute configuration from a property.
     /// </summary>
-    private (bool HasAttribute, bool LazyLoad, string? InnerType) ExtractBlobStorageConfig(PropertyModel property)
+    private (bool HasAttribute, bool LazyLoad, string? ProviderName, string? InnerType) ExtractBlobStorageConfig(PropertyModel property)
     {
         if (property.PropertyDeclaration == null)
-            return (false, false, null);
+            return (false, false, null, null);
 
         var attributeLists = property.PropertyDeclaration.AttributeLists;
         if (attributeLists.Count == 0)
-            return (false, false, null);
+            return (false, false, null, null);
 
         // Find BlobStorage attribute
         var blobStorageAttr = attributeLists
@@ -76,10 +77,11 @@ internal class ComplexTypeAnalyzer
             });
 
         if (blobStorageAttr == null)
-            return (false, false, null);
+            return (false, false, null, null);
 
-        // Extract LazyLoad property
+        // Extract LazyLoad and Provider properties
         var lazyLoad = false;
+        string? providerName = null;
         if (blobStorageAttr.ArgumentList != null)
         {
             foreach (var arg in blobStorageAttr.ArgumentList.Arguments)
@@ -89,13 +91,18 @@ internal class ComplexTypeAnalyzer
                 {
                     lazyLoad = bool.Parse(lazyLoadLiteral.Token.ValueText);
                 }
+                else if (arg.NameEquals?.Name.Identifier.ValueText == "Provider" &&
+                    arg.Expression is Microsoft.CodeAnalysis.CSharp.Syntax.LiteralExpressionSyntax providerLiteral)
+                {
+                    providerName = providerLiteral.Token.ValueText;
+                }
             }
         }
 
         // Extract inner type from BlobData<T>
         var innerType = ExtractBlobDataInnerType(property.PropertyType);
 
-        return (true, lazyLoad, innerType);
+        return (true, lazyLoad, providerName, innerType);
     }
 
     /// <summary>

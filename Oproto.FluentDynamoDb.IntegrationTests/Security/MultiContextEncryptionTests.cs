@@ -8,6 +8,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Security;
 /// Integration tests for multi-context encryption scenarios.
 /// Validates that different contexts use different encryption keys and data isolation.
 /// </summary>
+[Collection("DynamoDB Local")]
 public class MultiContextEncryptionTests : IntegrationTestBase
 {
     public MultiContextEncryptionTests(DynamoDbLocalFixture fixture) : base(fixture)

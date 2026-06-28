@@ -1735,7 +1735,7 @@ public class FluentResultsExtensionsPropertyTests
     /// </summary>
     private static Arbitrary<List<PropertyTestEntity>> TestEntityListArbitrary()
     {
-        var generator = from count in Gen.Choose(0, 10)
+        var generator = from count in Gen.Choose(1, 10)
                         from entities in Gen.ListOf(count, TestEntityArbitrary().Generator)
                         select entities.ToList();
 

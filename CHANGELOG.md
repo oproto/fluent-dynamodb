@@ -17,6 +17,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Named Blob Providers** - Support for registering multiple blob storage providers by name, enabling entities with properties stored across different blob backends (e.g., images in one S3 bucket, documents in another)
+  - `FluentDynamoDbOptions.WithBlobStorage(string name, IBlobStorageProvider provider)` registers a named provider in the immutable options instance (follows existing copy-on-write pattern)
+  - `FluentDynamoDbOptions.GetBlobProvider(string? name)` resolves a provider by name, or the default provider when null/empty — throws `InvalidOperationException` with diagnostic messages listing available providers on misconfiguration
+  - `[BlobStorage(Provider = "name")]` attribute property specifies which named provider a property uses; omitting `Provider` continues to use the default provider
+  - Source generator emits per-property `GetBlobProvider` calls in generated hydrator and mapper code, resolving each blob-annotated property's provider independently at runtime
+  - Clear error messages when named providers are misconfigured: includes the requested name, lists all available registered providers, and suggests the correct `WithBlobStorage` call
+  - Full backwards compatibility: existing `[BlobStorage]` usage without `Provider` continues to work unchanged — resolves to the default provider via `GetBlobProvider(null)`
+
+  **Migration — single-provider (unchanged):**
+  ```csharp
+  var options = new FluentDynamoDbOptions()
+      .WithBlobStorage(new S3BlobProvider(defaultBucket));
+  ```
+
+  **Migration — multi-provider (new):**
+  ```csharp
+  var options = new FluentDynamoDbOptions()
+      .WithBlobStorage(new S3BlobProvider(defaultBucket))           // default
+      .WithBlobStorage("images", new S3BlobProvider(imageBucket))   // named: images
+      .WithBlobStorage("documents", new S3BlobProvider(docBucket)); // named: documents
+
+  // Entity usage:
+  [BlobStorage]                      // uses default provider
+  public byte[] Avatar { get; set; }
+
+  [BlobStorage(Provider = "images")]  // uses "images" provider
+  public byte[] Photo { get; set; }
+
+  [BlobStorage(Provider = "documents")] // uses "documents" provider
+  public byte[] Contract { get; set; }
+  ```
+
 - **Computed Field Update Model Redesign** - The source generator now excludes non-updatable properties (partition keys, sort keys, extracted properties of keys, and source properties of key-based computed fields) from generated update model classes, converting runtime errors into compile-time errors. Non-key computed fields and their source properties are included in the update model, enabling a source-property-based update path where setting all source properties triggers automatic recomputation of the concatenated computed field value. Three new runtime diagnostics enforce correctness: FDDB071 (source properties must be assigned constant/local values), FDDB072 (all source properties must be specified), and FDDB073 (cannot mix direct and source-based assignment). Each computed field is validated independently, and backwards compatibility is preserved for all existing non-key non-computed property updates.
 
 - **Typed Parameter Convenience Overloads for Computed Keys** - The source generator now produces additional Get, Delete, Update, and ConditionCheck overloads for entities with computed keys that have two or more source properties. These overloads accept individual source property components as typed parameters (e.g., `table.Events.Get(2024, 12, 25, "EVT#christmas")`) and internally delegate to `Entity.Keys.BuildPk(...)` / `Entity.Keys.BuildSk(...)`, eliminating the need to manually compose key strings before every CRUD operation. Parameter types match the declared source property types (int, DateTime, Guid, enums, etc.) for full compile-time type safety. Table-level overloads are also generated where applicable.

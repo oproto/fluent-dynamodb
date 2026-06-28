@@ -3,8 +3,8 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Infrastructure;
 /// <summary>
 /// Base class for integration tests that provides common functionality for table management,
 /// entity operations, and cleanup.
+/// Derived classes must specify their own [Collection("...")] attribute.
 /// </summary>
-[Collection("DynamoDB Local")]
 public abstract class IntegrationTestBase : IAsyncLifetime
 {
     private readonly List<string> _tablesToCleanup = new();
