@@ -51,6 +51,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **IBlobStorageProvider Parameter Overloads from EntityExecuteAsyncExtensions** — Removed all legacy terminal method overloads that accept an explicit `IBlobStorageProvider` parameter. These overloads predated the options-based configuration and carried known bugs (broken `PutAsync` for encrypted entities, null-safety mismatches, parallel hydration instead of sequential). The following methods were removed:
+  - `GetItemAsync<T>(GetItemRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToListAsync<T>(QueryRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToListAsync<T>(ScanRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToCompositeEntityListAsync<T>(QueryRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToCompositeEntityListAsync<T>(ScanRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToCompositeEntityAsync<T>(QueryRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToCompositeEntityAsync<T>(ScanRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `PutAsync<T>(PutItemRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `WithItemAsync<T>(PutItemRequestBuilder<T>, T, IBlobStorageProvider, CancellationToken)`
+
+- **IBlobStorageProvider Parameter Overloads from FluentResultsExtensions** — Removed all `Result<T>`-returning wrappers that accept an explicit `IBlobStorageProvider` parameter:
+  - `GetItemAsyncResult<T>(GetItemRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToListAsyncResult<T>(QueryRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `ToListAsyncResult<T>(ScanRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+  - `PutAsyncResult<T>(PutItemRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
+
+  **Migration:** Configure the blob storage provider at table construction time via `FluentDynamoDbOptions` instead of passing it per-call:
+
+  ```csharp
+  // Before (removed)
+  var user = await table.Users.Get(userId).GetItemAsync(blobProvider);
+  await table.Users.Put(user).PutAsync(blobProvider);
+
+  // After (use options-based configuration)
+  var options = new FluentDynamoDbOptions().WithBlobStorage(blobProvider);
+  var table = new MyTable(client, "TableName", options);
+
+  // All terminal methods resolve the provider automatically
+  var user = await table.Users.Get(userId).GetItemAsync();
+  await table.Users.Put(user).PutAsync();
+  ```
+
 - **Separator, Prefix, PrefixSeparator from ComputedFieldMetadata** - Removed `Separator` (string), `Prefix` (string?), and `PrefixSeparator` (string?) properties from `ComputedFieldMetadata`. These are replaced by the single `Format` property. This is an internal breaking change with no impact on the user-facing `ComputedAttribute` API — existing entity configurations using `Separator`, `Prefix`, and `Format` continue to work identically.
 
 ## [1.0.7] - 2026-06-23

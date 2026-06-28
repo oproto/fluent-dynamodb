@@ -4,7 +4,6 @@ using NSubstitute;
 using Oproto.FluentDynamoDb.ApiConsistencyTests.Entities;
 using Oproto.FluentDynamoDb.Expressions;
 using Oproto.FluentDynamoDb.FluentResults;
-using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.ApiConsistencyTests.FluentResults;
 
@@ -103,25 +102,6 @@ public class QueryApiSurfaceFluentResults
     }
     
     [Fact(Skip = "API Surface Validation")]
-    public async Task ToListAsyncResult_WithBlobProvider_ShouldCompile()
-    {
-        var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-
-        // === ToListAsyncResult with blob provider overload ===
-        var result = await table.Query(x => x.PartitionKey == "1234").ToListAsyncResult(blobProvider);
-        
-        // Entity accessor with blob provider
-        result = await table.BasicPkEntitys.Query(x => x.PartitionKey == "1234").ToListAsyncResult(blobProvider);
-        
-        // With options and blob provider
-        result = await table.BasicPkEntitys.Query(x => x.PartitionKey == "1234")
-            .Take(25)
-            .ToListAsyncResult(blobProvider);
-    }
-    
-    [Fact(Skip = "API Surface Validation")]
     public async Task ToCompositeEntityAsyncResult_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
@@ -178,10 +158,6 @@ public class QueryApiSurfaceFluentResults
 
         // === ToListAsyncResult with cancellation token ===
         var result = await table.BasicPkEntitys.Query(x => x.PartitionKey == "1234").ToListAsyncResult(cancellationToken);
-        
-        // With blob provider and cancellation token
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-        result = await table.BasicPkEntitys.Query(x => x.PartitionKey == "1234").ToListAsyncResult(blobProvider, cancellationToken);
         
         // ToCompositeEntityAsyncResult with cancellation token
         var compositeResult = await table.BasicPkEntitys.Query(x => x.PartitionKey == "1234").ToCompositeEntityAsyncResult(cancellationToken);
