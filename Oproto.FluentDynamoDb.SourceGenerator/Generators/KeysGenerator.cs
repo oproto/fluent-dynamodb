@@ -1,4 +1,5 @@
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.Utilities;
 using System.Text;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
@@ -184,9 +185,32 @@ internal static class KeysGenerator
 
         if (computedKey.HasCustomFormat)
         {
-            // Use custom format string
-            var formatArgs = string.Join(", ", sourceProperties.Select(p => GetValueExpression(GetParameterName(p!.PropertyName), p.PropertyType)));
-            sb.AppendLine($"{indent}        var keyValue = string.Format(\"{computedKey.Format}\", {formatArgs});");
+            // Determine which indices have format specifiers
+            var specifierIndices = FormatSpecifierHelper.GetIndicesWithFormatSpecifiers(computedKey.Format);
+
+            var formatArgs = string.Join(", ", sourceProperties.Select((p, idx) =>
+            {
+                if (specifierIndices.Contains(idx))
+                {
+                    // Pass typed value cast to object — let string.Format apply the format specifier via IFormattable
+                    return $"(object){GetParameterName(p!.PropertyName)}";
+                }
+                else
+                {
+                    // No format specifier at this index — use existing pre-stringification logic
+                    return GetValueExpression(GetParameterName(p!.PropertyName), p!.PropertyType);
+                }
+            }));
+
+            if (specifierIndices.Count > 0)
+            {
+                // Use CultureInfo.InvariantCulture when format specifiers are present
+                sb.AppendLine($"{indent}        var keyValue = string.Format(System.Globalization.CultureInfo.InvariantCulture, \"{computedKey.Format}\", {formatArgs});");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}        var keyValue = string.Format(\"{computedKey.Format}\", {formatArgs});");
+            }
         }
         else
         {

@@ -57,6 +57,68 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-29]
+
+### New Feature Documentation: Computed Field Format Specifiers
+
+**Category:** New Feature Documentation
+
+### File: docs/core-features/ComputedFieldFormatSpecifiers.md
+
+**Description:** Added comprehensive documentation for .NET format specifier support in computed field format strings. Documents usage with DateOnly (`{0:yyyy-MM-dd}`), integer zero-padding (`{0:D4}`), and enum formatting (`{0:G}`). Covers format specifier precedence rules, source property `DynamoDbAttribute.Format` fallback behavior, `CultureInfo.InvariantCulture` usage, and backwards compatibility.
+
+**Before:**
+```csharp
+// Format specifiers in computed fields were not supported — silently broken
+[DynamoDbTable("Events")]
+public partial class Event
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("EventDate", "Category", Format = "{0}#{1}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("eventDate")]
+    public DateOnly EventDate { get; set; }
+
+    [DynamoDbAttribute("category")]
+    public string Category { get; set; } = string.Empty;
+}
+// Produced: "03/15/2024#electronics" (locale-dependent ToString())
+```
+
+**After:**
+```csharp
+// Format specifiers now work correctly across all operation paths
+[DynamoDbTable("Events")]
+public partial class Event
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("eventDate")]
+    public DateOnly EventDate { get; set; }
+
+    [DynamoDbAttribute("category")]
+    public string Category { get; set; } = string.Empty;
+}
+// Produces: "2024-03-15#electronics" (consistent across Put, Update, and Key builder paths)
+```
+
+**Reason:** New format specifier support for computed field format strings. Typed values are now passed directly to `string.Format` with `CultureInfo.InvariantCulture` when format specifiers are present, enabling correct formatting via `IFormattable` implementations. Additionally, source properties with `[DynamoDbAttribute(Format = "...")]` now serve as a fallback format specifier when the computed format placeholder has no explicit specifier.
+
+---
+
 ## [2026-06-28]
 
 ### Breaking Change: Async KMS Key Resolver and Per-Property Key Alias Support

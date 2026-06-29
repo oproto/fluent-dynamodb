@@ -53,6 +53,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Multi-Computed-Field-Target Data Loss** - Fixed `PropertyMetadata.ComputedFieldTarget` (typed `string?`) silently discarding all but the first computed field target when a source property contributes to multiple non-key computed fields. The `MapperGenerator` used `FirstOrDefault` to find a single matching computed field, losing additional targets. Renamed and retyped to `ComputedFieldTargets` (`string[]?`), updated the source generator to use `Where` to collect all matches, and updated `IsComputedSourceProperty` to check `ComputedFieldTargets?.Length > 0`. Single-target sources now emit a single-element array; non-sources remain null. No changes required to `ValidateAndProcessComputedFields` (already iterates all computed fields independently).
 
+- **Discriminator Regex Not Matching `{N:format}` Placeholders** - Fixed `EntityAnalyzer.DeriveDiscriminatorPattern` using a regex that only matched simple `{N}` placeholders, causing format specifier placeholders like `{0:yyyy-MM-dd}` to be left as literal text in the derived discriminator pattern. The regex is now `\{\d+(?::[^}]*)?\}` which correctly matches both `{0}` and `{0:yyyy-MM-dd}` (including specifiers with embedded colons like `{0:HH:mm:ss}`).
+
+  ```csharp
+  // Before: {0:yyyy-MM-dd}#{1} produced "{0:yyyy-MM-dd}#*" (broken)
+  // After:  {0:yyyy-MM-dd}#{1} produces "*#*" (correct)
+  [Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
+  ```
+
+- **False FDDB090 Diagnostics with Format Specifiers** - Fixed `EntityAnalyzer.ValidateComputedKeyFormat` incorrectly counting placeholders when format specifiers were present. The validator now extracts the numeric index portion before the first colon (e.g., `0` from `0:yyyy-MM-dd`) instead of attempting to parse the entire placeholder text as an integer. This eliminates false FDDB090 "placeholder count mismatch" diagnostics for valid format strings.
+
+  ```csharp
+  // Before: {0:yyyy-MM-dd}#{1} with 2 source properties falsely emitted FDDB090
+  // After:  correctly identifies 2 distinct placeholder indices — no diagnostic
+  [Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
+  ```
+
+- **Keys Builder Pre-Stringification Ignoring Format Specifiers** - Fixed `KeysGenerator` unconditionally pre-stringifying all source property values via `GetValueExpression()` before passing them to `string.Format`. This prevented `IFormattable` implementations (DateOnly, DateTime, int, enums) from applying format specifiers. The generator now passes typed values cast to `object` for placeholder indices that have format specifiers, preserving pre-stringification only for indices without specifiers.
+
+  ```csharp
+  // Before: DateOnly value was .ToString()'d, {0:yyyy-MM-dd} had no effect
+  // After:  DateOnly is passed typed, string.Format applies "yyyy-MM-dd" via IFormattable
+  var pk = Event.Keys.BuildPk(new DateOnly(2024, 3, 15), "electronics");
+  // Produces: "2024-03-15#electronics"
+  ```
+
+- **Update Recomputation Pre-Stringification Ignoring Format Specifiers** - Fixed `UpdateExpressionTranslator` unconditionally calling `.ToString()` on source property values before passing them to `string.Format` during computed field recomputation. When the format string contains format specifiers, values are now passed as typed objects (boxed to object) so that `string.Format(CultureInfo.InvariantCulture, ...)` can invoke `IFormattable.ToString(format, provider)`.
+
+  ```csharp
+  // Before: Update recomputation ignored {0:D4}, produced "42#Name" instead of "0042#Name"
+  // After:  typed int value flows to string.Format, producing correct "0042#Name"
+  await table.Events.Update(pk)
+      .Set(x => new EventUpdateModel { Priority = 42 })
+      .UpdateAsync();
+  ```
+
 ### Added
 
 - **Per-Property Key Alias Support for Field-Level Encryption** - Different encrypted properties on the same entity can now use different KMS keys based on data classification.
@@ -148,6 +183,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `FDDB114` (Error): Major version must be at least 1
   - `FDDB115` (Error): Minor version must be at least 0
   - `FDDB116` (Error): Multiple schema version attributes detected — generation halted
+
+- **Source Property `DynamoDbAttribute.Format` Fallback in Computed Fields** - The source generator now automatically injects a source property's `DynamoDbAttribute.Format` value into computed format string placeholders that lack an explicit format specifier. This eliminates the need to repeat format information in the computed format string when the source property already declares its format.
+
+  ```csharp
+  // Source property declares its format:
+  [DynamoDbAttribute("eventDate", Format = "yyyy-MM-dd")]
+  public DateOnly EventDate { get; set; }
+
+  // Computed field without explicit format specifier — source Format is injected automatically:
+  [Computed("EventDate", "Category")]  // Effective format: "{0:yyyy-MM-dd}#{1}"
+  public string Sk { get; set; } = string.Empty;
+
+  // Explicit format specifier takes precedence over source property Format:
+  [Computed("EventDate", "Category", Format = "{0:MM/dd/yyyy}#{1}")]  // Uses MM/dd/yyyy, not yyyy-MM-dd
+  public string Sk { get; set; } = string.Empty;
+  ```
+
+- **`CultureInfo.InvariantCulture` Usage for Format Specifier Paths** - All code paths that apply format specifiers in computed fields (Keys builder, Put mapper, Update recomputation) now use `CultureInfo.InvariantCulture` when format specifiers are present. This ensures deterministic, locale-independent output for formatted computed key values regardless of the host machine's culture settings. Paths without format specifiers are unchanged for backwards compatibility.
+
+  ```csharp
+  // Format specifiers always produce the same output regardless of machine locale:
+  [Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
+  // Always produces "2024-03-15#electronics", never "15.03.2024#electronics" or "03/15/2024#electronics"
+  ```
 
 ### Removed
 

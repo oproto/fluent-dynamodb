@@ -2115,13 +2115,20 @@ internal class EntityAnalyzer
                     }
 
                     var placeholderText = format.Substring(i + 1, endIndex - i - 1);
-                    if (int.TryParse(placeholderText, out var placeholderIndex))
+
+                    // Extract index portion: everything before the first colon
+                    var colonIndex = placeholderText.IndexOf(':');
+                    var indexText = colonIndex >= 0
+                        ? placeholderText.Substring(0, colonIndex)
+                        : placeholderText;
+
+                    if (int.TryParse(indexText, out var placeholderIndex) && placeholderIndex >= 0)
                     {
                         placeholderCount = Math.Max(placeholderCount, placeholderIndex + 1);
                     }
-                    else if (!string.IsNullOrEmpty(placeholderText) && !placeholderText.Contains(':'))
+                    else
                     {
-                        // Invalid placeholder format
+                        // Invalid placeholder format - the index portion is not a valid non-negative integer
                         ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,
                             computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
                             computedProperty.PropertyName, format, $"Invalid placeholder: {{{placeholderText}}}");
@@ -2840,7 +2847,11 @@ internal class EntityAnalyzer
 
             if (property.ComputedKey != null)
             {
-                property.NormalizedKeyFormat = MapperGenerator.ComputeFormatString(property.ComputedKey, property.KeyFormat);
+                // Resolve source property models for Format injection (positional correspondence maintained)
+                var sourcePropertyModels = property.ComputedKey.SourceProperties
+                    .Select(name => entity.Properties.FirstOrDefault(p => p.PropertyName == name))
+                    .ToArray();
+                property.NormalizedKeyFormat = MapperGenerator.ComputeFormatString(property.ComputedKey, property.KeyFormat, sourcePropertyModels!);
             }
             else
             {
@@ -2897,8 +2908,8 @@ internal class EntityAnalyzer
     /// </returns>
     internal static string? DeriveDiscriminatorPattern(string normalizedKeyFormat)
     {
-        // Replace all {N} placeholders with *
-        var pattern = Regex.Replace(normalizedKeyFormat, @"\{\d+\}", "*");
+        // Replace all {N} and {N:format} placeholders with *
+        var pattern = Regex.Replace(normalizedKeyFormat, @"\{\d+(?::[^}]*)?\}", "*");
 
         // A pattern of just "*" or starting with "*" provides no useful discrimination
         if (pattern == "*" || pattern.StartsWith("*"))
