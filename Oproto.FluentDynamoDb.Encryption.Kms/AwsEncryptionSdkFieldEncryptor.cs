@@ -156,15 +156,17 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         
         try
         {
-            // 1. Resolve KMS key ARN via IKmsKeyResolver.ResolveKeyId
-            keyArn = _keyResolver.ResolveKeyId(context.ContextId);
+            // 1. Resolve KMS key ARN via IKmsKeyResolver.ResolveKeyIdAsync
+            keyArn = await _keyResolver.ResolveKeyIdAsync(context.ContextId, context.KeyAlias, cancellationToken).ConfigureAwait(false);
             
             if (string.IsNullOrWhiteSpace(keyArn))
             {
                 throw new FieldEncryptionException(
-                    "Key resolver returned null or empty key ARN.",
+                    $"Key resolver returned null or empty key ARN for field '{fieldName}' (contextId: '{context.ContextId}', keyAlias: '{context.KeyAlias}').",
                     fieldName,
                     context.ContextId,
+                    null,
+                    context.KeyAlias,
                     null);
             }
 
@@ -198,6 +200,11 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
             await ciphertextStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
             return memoryStream.ToArray();
         }
+        catch (OperationCanceledException)
+        {
+            // Propagate cancellation without wrapping (Requirement 1.7)
+            throw;
+        }
         catch (FieldEncryptionException)
         {
             // Re-throw our own exceptions
@@ -205,12 +212,13 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         }
         catch (Exception ex)
         {
-            // Handle errors with FieldEncryptionException (Requirements 2.4, 7.2, 7.4)
+            // Handle errors with FieldEncryptionException (Requirements 3.5, 8.1)
             throw new FieldEncryptionException(
                 $"Failed to encrypt field '{fieldName}': {ex.Message}",
                 fieldName,
                 context.ContextId,
                 keyArn,
+                context.KeyAlias,
                 ex);
         }
     }
@@ -231,15 +239,17 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         
         try
         {
-            // 1. Resolve KMS key ARN via key resolver (Requirement 3.1)
-            keyArn = _keyResolver.ResolveKeyId(context.ContextId);
+            // 1. Resolve KMS key ARN via key resolver (Requirement 3.2)
+            keyArn = await _keyResolver.ResolveKeyIdAsync(context.ContextId, context.KeyAlias, cancellationToken).ConfigureAwait(false);
             
             if (string.IsNullOrWhiteSpace(keyArn))
             {
                 throw new FieldEncryptionException(
-                    "Key resolver returned null or empty key ARN.",
+                    $"Key resolver returned null or empty key ARN for field '{fieldName}' (contextId: '{context.ContextId}', keyAlias: '{context.KeyAlias}').",
                     fieldName,
                     context.ContextId,
+                    null,
+                    context.KeyAlias,
                     null);
             }
 
@@ -270,6 +280,11 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
             await plaintextStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
             return memoryStream.ToArray();
         }
+        catch (OperationCanceledException)
+        {
+            // Propagate cancellation without wrapping (Requirement 1.7)
+            throw;
+        }
         catch (FieldEncryptionException)
         {
             // Re-throw our own exceptions
@@ -277,13 +292,14 @@ public sealed class AwsEncryptionSdkFieldEncryptor : IFieldEncryptor
         }
         catch (Exception ex)
         {
-            // Handle errors with FieldEncryptionException (Requirements 3.4, 3.5, 7.3, 7.5)
+            // Handle errors with FieldEncryptionException (Requirements 3.5, 8.1)
             var message = BuildDecryptionErrorMessage(ex, fieldName, keyArn);
             throw new FieldEncryptionException(
                 message,
                 fieldName,
                 context.ContextId,
                 keyArn,
+                context.KeyAlias,
                 ex);
         }
     }

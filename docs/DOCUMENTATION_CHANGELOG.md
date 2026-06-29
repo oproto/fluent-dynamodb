@@ -57,6 +57,173 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-06-28]
+
+### Breaking Change: Async KMS Key Resolver and Per-Property Key Alias Support
+
+**Category:** Pattern Update
+
+**Summary:** The `IKmsKeyResolver` interface has been converted from synchronous to asynchronous, the `[Encrypted]` attribute gains a `KeyAlias` property for per-property key selection, and the encryption pipeline now threads key alias through `FieldEncryptionContext` to `ResolveKeyIdAsync`. This is a **breaking change** — all `IKmsKeyResolver` implementations must be updated.
+
+---
+
+### File: docs/advanced-topics/FieldLevelSecurity.md
+
+#### IKmsKeyResolver Interface — Breaking Change
+
+**Before:**
+```csharp
+public interface IKmsKeyResolver
+{
+    string ResolveKeyId(string? contextId);
+}
+```
+
+**After:**
+```csharp
+public interface IKmsKeyResolver
+{
+    Task<string> ResolveKeyIdAsync(
+        string? contextId,
+        string? keyAlias = null,
+        CancellationToken cancellationToken = default);
+}
+```
+
+**Reason:** The synchronous `ResolveKeyId` method was the only blocking call in an otherwise fully-async encryption pipeline, forcing multi-tenant implementations into anti-patterns (preloading all mappings, blocking on async contexts). The new async method also accepts a `keyAlias` parameter for per-property key selection and a `CancellationToken` for cooperative cancellation.
+
+---
+
+#### [Encrypted] Attribute — New KeyAlias Property
+
+**Before:**
+```csharp
+[Encrypted]
+[DynamoDbAttribute("ssn")]
+public string Ssn { get; set; } = string.Empty;
+
+[Encrypted]
+[DynamoDbAttribute("accountNumber")]
+public string AccountNumber { get; set; } = string.Empty;
+// All encrypted properties use the same KMS key
+```
+
+**After:**
+```csharp
+[Encrypted(KeyAlias = "pii")]
+[DynamoDbAttribute("ssn")]
+public string Ssn { get; set; } = string.Empty;
+
+[Encrypted(KeyAlias = "financial")]
+[DynamoDbAttribute("accountNumber")]
+public string AccountNumber { get; set; } = string.Empty;
+// Different properties can use different KMS keys based on data classification
+```
+
+**Reason:** Per-property key alias support enables different encrypted fields on the same entity to use different KMS keys based on data classification (e.g., PII vs. financial data). The `KeyAlias` property defaults to `null`; when omitted, the resolver falls through to context-based or default key resolution.
+
+---
+
+#### DefaultKmsKeyResolver Constructor — New aliasKeyMap Parameter
+
+**Before:**
+```csharp
+var resolver = new DefaultKmsKeyResolver(
+    defaultKeyId: "arn:aws:kms:us-east-1:123456789012:key/default-key",
+    contextKeyMap: new Dictionary<string, string>
+    {
+        ["tenant-a"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key",
+        ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b-key"
+    });
+```
+
+**After:**
+```csharp
+var resolver = new DefaultKmsKeyResolver(
+    defaultKeyId: "arn:aws:kms:us-east-1:123456789012:key/default-key",
+    contextKeyMap: new Dictionary<string, string>
+    {
+        ["tenant-a"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key",
+        ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b-key"
+    },
+    aliasKeyMap: new Dictionary<string, string>
+    {
+        ["pii"] = "arn:aws:kms:us-east-1:123456789012:key/pii-key",
+        ["financial"] = "arn:aws:kms:us-east-1:123456789012:key/financial-key"
+    });
+```
+
+**Reason:** The new `aliasKeyMap` parameter enables mapping key aliases (declared on `[Encrypted(KeyAlias = "...")]`) to specific KMS key ARNs. Resolution priority is: aliasKeyMap → contextKeyMap → defaultKeyId. Both maps use case-sensitive lookups.
+
+---
+
+#### FieldEncryptionContext — New KeyAlias Property
+
+**Before:**
+```csharp
+public class FieldEncryptionContext
+{
+    public string? ContextId { get; init; }
+    public int CacheTtlSeconds { get; init; } = 300;
+    public bool IsExternalBlob { get; init; }
+    public string? EntityId { get; init; }
+}
+```
+
+**After:**
+```csharp
+public class FieldEncryptionContext
+{
+    public string? ContextId { get; init; }
+    public string? KeyAlias { get; init; }
+    public int CacheTtlSeconds { get; init; } = 300;
+    public bool IsExternalBlob { get; init; }
+    public string? EntityId { get; init; }
+}
+```
+
+**Reason:** The `KeyAlias` property carries the data classification alias from the `[Encrypted]` attribute through the pipeline to `ResolveKeyIdAsync`. The source generator populates this from `[Encrypted(KeyAlias = "...")]`; when omitted, it defaults to `null`.
+
+---
+
+#### Migration Guide for Existing IKmsKeyResolver Implementations
+
+**Before (custom implementation):**
+```csharp
+public class MyTenantKeyResolver : IKmsKeyResolver
+{
+    public string ResolveKeyId(string? contextId)
+    {
+        // Synchronous lookup
+        return _tenantKeyMap[contextId ?? "default"];
+    }
+}
+```
+
+**After (custom implementation):**
+```csharp
+public class MyTenantKeyResolver : IKmsKeyResolver
+{
+    public async Task<string> ResolveKeyIdAsync(
+        string? contextId,
+        string? keyAlias = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Can now use async operations (database lookups, vault calls, etc.)
+        if (keyAlias is not null && _aliasMap.TryGetValue(keyAlias, out var aliasKey))
+            return aliasKey;
+
+        return await _tenantKeyService.GetKeyAsync(contextId ?? "default", cancellationToken);
+    }
+}
+```
+
+**Reason:** All `IKmsKeyResolver` implementations must migrate from `ResolveKeyId` to `ResolveKeyIdAsync`. The new method signature enables true async key resolution (e.g., from databases, secrets managers, or external APIs), per-property key selection via `keyAlias`, and cooperative cancellation via `CancellationToken`.
+
+---
+
 ## [2026-06-27]
 
 ### New Feature Documentation: Named Blob Providers

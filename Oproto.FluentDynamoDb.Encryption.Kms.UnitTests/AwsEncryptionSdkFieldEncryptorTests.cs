@@ -8,6 +8,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     private const string TenantAKeyArn = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key-id";
     private const string TestFieldName = "SensitiveData";
     private const string TestContextId = "tenant-123";
+    private const string TestKeyAlias = "pii";
 
     [Fact]
     public void Constructor_WithValidKeyResolver_Succeeds()
@@ -135,7 +136,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(TestContextId).Returns(DefaultKeyArn);
+        keyResolver.ResolveKeyIdAsync(TestContextId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var plaintext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -151,7 +152,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
         }
 
         // Assert
-        keyResolver.Received(1).ResolveKeyId(TestContextId);
+        await keyResolver.Received(1).ResolveKeyIdAsync(TestContextId, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -159,7 +160,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(null).Returns(DefaultKeyArn);
+        keyResolver.ResolveKeyIdAsync(null, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var plaintext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = null };
@@ -175,7 +176,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
         }
 
         // Assert
-        keyResolver.Received(1).ResolveKeyId(null);
+        await keyResolver.Received(1).ResolveKeyIdAsync(null, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -183,7 +184,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns((string?)null);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult<string>(null!));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var plaintext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -203,7 +204,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(string.Empty);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(string.Empty));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var plaintext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -272,7 +273,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(TestContextId).Returns(DefaultKeyArn);
+        keyResolver.ResolveKeyIdAsync(TestContextId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var ciphertext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -288,7 +289,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
         }
 
         // Assert
-        keyResolver.Received(1).ResolveKeyId(TestContextId);
+        await keyResolver.Received(1).ResolveKeyIdAsync(TestContextId, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -296,7 +297,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(null).Returns(DefaultKeyArn);
+        keyResolver.ResolveKeyIdAsync(null, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var ciphertext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = null };
@@ -312,7 +313,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
         }
 
         // Assert
-        keyResolver.Received(1).ResolveKeyId(null);
+        await keyResolver.Received(1).ResolveKeyIdAsync(null, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -320,7 +321,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns((string?)null);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult<string>(null!));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var ciphertext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -340,7 +341,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(string.Empty);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(string.Empty));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var ciphertext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -361,7 +362,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(DefaultKeyArn);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var plaintext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -386,7 +387,7 @@ public class AwsEncryptionSdkFieldEncryptorTests
     {
         // Arrange
         var keyResolver = Substitute.For<IKmsKeyResolver>();
-        keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(DefaultKeyArn);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         var ciphertext = new byte[] { 1, 2, 3 };
         var context = new FieldEncryptionContext { ContextId = TestContextId };
@@ -404,5 +405,235 @@ public class AwsEncryptionSdkFieldEncryptorTests
 
         // Assert - No exception from cancellation token means it was accepted
         cts.Token.IsCancellationRequested.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task EncryptAsync_CallsResolverWithContextIdAndKeyAlias()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        keyResolver.ResolveKeyIdAsync(TestContextId, TestKeyAlias, Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var plaintext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId, KeyAlias = TestKeyAlias };
+
+        // Act
+        try
+        {
+            await encryptor.EncryptAsync(plaintext, TestFieldName, context);
+        }
+        catch (FieldEncryptionException)
+        {
+            // Expected - AWS SDK will fail without real KMS access
+        }
+
+        // Assert
+        await keyResolver.Received(1).ResolveKeyIdAsync(TestContextId, TestKeyAlias, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DecryptAsync_CallsResolverWithContextIdAndKeyAlias()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        keyResolver.ResolveKeyIdAsync(TestContextId, TestKeyAlias, Arg.Any<CancellationToken>()).Returns(Task.FromResult(DefaultKeyArn));
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var ciphertext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId, KeyAlias = TestKeyAlias };
+
+        // Act
+        try
+        {
+            await encryptor.DecryptAsync(ciphertext, TestFieldName, context);
+        }
+        catch (FieldEncryptionException)
+        {
+            // Expected - AWS SDK will fail without real KMS access
+        }
+
+        // Assert
+        await keyResolver.Received(1).ResolveKeyIdAsync(TestContextId, TestKeyAlias, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EncryptAsync_ForwardsCancellationTokenToResolver()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        var cts = new CancellationTokenSource();
+        var token = cts.Token;
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), token).Returns(Task.FromResult(DefaultKeyArn));
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var plaintext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId };
+
+        // Act
+        try
+        {
+            await encryptor.EncryptAsync(plaintext, TestFieldName, context, token);
+        }
+        catch (FieldEncryptionException)
+        {
+            // Expected - AWS SDK will fail without real KMS access
+        }
+
+        // Assert - verify the exact token was forwarded
+        await keyResolver.Received(1).ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), token);
+    }
+
+    [Fact]
+    public async Task DecryptAsync_ForwardsCancellationTokenToResolver()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        var cts = new CancellationTokenSource();
+        var token = cts.Token;
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), token).Returns(Task.FromResult(DefaultKeyArn));
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var ciphertext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId };
+
+        // Act
+        try
+        {
+            await encryptor.DecryptAsync(ciphertext, TestFieldName, context, token);
+        }
+        catch (FieldEncryptionException)
+        {
+            // Expected - AWS SDK will fail without real KMS access
+        }
+
+        // Assert - verify the exact token was forwarded
+        await keyResolver.Received(1).ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), token);
+    }
+
+    [Fact]
+    public async Task EncryptAsync_WhenResolverThrowsOperationCanceledException_PropagatesUnwrapped()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var expectedException = new OperationCanceledException(cts.Token);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(x => throw expectedException);
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var plaintext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId };
+
+        // Act
+        var act = async () => await encryptor.EncryptAsync(plaintext, TestFieldName, context);
+
+        // Assert - should propagate as OperationCanceledException, NOT wrapped in FieldEncryptionException
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task DecryptAsync_WhenResolverThrowsOperationCanceledException_PropagatesUnwrapped()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var expectedException = new OperationCanceledException(cts.Token);
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(x => throw expectedException);
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var ciphertext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId };
+
+        // Act
+        var act = async () => await encryptor.DecryptAsync(ciphertext, TestFieldName, context);
+
+        // Assert - should propagate as OperationCanceledException, NOT wrapped in FieldEncryptionException
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task EncryptAsync_WhenResolverThrowsOtherException_WrapsInFieldEncryptionException()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        var originalException = new InvalidOperationException("Key resolution failed");
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(x => throw originalException);
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var plaintext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId, KeyAlias = TestKeyAlias };
+
+        // Act
+        var act = async () => await encryptor.EncryptAsync(plaintext, TestFieldName, context);
+
+        // Assert
+        await act.Should().ThrowAsync<FieldEncryptionException>()
+            .Where(e => e.FieldName == TestFieldName)
+            .Where(e => e.ContextId == TestContextId)
+            .Where(e => e.KeyAlias == TestKeyAlias)
+            .Where(e => e.InnerException == originalException);
+    }
+
+    [Fact]
+    public async Task DecryptAsync_WhenResolverThrowsOtherException_WrapsInFieldEncryptionException()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        var originalException = new InvalidOperationException("Key resolution failed");
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(x => throw originalException);
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var ciphertext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId, KeyAlias = TestKeyAlias };
+
+        // Act
+        var act = async () => await encryptor.DecryptAsync(ciphertext, TestFieldName, context);
+
+        // Assert
+        await act.Should().ThrowAsync<FieldEncryptionException>()
+            .Where(e => e.FieldName == TestFieldName)
+            .Where(e => e.ContextId == TestContextId)
+            .Where(e => e.KeyAlias == TestKeyAlias)
+            .Where(e => e.InnerException == originalException);
+    }
+
+    [Fact]
+    public async Task EncryptAsync_WhenKeyResolverReturnsNull_ExceptionIncludesKeyAlias()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult<string>(null!));
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var plaintext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId, KeyAlias = TestKeyAlias };
+
+        // Act
+        var act = async () => await encryptor.EncryptAsync(plaintext, TestFieldName, context);
+
+        // Assert
+        await act.Should().ThrowAsync<FieldEncryptionException>()
+            .Where(e => e.FieldName == TestFieldName)
+            .Where(e => e.ContextId == TestContextId)
+            .Where(e => e.KeyAlias == TestKeyAlias)
+            .Where(e => e.Message.Contains("null or empty key ARN"));
+    }
+
+    [Fact]
+    public async Task DecryptAsync_WhenKeyResolverReturnsNull_ExceptionIncludesKeyAlias()
+    {
+        // Arrange
+        var keyResolver = Substitute.For<IKmsKeyResolver>();
+        keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult<string>(null!));
+        var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
+        var ciphertext = new byte[] { 1, 2, 3 };
+        var context = new FieldEncryptionContext { ContextId = TestContextId, KeyAlias = TestKeyAlias };
+
+        // Act
+        var act = async () => await encryptor.DecryptAsync(ciphertext, TestFieldName, context);
+
+        // Assert
+        await act.Should().ThrowAsync<FieldEncryptionException>()
+            .Where(e => e.FieldName == TestFieldName)
+            .Where(e => e.ContextId == TestContextId)
+            .Where(e => e.KeyAlias == TestKeyAlias)
+            .Where(e => e.Message.Contains("null or empty key ARN"));
     }
 }
