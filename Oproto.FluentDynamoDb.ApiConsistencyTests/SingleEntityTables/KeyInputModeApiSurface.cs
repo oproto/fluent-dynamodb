@@ -76,17 +76,17 @@ public class KeyInputModeApiSurface
         var builder = table.PrefixedKeyEntitys.Update("ORDER#12345", "sortKey");
 
         // Explicit Auto
-        builder = table.PrefixedKeyEntitys.Update("12345", "sortKey", KeyInputMode.Auto);
+        builder = table.PrefixedKeyEntitys.Update("12345", "sortKey", mode: KeyInputMode.Auto);
 
         // Explicit Raw
-        builder = table.PrefixedKeyEntitys.Update("ORDER#12345", "sortKey", KeyInputMode.Raw);
+        builder = table.PrefixedKeyEntitys.Update("ORDER#12345", "sortKey", mode: KeyInputMode.Raw);
 
         // Explicit Value
-        builder = table.PrefixedKeyEntitys.Update("12345", "sortKey", KeyInputMode.Value);
+        builder = table.PrefixedKeyEntitys.Update("12345", "sortKey", mode: KeyInputMode.Value);
 
         // Chain and execute
         await table.PrefixedKeyEntitys
-            .Update("12345", "sortKey", KeyInputMode.Auto)
+            .Update("12345", "sortKey", mode: KeyInputMode.Auto)
             .Set(x => new PrefixedKeyEntityUpdateModel { Amount = 100m })
             .UpdateAsync();
     }
@@ -168,8 +168,8 @@ public class KeyInputModeApiSurface
         deleteBuilder = table.CompositePrefixedKeyEntitys.Delete("CUSTOMER#custId", "INVOICE#invoiceId", KeyInputMode.Raw);
 
         // Update with KeyInputMode
-        var updateBuilder = table.CompositePrefixedKeyEntitys.Update("custId", "invoiceId", KeyInputMode.Auto);
-        updateBuilder = table.CompositePrefixedKeyEntitys.Update("CUSTOMER#custId", "INVOICE#invoiceId", KeyInputMode.Raw);
+        var updateBuilder = table.CompositePrefixedKeyEntitys.Update("custId", "invoiceId", mode: KeyInputMode.Auto);
+        updateBuilder = table.CompositePrefixedKeyEntitys.Update("CUSTOMER#custId", "INVOICE#invoiceId", mode: KeyInputMode.Raw);
 
         // ConditionCheck with KeyInputMode
         var condBuilder = table.CompositePrefixedKeyEntitys.ConditionCheck("custId", "invoiceId", KeyInputMode.Value);
@@ -205,8 +205,8 @@ public class KeyInputModeApiSurface
         await table.DeleteAsync("12345", "sortKey", KeyCondition.None, KeyInputMode.Value);
 
         // Table-level Update
-        var updateBuilder = table.Update("12345", "sortKey", KeyInputMode.Auto);
-        updateBuilder = table.Update("ORDER#12345", "sortKey", KeyInputMode.Raw);
+        var updateBuilder = table.Update("12345", "sortKey", mode: KeyInputMode.Auto);
+        updateBuilder = table.Update("ORDER#12345", "sortKey", mode: KeyInputMode.Raw);
 
         // Table-level ConditionCheck
         var condBuilder = table.ConditionCheck("12345", "sortKey", KeyInputMode.Value);

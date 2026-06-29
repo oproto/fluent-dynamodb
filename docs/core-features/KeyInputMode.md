@@ -285,13 +285,20 @@ The parameter is **not** generated when:
 
 ### Parameter Position
 
-The parameter is positioned after key parameters and before any `CancellationToken`:
+The parameter is positioned after key parameters and before any `CancellationToken`. For `Update` methods which also accept `KeyCondition`, the order is `KeyCondition` first, then `KeyInputMode` (since `KeyCondition` was the pre-existing parameter):
 
 ```csharp
-// Generated accessor signature
+// Generated Get/Delete/ConditionCheck accessor signature
 public GetItemRequestBuilder<Order> Get(
     string pK, 
     string sK, 
+    KeyInputMode mode = KeyInputMode.Default)
+
+// Generated Update accessor signature (KeyCondition before KeyInputMode)
+public OrderUpdateBuilder Update(
+    string pK,
+    string sK,
+    KeyCondition keyCondition = KeyCondition.None,
     KeyInputMode mode = KeyInputMode.Default)
 ```
 

@@ -59,6 +59,45 @@ Entries may be categorized as:
 
 ## [2026-06-29]
 
+### Fix: Update Method Parameter Ordering in KeyInputMode Documentation
+
+**Category:** API Correction
+
+### File: docs/core-features/KeyInputMode.md
+
+**Before:**
+```csharp
+// Generated accessor signature
+public GetItemRequestBuilder<Order> Get(
+    string pK, 
+    string sK, 
+    KeyInputMode mode = KeyInputMode.Default)
+```
+
+(No clarification that Update methods have a different parameter order due to pre-existing KeyCondition parameter)
+
+**After:**
+```csharp
+// Generated Get/Delete/ConditionCheck accessor signature
+public GetItemRequestBuilder<Order> Get(
+    string pK, 
+    string sK, 
+    KeyInputMode mode = KeyInputMode.Default)
+
+// Generated Update accessor signature (KeyCondition before KeyInputMode)
+public OrderUpdateBuilder Update(
+    string pK,
+    string sK,
+    KeyCondition keyCondition = KeyCondition.None,
+    KeyInputMode mode = KeyInputMode.Default)
+```
+
+**Reason:** The "Parameter Position" section only showed the Get signature, implying `KeyInputMode` is always the parameter immediately after keys. For `Update` methods, `KeyCondition` was the pre-existing optional parameter and must come before `KeyInputMode` for backwards compatibility. Added the Update signature to clarify this distinction.
+
+---
+
+## [2026-06-29]
+
 ### New Feature Documentation: Computed Field Format Specifiers
 
 **Category:** New Feature Documentation

@@ -101,7 +101,7 @@ public class KeyInputModeRawIntegrationTests
             .Returns(new UpdateItemResponse());
 
         // Act
-        await table.PrefixedKeyTestEntitys.Update(rawValue, sortKeyValue, KeyInputMode.Raw)
+        await table.PrefixedKeyTestEntitys.Update(rawValue, sortKeyValue, mode: KeyInputMode.Raw)
             .Set("SET #status = :s")
             .WithAttribute("#status", "status")
             .WithValue(":s", "active")

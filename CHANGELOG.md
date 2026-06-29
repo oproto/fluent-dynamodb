@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Update Method Parameter Ordering Breaks Backwards Compatibility** - Fixed the generated `Update()` method signatures placing `KeyInputMode mode` before `KeyCondition keyCondition` in the parameter list for entities qualifying for KeyInputMode (string keys with prefixes). This was a source-breaking change — existing code passing `KeyCondition` positionally as the 3rd argument (e.g., `table.Entities.Update(pk, sk, KeyCondition.MustExist)`) failed with CS1503. The parameter order is now `KeyCondition` first, `KeyInputMode` second, consistent with the generated `DeleteAsync` convenience methods. Affected all four generated Update variants (entity accessor PK-only, entity accessor composite key, table-level PK-only, table-level composite key).
+
 ### Changed
 
 - **BREAKING: `IKmsKeyResolver` Interface — Async with Key Alias Support** - The `IKmsKeyResolver` interface has been converted from synchronous to asynchronous. The `ResolveKeyId(string? contextId)` method is removed and replaced by `ResolveKeyIdAsync(string? contextId, string? keyAlias = null, CancellationToken cancellationToken = default)` returning `Task<string>`. This enables non-blocking key resolution from external sources (databases, vaults, APIs) and adds per-property key differentiation via the new `keyAlias` parameter. All existing implementations must be updated.
