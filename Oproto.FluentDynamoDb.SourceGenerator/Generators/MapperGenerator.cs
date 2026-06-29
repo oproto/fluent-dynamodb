@@ -1,5 +1,6 @@
 using Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.Utilities;
 using System.Text;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
@@ -4888,7 +4889,10 @@ internal static class MapperGenerator
                 }
             }
 
-            var formatString = ComputeFormatString(computedKey, effectiveKeyFormat);
+            var formatString = ComputeFormatString(computedKey, effectiveKeyFormat,
+                computedKey.SourceProperties
+                    .Select(name => entity.Properties.FirstOrDefault(p => p.PropertyName == name))
+                    .ToArray()!);
 
             sb.AppendLine("                        ComputedField = new ComputedFieldMetadata");
             sb.AppendLine("                        {");
@@ -5567,7 +5571,17 @@ internal static class MapperGenerator
         {
             // Use custom format string
             var formatArgs = string.Join(", ", computedKey.SourceProperties.Select(sp => $"typedEntity.{EscapePropertyName(sp)}"));
-            sb.AppendLine($"            typedEntity.{escapedPropertyName} = string.Format(\"{computedKey.Format}\", {formatArgs});");
+
+            if (FormatSpecifierHelper.HasAnyFormatSpecifier(computedKey.Format))
+            {
+                // Format specifiers present — use InvariantCulture for locale-safe formatting
+                sb.AppendLine($"            typedEntity.{escapedPropertyName} = string.Format(System.Globalization.CultureInfo.InvariantCulture, \"{computedKey.Format}\", {formatArgs});");
+            }
+            else
+            {
+                // No format specifiers — keep existing behavior for backwards compatibility
+                sb.AppendLine($"            typedEntity.{escapedPropertyName} = string.Format(\"{computedKey.Format}\", {formatArgs});");
+            }
         }
         else
         {
@@ -5993,8 +6007,11 @@ internal static class MapperGenerator
     /// </summary>
     /// <param name="computedKey">The computed key model containing separator and format information.</param>
     /// <param name="keyFormat">Optional key format model containing prefix information.</param>
+    /// <param name="sourceProperties">Optional array of source property models for Format injection.
+    /// When provided, each source property's DynamoDbAttribute.Format is injected into placeholders
+    /// that do not already have an explicit format specifier.</param>
     /// <returns>A .NET composite format string for use with string.Format().</returns>
-    internal static string ComputeFormatString(ComputedKeyModel computedKey, KeyFormatModel? keyFormat)
+    internal static string ComputeFormatString(ComputedKeyModel computedKey, KeyFormatModel? keyFormat, PropertyModel[]? sourceProperties = null)
     {
         // 1. If explicit Format is specified, use it directly (highest priority)
         if (computedKey.HasCustomFormat)
@@ -6003,18 +6020,33 @@ internal static class MapperGenerator
         // 2. Build format from Separator (+ optional key Prefix)
         var sourceCount = computedKey.SourceProperties.Length;
 
-        // Generate placeholders: "{0}#{1}#{2}" for separator="#", 3 sources
-        var placeholders = string.Join(
-            computedKey.Separator,
-            Enumerable.Range(0, sourceCount).Select(i => $"{{{i}}}"));
+        // Generate placeholders with source property Format injection
+        var placeholders = new string[sourceCount];
+        for (int i = 0; i < sourceCount; i++)
+        {
+            var sourceProperty = sourceProperties != null && sourceProperties.Length > i ? sourceProperties[i] : null;
+            var sourceFormat = sourceProperty?.Format;
+
+            // Inject source property's DynamoDbAttribute.Format if available and non-empty
+            if (!string.IsNullOrEmpty(sourceFormat))
+            {
+                placeholders[i] = $"{{{i}:{sourceFormat}}}";
+            }
+            else
+            {
+                placeholders[i] = $"{{{i}}}";
+            }
+        }
+
+        var formatString = string.Join(computedKey.Separator, placeholders);
 
         // Prepend key prefix if configured
         if (keyFormat != null && !string.IsNullOrEmpty(keyFormat.Prefix))
         {
-            return $"{keyFormat.Prefix}{keyFormat.Separator}{placeholders}";
+            return $"{keyFormat.Prefix}{keyFormat.Separator}{formatString}";
         }
 
-        return placeholders;
+        return formatString;
     }
 
     /// <summary>

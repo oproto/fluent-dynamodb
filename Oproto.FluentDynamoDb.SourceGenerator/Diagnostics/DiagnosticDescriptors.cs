@@ -1469,7 +1469,7 @@ internal static class DiagnosticDescriptors
         "FDDB116",
         "Multiple schema version attributes detected",
         "Multiple [FluentDynamoDbSchemaVersion] attributes detected. Remove duplicate declarations.",
-        "FluentDynamoDb",
+        "DynamoDb",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Multiple schema version attributes were found on the assembly, likely via IL manipulation since AllowMultiple is false. Code generation is halted.",

@@ -7,6 +7,7 @@ using Oproto.FluentDynamoDb.Logging;
 using Oproto.FluentDynamoDb.Metadata;
 using Oproto.FluentDynamoDb.Providers.Encryption;
 using Oproto.FluentDynamoDb.Requests;
+using Oproto.FluentDynamoDb.Utility;
 
 namespace Oproto.FluentDynamoDb.Expressions;
 
@@ -2651,11 +2652,39 @@ public class UpdateExpressionTranslator
                     ComputedFieldDiagnostics.ThrowPartialSourceAssignment(computedFieldName, missingSources);
                 }
 
-                // Recompute: use string.Format with the pre-computed format string
-                var parts = cf.SourceProperties
-                    .Select(s => (object)(assignedSources[s]?.ToString() ?? string.Empty))
-                    .ToArray();
-                var recomputedValue = string.Format(cf.Format, parts);
+                // Recompute the computed field value using string.Format.
+                //
+                // Format specifiers (e.g., {0:yyyy-MM-dd}) require typed values so that
+                // string.Format can call IFormattable.ToString(format, provider) on them.
+                // If we called .ToString() first, the format specifier would have nothing
+                // to work with — "2024-03-15" can't be re-formatted to "03/15/2024".
+                //
+                // When no format specifiers are present ({0}#{1}), we preserve the legacy
+                // behavior of pre-stringifying values for backwards compatibility.
+                object[] parts;
+                string recomputedValue;
+
+                if (FormatSpecifierHelper.HasAnyFormatSpecifier(cf.Format))
+                {
+                    // At least one placeholder has a format specifier (e.g., {0:D4}).
+                    // Keep all values as their original types (DateOnly, int, enum, etc.)
+                    // so string.Format can apply the specifier via IFormattable.
+                    // InvariantCulture ensures consistent output regardless of machine locale.
+                    parts = cf.SourceProperties
+                        .Select(s => assignedSources[s] ?? (object)string.Empty)
+                        .ToArray();
+                    recomputedValue = string.Format(
+                        CultureInfo.InvariantCulture, cf.Format, parts);
+                }
+                else
+                {
+                    // No format specifiers — simple placeholders like {0}#{1}.
+                    // Convert values to strings first (legacy behavior).
+                    parts = cf.SourceProperties
+                        .Select(s => (object)(assignedSources[s]?.ToString() ?? string.Empty))
+                        .ToArray();
+                    recomputedValue = string.Format(cf.Format, parts);
+                }
 
                 // Generate SET for the computed field's DynamoDB attribute
                 var attributeName = GetAttributeName(computedFieldName, context);
