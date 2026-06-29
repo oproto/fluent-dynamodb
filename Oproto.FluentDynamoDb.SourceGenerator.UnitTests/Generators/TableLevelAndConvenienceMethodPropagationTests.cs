@@ -294,7 +294,7 @@ namespace TestNamespace
         var tableCode = GetTableCode(result, "OrdersTableTable.g.cs");
 
         // Table-level Update should include KeyInputMode parameter
-        tableCode.Should().Contain("Update(string pk, string sk, KeyInputMode mode = KeyInputMode.Default, KeyCondition keyCondition = KeyCondition.None)",
+        tableCode.Should().Contain("Update(string pk, string sk, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default)",
             "table-level Update should include KeyInputMode parameter");
     }
 
