@@ -61,6 +61,13 @@ internal class SecurityAttributeAnalyzer
                 {
                     config.CacheTtlSeconds = cacheTtl;
                 }
+
+                if (arg.NameEquals?.Name.Identifier.ValueText == "KeyAlias" &&
+                    arg.Expression is LiteralExpressionSyntax keyAliasLiteral &&
+                    keyAliasLiteral.Token.Value is string keyAliasValue)
+                {
+                    config.KeyAlias = keyAliasValue;
+                }
             }
         }
 

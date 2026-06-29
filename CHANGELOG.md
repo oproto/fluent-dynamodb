@@ -9,6 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING: `IKmsKeyResolver` Interface — Async with Key Alias Support** - The `IKmsKeyResolver` interface has been converted from synchronous to asynchronous. The `ResolveKeyId(string? contextId)` method is removed and replaced by `ResolveKeyIdAsync(string? contextId, string? keyAlias = null, CancellationToken cancellationToken = default)` returning `Task<string>`. This enables non-blocking key resolution from external sources (databases, vaults, APIs) and adds per-property key differentiation via the new `keyAlias` parameter. All existing implementations must be updated.
+
+  **Migration — custom `IKmsKeyResolver` implementations:**
+  ```csharp
+  // Before
+  public class MyKeyResolver : IKmsKeyResolver
+  {
+      public string ResolveKeyId(string? contextId)
+      {
+          return LookupKey(contextId);
+      }
+  }
+
+  // After
+  public class MyKeyResolver : IKmsKeyResolver
+  {
+      public async Task<string> ResolveKeyIdAsync(
+          string? contextId,
+          string? keyAlias = null,
+          CancellationToken cancellationToken = default)
+      {
+          return await LookupKeyAsync(contextId, keyAlias, cancellationToken);
+      }
+  }
+  ```
+
+  **Migration — `DefaultKmsKeyResolver` construction:**
+  ```csharp
+  // Before
+  var resolver = new DefaultKmsKeyResolver("arn:aws:kms:...:key/default",
+      new Dictionary<string, string> { ["tenant-1"] = "arn:aws:kms:...:key/t1" });
+
+  // After (existing usage works unchanged, new aliasKeyMap parameter is optional)
+  var resolver = new DefaultKmsKeyResolver("arn:aws:kms:...:key/default",
+      contextKeyMap: new Dictionary<string, string> { ["tenant-1"] = "arn:aws:kms:...:key/t1" },
+      aliasKeyMap: new Dictionary<string, string> { ["pii"] = "arn:aws:kms:...:key/pii" });
+  ```
+
 - **ComputedFieldMetadata Format Normalization** - `ComputedFieldMetadata` now uses a single `Format` property (pre-compiled .NET composite format string) instead of `Separator`, `Prefix`, and `PrefixSeparator` for runtime computed field recomputation. The source generator translates all computed field configurations into a format string at compile time, and all runtime paths (Put, Keys, Update) now use `string.Format(format, values)` exclusively. This is a non-breaking change for consumers — the user-facing `ComputedAttribute` API is unchanged.
 
 ### Fixed
@@ -16,6 +54,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-Computed-Field-Target Data Loss** - Fixed `PropertyMetadata.ComputedFieldTarget` (typed `string?`) silently discarding all but the first computed field target when a source property contributes to multiple non-key computed fields. The `MapperGenerator` used `FirstOrDefault` to find a single matching computed field, losing additional targets. Renamed and retyped to `ComputedFieldTargets` (`string[]?`), updated the source generator to use `Where` to collect all matches, and updated `IsComputedSourceProperty` to check `ComputedFieldTargets?.Length > 0`. Single-target sources now emit a single-element array; non-sources remain null. No changes required to `ValidateAndProcessComputedFields` (already iterates all computed fields independently).
 
 ### Added
+
+- **Per-Property Key Alias Support for Field-Level Encryption** - Different encrypted properties on the same entity can now use different KMS keys based on data classification.
+  - `[Encrypted(KeyAlias = "...")]` attribute property specifies the key alias for a property (e.g., `"pii"`, `"financial"`)
+  - `FieldEncryptionContext.KeyAlias` carries the alias through the encryption pipeline to the resolver
+  - `DefaultKmsKeyResolver` accepts a new optional `aliasKeyMap` constructor parameter mapping aliases to KMS key ARNs
+  - Resolution priority: alias map → context map → default key
+  - `FieldEncryptionException` now includes `KeyAlias` for diagnostics in multi-key scenarios
+
+  **Usage:**
+  ```csharp
+  [DynamoDbTable("Customers")]
+  public partial class Customer
+  {
+      [Encrypted(KeyAlias = "pii")]
+      [DynamoDbAttribute("ssn")]
+      public string Ssn { get; set; } = string.Empty;
+
+      [Encrypted(KeyAlias = "financial")]
+      [DynamoDbAttribute("accountNumber")]
+      public string AccountNumber { get; set; } = string.Empty;
+  }
+
+  var resolver = new DefaultKmsKeyResolver(
+      defaultKeyId: "arn:aws:kms:us-east-1:123456789:key/default",
+      aliasKeyMap: new Dictionary<string, string>
+      {
+          ["pii"] = "arn:aws:kms:us-east-1:123456789:key/pii-key",
+          ["financial"] = "arn:aws:kms:us-east-1:123456789:key/financial-key"
+      });
+  ```
 
 - **Named Blob Providers** - Support for registering multiple blob storage providers by name, enabling entities with properties stored across different blob backends (e.g., images in one S3 bucket, documents in another)
   - `FluentDynamoDbOptions.WithBlobStorage(string name, IBlobStorageProvider provider)` registers a named provider in the immutable options instance (follows existing copy-on-write pattern)

@@ -838,6 +838,7 @@ internal static class MapperGenerator
         var isJsonBlob = property.ComplexType?.IsJsonBlob == true;
         var isEncrypted = property.Security?.IsEncrypted == true;
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         // Generate suggested key based on entity keys
         var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
@@ -941,6 +942,13 @@ internal static class MapperGenerator
             sb.AppendLine("                            {");
             sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
             sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds},");
+            
+            // Add KeyAlias if specified and non-empty/non-whitespace
+            if (!string.IsNullOrWhiteSpace(keyAlias))
+            {
+                sb.AppendLine($"                                KeyAlias = \"{keyAlias}\",");
+            }
+            
             if (partitionKeyProperty != null)
             {
                 sb.AppendLine($"                                EntityId = typedEntity.{partitionKeyProperty.PropertyName}?.ToString()");
@@ -2477,6 +2485,7 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         sb.AppendLine($"{indentation}// Decrypt {propertyName}");
         sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
@@ -2496,7 +2505,18 @@ internal static class MapperGenerator
         sb.AppendLine($"{indentation}                var encryptionContext = new FieldEncryptionContext");
         sb.AppendLine($"{indentation}                {{");
         sb.AppendLine($"{indentation}                    ContextId = DynamoDbOperationContext.EncryptionContextId,");
-        sb.AppendLine($"{indentation}                    CacheTtlSeconds = {cacheTtlSeconds}");
+        
+        // Add KeyAlias if specified and non-empty/non-whitespace
+        if (!string.IsNullOrWhiteSpace(keyAlias))
+        {
+            sb.AppendLine($"{indentation}                    CacheTtlSeconds = {cacheTtlSeconds},");
+            sb.AppendLine($"{indentation}                    KeyAlias = \"{keyAlias}\"");
+        }
+        else
+        {
+            sb.AppendLine($"{indentation}                    CacheTtlSeconds = {cacheTtlSeconds}");
+        }
+        
         sb.AppendLine($"{indentation}                }};");
         sb.AppendLine();
         sb.AppendLine($"{indentation}                var {propertyName}Plaintext = await fieldEncryptor.DecryptAsync(");
@@ -3388,6 +3408,7 @@ internal static class MapperGenerator
         var lazyLoad = property.ComplexType?.BlobStorageLazyLoad ?? false;
         var isEncrypted = property.Security?.IsEncrypted == true;
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         // Resolve per-property blob provider via options.GetBlobProvider(...)
         var blobProviderName = property.ComplexType?.BlobStorageProviderName;
@@ -3434,9 +3455,21 @@ internal static class MapperGenerator
             sb.AppendLine("                            var encryptionContext = new FieldEncryptionContext");
             sb.AppendLine("                            {");
             sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
-            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+            
+            // Add KeyAlias if specified and non-empty/non-whitespace
+            if (!string.IsNullOrWhiteSpace(keyAlias))
+            {
+                sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds},");
+                sb.AppendLine($"                                KeyAlias = \"{keyAlias}\"");
+            }
+            else
+            {
+                sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+            }
+            
             sb.AppendLine("                            };");
             sb.AppendLine();
+
             sb.AppendLine($"                            var decryptedBytes = await fieldEncryptor.DecryptAsync(");
             sb.AppendLine("                                encryptedBytes,");
             sb.AppendLine($"                                \"{propertyName}\",");
@@ -5610,6 +5643,7 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         sb.AppendLine($"            // Encrypt {propertyName}");
         sb.AppendLine("            if (fieldEncryptor != null)");
@@ -5634,6 +5668,12 @@ internal static class MapperGenerator
         sb.AppendLine("                    {");
         sb.AppendLine("                        ContextId = DynamoDbOperationContext.EncryptionContextId,");
         sb.AppendLine($"                        CacheTtlSeconds = {cacheTtlSeconds},");
+        
+        // Add KeyAlias if specified and non-empty/non-whitespace
+        if (!string.IsNullOrWhiteSpace(keyAlias))
+        {
+            sb.AppendLine($"                        KeyAlias = \"{keyAlias}\",");
+        }
         
         // Add EntityId for external blob storage path
         var partitionKeyProperty = entity.PartitionKeyProperty;
@@ -5678,6 +5718,7 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         sb.AppendLine($"            // Decrypt {propertyName}");
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
@@ -5701,7 +5742,18 @@ internal static class MapperGenerator
         sb.AppendLine("                            var encryptionContext = new FieldEncryptionContext");
         sb.AppendLine("                            {");
         sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
-        sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+        
+        // Add KeyAlias if specified and non-empty/non-whitespace
+        if (!string.IsNullOrWhiteSpace(keyAlias))
+        {
+            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds},");
+            sb.AppendLine($"                                KeyAlias = \"{keyAlias}\"");
+        }
+        else
+        {
+            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+        }
+        
         sb.AppendLine("                            };");
         sb.AppendLine();
 

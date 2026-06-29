@@ -16,4 +16,12 @@ public sealed class EncryptedAttribute : Attribute
     /// Default is 300 seconds (5 minutes).
     /// </summary>
     public int CacheTtlSeconds { get; set; } = 300;
+
+    /// <summary>
+    /// Gets or sets the key alias used for per-property KMS key selection.
+    /// When specified, the key resolver will use this alias to select a specific KMS key
+    /// based on data classification (e.g., "pii", "financial").
+    /// Default is null, meaning the resolver will use context-based or default key selection.
+    /// </summary>
+    public string? KeyAlias { get; set; }
 }

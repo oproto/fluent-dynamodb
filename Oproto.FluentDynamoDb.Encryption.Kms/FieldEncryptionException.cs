@@ -11,6 +11,7 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 /// <item>The field name that failed to encrypt/decrypt</item>
 /// <item>The context identifier (e.g., tenant ID) if applicable</item>
 /// <item>The KMS key ID that was used or attempted</item>
+/// <item>The key alias used for per-property key selection</item>
 /// <item>The underlying error from AWS KMS or the Encryption SDK</item>
 /// </list>
 /// <para>
@@ -23,6 +24,7 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 /// <item>Corrupted ciphertext during decryption</item>
 /// <item>Encryption context validation failure</item>
 /// <item>Network errors communicating with KMS</item>
+/// <item>Key resolver returned an invalid (null/empty) key identifier</item>
 /// </list>
 /// </remarks>
 /// <example>
@@ -37,8 +39,8 @@ namespace Oproto.FluentDynamoDb.Encryption.Kms;
 /// catch (FieldEncryptionException ex)
 /// {
 ///     logger.LogError(ex,
-///         "Failed to encrypt field {FieldName} for context {ContextId} using key {KeyId}",
-///         ex.FieldName, ex.ContextId, ex.KeyId);
+///         "Failed to encrypt field {FieldName} for context {ContextId} using key {KeyId} (alias: {KeyAlias})",
+///         ex.FieldName, ex.ContextId, ex.KeyId, ex.KeyAlias);
 ///     
 ///     // Check for specific error types
 ///     if (ex.InnerException is AccessDeniedException)
@@ -72,6 +74,12 @@ public sealed class FieldEncryptionException : Exception
     public string? KeyId { get; }
 
     /// <summary>
+    /// Gets the key alias that was passed to the key resolver for per-property key selection,
+    /// or null if no key alias was specified.
+    /// </summary>
+    public string? KeyAlias { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="FieldEncryptionException"/> class.
     /// </summary>
     /// <param name="message">The error message that explains the reason for the exception.</param>
@@ -92,6 +100,7 @@ public sealed class FieldEncryptionException : Exception
         FieldName = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
         ContextId = contextId;
         KeyId = keyId;
+        KeyAlias = null;
     }
 
     /// <summary>
@@ -112,6 +121,7 @@ public sealed class FieldEncryptionException : Exception
         FieldName = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
         ContextId = null;
         KeyId = null;
+        KeyAlias = null;
     }
 
     /// <summary>
@@ -140,6 +150,69 @@ public sealed class FieldEncryptionException : Exception
         FieldName = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
         ContextId = contextId;
         KeyId = keyId;
+        KeyAlias = null;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FieldEncryptionException"/> class
+    /// with a specified error message, field context, key alias, and no inner exception.
+    /// </summary>
+    /// <param name="message">The error message that explains the reason for the exception.</param>
+    /// <param name="fieldName">The name of the field that failed to encrypt or decrypt.</param>
+    /// <param name="contextId">
+    /// Optional context identifier (e.g., tenant ID) associated with the operation.
+    /// </param>
+    /// <param name="keyId">
+    /// Optional KMS key ARN or alias that was used or attempted for the operation.
+    /// </param>
+    /// <param name="keyAlias">
+    /// Optional key alias that was passed to the key resolver for per-property key selection.
+    /// </param>
+    public FieldEncryptionException(
+        string message,
+        string fieldName,
+        string? contextId,
+        string? keyId,
+        string? keyAlias)
+        : base(message)
+    {
+        FieldName = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
+        ContextId = contextId;
+        KeyId = keyId;
+        KeyAlias = keyAlias;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FieldEncryptionException"/> class
+    /// with a specified error message, field context, key alias, and a reference to the inner exception.
+    /// </summary>
+    /// <param name="message">The error message that explains the reason for the exception.</param>
+    /// <param name="fieldName">The name of the field that failed to encrypt or decrypt.</param>
+    /// <param name="contextId">
+    /// Optional context identifier (e.g., tenant ID) associated with the operation.
+    /// </param>
+    /// <param name="keyId">
+    /// Optional KMS key ARN or alias that was used or attempted for the operation.
+    /// </param>
+    /// <param name="keyAlias">
+    /// Optional key alias that was passed to the key resolver for per-property key selection.
+    /// </param>
+    /// <param name="innerException">
+    /// The exception that is the cause of the current exception, typically from AWS KMS or the Encryption SDK.
+    /// </param>
+    public FieldEncryptionException(
+        string message,
+        string fieldName,
+        string? contextId,
+        string? keyId,
+        string? keyAlias,
+        Exception? innerException)
+        : base(message, innerException)
+    {
+        FieldName = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
+        ContextId = contextId;
+        KeyId = keyId;
+        KeyAlias = keyAlias;
     }
 
     /// <summary>
@@ -158,6 +231,11 @@ public sealed class FieldEncryptionException : Exception
         if (KeyId != null)
         {
             details += $", KeyId: {KeyId}";
+        }
+
+        if (KeyAlias != null)
+        {
+            details += $", KeyAlias: {KeyAlias}";
         }
         
         return $"{base.ToString()}\n{details}";

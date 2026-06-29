@@ -174,11 +174,13 @@ public class GeoHashBetweenQueryPropertyTests
         var radiusKm = 5.0;
         var (minHash, maxHash) = GeoHashCellCovering.GetRangeForRadius(center, radiusKm, precision.Value);
 
-        // Skip cases where hash values happen to be "0" or "1" (single char at precision 1)
-        // as these would coincidentally match the buggy output
-        if (minHash == "0" || minHash == "1" || maxHash == "0" || maxHash == "1")
+        // Skip cases where hash values are substrings of the buggy expression string.
+        // At precision 1, single-char hashes like "h", "e", "a", "s", "c", "l" appear
+        // inside "geohash_cell BETWEEN 0 AND 1", causing doesNotContainMinHash/MaxHash to fail.
+        const string buggyExpressionText = "geohash_cell BETWEEN 0 AND 1";
+        if (buggyExpressionText.Contains(minHash) || buggyExpressionText.Contains(maxHash))
         {
-            return true.ToProperty().Label("Skipped: Hash values coincidentally match buggy output");
+            return true.ToProperty().Label("Skipped: Hash values are substrings of the buggy expression");
         }
 
         // This demonstrates the BUG: using interpolated string $"..." 

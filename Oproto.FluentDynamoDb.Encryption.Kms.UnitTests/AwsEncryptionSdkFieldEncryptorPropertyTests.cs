@@ -40,7 +40,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
             {
                 // Arrange
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -92,7 +92,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
             {
                 // Arrange
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -183,7 +183,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
             {
                 // Arrange
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -235,7 +235,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
             {
                 // Arrange
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -320,7 +320,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
                 
                 // Arrange - Use the same key for both contexts to test isolation at the context level
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 // Enable caching to test cache partitioning
                 var options = new AwsEncryptionSdkOptions { EnableCaching = true };
@@ -397,6 +397,146 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
     }
 
     /// <summary>
+    /// Generates random nullable string values for ContextId and KeyAlias testing.
+    /// Includes null, empty-like, and arbitrary string values.
+    /// </summary>
+    private static Arbitrary<string?> GenerateNullableString()
+    {
+        return Arb.From(
+            Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Elements<string?>("tenant-1", "tenant-2", "org-xyz", "customer-abc"),
+                Gen.Elements("pii", "financial", "health", "internal", "classified")
+                    .Select(s => (string?)s),
+                Arb.Generate<NonEmptyString>().Select(s => (string?)s.Get)));
+    }
+
+    /// <summary>
+    /// Generates test data for context and alias forwarding tests.
+    /// Combines plaintext, field name, arbitrary ContextId and KeyAlias values.
+    /// </summary>
+    private static Arbitrary<(byte[] Plaintext, string FieldName, string? ContextId, string? KeyAlias)> GenerateContextAndAliasForwardingTestData()
+    {
+        return Arb.From(
+            from plaintext in Gen.Choose(1, 50).SelectMany(size => Gen.ArrayOf(size, Arb.Generate<byte>()))
+            from fieldName in Gen.Elements("SensitiveData", "Password", "SSN", "CreditCard", "ApiKey", "Secret")
+                .Select(name => name + "_" + Guid.NewGuid().ToString("N")[..8])
+            from contextId in Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Elements<string?>("tenant-1", "tenant-2", "org-xyz", "customer-abc"),
+                Arb.Generate<NonEmptyString>().Select(s => (string?)s.Get))
+            from keyAlias in Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Elements<string?>("pii", "financial", "health", "internal"),
+                Arb.Generate<NonEmptyString>().Select(s => (string?)s.Get))
+            select (plaintext, fieldName, contextId, keyAlias));
+    }
+
+    /// <summary>
+    /// **Feature: async-kms-key-resolver, Property 3: Context and alias forwarding**
+    /// **Validates: Requirements 3.3**
+    /// 
+    /// For any FieldEncryptionContext with arbitrary ContextId and KeyAlias values,
+    /// when EncryptAsync is called on the field encryptor, the ResolveKeyIdAsync method
+    /// on the resolver SHALL be invoked with contextId equal to context.ContextId
+    /// and keyAlias equal to context.KeyAlias.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    [Trait("Feature", "async-kms-key-resolver")]
+    [Trait("Property", "3: Context and alias forwarding")]
+    public Property ContextAndAliasForwarding_EncryptAsync_PassesCorrectArguments()
+    {
+        return Prop.ForAll(
+            GenerateContextAndAliasForwardingTestData(),
+            testData =>
+            {
+                var (plaintext, fieldName, contextId, keyAlias) = testData;
+
+                // Arrange
+                var keyResolver = Substitute.For<IKmsKeyResolver>();
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                    .Returns(Task.FromResult(TestKeyArn));
+
+                var options = new AwsEncryptionSdkOptions { EnableCaching = false };
+                var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
+                var context = new FieldEncryptionContext { ContextId = contextId, KeyAlias = keyAlias };
+
+                try
+                {
+                    // Act - call EncryptAsync; it will fail at AWS SDK level but resolver is called first
+                    encryptor.EncryptAsync(plaintext, fieldName, context).GetAwaiter().GetResult();
+
+                    // If encryption succeeds (real KMS environment), the resolver was still called
+                }
+                catch (FieldEncryptionException)
+                {
+                    // Expected - AWS SDK failure after resolver was called
+                }
+
+                // Assert - verify ResolveKeyIdAsync was called with the exact contextId and keyAlias
+                keyResolver.Received(1).ResolveKeyIdAsync(
+                    contextId,
+                    keyAlias,
+                    Arg.Any<CancellationToken>());
+
+                return true.ToProperty()
+                    .Label($"ContextId: '{contextId ?? "(null)"}', KeyAlias: '{keyAlias ?? "(null)"}' forwarded correctly");
+            });
+    }
+
+    /// <summary>
+    /// **Feature: async-kms-key-resolver, Property 3: Context and alias forwarding**
+    /// **Validates: Requirements 3.3**
+    /// 
+    /// For any FieldEncryptionContext with arbitrary ContextId and KeyAlias values,
+    /// when DecryptAsync is called on the field encryptor, the ResolveKeyIdAsync method
+    /// on the resolver SHALL be invoked with contextId equal to context.ContextId
+    /// and keyAlias equal to context.KeyAlias.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    [Trait("Feature", "async-kms-key-resolver")]
+    [Trait("Property", "3: Context and alias forwarding")]
+    public Property ContextAndAliasForwarding_DecryptAsync_PassesCorrectArguments()
+    {
+        return Prop.ForAll(
+            GenerateContextAndAliasForwardingTestData(),
+            testData =>
+            {
+                var (ciphertext, fieldName, contextId, keyAlias) = testData;
+
+                // Arrange
+                var keyResolver = Substitute.For<IKmsKeyResolver>();
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                    .Returns(Task.FromResult(TestKeyArn));
+
+                var options = new AwsEncryptionSdkOptions { EnableCaching = false };
+                var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
+                var context = new FieldEncryptionContext { ContextId = contextId, KeyAlias = keyAlias };
+
+                try
+                {
+                    // Act - call DecryptAsync; it will fail at AWS SDK level but resolver is called first
+                    encryptor.DecryptAsync(ciphertext, fieldName, context).GetAwaiter().GetResult();
+
+                    // If decryption succeeds (unlikely with random bytes), the resolver was still called
+                }
+                catch (FieldEncryptionException)
+                {
+                    // Expected - AWS SDK failure after resolver was called
+                }
+
+                // Assert - verify ResolveKeyIdAsync was called with the exact contextId and keyAlias
+                keyResolver.Received(1).ResolveKeyIdAsync(
+                    contextId,
+                    keyAlias,
+                    Arg.Any<CancellationToken>());
+
+                return true.ToProperty()
+                    .Label($"ContextId: '{contextId ?? "(null)"}', KeyAlias: '{keyAlias ?? "(null)"}' forwarded correctly");
+            });
+    }
+
+    /// <summary>
     /// Generates null or empty key ARN values for testing null key rejection.
     /// </summary>
     private static Arbitrary<string?> GenerateNullOrEmptyKeyArn()
@@ -456,7 +596,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
                 
                 // Arrange - Key resolver returns null or empty
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(nullKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(nullKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -507,7 +647,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
                 
                 // Arrange - Key resolver returns null or empty
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(nullKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(nullKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -603,7 +743,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
                 // Arrange - Key resolver returns a valid key ARN
                 // The SDK will fail because we're not in a real AWS environment
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -664,7 +804,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
                 // Arrange - Key resolver returns a valid key ARN
                 // The SDK will fail because the ciphertext is invalid
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -720,7 +860,7 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
                 
                 // Arrange - Key resolver returns a valid key ARN
                 var keyResolver = Substitute.For<IKmsKeyResolver>();
-                keyResolver.ResolveKeyId(Arg.Any<string?>()).Returns(TestKeyArn);
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(TestKeyArn));
                 
                 var options = new AwsEncryptionSdkOptions { EnableCaching = false };
                 var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
@@ -749,6 +889,340 @@ public class AwsEncryptionSdkFieldEncryptorPropertyTests
                 {
                     return false.ToProperty()
                         .Label($"Expected FieldEncryptionException but got {ex.GetType().Name}: {ex.Message}");
+                }
+            });
+    }
+
+    // =========================================================================
+    // Feature: async-kms-key-resolver — Property 4: Non-cancellation exceptions are wrapped
+    // =========================================================================
+
+    /// <summary>
+    /// Generates random non-OperationCanceledException exceptions for property 4 tests.
+    /// </summary>
+    private static Arbitrary<Exception> GenerateNonCancellationException()
+    {
+        return Arb.From(
+            Gen.OneOf(
+                Gen.Constant<Exception>(new InvalidOperationException("Resolver failed: invalid state")),
+                Gen.Constant<Exception>(new ArgumentException("Resolver failed: bad argument")),
+                Gen.Constant<Exception>(new IOException("Resolver failed: network error")),
+                Gen.Constant<Exception>(new TimeoutException("Resolver failed: timed out")),
+                Gen.Constant<Exception>(new UnauthorizedAccessException("Resolver failed: access denied")),
+                Gen.Constant<Exception>(new NotSupportedException("Resolver failed: not supported")),
+                Gen.Constant<Exception>(new ApplicationException("Resolver failed: application error")),
+                Gen.Constant<Exception>(new Exception("Resolver failed: generic error"))
+            ));
+    }
+
+    /// <summary>
+    /// Generates test data for non-cancellation exception wrapping tests.
+    /// Combines field name, context ID, key alias, plaintext, and a non-cancellation exception.
+    /// </summary>
+    private static Arbitrary<(string FieldName, string? ContextId, string? KeyAlias, byte[] Plaintext, Exception ResolverException)> GenerateNonCancellationExceptionTestData()
+    {
+        return Arb.From(
+            from fieldName in Gen.Elements("SocialSecurityNumber", "CreditCardNumber", "BankAccount", "HealthRecord", "TaxId", "DriverLicense")
+                .Select(name => name + "_" + Guid.NewGuid().ToString("N")[..8])
+            from contextId in Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Elements("tenant-alpha", "tenant-beta", "org-100", "customer-xyz").Select(id => (string?)id))
+            from keyAlias in Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Elements("pii", "financial", "health", "general").Select(a => (string?)a))
+            from plaintext in Gen.Choose(1, 50).SelectMany(size => Gen.ArrayOf(size, Arb.Generate<byte>()))
+            from resolverException in Gen.OneOf(
+                Gen.Constant<Exception>(new InvalidOperationException("Resolver failed: invalid state")),
+                Gen.Constant<Exception>(new ArgumentException("Resolver failed: bad argument")),
+                Gen.Constant<Exception>(new IOException("Resolver failed: network error")),
+                Gen.Constant<Exception>(new TimeoutException("Resolver failed: timed out")),
+                Gen.Constant<Exception>(new UnauthorizedAccessException("Resolver failed: access denied")),
+                Gen.Constant<Exception>(new NotSupportedException("Resolver failed: not supported")),
+                Gen.Constant<Exception>(new ApplicationException("Resolver failed: application error")),
+                Gen.Constant<Exception>(new Exception("Resolver failed: generic error")))
+            select (fieldName, contextId, keyAlias, plaintext, resolverException));
+    }
+
+    /// <summary>
+    /// **Feature: async-kms-key-resolver, Property 4: Non-cancellation exceptions are wrapped**
+    /// **Validates: Requirements 3.5, 8.1**
+    /// 
+    /// For any exception type that is not OperationCanceledException (or derived), when
+    /// ResolveKeyIdAsync throws that exception during an encrypt operation, the field encryptor
+    /// SHALL throw a FieldEncryptionException where:
+    /// - FieldName equals the field name passed to the operation
+    /// - ContextId equals the FieldEncryptionContext.ContextId
+    /// - KeyAlias equals the FieldEncryptionContext.KeyAlias
+    /// - InnerException is the original thrown exception
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property NonCancellationExceptionsAreWrapped_EncryptAsync()
+    {
+        return Prop.ForAll(
+            GenerateNonCancellationExceptionTestData(),
+            testData =>
+            {
+                var (fieldName, contextId, keyAlias, plaintext, resolverException) = testData;
+
+                // Arrange - Key resolver throws a non-cancellation exception
+                var keyResolver = Substitute.For<IKmsKeyResolver>();
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                    .Returns<Task<string>>(x => throw resolverException);
+
+                var options = new AwsEncryptionSdkOptions { EnableCaching = false };
+                var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
+                var context = new FieldEncryptionContext { ContextId = contextId, KeyAlias = keyAlias };
+
+                try
+                {
+                    // Act
+                    encryptor.EncryptAsync(plaintext, fieldName, context).GetAwaiter().GetResult();
+
+                    // Should not reach here
+                    return false.ToProperty()
+                        .Label($"Expected FieldEncryptionException but EncryptAsync succeeded");
+                }
+                catch (FieldEncryptionException ex)
+                {
+                    // Assert
+                    var hasCorrectFieldName = ex.FieldName == fieldName;
+                    var hasCorrectContextId = ex.ContextId == contextId;
+                    var hasCorrectKeyAlias = ex.KeyAlias == keyAlias;
+                    var hasCorrectInnerException = ReferenceEquals(ex.InnerException, resolverException);
+
+                    return (hasCorrectFieldName && hasCorrectContextId && hasCorrectKeyAlias && hasCorrectInnerException).ToProperty()
+                        .Label($"FieldName: {hasCorrectFieldName} (expected: '{fieldName}', got: '{ex.FieldName}'), " +
+                               $"ContextId: {hasCorrectContextId} (expected: '{contextId}', got: '{ex.ContextId}'), " +
+                               $"KeyAlias: {hasCorrectKeyAlias} (expected: '{keyAlias}', got: '{ex.KeyAlias}'), " +
+                               $"InnerException: {hasCorrectInnerException} (type: {ex.InnerException?.GetType().Name})");
+                }
+                catch (Exception ex)
+                {
+                    // Non-FieldEncryptionException means wrapping didn't happen
+                    return false.ToProperty()
+                        .Label($"Expected FieldEncryptionException but got {ex.GetType().Name}: {ex.Message}");
+                }
+            });
+    }
+
+    /// <summary>
+    /// **Feature: async-kms-key-resolver, Property 4: Non-cancellation exceptions are wrapped**
+    /// **Validates: Requirements 3.5, 8.1**
+    /// 
+    /// For any exception type that is not OperationCanceledException (or derived), when
+    /// ResolveKeyIdAsync throws that exception during a decrypt operation, the field encryptor
+    /// SHALL throw a FieldEncryptionException where:
+    /// - FieldName equals the field name passed to the operation
+    /// - ContextId equals the FieldEncryptionContext.ContextId
+    /// - KeyAlias equals the FieldEncryptionContext.KeyAlias
+    /// - InnerException is the original thrown exception
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property NonCancellationExceptionsAreWrapped_DecryptAsync()
+    {
+        return Prop.ForAll(
+            GenerateNonCancellationExceptionTestData(),
+            testData =>
+            {
+                var (fieldName, contextId, keyAlias, ciphertext, resolverException) = testData;
+
+                // Arrange - Key resolver throws a non-cancellation exception
+                var keyResolver = Substitute.For<IKmsKeyResolver>();
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                    .Returns<Task<string>>(x => throw resolverException);
+
+                var options = new AwsEncryptionSdkOptions { EnableCaching = false };
+                var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
+                var context = new FieldEncryptionContext { ContextId = contextId, KeyAlias = keyAlias };
+
+                try
+                {
+                    // Act
+                    encryptor.DecryptAsync(ciphertext, fieldName, context).GetAwaiter().GetResult();
+
+                    // Should not reach here
+                    return false.ToProperty()
+                        .Label($"Expected FieldEncryptionException but DecryptAsync succeeded");
+                }
+                catch (FieldEncryptionException ex)
+                {
+                    // Assert
+                    var hasCorrectFieldName = ex.FieldName == fieldName;
+                    var hasCorrectContextId = ex.ContextId == contextId;
+                    var hasCorrectKeyAlias = ex.KeyAlias == keyAlias;
+                    var hasCorrectInnerException = ReferenceEquals(ex.InnerException, resolverException);
+
+                    return (hasCorrectFieldName && hasCorrectContextId && hasCorrectKeyAlias && hasCorrectInnerException).ToProperty()
+                        .Label($"FieldName: {hasCorrectFieldName} (expected: '{fieldName}', got: '{ex.FieldName}'), " +
+                               $"ContextId: {hasCorrectContextId} (expected: '{contextId}', got: '{ex.ContextId}'), " +
+                               $"KeyAlias: {hasCorrectKeyAlias} (expected: '{keyAlias}', got: '{ex.KeyAlias}'), " +
+                               $"InnerException: {hasCorrectInnerException} (type: {ex.InnerException?.GetType().Name})");
+                }
+                catch (Exception ex)
+                {
+                    // Non-FieldEncryptionException means wrapping didn't happen
+                    return false.ToProperty()
+                        .Label($"Expected FieldEncryptionException but got {ex.GetType().Name}: {ex.Message}");
+                }
+            });
+    }
+
+    // =========================================================================
+    // Feature: async-kms-key-resolver — Property 5: Invalid key return produces diagnostic exception
+    // =========================================================================
+
+    /// <summary>
+    /// Generates combined test data for invalid key return tests:
+    /// (fieldName, contextId, keyAlias, invalidKeyReturn).
+    /// </summary>
+    private static Arbitrary<(string FieldName, string? ContextId, string? KeyAlias, string? InvalidKeyReturn)> GenerateInvalidKeyReturnTestData()
+    {
+        return Arb.From(
+            from fieldName in Gen.OneOf(
+                Gen.Elements("Email", "SSN", "CreditCard", "ApiKey", "Password", "Phone", "Address")
+                    .Select(name => name + "_" + Guid.NewGuid().ToString("N")[..6]),
+                Gen.Choose(1, 20)
+                    .SelectMany(len => Gen.ArrayOf(len, Gen.Elements(
+                        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+                        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+                        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_')))
+                    .Select(chars => "field_" + new string(chars)))
+            from contextId in Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Elements("tenant-1", "tenant-2", "org-abc", "customer-xyz", "account-99")
+                    .Select(id => (string?)id),
+                Gen.Choose(1, 10)
+                    .SelectMany(len => Gen.ArrayOf(len, Gen.Elements(
+                        'a', 'b', 'c', 'd', 'e', '0', '1', '2', '3', '-')))
+                    .Select(chars => (string?)("ctx-" + new string(chars))))
+            from keyAlias in Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Elements("pii", "financial", "health", "secrets", "general")
+                    .Select(alias => (string?)alias),
+                Gen.Choose(1, 8)
+                    .SelectMany(len => Gen.ArrayOf(len, Gen.Elements(
+                        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', '-', '_')))
+                    .Select(chars => (string?)("alias-" + new string(chars))))
+            from invalidKeyReturn in Gen.OneOf(
+                Gen.Constant<string?>(null),
+                Gen.Constant<string?>(string.Empty),
+                Gen.Constant<string?>("   "),
+                Gen.Constant<string?>("\t"),
+                Gen.Constant<string?>("\n"),
+                Gen.Constant<string?>(" \t\n "),
+                Gen.Constant<string?>("\r\n"))
+            select (fieldName, contextId, keyAlias, invalidKeyReturn));
+    }
+
+    /// <summary>
+    /// **Feature: async-kms-key-resolver, Property 5: Invalid key return produces diagnostic exception**
+    /// **Validates: Requirements 1.6, 3.6, 8.2, 8.3**
+    /// 
+    /// For any field name, context ID, and key alias combination, when ResolveKeyIdAsync returns
+    /// a null or whitespace-only string, the field encryptor SHALL throw a FieldEncryptionException where:
+    /// - FieldName equals the field name passed to the operation
+    /// - ContextId equals the context ID that was passed to the resolver
+    /// - KeyAlias equals the key alias that was passed to the resolver
+    /// - The Message indicates the resolver returned an invalid key
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property InvalidKeyReturn_EncryptAsync_ThrowsDiagnosticException()
+    {
+        return Prop.ForAll(
+            GenerateInvalidKeyReturnTestData(),
+            testData =>
+            {
+                var (fieldName, contextId, keyAlias, invalidKeyReturn) = testData;
+
+                // Arrange
+                var keyResolver = Substitute.For<IKmsKeyResolver>();
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                    .Returns(Task.FromResult(invalidKeyReturn));
+
+                var options = new AwsEncryptionSdkOptions { EnableCaching = false };
+                var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
+                var context = new FieldEncryptionContext { ContextId = contextId, KeyAlias = keyAlias };
+                var plaintext = new byte[] { 1, 2, 3, 4 };
+
+                try
+                {
+                    // Act
+                    encryptor.EncryptAsync(plaintext, fieldName, context).GetAwaiter().GetResult();
+
+                    // Should not reach here
+                    return false.ToProperty()
+                        .Label($"Expected FieldEncryptionException but no exception was thrown for invalid key: '{invalidKeyReturn ?? "(null)"}'");
+                }
+                catch (FieldEncryptionException ex)
+                {
+                    // Assert
+                    var hasCorrectFieldName = ex.FieldName == fieldName;
+                    var hasCorrectContextId = ex.ContextId == contextId;
+                    var hasCorrectKeyAlias = ex.KeyAlias == keyAlias;
+                    var hasInvalidKeyMessage = ex.Message.Contains("null or empty key ARN");
+
+                    return (hasCorrectFieldName && hasCorrectContextId && hasCorrectKeyAlias && hasInvalidKeyMessage).ToProperty()
+                        .Label($"FieldName: {hasCorrectFieldName} (expected '{fieldName}', got '{ex.FieldName}'), " +
+                               $"ContextId: {hasCorrectContextId} (expected '{contextId}', got '{ex.ContextId}'), " +
+                               $"KeyAlias: {hasCorrectKeyAlias} (expected '{keyAlias}', got '{ex.KeyAlias}'), " +
+                               $"Message: {hasInvalidKeyMessage} ('{ex.Message}')");
+                }
+            });
+    }
+
+    /// <summary>
+    /// **Feature: async-kms-key-resolver, Property 5: Invalid key return produces diagnostic exception**
+    /// **Validates: Requirements 1.6, 3.6, 8.2, 8.3**
+    /// 
+    /// For any field name, context ID, and key alias combination, when ResolveKeyIdAsync returns
+    /// a null or whitespace-only string during decryption, the field encryptor SHALL throw a
+    /// FieldEncryptionException where:
+    /// - FieldName equals the field name passed to the operation
+    /// - ContextId equals the context ID that was passed to the resolver
+    /// - KeyAlias equals the key alias that was passed to the resolver
+    /// - The Message indicates the resolver returned an invalid key
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property InvalidKeyReturn_DecryptAsync_ThrowsDiagnosticException()
+    {
+        return Prop.ForAll(
+            GenerateInvalidKeyReturnTestData(),
+            testData =>
+            {
+                var (fieldName, contextId, keyAlias, invalidKeyReturn) = testData;
+
+                // Arrange
+                var keyResolver = Substitute.For<IKmsKeyResolver>();
+                keyResolver.ResolveKeyIdAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                    .Returns(Task.FromResult(invalidKeyReturn));
+
+                var options = new AwsEncryptionSdkOptions { EnableCaching = false };
+                var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver, options);
+                var context = new FieldEncryptionContext { ContextId = contextId, KeyAlias = keyAlias };
+                var ciphertext = new byte[] { 10, 20, 30, 40 };
+
+                try
+                {
+                    // Act
+                    encryptor.DecryptAsync(ciphertext, fieldName, context).GetAwaiter().GetResult();
+
+                    // Should not reach here
+                    return false.ToProperty()
+                        .Label($"Expected FieldEncryptionException but no exception was thrown for invalid key: '{invalidKeyReturn ?? "(null)"}'");
+                }
+                catch (FieldEncryptionException ex)
+                {
+                    // Assert
+                    var hasCorrectFieldName = ex.FieldName == fieldName;
+                    var hasCorrectContextId = ex.ContextId == contextId;
+                    var hasCorrectKeyAlias = ex.KeyAlias == keyAlias;
+                    var hasInvalidKeyMessage = ex.Message.Contains("null or empty key ARN");
+
+                    return (hasCorrectFieldName && hasCorrectContextId && hasCorrectKeyAlias && hasInvalidKeyMessage).ToProperty()
+                        .Label($"FieldName: {hasCorrectFieldName} (expected '{fieldName}', got '{ex.FieldName}'), " +
+                               $"ContextId: {hasCorrectContextId} (expected '{contextId}', got '{ex.ContextId}'), " +
+                               $"KeyAlias: {hasCorrectKeyAlias} (expected '{keyAlias}', got '{ex.KeyAlias}'), " +
+                               $"Message: {hasInvalidKeyMessage} ('{ex.Message}')");
                 }
             });
     }

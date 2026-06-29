@@ -13,6 +13,13 @@ public class FieldEncryptionContext
     public string? ContextId { get; init; }
 
     /// <summary>
+    /// Gets or initializes the key alias for per-property key selection.
+    /// When set, this value is passed to the key resolver to select a specific KMS key
+    /// based on data classification (e.g., "pii", "financial").
+    /// </summary>
+    public string? KeyAlias { get; init; }
+
+    /// <summary>
     /// Gets or initializes the cache TTL for data keys in seconds.
     /// This value is typically set from the EncryptedAttribute.CacheTtlSeconds property.
     /// Default is 300 seconds (5 minutes).
