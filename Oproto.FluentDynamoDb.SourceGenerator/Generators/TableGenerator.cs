@@ -1506,14 +1506,14 @@ internal static class TableGenerator
             sb.AppendLine($"        /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"        /// </summary>");
             sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             if (qualifiesForKeyInputMode)
                 sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
-            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
             
             if (qualifiesForKeyInputMode)
             {
-                sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default, KeyCondition keyCondition = KeyCondition.None)");
+                sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default)");
                 sb.AppendLine($"        {{");
                 sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
                 var pkEffective = GenerateKeyPrefixApplication(partitionKey, paramName, "effectivePk");
@@ -1586,14 +1586,14 @@ internal static class TableGenerator
             sb.AppendLine($"        /// </summary>");
             sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             if (qualifiesForKeyInputMode)
                 sb.AppendLine($"        /// <param name=\"mode\">Controls how key value prefixes are applied. Defaults to the configured default mode.</param>");
-            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the composite key.</returns>");
             
             if (qualifiesForKeyInputMode)
             {
-                sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyInputMode mode = KeyInputMode.Default, KeyCondition keyCondition = KeyCondition.None)");
+                sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default)");
                 sb.AppendLine($"        {{");
                 sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
                 var pkEffective = GenerateKeyPrefixApplication(partitionKey, pkParamName, "effectivePk");
@@ -2612,15 +2612,15 @@ internal static class TableGenerator
             sb.AppendLine($"    /// Returns an entity-specific update builder with simplified Set() methods.");
             sb.AppendLine($"    /// </summary>");
             sb.AppendLine($"    /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             if (qualifiesForKeyInputMode)
                 sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
-            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
             
             if (qualifiesForKeyInputMode)
             {
-                sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default, KeyCondition keyCondition = KeyCondition.None) =>");
-                sb.AppendLine($"        {entityPropertyName}.Update({paramName}, mode, keyCondition);");
+                sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default) =>");
+                sb.AppendLine($"        {entityPropertyName}.Update({paramName}, keyCondition, mode);");
             }
             else
             {
@@ -2644,15 +2644,15 @@ internal static class TableGenerator
             sb.AppendLine($"    /// </summary>");
             sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
             sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             if (qualifiesForKeyInputMode)
                 sb.AppendLine($"    /// <param name=\"mode\">Controls how key value prefixes are applied. Defaults to the configured default mode.</param>");
-            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
             sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the composite key.</returns>");
             
             if (qualifiesForKeyInputMode)
             {
-                sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyInputMode mode = KeyInputMode.Default, KeyCondition keyCondition = KeyCondition.None) =>");
-                sb.AppendLine($"        {entityPropertyName}.Update({pkParamName}, {skParamName}, mode, keyCondition);");
+                sb.AppendLine($"    public {updateBuilderClassName} Update({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default) =>");
+                sb.AppendLine($"        {entityPropertyName}.Update({pkParamName}, {skParamName}, keyCondition, mode);");
             }
             else
             {
