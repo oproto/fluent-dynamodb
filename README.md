@@ -415,8 +415,8 @@ Oproto maintains this library as part of a broader open-source ecosystem for bui
 
 ## Community & Support
 
-- **Issues:** [GitHub Issues](https://github.com/OProto/oproto-fluent-dynamodb/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/OProto/oproto-fluent-dynamodb/discussions)
+- **Issues:** [GitHub Issues](https://github.com/oproto/oproto-fluent-dynamodb/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/oproto/oproto-fluent-dynamodb/discussions)
 - **License:** [MIT License](LICENSE)
 
 ## Contributing
