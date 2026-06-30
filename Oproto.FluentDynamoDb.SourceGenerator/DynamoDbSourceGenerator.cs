@@ -137,6 +137,12 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         var (entities, projectionContexts) = input.Left;
         var compilation = input.Compilation;
 
+        // No entities or projections in this compilation — nothing to generate, skip entirely.
+        // This prevents spurious diagnostics (e.g., FDDB110) in projects that only transitively
+        // reference FluentDynamoDb without defining any DynamoDB types.
+        if (entities.IsEmpty && projectionContexts.IsEmpty)
+            return;
+
         // Schema version gate: detect and validate schema version before any code generation
         var versionResult = SchemaVersionProvider.Detect(compilation);
         if (versionResult.ShouldHaltGeneration)

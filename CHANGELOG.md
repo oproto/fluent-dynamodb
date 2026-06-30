@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **FDDB110 Warning Emitted Spuriously in Transitive Projects** - Fixed the source generator unconditionally running schema version detection on every compilation where it was loaded, even when no DynamoDB entities or projections were present. Projects that only transitively reference `Oproto.FluentDynamoDb` (e.g., test projects, API projects) no longer receive the spurious FDDB110 warning. The generator now short-circuits before schema version detection when there is nothing to generate.
+
 - **Update Method Parameter Ordering Breaks Backwards Compatibility** - Fixed the generated `Update()` method signatures placing `KeyInputMode mode` before `KeyCondition keyCondition` in the parameter list for entities qualifying for KeyInputMode (string keys with prefixes). This was a source-breaking change — existing code passing `KeyCondition` positionally as the 3rd argument (e.g., `table.Entities.Update(pk, sk, KeyCondition.MustExist)`) failed with CS1503. The parameter order is now `KeyCondition` first, `KeyInputMode` second, consistent with the generated `DeleteAsync` convenience methods. Affected all four generated Update variants (entity accessor PK-only, entity accessor composite key, table-level PK-only, table-level composite key).
 
 ### Changed
