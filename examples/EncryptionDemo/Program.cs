@@ -66,7 +66,13 @@ if (!string.IsNullOrWhiteSpace(kmsKeyArn))
 {
     try
     {
-        var keyResolver = new DefaultKmsKeyResolver(kmsKeyArn);
+        // Resolution priority: alias map → context map → default key
+        var aliasKeyMap = new Dictionary<string, string>
+        {
+            ["pii"] = kmsKeyArn,        // In real apps, each alias maps to a different key
+            ["financial"] = kmsKeyArn   // Using same key for demo simplicity
+        };
+        var keyResolver = new DefaultKmsKeyResolver(kmsKeyArn, aliasKeyMap: aliasKeyMap);
         var encryptor = new AwsEncryptionSdkFieldEncryptor(keyResolver);
         optionsBuilder = optionsBuilder.WithEncryption(encryptor);
         encryptionConfigured = true;

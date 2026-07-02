@@ -8,6 +8,10 @@ namespace TransactionDemo.Entities;
 /// This entity demonstrates single-table design where accounts and their
 /// transaction records share the same DynamoDB table, using composite keys
 /// to enable efficient access patterns.
+/// 
+/// The discriminator value "PROFILE" is explicitly configured to ensure Account entities
+/// are correctly distinguished from TransactionRecord and FinancialTransaction entities
+/// in this single-table design.
 /// </summary>
 /// <remarks>
 /// <para>

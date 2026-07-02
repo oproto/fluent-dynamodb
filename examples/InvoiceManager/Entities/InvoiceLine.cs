@@ -8,6 +8,10 @@ namespace InvoiceManager.Entities;
 /// This entity is part of a single-table design where line items are stored
 /// with sort keys that extend the invoice's sort key, enabling hierarchical
 /// queries.
+/// 
+/// The sort key uses a [Computed] format "INVOICE#{0}#LINE#{1}" which allows the source
+/// generator to auto-derive the discriminator pattern "INVOICE#*#LINE#*", correctly
+/// distinguishing InvoiceLine from Invoice entities.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,9 +39,7 @@ namespace InvoiceManager.Entities;
 /// <item><description>sk = "INVOICE#INV-001#LINE#2" (Line item 2)</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbTable("invoices",
-    DiscriminatorProperty = "sk",
-    DiscriminatorPattern = "INVOICE#*#LINE#*")]
+[DynamoDbTable("invoices")]
 [GenerateEntityProperty(Name = "InvoiceLines")]
 public partial class InvoiceLine
 {
@@ -50,10 +52,18 @@ public partial class InvoiceLine
 
     /// <summary>
     /// Gets or sets the sort key in format "INVOICE#{invoiceNumber}#LINE#{lineNumber}".
+    /// Computed from InvoiceNumber and LineNumber properties.
     /// </summary>
     [SortKey]
     [DynamoDbAttribute("sk")]
+    [Computed("InvoiceNumber", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
     public string Sk { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the invoice number this line belongs to.
+    /// </summary>
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the line number within the invoice.

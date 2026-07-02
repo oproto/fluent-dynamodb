@@ -55,6 +55,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **ComputedFieldMetadata Format Normalization** - `ComputedFieldMetadata` now uses a single `Format` property (pre-compiled .NET composite format string) instead of `Separator`, `Prefix`, and `PrefixSeparator` for runtime computed field recomputation. The source generator translates all computed field configurations into a format string at compile time, and all runtime paths (Put, Keys, Update) now use `string.Format(format, values)` exclusively. This is a non-breaking change for consumers — the user-facing `ComputedAttribute` API is unchanged.
 
+- **Example Projects Modernized** - Updated all 11 example projects to demonstrate recently added features. Changes are non-breaking — existing DynamoDB data shapes and runtime behavior are preserved.
+  - Removed explicit `DiscriminatorProperty`/`DiscriminatorPattern`/`DiscriminatorValue` from multi-entity table entities (InvoiceManager, TransactionDemo) — discriminators are now auto-derived from key prefixes by the source generator
+  - Adopted auto key mode for Put operations — entity properties are now set to raw values (e.g., `customerId` instead of `Customer.Keys.Pk(customerId)`) with prefixes applied automatically during serialization
+  - Added `[Encrypted(KeyAlias = "pii")]` and `[Encrypted(KeyAlias = "financial")]` per-property key aliases to EncryptionDemo with `aliasKeyMap` configuration on `DefaultKmsKeyResolver`
+  - Added named blob provider properties (`[BlobStorage(Provider = "images")]`, `[BlobStorage(Provider = "documents")]`) to S3BlobDemo with multi-provider registration via `WithBlobStorage(name, provider)`
+  - Added `KeyInputModeSamples.cs` to OperationSamples demonstrating `KeyInputMode.Raw` and `KeyInputMode.Auto` behavior
+  - Added `ScheduledEvent` entity with computed partition key and `TypedOverloadSamples.cs` demonstrating typed Get/Delete/Update convenience overloads
+  - Added `CatalogItem` entity with non-key computed field on GSI and `ComputedFieldUpdateSamples.cs` demonstrating source-property-based update recomputation
+  - Added `[assembly: FluentDynamoDbSchemaVersion(1, 0)]` to all 10 example projects via `AssemblyInfo.cs`
+
 ### Fixed
 
 - **Multi-Computed-Field-Target Data Loss** - Fixed `PropertyMetadata.ComputedFieldTarget` (typed `string?`) silently discarding all but the first computed field target when a source property contributes to multiple non-key computed fields. The `MapperGenerator` used `FirstOrDefault` to find a single matching computed field, losing additional targets. Renamed and retyped to `ComputedFieldTargets` (`string[]?`), updated the source generator to use `Where` to collect all matches, and updated `IsComputedSourceProperty` to check `ComputedFieldTargets?.Length > 0`. Single-target sources now emit a single-element array; non-sources remain null. No changes required to `ValidateAndProcessComputedFields` (already iterates all computed fields independently).

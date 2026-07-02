@@ -48,7 +48,8 @@ public class TransactionComparison
                 {
                     var account = new Account
                     {
-                        Pk = Account.Keys.Pk(accountId),
+                        // Auto key mode applies "ACCOUNT#" prefix during serialization
+                        Pk = accountId,
                         Sk = Account.ProfileSk,
                         AccountId = accountId,
                         Name = $"Account {i}",
@@ -61,7 +62,9 @@ public class TransactionComparison
                     var targetAccountId = $"ACCT-{((i - 11) % 5) + 1:D3}";
                     var txnRecord = new TransactionRecord
                     {
-                        Pk = TransactionRecord.Keys.Pk(targetAccountId),
+                        // Auto key mode applies "ACCOUNT#" prefix during serialization
+                        Pk = targetAccountId,
+                        // Sort key constructed from multiple segments - manual composition required
                         Sk = $"TXN#{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}",
                         TxnId = txnId,
                         AccountId = targetAccountId,
@@ -176,7 +179,8 @@ public class TransactionComparison
             {
                 var account = new Account
                 {
-                    Pk = Account.Keys.Pk($"ROLLBACK-{i}"),
+                    // Auto key mode applies "ACCOUNT#" prefix during serialization
+                    Pk = $"ROLLBACK-{i}",
                     Sk = Account.ProfileSk,
                     AccountId = $"ROLLBACK-{i}",
                     Name = $"Rollback Test {i}",
