@@ -95,9 +95,21 @@ else
 }
 
 // Create S3BlobProvider and configure options
+// Default provider — used by [BlobStorage] properties that do not specify a Provider parameter
 var blobProvider = new S3BlobProvider(s3Client, bucketName, keyPrefix);
+
+// Named provider "images" — routes to a dedicated images prefix (or bucket) for properties
+// annotated with [BlobStorage(Provider = "images")], such as MediaItem.Thumbnail
+var imagesBucketProvider = new S3BlobProvider(s3Client, bucketName, $"{keyPrefix}images/");
+
+// Named provider "documents" — routes to a dedicated documents prefix (or bucket) for properties
+// annotated with [BlobStorage(Provider = "documents")], such as MediaItem.Attachment
+var docsBucketProvider = new S3BlobProvider(s3Client, bucketName, $"{keyPrefix}documents/");
+
 var options = new FluentDynamoDbOptions()
-    .WithBlobStorage(blobProvider);
+    .WithBlobStorage(blobProvider)                          // Default for [BlobStorage] without Provider
+    .WithBlobStorage("images", imagesBucketProvider)        // For [BlobStorage(Provider = "images")]
+    .WithBlobStorage("documents", docsBucketProvider);      // For [BlobStorage(Provider = "documents")]
 
 var table = new MediaTable(dynamoClient, TableName, options);
 
@@ -106,6 +118,14 @@ ConsoleHelpers.ShowInfo($"Configuration:");
 Console.WriteLine($"  S3 Bucket: {bucketName}");
 Console.WriteLine($"  Key Prefix: {keyPrefix ?? "(none)"}");
 Console.WriteLine($"  DynamoDB Table: {TableName}");
+// Each [BlobStorage] property routes to its designated storage backend independently:
+//   - DataReference (no Provider) → default provider → s3://{bucket}/{keyPrefix}
+//   - Thumbnail (Provider = "images") → "images" provider → s3://{bucket}/{keyPrefix}images/
+//   - Attachment (Provider = "documents") → "documents" provider → s3://{bucket}/{keyPrefix}documents/
+Console.WriteLine($"  Blob Providers:");
+Console.WriteLine($"    Default  → s3://{bucketName}/{keyPrefix}");
+Console.WriteLine($"    images   → s3://{bucketName}/{keyPrefix}images/");
+Console.WriteLine($"    documents→ s3://{bucketName}/{keyPrefix}documents/");
 Console.WriteLine();
 
 // Main menu loop

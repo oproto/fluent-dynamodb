@@ -8,6 +8,10 @@ namespace InvoiceManager.Entities;
 /// This entity is part of a single-table design where the invoice header and its
 /// line items are stored with related keys, enabling retrieval of a complete
 /// invoice with a single Query operation.
+/// 
+/// The sort key uses [SortKey(Prefix = "INVOICE")] with [Computed("InvoiceNumber")]
+/// which allows the source generator to auto-derive the discriminator pattern "INVOICE#*",
+/// correctly distinguishing Invoice from InvoiceLine (which has pattern "INVOICE#*#LINE#*").
 /// </summary>
 /// <remarks>
 /// <para>
@@ -41,9 +45,7 @@ namespace InvoiceManager.Entities;
 /// related InvoiceLine entities returned in the same query.
 /// </para>
 /// </remarks>
-[DynamoDbTable("invoices", IsDefault = true,
-    DiscriminatorProperty = "sk",
-    DiscriminatorPattern = "INVOICE#*")]
+[DynamoDbTable("invoices", IsDefault = true)]
 [GenerateEntityProperty(Name = "Invoices")]
 public partial class Invoice
 {
@@ -56,9 +58,11 @@ public partial class Invoice
 
     /// <summary>
     /// Gets or sets the sort key in format "INVOICE#{invoiceNumber}".
+    /// Computed from the InvoiceNumber property.
     /// </summary>
     [SortKey(Prefix = "INVOICE")]
     [DynamoDbAttribute("sk")]
+    [Computed("InvoiceNumber")]
     public string Sk { get; set; } = string.Empty;
 
     /// <summary>

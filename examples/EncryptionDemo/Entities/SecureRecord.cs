@@ -69,19 +69,20 @@ public partial class SecureRecord
 
     /// <summary>
     /// Gets or sets the social security number.
-    /// This property is marked as [Encrypted] so it will be encrypted at rest
-    /// using KMS before storing in DynamoDB.
+    /// This property is marked as [Encrypted(KeyAlias = "pii")] so it will be encrypted at rest
+    /// using a KMS key resolved via the "pii" alias in the alias key map.
     /// </summary>
-    [Encrypted]
+    [Encrypted(KeyAlias = "pii")]
     [DynamoDbAttribute("ssn")]
     public string SocialSecurityNumber { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the credit card number.
-    /// This property is marked with both [Encrypted] and [Sensitive] attributes,
-    /// meaning it will be encrypted at rest AND redacted in log output.
+    /// This property is marked with both [Encrypted(KeyAlias = "financial")] and [Sensitive] attributes,
+    /// meaning it will be encrypted at rest using a KMS key resolved via the "financial" alias
+    /// AND redacted in log output.
     /// </summary>
-    [Encrypted]
+    [Encrypted(KeyAlias = "financial")]
     [Sensitive]
     [DynamoDbAttribute("creditCard")]
     public string CreditCardNumber { get; set; } = string.Empty;

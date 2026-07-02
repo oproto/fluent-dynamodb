@@ -112,7 +112,7 @@ static async Task CreateCustomerAsync(InvoicesTable table)
 
     var customer = new Customer
     {
-        Pk = Customer.Keys.Pk(customerId),
+        Pk = customerId,  // Auto key mode: "CUSTOMER#" prefix is applied automatically during serialization
         Sk = Customer.ProfileSk,
         CustomerId = customerId,
         Name = name,
@@ -166,9 +166,8 @@ static async Task CreateInvoiceAsync(InvoicesTable table)
 
     var invoice = new Invoice
     {
-        Pk = Invoice.Keys.Pk(customerId),
-        Sk = Invoice.Keys.Sk(invoiceNumber),
-        InvoiceNumber = invoiceNumber,
+        Pk = customerId,        // Auto key mode: "CUSTOMER#" prefix is applied automatically during serialization
+        InvoiceNumber = invoiceNumber,  // Computed key: Sk is auto-computed as "INVOICE#{invoiceNumber}"
         Date = DateTime.UtcNow,
         Status = "Draft",
         CustomerId = customerId
@@ -240,9 +239,8 @@ static async Task AddLineItemAsync(InvoicesTable table)
 
     var line = new InvoiceLine
     {
-        Pk = InvoiceLine.Keys.Pk(customerId),
-        // Complex sort key pattern - manual construction required
-        Sk = $"INVOICE#{invoiceNumber}#LINE#{lineNumber}",
+        Pk = customerId,  // Auto key mode: "CUSTOMER#" prefix is applied automatically during serialization
+        InvoiceNumber = invoiceNumber,
         LineNumber = lineNumber,
         Description = description,
         Quantity = quantity.Value,

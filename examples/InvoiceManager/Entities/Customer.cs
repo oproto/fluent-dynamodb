@@ -8,6 +8,9 @@ namespace InvoiceManager.Entities;
 /// This entity is part of a single-table design where multiple entity types
 /// (Customer, Invoice, InvoiceLine) share the same DynamoDB table. The key design
 /// uses hierarchical composite keys to enable efficient access patterns.
+/// 
+/// Discriminator value "PROFILE" is explicitly configured to ensure the Customer entity
+/// is correctly distinguished from Invoice and InvoiceLine entities in this single-table design.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -317,8 +317,10 @@ static async Task DemonstrateRequireWriteTransactionAsync(TransactionDemoTable t
     
     var financialTxn = new FinancialTransaction
     {
-        Pk = FinancialTransaction.Keys.Pk(accountId),
-        Sk = FinancialTransaction.Keys.Sk($"{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}"),
+        // Auto key mode applies "ACCOUNT#" prefix during serialization
+        Pk = accountId,
+        // Auto key mode applies "FIN#" prefix during serialization
+        Sk = $"{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}",
         AccountId = accountId,
         TransactionId = txnId,
         Amount = 500.00m,

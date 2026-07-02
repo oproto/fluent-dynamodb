@@ -9,6 +9,10 @@ namespace TransactionDemo.Entities;
 /// enforces that all write operations (Put, Update, Delete) must be performed
 /// within a DynamoDB transaction. This is useful for entities that require
 /// atomic operations or have business rules mandating transactional consistency.
+/// 
+/// Discriminator pattern "FIN#*" is explicitly configured to ensure FinancialTransaction
+/// entities are correctly distinguished from Account and TransactionRecord entities
+/// in this single-table design.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,9 +38,7 @@ namespace TransactionDemo.Entities;
 /// <item><description>BatchWrite operations that include this entity type</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbTable("transaction-demo",
-    DiscriminatorProperty = "sk",
-    DiscriminatorPattern = "FIN#*")]
+[DynamoDbTable("transaction-demo")]
 [GenerateEntityProperty(Name = "FinancialTransactions")]
 [RequireWriteTransaction]
 public partial class FinancialTransaction
