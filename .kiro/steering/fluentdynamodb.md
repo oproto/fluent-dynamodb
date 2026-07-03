@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2026-01-03
+# Updated 2026-07-12
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -50,6 +50,30 @@ public partial class Order
     [SortKey(Prefix = "ORDER")]
     [DynamoDbAttribute("sk")]
     public string OrderId { get; set; } = string.Empty;
+}
+
+// Constant key — expression-body syntax (fixed value, no parameter needed)
+[DynamoDbTable("Customers")]
+public partial class Customer
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk => "PROFILE";  // Constant key: Keys.Sk returns "PROFILE", Get(pk) omits SK param
+}
+
+// Constant key — read-only auto-property syntax
+[DynamoDbTable("Config")]
+public partial class AppConfig
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; } = "APP_CONFIG";  // Constant key: parameterless Get()/Delete()/Update()
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; } = "SETTINGS";
 }
 
 // GSI/LSI

@@ -412,7 +412,7 @@ static async Task ViewCurrentItemsAsync(TransactionDemoTable table)
     var allAccounts = await table.Accounts.Scan().ToListAsync();
     
     // Filter to only account profiles (not transaction records)
-    var accounts = allAccounts.Where(x => x.Sk == Account.ProfileSk).ToList();
+    var accounts = allAccounts.Where(x => x.Sk == "PROFILE").ToList();
     
     if (accounts.Count == 0)
     {
@@ -524,6 +524,11 @@ static async Task DeleteAllItemsAsync(TransactionDemoTable table)
         var pk = item["pk"].S;
         var sk = item["sk"].S;
         
-        await table.Accounts.Delete(pk, sk).DeleteAsync();
+        // Use raw builder since this deletes all item types (accounts + transactions)
+        // and the constant-key accessor only handles Account's fixed "PROFILE" SK
+        await table.Delete<Account>()
+            .WithKey("pk", pk)
+            .WithKey("sk", sk)
+            .DeleteAsync();
     }
 }

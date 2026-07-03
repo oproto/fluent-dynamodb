@@ -310,6 +310,7 @@ internal static class MapperGenerator
         var keyPropertiesWithPrefix = entity.Properties.Where(p =>
             (p.IsPartitionKey || p.IsSortKey) &&
             !p.IsComputed &&
+            !p.IsConstantKey &&
             p.KeyFormat != null &&
             !string.IsNullOrEmpty(p.KeyFormat.Prefix)).ToArray();
 
@@ -626,6 +627,13 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
 
+        // Handle constant key properties — emit value directly without reading from entity instance
+        if (property.IsConstantKey)
+        {
+            sb.AppendLine($"            item[\"{attributeName}\"] = new AttributeValue {{ S = \"{EscapeString(property.ConstantKeyValue!)}\" }};");
+            return;
+        }
+
         // Handle encrypted properties - these require async methods
         if (property.Security?.IsEncrypted == true)
         {
@@ -733,6 +741,13 @@ internal static class MapperGenerator
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
+
+        // Handle constant key properties — emit value directly without reading from entity instance
+        if (property.IsConstantKey)
+        {
+            sb.AppendLine($"            item[\"{attributeName}\"] = new AttributeValue {{ S = \"{EscapeString(property.ConstantKeyValue!)}\" }};");
+            return;
+        }
 
         // Handle encrypted properties (must be before other handlers)
         if (property.Security?.IsEncrypted == true)
@@ -2836,6 +2851,30 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var varName = propertyName.ToLowerInvariant() + "Value";
+
+        // Handle constant key properties — validate incoming value, skip property assignment
+        if (property.IsConstantKey)
+        {
+            var attrVarName = propertyName.ToLowerInvariant() + "Attr";
+            sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {attrVarName}))");
+            sb.AppendLine($"{indentation}{{");
+            sb.AppendLine($"{indentation}    if (!string.Equals({attrVarName}.S, \"{EscapeString(property.ConstantKeyValue!)}\", StringComparison.Ordinal))");
+            sb.AppendLine($"{indentation}    {{");
+            sb.AppendLine($"{indentation}        options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.ConstantKeyValidationMismatch,");
+            sb.AppendLine($"{indentation}            \"Expected constant key '{{AttributeName}}' = \\\"{{ExpectedValue}}\\\" but got \\\"{{ActualValue}}\\\"\",");
+            sb.AppendLine($"{indentation}            \"{attributeName}\", \"{EscapeString(property.ConstantKeyValue!)}\", {attrVarName}.S);");
+            sb.AppendLine($"{indentation}    }}");
+            sb.AppendLine($"{indentation}}}");
+            sb.AppendLine($"{indentation}else");
+            sb.AppendLine($"{indentation}{{");
+            sb.AppendLine($"{indentation}    options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.ConstantKeyAttributeMissing,");
+            sb.AppendLine($"{indentation}        \"Expected constant key attribute '{{AttributeName}}' was missing from item\",");
+            sb.AppendLine($"{indentation}        \"{attributeName}\");");
+            sb.AppendLine($"{indentation}}}");
+            // No property assignment — expression-body has no setter,
+            // read-only auto-property is set by initializer
+            return;
+        }
 
         // Handle GeoLocation properties (requires geospatial package)
         if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)

@@ -490,7 +490,6 @@ public class InvoicePropertyTests
             var customer = new Customer
             {
                 Pk = Customer.Keys.Pk(customerId),
-                Sk = Customer.ProfileSk,
                 CustomerId = customerId,
                 Name = name,
                 Email = email
@@ -577,7 +576,7 @@ public class InvoicePropertyTests
         {
             await Delete<Customer>()
                 .WithKey("pk", Customer.Keys.Pk(customerId))
-                .WithKey("sk", Customer.ProfileSk)
+                .WithKey("sk", "PROFILE")
                 .DeleteAsync();
         }
 

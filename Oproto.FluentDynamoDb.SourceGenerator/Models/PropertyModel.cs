@@ -202,4 +202,17 @@ internal class PropertyModel
     /// or when the property is not a key property.
     /// </summary>
     public string? DerivedDiscriminatorPattern { get; set; }
+
+    /// <summary>
+    /// Gets or sets the compile-time constant value for this key property.
+    /// Non-null when the property is detected as a Constant_Key via expression-body
+    /// returning a string literal/const, or read-only auto-property with string literal/const initializer.
+    /// Null for all non-constant key properties.
+    /// </summary>
+    public string? ConstantKeyValue { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether this property is a constant key.
+    /// </summary>
+    public bool IsConstantKey => ConstantKeyValue != null;
 }

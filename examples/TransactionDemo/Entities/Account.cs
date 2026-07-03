@@ -9,9 +9,9 @@ namespace TransactionDemo.Entities;
 /// transaction records share the same DynamoDB table, using composite keys
 /// to enable efficient access patterns.
 /// 
-/// The discriminator value "PROFILE" is explicitly configured to ensure Account entities
-/// are correctly distinguished from TransactionRecord and FinancialTransaction entities
-/// in this single-table design.
+/// The sort key uses an expression-body constant ("PROFILE"), which the source generator
+/// detects automatically. This means Account entities are distinguished from TransactionRecord
+/// and FinancialTransaction entities without requiring explicit discriminator configuration.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,16 +19,15 @@ namespace TransactionDemo.Entities;
 /// </para>
 /// <list type="bullet">
 /// <item><description>Partition Key (pk): "ACCOUNT#{accountId}" - groups all data for an account</description></item>
-/// <item><description>Sort Key (sk): "PROFILE" - identifies this as the account profile record</description></item>
+/// <item><description>Sort Key (sk): "PROFILE" - constant key detected automatically by the source generator</description></item>
 /// </list>
 /// <para>
 /// This design allows querying all account data (profile and transactions)
-/// with a single Query operation using the partition key.
+/// with a single Query operation using the partition key. The constant sort key means
+/// generated convenience methods (Get, Delete, Update) only require the partition key parameter.
 /// </para>
 /// </remarks>
-[DynamoDbTable("transaction-demo", IsDefault = true,
-    DiscriminatorProperty = "sk",
-    DiscriminatorValue = "PROFILE")]
+[DynamoDbTable("transaction-demo", IsDefault = true)]
 [GenerateEntityProperty(Name = "Accounts")]
 [Scannable]
 public partial class Account
@@ -42,11 +41,13 @@ public partial class Account
     public string Pk { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the sort key. For accounts, this is always "PROFILE".
+    /// The sort key. For accounts, this is always "PROFILE".
+    /// The source generator detects this as a constant key and injects it automatically
+    /// in generated convenience methods (Get, Delete, Update).
     /// </summary>
     [SortKey]
     [DynamoDbAttribute("sk")]
-    public string Sk { get; set; } = string.Empty;
+    public string Sk => "PROFILE";
 
     /// <summary>
     /// Gets or sets the unique account identifier.
@@ -65,9 +66,4 @@ public partial class Account
     /// </summary>
     [DynamoDbAttribute("balance")]
     public decimal Balance { get; set; }
-
-    /// <summary>
-    /// The sort key value for account profile records.
-    /// </summary>
-    public const string ProfileSk = "PROFILE";
 }

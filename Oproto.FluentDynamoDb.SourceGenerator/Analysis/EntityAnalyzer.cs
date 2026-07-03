@@ -623,6 +623,9 @@ internal class EntityAnalyzer
         // Extract key attributes
         ExtractKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
+        // Detect constant key values (expression-body or read-only auto-property)
+        DetectConstantKeyValue(propertyDecl, semanticModel, propertyModel);
+
         // Extract new GSI partition key attributes
         ExtractGsiPartitionKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
@@ -697,6 +700,50 @@ internal class EntityAnalyzer
         }
 
         return keyFormat;
+    }
+
+    /// <summary>
+    /// Detects whether a key property has a compile-time constant value via expression-body
+    /// or read-only auto-property syntax. Sets PropertyModel.ConstantKeyValue if detected.
+    /// </summary>
+    private void DetectConstantKeyValue(
+        PropertyDeclarationSyntax propertyDecl,
+        SemanticModel semanticModel,
+        PropertyModel propertyModel)
+    {
+        // Only applies to key properties
+        if (!propertyModel.IsPartitionKey && !propertyModel.IsSortKey)
+            return;
+
+        // Case 1: Expression-body property (public string Sk => "PROFILE")
+        if (propertyDecl.ExpressionBody != null)
+        {
+            var expr = propertyDecl.ExpressionBody.Expression;
+            var constantValue = semanticModel.GetConstantValue(expr);
+            if (constantValue.HasValue && constantValue.Value is string strValue)
+            {
+                propertyModel.ConstantKeyValue = strValue;
+            }
+            return;
+        }
+
+        // Case 2: Read-only auto-property (public string Sk { get; } = "PROFILE")
+        if (propertyDecl.AccessorList != null)
+        {
+            var accessors = propertyDecl.AccessorList.Accessors;
+            bool hasOnlyGet = accessors.Count == 1
+                && accessors[0].Kind() == Microsoft.CodeAnalysis.CSharp.SyntaxKind.GetAccessorDeclaration;
+
+            if (hasOnlyGet && propertyDecl.Initializer != null)
+            {
+                var initExpr = propertyDecl.Initializer.Value;
+                var constantValue = semanticModel.GetConstantValue(initExpr);
+                if (constantValue.HasValue && constantValue.Value is string strValue)
+                {
+                    propertyModel.ConstantKeyValue = strValue;
+                }
+            }
+        }
     }
 
     private void ExtractGsiPartitionKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
@@ -1426,6 +1473,30 @@ internal class EntityAnalyzer
                 propertyModel.PropertyName, "Entity");
         }
 
+        // FDDB120: Constant key + [Computed]
+        if (propertyModel.IsConstantKey && propertyModel.IsComputed)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyComputedConflict,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
+        // FDDB121: Constant key + Prefix
+        if (propertyModel.IsConstantKey && propertyModel.KeyFormat?.Prefix != null)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyPrefixConflict,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
+        // FDDB123: Empty/whitespace constant value
+        if (propertyModel.IsConstantKey && string.IsNullOrWhiteSpace(propertyModel.ConstantKeyValue))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyEmptyValue,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
         // Performance warnings for large types
         ValidatePropertyPerformance(propertyModel);
     }
@@ -2084,6 +2155,15 @@ internal class EntityAnalyzer
             return;
         }
 
+        // FDDB122: Cannot extract from a constant key property
+        var sourceProperty = entityModel.Properties.FirstOrDefault(p => p.PropertyName == extractedKey.SourceProperty);
+        if (sourceProperty != null && sourceProperty.IsConstantKey)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyExtractedConflict,
+                extractedProperty.PropertyDeclaration?.GetLocation(),
+                extractedProperty.PropertyName, sourceProperty.PropertyName);
+        }
+
         // Validate index is non-negative
         if (extractedKey.Index < 0)
         {
@@ -2520,6 +2600,10 @@ internal class EntityAnalyzer
             "DYNDB002" => true, // Multiple partition keys
             "DYNDB010" => true, // Entity must be partial
             "FDDB051" => true, // Non-partial table type
+            "FDDB120" => true, // Constant key + Computed conflict
+            "FDDB121" => true, // Constant key + Prefix conflict
+            "FDDB122" => true, // Extracted from constant key conflict
+            "FDDB123" => true, // Empty constant key value
             "DYNDB007" => false, // Missing DynamoDbAttribute - not critical, can still generate
             _ => false
         };
@@ -2845,7 +2929,12 @@ internal class EntityAnalyzer
             if (!property.IsPartitionKey && !property.IsSortKey)
                 continue;
 
-            if (property.ComputedKey != null)
+            if (property.IsConstantKey)
+            {
+                // Constant key: the format IS the value — no placeholder substitution needed
+                property.NormalizedKeyFormat = property.ConstantKeyValue;
+            }
+            else if (property.ComputedKey != null)
             {
                 // Resolve source property models for Format injection (positional correspondence maintained)
                 var sourcePropertyModels = property.ComputedKey.SourceProperties
@@ -2891,7 +2980,15 @@ internal class EntityAnalyzer
             if (property.NormalizedKeyFormat == null)
                 continue;
 
-            property.DerivedDiscriminatorPattern = DeriveDiscriminatorPattern(property.NormalizedKeyFormat);
+            if (property.IsConstantKey)
+            {
+                // Constant key: the pattern IS the exact value — no wildcards
+                property.DerivedDiscriminatorPattern = property.ConstantKeyValue;
+            }
+            else
+            {
+                property.DerivedDiscriminatorPattern = DeriveDiscriminatorPattern(property.NormalizedKeyFormat);
+            }
         }
     }
 
@@ -2955,16 +3052,19 @@ internal class EntityAnalyzer
     /// Creates a DiscriminatorConfig for an auto-derived discriminator pattern.
     /// </summary>
     /// <param name="attributeName">The DynamoDB attribute name of the key property (e.g., "sk", "pk").</param>
-    /// <param name="pattern">The derived discriminator pattern (e.g., "ORDER#*").</param>
+    /// <param name="pattern">The derived discriminator pattern (e.g., "ORDER#*", or "PROFILE" for constant keys).</param>
     /// <returns>A new DiscriminatorConfig with IsAutoDerived set to true.</returns>
     private static DiscriminatorConfig CreateAutoDerivedDiscriminatorConfig(
         string attributeName, string pattern)
     {
+        var strategy = DiscriminatorAnalyzer.DeterminePatternStrategy(pattern);
+
         return new DiscriminatorConfig
         {
             PropertyName = attributeName,
-            Pattern = pattern,
-            Strategy = DiscriminatorAnalyzer.DeterminePatternStrategy(pattern),
+            Pattern = strategy == DiscriminatorStrategy.ExactMatch ? null : pattern,
+            ExactValue = strategy == DiscriminatorStrategy.ExactMatch ? pattern : null,
+            Strategy = strategy,
             IsAutoDerived = true
         };
     }
