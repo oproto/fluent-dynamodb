@@ -57,6 +57,79 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-07-12]
+
+### New Diagnostics: FDDB120–FDDB123 — Constant Key Conflict Detection
+
+**Category:** New Feature Documentation
+
+### Files: docs/diagnostics/FDDB/FDDB120.md, FDDB121.md, FDDB122.md, FDDB123.md
+
+**Description:** Added per-code diagnostic documentation pages for the four new constant key detection diagnostics. Each page includes code identifier, severity, message format, description, triggering example, and fix example. Updated `docs/diagnostics/README.md` index to include the new codes.
+
+| Code | Severity | Title |
+|------|----------|-------|
+| FDDB120 | Error | Constant key conflicts with computed attribute |
+| FDDB121 | Error | Prefix not applicable to constant key |
+| FDDB122 | Error | Cannot extract from constant key |
+| FDDB123 | Error | Empty constant key value |
+
+**Reason:** The constant key detection feature (introduced in this release) adds four new compile-time diagnostics that catch invalid configurations. Each diagnostic halts code generation for the affected entity. Documentation pages enable the `helpLinkUri` on each `DiagnosticDescriptor` to resolve to a useful page at `https://fluentdynamodb.dev/diagnostics/FDDB12x`.
+
+---
+
+## [2026-07-12]
+
+### New Feature Documentation: Constant Key Detection
+
+**Category:** New Feature Documentation
+
+### File: docs/core-features/ConstantKeyDetection.md
+
+**Description:** Added comprehensive documentation for the constant key detection feature. The source generator now detects key properties returning fixed compile-time string values via expression-body (`=>`) or read-only auto-property syntax and propagates the constant through the entire generation pipeline. Documentation covers: detection patterns, Keys class simplification, convenience method simplification, serialization/deserialization behavior, update model exclusion, auto-discriminator derivation, and four new diagnostics (FDDB120–FDDB123).
+
+**Before:**
+```csharp
+// Manual discriminator configuration required for fixed sort key values
+[DynamoDbTable("Customers", DiscriminatorProperty = "sk", DiscriminatorValue = "PROFILE")]
+public partial class Customer
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+// Convenience methods required passing the constant sort key value
+var customer = await table.Customers.Get(customerId, "PROFILE").GetItemAsync();
+```
+
+**After:**
+```csharp
+// Constant key detected automatically — no manual discriminator needed
+[DynamoDbTable("Customers")]
+public partial class Customer
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk => "PROFILE";  // Constant key — expression body
+}
+
+// Convenience methods simplified — constant SK injected internally
+var customer = await table.Customers.Get(customerId).GetItemAsync();
+```
+
+**Reason:** New feature enables concise declaration of fixed key values using C# language constructs (expression-body and read-only auto-property syntax). The source generator auto-derives discriminator patterns, simplifies generated convenience methods, and handles serialization/deserialization correctly for properties that may lack setters. Four new diagnostics (FDDB120–FDDB123) catch invalid configurations at compile time.
+
+---
+
 ## [2026-06-29]
 
 ### Fix: Update Method Parameter Ordering in KeyInputMode Documentation

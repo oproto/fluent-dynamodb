@@ -967,6 +967,16 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
+            // Constant key simplification: omit constant key parameters
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
+            
+            if (constantSk || constantPk)
+            {
+                GenerateConstantKeyGetMethod(sb, entity, modifier, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode, generateTraditionalAsync);
+            }
+            else
+            {
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
             sb.AppendLine($"        /// </summary>");
@@ -1062,6 +1072,7 @@ internal static class TableGenerator
                 }
                 sb.AppendLine();
             }
+            } // end non-constant composite key
         }
         
         // Generate typed convenience overload if eligible
@@ -1580,6 +1591,16 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
+            // Constant key simplification: omit constant key parameters
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
+            
+            if (constantSk || constantPk)
+            {
+                GenerateConstantKeyUpdateMethod(sb, entity, modifier, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode, updateBuilderClassName);
+            }
+            else
+            {
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
             sb.AppendLine($"        /// Returns an entity-specific update builder with simplified Set() methods.");
@@ -1651,6 +1672,7 @@ internal static class TableGenerator
             sb.AppendLine($"            await builder.UpdateAsync(cancellationToken);");
             sb.AppendLine($"        }}");
             sb.AppendLine();
+            } // end non-constant composite key
         }
         
         // Generate typed convenience overload if eligible
@@ -1854,6 +1876,16 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
+            // Constant key simplification: omit constant key parameters
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
+            
+            if (constantSk || constantPk)
+            {
+                GenerateConstantKeyDeleteMethod(sb, entity, modifier, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode, generateTraditionalAsync);
+            }
+            else
+            {
             sb.AppendLine($"        /// <summary>");
             sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
             sb.AppendLine($"        /// </summary>");
@@ -2011,6 +2043,7 @@ internal static class TableGenerator
                 }
                 sb.AppendLine();
             }
+            } // end non-constant composite key
         }
         
         // Generate typed convenience overload if eligible
@@ -2504,6 +2537,16 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
+            // Constant key simplification: omit constant key parameters
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
+            
+            if (constantSk || constantPk)
+            {
+                GenerateTableLevelConstantKeyGetMethod(sb, entity, entityPropertyName, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode, generateTraditionalAsync);
+            }
+            else
+            {
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
             sb.AppendLine($"    /// </summary>");
@@ -2576,6 +2619,7 @@ internal static class TableGenerator
                 }
                 sb.AppendLine();
             }
+            } // end non-constant table-level Get
         }
         
         // Generate typed overload at table level if eligible
@@ -2638,6 +2682,16 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
+            // Constant key simplification: omit constant key parameters
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
+            
+            if (constantSk || constantPk)
+            {
+                GenerateTableLevelConstantKeyUpdateMethod(sb, entity, entityPropertyName, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode, updateBuilderClassName);
+            }
+            else
+            {
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Updates a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
             sb.AppendLine($"    /// Returns an entity-specific update builder with simplified Set() methods.");
@@ -2660,6 +2714,7 @@ internal static class TableGenerator
                 sb.AppendLine($"        {entityPropertyName}.Update({pkParamName}, {skParamName}, keyCondition);");
             }
             sb.AppendLine();
+            } // end non-constant table-level Update
         }
         
         // Generate typed overload at table level if eligible
@@ -2800,6 +2855,16 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
+            // Constant key simplification: omit constant key parameters
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
+            
+            if (constantSk || constantPk)
+            {
+                GenerateTableLevelConstantKeyDeleteMethod(sb, entity, entityPropertyName, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode, generateTraditionalAsync);
+            }
+            else
+            {
             sb.AppendLine($"    /// <summary>");
             sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
             sb.AppendLine($"    /// </summary>");
@@ -2902,6 +2967,7 @@ internal static class TableGenerator
                 }
                 sb.AppendLine();
             }
+            } // end non-constant table-level Delete
         }
         
         // Generate typed overload at table level if eligible
@@ -4464,6 +4530,857 @@ internal static class TableGenerator
         return $"var {effectiveVarName} = KeyPrefixHelper.ApplyKeyPrefix({paramName}, \"{prefix}\", \"{separator}\", resolvedMode);";
     }
 
+    #region Constant Key Simplification Helpers
+    
+    /// <summary>
+    /// Generates a simplified Get method for entities with constant keys (accessor level).
+    /// Omits constant key parameters and injects their values directly in the WithKey call.
+    /// </summary>
+    private static void GenerateConstantKeyGetMethod(StringBuilder sb, EntityModel entity, string modifier,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode, bool generateTraditionalAsync)
+    {
+        var escapedPkConstant = constantPk ? MapperGenerator.EscapeString(partitionKey.ConstantKeyValue!) : null;
+        var escapedSkConstant = constantSk ? MapperGenerator.EscapeString(sortKey.ConstantKeyValue!) : null;
+        
+        if (constantPk && constantSk)
+        {
+            // Both keys constant — parameterless method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Gets a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the constant keys.</returns>");
+            sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get() =>");
+            sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedPkConstant}\").WithKey(\"{skAttributeName}\", \"{escapedSkConstant}\");");
+            sb.AppendLine();
+            
+            if (generateTraditionalAsync)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Gets a {entity.ClassName} using its constant key values and executes the request.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync(System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            return await Get().GetItemAsync(cancellationToken);");
+                sb.AppendLine($"        }}");
+                sb.AppendLine();
+            }
+            
+            if (entity.UseFluentResults)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Gets a {entity.ClassName} using its constant key values and returns a Result.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A Result containing the {entity.ClassName} entity if found, otherwise null, or error details.</returns>");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult(System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"            Get().GetItemAsyncResult(cancellationToken);");
+                sb.AppendLine();
+            }
+        }
+        else if (constantSk && !constantPk)
+        {
+            // Constant SK, variable PK — single PK parameter
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key). The sort key is constant.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"        /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+            
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
+                var pkEffective = GenerateKeyPrefixApplication(partitionKey, paramName, "effectivePk");
+                if (pkEffective != null)
+                {
+                    sb.AppendLine($"            {pkEffective}");
+                    sb.AppendLine($"            return _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", effectivePk).WithKey(\"{skAttributeName}\", \"{escapedSkConstant}\");");
+                }
+                else
+                {
+                    sb.AppendLine($"            return _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName}).WithKey(\"{skAttributeName}\", \"{escapedSkConstant}\");");
+                }
+                sb.AppendLine($"        }}");
+            }
+            else
+            {
+                sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({pkPropertyType} {paramName}) =>");
+                sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName}).WithKey(\"{skAttributeName}\", \"{escapedSkConstant}\");");
+            }
+            sb.AppendLine();
+            
+            if (generateTraditionalAsync)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and executes the request. The sort key is constant.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+                if (qualifiesForKeyInputMode)
+                    sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+                if (qualifiesForKeyInputMode)
+                {
+                    sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({pkPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default)");
+                    sb.AppendLine($"        {{");
+                    sb.AppendLine($"            return await Get({paramName}, mode).GetItemAsync(cancellationToken);");
+                    sb.AppendLine($"        }}");
+                }
+                else
+                {
+                    sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default)");
+                    sb.AppendLine($"        {{");
+                    sb.AppendLine($"            return await Get({paramName}).GetItemAsync(cancellationToken);");
+                    sb.AppendLine($"        }}");
+                }
+                sb.AppendLine();
+            }
+            
+            if (entity.UseFluentResults)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Gets a {entity.ClassName} by its {pkAttributeName} (partition key) and returns a Result. The sort key is constant.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{paramName}\">The {pkAttributeName} value.</param>");
+                if (qualifiesForKeyInputMode)
+                    sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A Result containing the {entity.ClassName} entity if found, otherwise null, or error details.</returns>");
+                if (qualifiesForKeyInputMode)
+                {
+                    sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({pkPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default) =>");
+                    sb.AppendLine($"            Get({paramName}, mode).GetItemAsyncResult(cancellationToken);");
+                }
+                else
+                {
+                    sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({pkPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                    sb.AppendLine($"            Get({paramName}).GetItemAsyncResult(cancellationToken);");
+                }
+                sb.AppendLine();
+            }
+        }
+        else if (constantPk && !constantSk)
+        {
+            // Constant PK, variable SK — single SK parameter
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Gets a {entity.ClassName} by its {skAttributeName} (sort key). The partition key is constant.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {skAttributeName} value.</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"        /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+            
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({skPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
+                var skEffective = GenerateKeyPrefixApplication(sortKey, paramName, "effectiveSk");
+                if (skEffective != null)
+                {
+                    sb.AppendLine($"            {skEffective}");
+                    sb.AppendLine($"            return _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedPkConstant}\").WithKey(\"{skAttributeName}\", effectiveSk);");
+                }
+                else
+                {
+                    sb.AppendLine($"            return _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedPkConstant}\").WithKey(\"{skAttributeName}\", {paramName});");
+                }
+                sb.AppendLine($"        }}");
+            }
+            else
+            {
+                sb.AppendLine($"        {modifier} GetItemRequestBuilder<{entity.ClassName}> Get({skPropertyType} {paramName}) =>");
+                sb.AppendLine($"            _table.Get<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedPkConstant}\").WithKey(\"{skAttributeName}\", {paramName});");
+            }
+            sb.AppendLine();
+            
+            if (generateTraditionalAsync)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Gets a {entity.ClassName} by its {skAttributeName} (sort key) and executes the request. The partition key is constant.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{paramName}\">The {skAttributeName} value.</param>");
+                if (qualifiesForKeyInputMode)
+                    sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+                if (qualifiesForKeyInputMode)
+                {
+                    sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({skPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default)");
+                    sb.AppendLine($"        {{");
+                    sb.AppendLine($"            return await Get({paramName}, mode).GetItemAsync(cancellationToken);");
+                    sb.AppendLine($"        }}");
+                }
+                else
+                {
+                    sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({skPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default)");
+                    sb.AppendLine($"        {{");
+                    sb.AppendLine($"            return await Get({paramName}).GetItemAsync(cancellationToken);");
+                    sb.AppendLine($"        }}");
+                }
+                sb.AppendLine();
+            }
+            
+            if (entity.UseFluentResults)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Gets a {entity.ClassName} by its {skAttributeName} (sort key) and returns a Result. The partition key is constant.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{paramName}\">The {skAttributeName} value.</param>");
+                if (qualifiesForKeyInputMode)
+                    sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A Result containing the {entity.ClassName} entity if found, otherwise null, or error details.</returns>");
+                if (qualifiesForKeyInputMode)
+                {
+                    sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({skPropertyType} {paramName}, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default) =>");
+                    sb.AppendLine($"            Get({paramName}, mode).GetItemAsyncResult(cancellationToken);");
+                }
+                else
+                {
+                    sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({skPropertyType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                    sb.AppendLine($"            Get({paramName}).GetItemAsyncResult(cancellationToken);");
+                }
+                sb.AppendLine();
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Generates a simplified Delete method for entities with constant keys (accessor level).
+    /// </summary>
+    private static void GenerateConstantKeyDeleteMethod(StringBuilder sb, EntityModel entity, string modifier,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode, bool generateTraditionalAsync)
+    {
+        var escapedPkConstant = constantPk ? MapperGenerator.EscapeString(partitionKey.ConstantKeyValue!) : null;
+        var escapedSkConstant = constantSk ? MapperGenerator.EscapeString(sortKey.ConstantKeyValue!) : null;
+        
+        if (constantPk && constantSk)
+        {
+            // Both keys constant — parameterless method (with optional KeyCondition)
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Deletes a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the constant keys.</returns>");
+            sb.AppendLine($"        {modifier} DeleteItemRequestBuilder<{entity.ClassName}> Delete() =>");
+            sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedPkConstant}\").WithKey(\"{skAttributeName}\", \"{escapedSkConstant}\");");
+            sb.AppendLine();
+            
+            if (generateTraditionalAsync)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Deletes a {entity.ClassName} using its constant key values and executes the request.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync(KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete();");
+                sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+                sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+                sb.AppendLine($"            await builder.DeleteAsync(cancellationToken);");
+                sb.AppendLine($"        }}");
+                sb.AppendLine();
+            }
+            
+            if (entity.UseFluentResults)
+            {
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Deletes a {entity.ClassName} using its constant key values and returns a Result.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult(KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete();");
+                sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+                sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+                sb.AppendLine($"            return builder.DeleteAsyncResult(cancellationToken);");
+                sb.AppendLine($"        }}");
+                sb.AppendLine();
+            }
+        }
+        else if (constantSk && !constantPk)
+        {
+            // Constant SK, variable PK
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            GenerateConstantKeyDeleteMethodSingleParam(sb, entity, modifier, partitionKey, pkAttributeName, skAttributeName, pkPropertyType, paramName, escapedSkConstant!, true, qualifiesForKeyInputMode, generateTraditionalAsync);
+        }
+        else if (constantPk && !constantSk)
+        {
+            // Constant PK, variable SK
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            GenerateConstantKeyDeleteMethodSingleParam(sb, entity, modifier, sortKey, pkAttributeName, skAttributeName, skPropertyType, paramName, escapedPkConstant!, false, qualifiesForKeyInputMode, generateTraditionalAsync);
+        }
+    }
+    
+    private static void GenerateConstantKeyDeleteMethodSingleParam(StringBuilder sb, EntityModel entity, string modifier,
+        PropertyModel variableKey, string pkAttributeName, string skAttributeName, string variableKeyType,
+        string paramName, string escapedConstantValue, bool constantIsSk, bool qualifiesForKeyInputMode, bool generateTraditionalAsync)
+    {
+        var variableAttrName = constantIsSk ? pkAttributeName : skAttributeName;
+        var constantAttrName = constantIsSk ? skAttributeName : pkAttributeName;
+        var variableKeyDesc = constantIsSk ? "partition key" : "sort key";
+        var constantKeyDesc = constantIsSk ? "sort key" : "partition key";
+        
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {variableAttrName} ({variableKeyDesc}). The {constantKeyDesc} is constant.");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"{paramName}\">The {variableAttrName} value.</param>");
+        if (qualifiesForKeyInputMode)
+            sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+        sb.AppendLine($"        /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        
+        if (qualifiesForKeyInputMode)
+        {
+            sb.AppendLine($"        {modifier} DeleteItemRequestBuilder<{entity.ClassName}> Delete({variableKeyType} {paramName}, KeyInputMode mode = KeyInputMode.Default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
+            var effective = GenerateKeyPrefixApplication(variableKey, paramName, "effectiveKey");
+            if (effective != null)
+            {
+                sb.AppendLine($"            {effective}");
+                if (constantIsSk)
+                    sb.AppendLine($"            return _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", effectiveKey).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+                else
+                    sb.AppendLine($"            return _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", effectiveKey);");
+            }
+            else
+            {
+                if (constantIsSk)
+                    sb.AppendLine($"            return _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName}).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+                else
+                    sb.AppendLine($"            return _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", {paramName});");
+            }
+            sb.AppendLine($"        }}");
+        }
+        else
+        {
+            sb.AppendLine($"        {modifier} DeleteItemRequestBuilder<{entity.ClassName}> Delete({variableKeyType} {paramName}) =>");
+            if (constantIsSk)
+                sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName}).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+            else
+                sb.AppendLine($"            _table.Delete<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", {paramName});");
+        }
+        sb.AppendLine();
+        
+        if (generateTraditionalAsync)
+        {
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {variableAttrName} ({variableKeyDesc}) and executes the request. The {constantKeyDesc} is constant.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {variableAttrName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({variableKeyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete({paramName}, mode);");
+            }
+            else
+            {
+                sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({variableKeyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete({paramName});");
+            }
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+            sb.AppendLine($"            await builder.DeleteAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+        }
+        
+        if (entity.UseFluentResults)
+        {
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Deletes a {entity.ClassName} by its {variableAttrName} ({variableKeyDesc}) and returns a Result. The {constantKeyDesc} is constant.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"{paramName}\">The {variableAttrName} value.</param>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({variableKeyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete({paramName}, mode);");
+            }
+            else
+            {
+                sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({variableKeyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default)");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            var builder = Delete({paramName});");
+            }
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+            sb.AppendLine($"            return builder.DeleteAsyncResult(cancellationToken);");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+        }
+    }
+    
+    /// <summary>
+    /// Generates a simplified Update method for entities with constant keys (accessor level).
+    /// </summary>
+    private static void GenerateConstantKeyUpdateMethod(StringBuilder sb, EntityModel entity, string modifier,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode, string updateBuilderClassName)
+    {
+        var escapedPkConstant = constantPk ? MapperGenerator.EscapeString(partitionKey.ConstantKeyValue!) : null;
+        var escapedSkConstant = constantSk ? MapperGenerator.EscapeString(sortKey.ConstantKeyValue!) : null;
+        
+        if (constantPk && constantSk)
+        {
+            // Both keys constant — only KeyCondition parameter
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Updates a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"        /// Returns an entity-specific update builder with simplified Set() methods.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the constant keys.</returns>");
+            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update(KeyCondition keyCondition = KeyCondition.None)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
+            sb.AppendLine($"            builder.ForTable(_table.Name);");
+            sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", \"{escapedPkConstant}\").WithKey(\"{skAttributeName}\", \"{escapedSkConstant}\");");
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+            sb.AppendLine($"            return builder;");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+            
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Updates a {entity.ClassName} using its constant key values and executes the request.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <param name=\"configureUpdate\">Action to configure the update builder.</param>");
+            sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+            sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task UpdateAsync(System.Action<{updateBuilderClassName}> configureUpdate, System.Threading.CancellationToken cancellationToken = default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = Update();");
+            sb.AppendLine($"            configureUpdate(builder);");
+            sb.AppendLine($"            await builder.UpdateAsync(cancellationToken);");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+        }
+        else if (constantSk && !constantPk)
+        {
+            // Constant SK, variable PK
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            GenerateConstantKeyUpdateMethodSingleParam(sb, entity, modifier, partitionKey, pkAttributeName, skAttributeName, pkPropertyType, paramName, escapedSkConstant!, true, qualifiesForKeyInputMode, updateBuilderClassName);
+        }
+        else if (constantPk && !constantSk)
+        {
+            // Constant PK, variable SK
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            GenerateConstantKeyUpdateMethodSingleParam(sb, entity, modifier, sortKey, pkAttributeName, skAttributeName, skPropertyType, paramName, escapedPkConstant!, false, qualifiesForKeyInputMode, updateBuilderClassName);
+        }
+    }
+    
+    private static void GenerateConstantKeyUpdateMethodSingleParam(StringBuilder sb, EntityModel entity, string modifier,
+        PropertyModel variableKey, string pkAttributeName, string skAttributeName, string variableKeyType,
+        string paramName, string escapedConstantValue, bool constantIsSk, bool qualifiesForKeyInputMode, string updateBuilderClassName)
+    {
+        var variableAttrName = constantIsSk ? pkAttributeName : skAttributeName;
+        var constantAttrName = constantIsSk ? skAttributeName : pkAttributeName;
+        var variableKeyDesc = constantIsSk ? "partition key" : "sort key";
+        var constantKeyDesc = constantIsSk ? "sort key" : "partition key";
+        
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Updates a {entity.ClassName} by its {variableAttrName} ({variableKeyDesc}). The {constantKeyDesc} is constant.");
+        sb.AppendLine($"        /// Returns an entity-specific update builder with simplified Set() methods.");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"{paramName}\">The {variableAttrName} value.</param>");
+        sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+        if (qualifiesForKeyInputMode)
+            sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+        sb.AppendLine($"        /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
+        
+        if (qualifiesForKeyInputMode)
+        {
+            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({variableKeyType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
+            var effective = GenerateKeyPrefixApplication(variableKey, paramName, "effectiveKey");
+            if (effective != null)
+                sb.AppendLine($"            {effective}");
+            var effectiveVarName = effective != null ? "effectiveKey" : paramName;
+            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
+            sb.AppendLine($"            builder.ForTable(_table.Name);");
+            if (constantIsSk)
+                sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {effectiveVarName}).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+            else
+                sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", {effectiveVarName});");
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+            sb.AppendLine($"            return builder;");
+            sb.AppendLine($"        }}");
+        }
+        else
+        {
+            sb.AppendLine($"        {modifier} {updateBuilderClassName} Update({variableKeyType} {paramName}, KeyCondition keyCondition = KeyCondition.None)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var builder = new {updateBuilderClassName}(_table.DynamoDbClient, _table.Options);");
+            sb.AppendLine($"            builder.ForTable(_table.Name);");
+            if (constantIsSk)
+                sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", {paramName}).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+            else
+                sb.AppendLine($"            builder.WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", {paramName});");
+            sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+            sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+            sb.AppendLine($"            return builder;");
+            sb.AppendLine($"        }}");
+        }
+        sb.AppendLine();
+        
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Updates a {entity.ClassName} by its {variableAttrName} ({variableKeyDesc}) and executes the request. The {constantKeyDesc} is constant.");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"{paramName}\">The {variableAttrName} value.</param>");
+        sb.AppendLine($"        /// <param name=\"configureUpdate\">Action to configure the update builder.</param>");
+        sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+        sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task UpdateAsync({variableKeyType} {paramName}, System.Action<{updateBuilderClassName}> configureUpdate, System.Threading.CancellationToken cancellationToken = default)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            var builder = Update({paramName});");
+        sb.AppendLine($"            configureUpdate(builder);");
+        sb.AppendLine($"            await builder.UpdateAsync(cancellationToken);");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates table-level simplified Get method for entities with constant keys.
+    /// Delegates to the accessor's simplified method.
+    /// </summary>
+    private static void GenerateTableLevelConstantKeyGetMethod(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode, bool generateTraditionalAsync)
+    {
+        if (constantPk && constantSk)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Gets a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the constant keys.</returns>");
+            sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get() =>");
+            sb.AppendLine($"        {entityPropertyName}.Get();");
+            sb.AppendLine();
+            
+            if (generateTraditionalAsync)
+            {
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Gets a {entity.ClassName} using its constant key values and executes the request.");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync(System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.GetAsync(cancellationToken);");
+                sb.AppendLine();
+            }
+            
+            if (entity.UseFluentResults)
+            {
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Gets a {entity.ClassName} using its constant key values and returns a Result.");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>A Result containing the {entity.ClassName} entity if found, otherwise null, or error details.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult(System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.GetAsyncResult(cancellationToken);");
+                sb.AppendLine();
+            }
+        }
+        else if (constantSk && !constantPk)
+        {
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            GenerateTableLevelConstantKeySingleParamGet(sb, entity, entityPropertyName, pkPropertyType, paramName, pkAttributeName, qualifiesForKeyInputMode, generateTraditionalAsync);
+        }
+        else if (constantPk && !constantSk)
+        {
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            GenerateTableLevelConstantKeySingleParamGet(sb, entity, entityPropertyName, skPropertyType, paramName, skAttributeName, qualifiesForKeyInputMode, generateTraditionalAsync);
+        }
+    }
+    
+    private static void GenerateTableLevelConstantKeySingleParamGet(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        string paramType, string paramName, string attrName, bool qualifiesForKeyInputMode, bool generateTraditionalAsync)
+    {
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Gets a {entity.ClassName} by its {attrName}.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+        if (qualifiesForKeyInputMode)
+            sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+        sb.AppendLine($"    /// <returns>A GetItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        if (qualifiesForKeyInputMode)
+        {
+            sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({paramType} {paramName}, KeyInputMode mode = KeyInputMode.Default) =>");
+            sb.AppendLine($"        {entityPropertyName}.Get({paramName}, mode);");
+        }
+        else
+        {
+            sb.AppendLine($"    public GetItemRequestBuilder<{entity.ClassName}> Get({paramType} {paramName}) =>");
+            sb.AppendLine($"        {entityPropertyName}.Get({paramName});");
+        }
+        sb.AppendLine();
+        
+        if (generateTraditionalAsync)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Gets a {entity.ClassName} by its {attrName} and executes the request.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"    /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({paramType} {paramName}, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.GetAsync({paramName}, mode, cancellationToken);");
+            }
+            else
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({paramType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.GetAsync({paramName}, cancellationToken);");
+            }
+            sb.AppendLine();
+        }
+        
+        if (entity.UseFluentResults)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Gets a {entity.ClassName} by its {attrName} and returns a Result.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"    /// <returns>A Result containing the {entity.ClassName} entity if found, otherwise null, or error details.</returns>");
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({paramType} {paramName}, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.GetAsyncResult({paramName}, mode, cancellationToken);");
+            }
+            else
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({paramType} {paramName}, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.GetAsyncResult({paramName}, cancellationToken);");
+            }
+            sb.AppendLine();
+        }
+    }
+    
+    /// <summary>
+    /// Generates table-level simplified Delete method for entities with constant keys.
+    /// </summary>
+    private static void GenerateTableLevelConstantKeyDeleteMethod(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode, bool generateTraditionalAsync)
+    {
+        if (constantPk && constantSk)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Deletes a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the constant keys.</returns>");
+            sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete() =>");
+            sb.AppendLine($"        {entityPropertyName}.Delete();");
+            sb.AppendLine();
+            
+            if (generateTraditionalAsync)
+            {
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Deletes a {entity.ClassName} using its constant key values and executes the request.");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>A task representing the async operation.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync(KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsync(keyCondition, cancellationToken);");
+                sb.AppendLine();
+            }
+            
+            if (entity.UseFluentResults)
+            {
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Deletes a {entity.ClassName} using its constant key values and returns a Result.");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+                sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+                sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult(KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult(keyCondition, cancellationToken);");
+                sb.AppendLine();
+            }
+        }
+        else if (constantSk && !constantPk)
+        {
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            GenerateTableLevelConstantKeySingleParamDelete(sb, entity, entityPropertyName, pkPropertyType, paramName, pkAttributeName, qualifiesForKeyInputMode, generateTraditionalAsync);
+        }
+        else if (constantPk && !constantSk)
+        {
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            GenerateTableLevelConstantKeySingleParamDelete(sb, entity, entityPropertyName, skPropertyType, paramName, skAttributeName, qualifiesForKeyInputMode, generateTraditionalAsync);
+        }
+    }
+    
+    private static void GenerateTableLevelConstantKeySingleParamDelete(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        string paramType, string paramName, string attrName, bool qualifiesForKeyInputMode, bool generateTraditionalAsync)
+    {
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {attrName}.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+        if (qualifiesForKeyInputMode)
+            sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+        sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        if (qualifiesForKeyInputMode)
+        {
+            sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({paramType} {paramName}, KeyInputMode mode = KeyInputMode.Default) =>");
+            sb.AppendLine($"        {entityPropertyName}.Delete({paramName}, mode);");
+        }
+        else
+        {
+            sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({paramType} {paramName}) =>");
+            sb.AppendLine($"        {entityPropertyName}.Delete({paramName});");
+        }
+        sb.AppendLine();
+        
+        if (generateTraditionalAsync)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {attrName} and executes the request.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"    /// <returns>A task representing the async operation.</returns>");
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({paramType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsync({paramName}, keyCondition, mode, cancellationToken);");
+            }
+            else
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({paramType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsync({paramName}, keyCondition, cancellationToken);");
+            }
+            sb.AppendLine();
+        }
+        
+        if (entity.UseFluentResults)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Deletes a {entity.ClassName} by its {attrName} and returns a Result.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            if (qualifiesForKeyInputMode)
+                sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+            sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+            sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
+            if (qualifiesForKeyInputMode)
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({paramType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult({paramName}, keyCondition, mode, cancellationToken);");
+            }
+            else
+            {
+                sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({paramType} {paramName}, KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default) =>");
+                sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult({paramName}, keyCondition, cancellationToken);");
+            }
+            sb.AppendLine();
+        }
+    }
+    
+    /// <summary>
+    /// Generates table-level simplified Update method for entities with constant keys.
+    /// </summary>
+    private static void GenerateTableLevelConstantKeyUpdateMethod(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode, string updateBuilderClassName)
+    {
+        if (constantPk && constantSk)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Updates a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"    /// Returns an entity-specific update builder with simplified Set() methods.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+            sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the constant keys.</returns>");
+            sb.AppendLine($"    public {updateBuilderClassName} Update(KeyCondition keyCondition = KeyCondition.None) =>");
+            sb.AppendLine($"        {entityPropertyName}.Update(keyCondition);");
+            sb.AppendLine();
+        }
+        else if (constantSk && !constantPk)
+        {
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            GenerateTableLevelConstantKeySingleParamUpdate(sb, entity, entityPropertyName, pkPropertyType, paramName, pkAttributeName, qualifiesForKeyInputMode, updateBuilderClassName);
+        }
+        else if (constantPk && !constantSk)
+        {
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            GenerateTableLevelConstantKeySingleParamUpdate(sb, entity, entityPropertyName, skPropertyType, paramName, skAttributeName, qualifiesForKeyInputMode, updateBuilderClassName);
+        }
+    }
+    
+    private static void GenerateTableLevelConstantKeySingleParamUpdate(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        string paramType, string paramName, string attrName, bool qualifiesForKeyInputMode, string updateBuilderClassName)
+    {
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Updates a {entity.ClassName} by its {attrName}.");
+        sb.AppendLine($"    /// Returns an entity-specific update builder with simplified Set() methods.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+        sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+        if (qualifiesForKeyInputMode)
+            sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+        sb.AppendLine($"    /// <returns>A {updateBuilderClassName} configured with the key.</returns>");
+        if (qualifiesForKeyInputMode)
+        {
+            sb.AppendLine($"    public {updateBuilderClassName} Update({paramType} {paramName}, KeyCondition keyCondition = KeyCondition.None, KeyInputMode mode = KeyInputMode.Default) =>");
+            sb.AppendLine($"        {entityPropertyName}.Update({paramName}, keyCondition, mode);");
+        }
+        else
+        {
+            sb.AppendLine($"    public {updateBuilderClassName} Update({paramType} {paramName}, KeyCondition keyCondition = KeyCondition.None) =>");
+            sb.AppendLine($"        {entityPropertyName}.Update({paramName}, keyCondition);");
+        }
+        sb.AppendLine();
+    }
+    
+    #endregion
+    
     private static string ToCamelCase(string text)
     {
         if (string.IsNullOrEmpty(text))

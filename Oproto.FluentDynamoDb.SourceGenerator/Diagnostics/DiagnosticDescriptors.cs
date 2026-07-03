@@ -1474,4 +1474,58 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Multiple schema version attributes were found on the assembly, likely via IL manipulation since AllowMultiple is false. Code generation is halted.",
         helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB116"));
+
+    // Constant Key Detection Diagnostics (FDDB120-FDDB123)
+
+    /// <summary>
+    /// Error when a constant key property also has a [Computed] attribute.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConstantKeyComputedConflict = new(
+        "FDDB120",
+        "Constant key conflicts with computed attribute",
+        "Property '{0}' is a constant key but also has [Computed] — these are mutually exclusive",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A constant key property returns a fixed compile-time value and cannot also be computed from other properties. Remove either the constant value or the [Computed] attribute.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB120"));
+
+    /// <summary>
+    /// Error when a constant key property has a Prefix configured.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConstantKeyPrefixConflict = new(
+        "FDDB121",
+        "Prefix not applicable to constant key",
+        "Property '{0}' is a constant key but has Prefix configured — prefix is meaningless on a constant value",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A constant key property already contains its full value at compile time. Prefix configuration is meaningless because the value cannot be decomposed into prefix + variable parts.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB121"));
+
+    /// <summary>
+    /// Error when an [Extracted] attribute references a constant key property as its source.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConstantKeyExtractedConflict = new(
+        "FDDB122",
+        "Cannot extract from constant key",
+        "Property '{0}' has [Extracted] referencing constant key property '{1}' — extraction from a constant is invalid",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Extraction splits a composite key into component parts, but a constant key has a fixed value with no variable components to extract.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB122"));
+
+    /// <summary>
+    /// Error when a constant key property has an empty or whitespace-only value.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConstantKeyEmptyValue = new(
+        "FDDB123",
+        "Empty constant key value",
+        "Property '{0}' has an empty or whitespace-only constant key value — keys must contain at least one non-whitespace character",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "DynamoDB key values must contain at least one non-whitespace character. Provide a meaningful constant value for the key property.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB123"));
 }

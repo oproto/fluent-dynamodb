@@ -451,10 +451,27 @@ internal static class KeysGenerator
     /// </summary>
     private static void GeneratePartitionKeyBuilder(StringBuilder sb, PropertyModel property, string methodName, bool isMainTable, IndexModel? index = null, int indentLevel = 2)
     {
+        var indent = new string(' ', indentLevel * 4);
+
+        // Constant key: emit parameterless static property returning the constant value
+        if (property.IsConstantKey)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{indent}/// <summary>");
+            sb.AppendLine($"{indent}/// Gets the constant partition key value for {property.PropertyName}.");
+            if (!isMainTable && index != null)
+            {
+                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
+            }
+            sb.AppendLine($"{indent}/// </summary>");
+            sb.AppendLine($"{indent}/// <returns>The constant partition key value.</returns>");
+            sb.AppendLine($"{indent}public static string {methodName} => \"{MapperGenerator.EscapeString(property.ConstantKeyValue!)}\";");
+            return;
+        }
+
         var keyFormat = GetKeyFormat(property, index, isPartitionKey: true);
         var parameterType = GetParameterType(property.PropertyType);
         var parameterName = GetParameterName(property.PropertyName);
-        var indent = new string(' ', indentLevel * 4);
 
         sb.AppendLine();
         sb.AppendLine($"{indent}/// <summary>");
@@ -485,10 +502,27 @@ internal static class KeysGenerator
     /// </summary>
     private static void GenerateSortKeyBuilder(StringBuilder sb, PropertyModel property, string methodName, bool isMainTable, IndexModel? index = null, int indentLevel = 2)
     {
+        var indent = new string(' ', indentLevel * 4);
+
+        // Constant key: emit parameterless static property returning the constant value
+        if (property.IsConstantKey)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{indent}/// <summary>");
+            sb.AppendLine($"{indent}/// Gets the constant sort key value for {property.PropertyName}.");
+            if (!isMainTable && index != null)
+            {
+                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
+            }
+            sb.AppendLine($"{indent}/// </summary>");
+            sb.AppendLine($"{indent}/// <returns>The constant sort key value.</returns>");
+            sb.AppendLine($"{indent}public static string {methodName} => \"{MapperGenerator.EscapeString(property.ConstantKeyValue!)}\";");
+            return;
+        }
+
         var keyFormat = GetKeyFormat(property, index, isPartitionKey: false);
         var parameterType = GetParameterType(property.PropertyType);
         var parameterName = GetParameterName(property.PropertyName);
-        var indent = new string(' ', indentLevel * 4);
 
         sb.AppendLine();
         sb.AppendLine($"{indent}/// <summary>");
@@ -520,11 +554,87 @@ internal static class KeysGenerator
     /// </summary>
     private static void GenerateCompositeKeyBuilder(StringBuilder sb, PropertyModel partitionKeyProperty, PropertyModel sortKeyProperty, string methodName, bool isMainTable, IndexModel? index = null, int indentLevel = 2)
     {
-        var pkParameterType = GetParameterType(partitionKeyProperty.PropertyType);
-        var pkParameterName = GetParameterName(partitionKeyProperty.PropertyName);
-        var skParameterType = GetParameterType(sortKeyProperty.PropertyType);
-        var skParameterName = GetParameterName(sortKeyProperty.PropertyName);
         var indent = new string(' ', indentLevel * 4);
+
+        var pkIsConstant = partitionKeyProperty.IsConstantKey;
+        var skIsConstant = sortKeyProperty.IsConstantKey;
+
+        // All keys constant — parameterless Key() returning tuple of constants
+        if (pkIsConstant && skIsConstant)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{indent}/// <summary>");
+            sb.AppendLine($"{indent}/// Gets the composite key containing both constant partition and sort key values.");
+            if (!isMainTable && index != null)
+            {
+                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
+            }
+            sb.AppendLine($"{indent}/// </summary>");
+            sb.AppendLine($"{indent}/// <returns>A tuple containing the constant partition key and sort key values.</returns>");
+            sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}() => (Pk, Sk);");
+            return;
+        }
+
+        // One constant, one variable — single-parameter Key(variable)
+        if (pkIsConstant && !skIsConstant)
+        {
+            var skParameterType = GetParameterType(sortKeyProperty.PropertyType);
+            var skParameterName = GetParameterName(sortKeyProperty.PropertyName);
+
+            sb.AppendLine();
+            sb.AppendLine($"{indent}/// <summary>");
+            sb.AppendLine($"{indent}/// Builds a composite key containing the constant partition key and the formatted sort key value.");
+            if (!isMainTable && index != null)
+            {
+                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
+            }
+            sb.AppendLine($"{indent}/// </summary>");
+            sb.AppendLine($"{indent}/// <param name=\"{skParameterName}\">The {sortKeyProperty.PropertyName} value for the sort key. Must not be null or empty.</param>");
+            sb.AppendLine($"{indent}/// <returns>A tuple containing the constant partition key and formatted sort key values, ready for use in DynamoDB operations.</returns>");
+            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentNullException\">Thrown when {skParameterName} is null.</exception>");
+            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentException\">Thrown when {skParameterName} is invalid.</exception>");
+            sb.AppendLine($"{indent}/// <remarks>");
+            sb.AppendLine($"{indent}/// The partition key is constant and injected automatically. Only the sort key parameter is required.");
+            sb.AppendLine($"{indent}/// </remarks>");
+            sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}({skParameterType} {skParameterName})");
+            sb.AppendLine($"{indent}{{");
+            sb.AppendLine($"{indent}    return (Pk, Sk({skParameterName}));");
+            sb.AppendLine($"{indent}}}");
+            return;
+        }
+
+        if (!pkIsConstant && skIsConstant)
+        {
+            var pkParameterType = GetParameterType(partitionKeyProperty.PropertyType);
+            var pkParameterName = GetParameterName(partitionKeyProperty.PropertyName);
+
+            sb.AppendLine();
+            sb.AppendLine($"{indent}/// <summary>");
+            sb.AppendLine($"{indent}/// Builds a composite key containing the formatted partition key and the constant sort key value.");
+            if (!isMainTable && index != null)
+            {
+                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
+            }
+            sb.AppendLine($"{indent}/// </summary>");
+            sb.AppendLine($"{indent}/// <param name=\"{pkParameterName}\">The {partitionKeyProperty.PropertyName} value for the partition key. Must not be null or empty.</param>");
+            sb.AppendLine($"{indent}/// <returns>A tuple containing the formatted partition key and constant sort key values, ready for use in DynamoDB operations.</returns>");
+            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentNullException\">Thrown when {pkParameterName} is null.</exception>");
+            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentException\">Thrown when {pkParameterName} is invalid.</exception>");
+            sb.AppendLine($"{indent}/// <remarks>");
+            sb.AppendLine($"{indent}/// The sort key is constant and injected automatically. Only the partition key parameter is required.");
+            sb.AppendLine($"{indent}/// </remarks>");
+            sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}({pkParameterType} {pkParameterName})");
+            sb.AppendLine($"{indent}{{");
+            sb.AppendLine($"{indent}    return (Pk({pkParameterName}), Sk);");
+            sb.AppendLine($"{indent}}}");
+            return;
+        }
+
+        // Both variable — standard parameterized Key(pk, sk)
+        var pkParamType = GetParameterType(partitionKeyProperty.PropertyType);
+        var pkParamName = GetParameterName(partitionKeyProperty.PropertyName);
+        var skParamType = GetParameterType(sortKeyProperty.PropertyType);
+        var skParamName = GetParameterName(sortKeyProperty.PropertyName);
 
         sb.AppendLine();
         sb.AppendLine($"{indent}/// <summary>");
@@ -534,8 +644,8 @@ internal static class KeysGenerator
             sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
         }
         sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <param name=\"{pkParameterName}\">The {partitionKeyProperty.PropertyName} value for the partition key. Must not be null or empty.</param>");
-        sb.AppendLine($"{indent}/// <param name=\"{skParameterName}\">The {sortKeyProperty.PropertyName} value for the sort key. Must not be null or empty.</param>");
+        sb.AppendLine($"{indent}/// <param name=\"{pkParamName}\">The {partitionKeyProperty.PropertyName} value for the partition key. Must not be null or empty.</param>");
+        sb.AppendLine($"{indent}/// <param name=\"{skParamName}\">The {sortKeyProperty.PropertyName} value for the sort key. Must not be null or empty.</param>");
         sb.AppendLine($"{indent}/// <returns>A tuple containing the formatted partition key and sort key values, ready for use in DynamoDB operations.</returns>");
         sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentNullException\">Thrown when either parameter is null.</exception>");
         sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentException\">Thrown when either parameter is invalid.</exception>");
@@ -545,13 +655,13 @@ internal static class KeysGenerator
         sb.AppendLine($"{indent}/// </remarks>");
         sb.AppendLine($"{indent}/// <example>");
         sb.AppendLine($"{indent}/// <code>");
-        sb.AppendLine($"{indent}/// var (pk, sk) = {methodName}({pkParameterName}Value, {skParameterName}Value);");
+        sb.AppendLine($"{indent}/// var (pk, sk) = {methodName}({pkParamName}Value, {skParamName}Value);");
         sb.AppendLine($"{indent}/// var item = await table.Get().WithKey(\"pk\", pk, \"sk\", sk).ExecuteAsync();");
         sb.AppendLine($"{indent}/// </code>");
         sb.AppendLine($"{indent}/// </example>");
-        sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}({pkParameterType} {pkParameterName}, {skParameterType} {skParameterName})");
+        sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}({pkParamType} {pkParamName}, {skParamType} {skParamName})");
         sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{indent}    return (Pk({pkParameterName}), Sk({skParameterName}));");
+        sb.AppendLine($"{indent}    return (Pk({pkParamName}), Sk({skParamName}));");
         sb.AppendLine($"{indent}}}");
     }
 

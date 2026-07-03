@@ -78,6 +78,11 @@ internal static class UpdateExpressionsGenerator
             if (property.IsPartitionKey || property.IsSortKey)
                 continue;
 
+            // EXCLUSION: Skip constant key properties — value cannot change (Req 8.1, 8.2, 8.3)
+            // Independent of existing key exclusion logic (belt-and-suspenders)
+            if (property.IsConstantKey)
+                continue;
+
             // EXCLUSION: Skip extracted properties whose source is a key (Req 2)
             if (property.IsExtracted && IsExtractedFromKeyProperty(property, entity))
                 continue;
@@ -183,6 +188,11 @@ internal static class UpdateExpressionsGenerator
         {
             // EXCLUSION: Skip key properties (Req 1)
             if (property.IsPartitionKey || property.IsSortKey)
+                continue;
+
+            // EXCLUSION: Skip constant key properties — value cannot change (Req 8.1, 8.2, 8.3)
+            // Independent of existing key exclusion logic (belt-and-suspenders)
+            if (property.IsConstantKey)
                 continue;
 
             // EXCLUSION: Skip extracted properties whose source is a key (Req 2)

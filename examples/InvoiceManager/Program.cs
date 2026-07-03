@@ -113,7 +113,6 @@ static async Task CreateCustomerAsync(InvoicesTable table)
     var customer = new Customer
     {
         Pk = customerId,  // Auto key mode: "CUSTOMER#" prefix is applied automatically during serialization
-        Sk = Customer.ProfileSk,
         CustomerId = customerId,
         Name = name,
         Email = email
@@ -153,7 +152,8 @@ static async Task CreateInvoiceAsync(InvoicesTable table)
         return;
 
     // Verify customer exists using generated entity accessor GetAsync
-    var customer = await table.Customers.GetAsync(Customer.Keys.Pk(customerId), Customer.ProfileSk);
+    // Constant SK "PROFILE" is injected automatically by the simplified convenience method
+    var customer = await table.Customers.GetAsync(Customer.Keys.Pk(customerId));
     if (customer == null)
     {
         ConsoleHelpers.ShowError($"Customer '{customerId}' not found");
@@ -289,7 +289,8 @@ static async Task ViewInvoiceAsync(InvoicesTable table)
     }
 
     // Get customer info for display using generated entity accessor GetAsync
-    var customer = await table.Customers.GetAsync(Customer.Keys.Pk(customerId), Customer.ProfileSk);
+    // Constant SK "PROFILE" is injected automatically by the simplified convenience method
+    var customer = await table.Customers.GetAsync(Customer.Keys.Pk(customerId));
 
     // Display invoice header
     Console.WriteLine();

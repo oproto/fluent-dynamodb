@@ -108,6 +108,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Constant Key Detection** - The source generator now detects key properties (`[PartitionKey]`/`[SortKey]`) that return a fixed compile-time string value via expression-body (`=>`) or read-only auto-property syntax. Detected constant keys propagate through the entire generation pipeline:
+  - **Auto-discriminator derivation**: Constant keys automatically derive an `ExactMatch` discriminator pattern — no manual `DiscriminatorProperty`/`DiscriminatorValue` needed
+  - **Keys class simplification**: Constant keys get parameterless static properties (e.g., `Customer.Keys.Sk` returns `"PROFILE"`); composite `Key()` accepts only variable parameters
+  - **Convenience method simplification**: `Get`, `Delete`, and `Update` methods omit constant key parameters — the constant is injected internally
+  - **Serialization**: `ToDynamoDb` emits the constant value directly without reading from the entity instance
+  - **Deserialization validation**: `FromDynamoDb` validates incoming values match the expected constant, logging warnings on mismatch or missing attributes
+  - **Update model exclusion**: Constant key properties are excluded from generated update models
+  - **New diagnostics**: FDDB120 (constant+computed conflict), FDDB121 (constant+prefix conflict), FDDB122 (extracted from constant), FDDB123 (empty constant value)
+
+  **Expression-body syntax:**
+  ```csharp
+  [DynamoDbTable("Customers")]
+  public partial class Customer
+  {
+      [PartitionKey(Prefix = "CUSTOMER")]
+      [DynamoDbAttribute("pk")]
+      public string CustomerId { get; set; } = string.Empty;
+
+      [SortKey]
+      [DynamoDbAttribute("sk")]
+      public string Sk => "PROFILE";  // Constant key
+  }
+
+  // Generated Keys class:
+  Customer.Keys.Sk                  // "PROFILE" (parameterless)
+  Customer.Keys.Key("cust-123")    // ("CUSTOMER#cust-123", "PROFILE")
+
+  // Simplified convenience methods:
+  var customer = await table.Customers.Get("cust-123").GetItemAsync();
+  ```
+
+  **Read-only auto-property syntax:**
+  ```csharp
+  [DynamoDbTable("Config")]
+  public partial class AppConfig
+  {
+      [PartitionKey]
+      [DynamoDbAttribute("pk")]
+      public string Pk { get; } = "APP_CONFIG";  // Constant key
+  }
+  ```
+
 - **Per-Property Key Alias Support for Field-Level Encryption** - Different encrypted properties on the same entity can now use different KMS keys based on data classification.
   - `[Encrypted(KeyAlias = "...")]` attribute property specifies the key alias for a property (e.g., `"pii"`, `"financial"`)
   - `FieldEncryptionContext.KeyAlias` carries the alias through the encryption pipeline to the resolver
