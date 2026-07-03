@@ -883,7 +883,7 @@ internal static class MapperGenerator
         
         sb.AppendLine("                    try");
         sb.AppendLine("                    {");
-        sb.AppendLine($"                        var pendingValue = typedEntity.{escapedPropertyName}.GetPendingValue();");
+        sb.AppendLine($"                        var pendingValue = BlobDataOperations.GetBlobPendingValue(typedEntity.{escapedPropertyName});");
         sb.AppendLine("                        if (pendingValue != null)");
         sb.AppendLine("                        {");
         
@@ -975,7 +975,7 @@ internal static class MapperGenerator
         }
         
         sb.AppendLine($"                            var reference = await blobProvider_{propertyName}.StoreAsync(stream, suggestedKey, cancellationToken).ConfigureAwait(false);");
-        sb.AppendLine($"                            typedEntity.{escapedPropertyName}.SetReferenceKey(reference);");
+        sb.AppendLine($"                            BlobDataOperations.SetBlobReferenceKey(typedEntity.{escapedPropertyName}, reference);");
         sb.AppendLine($"                            item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
         sb.AppendLine("                        }");
         sb.AppendLine("                    }");
@@ -3570,7 +3570,7 @@ internal static class MapperGenerator
 
         sb.AppendLine();
         sb.AppendLine($"                        // Create BlobData<{innerType}> from reference key");
-        sb.AppendLine($"                        entity.{escapedPropertyName} = BlobData<{innerType}>.FromReferenceKey(");
+        sb.AppendLine($"                        entity.{escapedPropertyName} = BlobDataOperations.CreateFromReferenceKey<{innerType}>(");
         sb.AppendLine("                            referenceKey,");
         sb.AppendLine($"                            blobProvider_{propertyName},");
         sb.AppendLine("                            deserializer);");
