@@ -1489,6 +1489,17 @@ internal class EntityAnalyzer
                 propertyModel.PropertyName);
         }
 
+        // FDDB125: Computed key + Prefix conflict
+        if (propertyModel.IsComputed &&
+            (propertyModel.IsPartitionKey || propertyModel.IsSortKey) &&
+            !string.IsNullOrEmpty(propertyModel.KeyFormat?.Prefix))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ComputedKeyPrefixConflict,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName,
+                propertyModel.KeyFormat!.Prefix!);
+        }
+
         // FDDB123: Empty/whitespace constant value
         if (propertyModel.IsConstantKey && string.IsNullOrWhiteSpace(propertyModel.ConstantKeyValue))
         {
@@ -2144,6 +2155,15 @@ internal class EntityAnalyzer
 
     private void ValidateExtractedProperty(PropertyModel extractedProperty, HashSet<string> propertyNames, EntityModel entityModel)
     {
+        // FDDB124: Extracted property must not also have DynamoDbAttribute mapping
+        if (extractedProperty.HasAttributeMapping)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ExtractedPropertyHasAttributeMapping,
+                extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                extractedProperty.PropertyName);
+            return;
+        }
+
         var extractedKey = extractedProperty.ExtractedKey!;
 
         // Validate source property exists

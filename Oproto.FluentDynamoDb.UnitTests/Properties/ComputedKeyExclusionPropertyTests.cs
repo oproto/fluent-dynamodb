@@ -58,8 +58,8 @@ public class ComputedKeyExclusionPropertyTests
     /// and any resolved KeyInputMode (Auto, Value, Raw), the serialized PK value in the
     /// DynamoDB item equals the computed value (Component1#Component2) without any prefix applied.
     /// 
-    /// The entity has [PartitionKey(Prefix = "EVT")] + [Computed("Component1", "Component2", Separator = "#")]
-    /// so the prefix "EVT" should NOT be applied to the computed PK.
+    /// The entity has [PartitionKey] + [Computed("Component1", "Component2", Separator = "#")]
+    /// so the computed PK passes through unchanged (computed keys never receive prefix application).
     /// </summary>
     [Property(MaxTest = 100)]
     public Property ComputedPk_NeverGetsPrefixApplied_RegardlessOfMode()
@@ -265,20 +265,20 @@ public class ComputedKeyExclusionPropertyTests
 }
 
 /// <summary>
-/// Test entity with a computed PK that has a prefix configured, and a non-computed SK with prefix.
+/// Test entity with a computed PK (no prefix) and a non-computed SK with prefix.
 /// The source generator should:
-/// - NOT apply prefix to the computed PK (computed key exclusion)
+/// - NOT apply prefix to the computed PK (computed key exclusion — no prefix configured)
 /// - Apply prefix to the non-computed SK (normal prefix behavior)
 /// 
-/// PK: [PartitionKey(Prefix = "EVT")] + [Computed("Component1", "Component2", Separator = "#")]
-///   → Computed value = "Component1#Component2" (no "EVT#" prepended)
+/// PK: [PartitionKey] + [Computed("Component1", "Component2", Separator = "#")]
+///   → Computed value = "Component1#Component2" (passes through unchanged)
 /// SK: [SortKey(Prefix = "META")]
 ///   → Normal prefix behavior based on KeyInputMode
 /// </summary>
 [DynamoDbTable("test-computed-key-exclusion")]
 public partial class ComputedPkWithPrefixTestEntity
 {
-    [PartitionKey(Prefix = "EVT")]
+    [PartitionKey]
     [DynamoDbAttribute("pk")]
     [Computed("Component1", "Component2", Separator = "#")]
     public string Pk { get; set; } = string.Empty;

@@ -184,7 +184,6 @@ namespace TestNamespace
         [DynamoDbAttribute(""pk"")]
         public string Pk { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""value"")]
         [Extracted(""NonExistent"", 0)]
         public string Value { get; set; } = string.Empty;
     }
@@ -227,7 +226,6 @@ namespace TestNamespace
         [Computed(""Value"", Separator = ""#"")]
         public string Pk { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""value"")]
         [Extracted(""Pk"", -1)]
         public string Value { get; set; } = string.Empty;
     }

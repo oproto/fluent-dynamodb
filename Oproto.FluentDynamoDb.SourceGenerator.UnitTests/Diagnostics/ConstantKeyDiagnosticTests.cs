@@ -198,7 +198,6 @@ namespace TestNamespace
         public string Sk => ""PROFILE"";
 
         [Extracted(""Sk"", 0)]
-        [DynamoDbAttribute(""part1"")]
         public string Part1 { get; set; } = string.Empty;
     }
 }";
@@ -236,7 +235,6 @@ namespace TestNamespace
         public string Sk => ""PROFILE"";
 
         [Extracted(""Sk"", 0)]
-        [DynamoDbAttribute(""part1"")]
         public string Part1 { get; set; } = string.Empty;
     }
 }";
@@ -266,7 +264,6 @@ namespace TestNamespace
         public string Pk => ""TENANT_FIXED"";
 
         [Extracted(""Pk"", 0)]
-        [DynamoDbAttribute(""tenant"")]
         public string Tenant { get; set; } = string.Empty;
     }
 }";

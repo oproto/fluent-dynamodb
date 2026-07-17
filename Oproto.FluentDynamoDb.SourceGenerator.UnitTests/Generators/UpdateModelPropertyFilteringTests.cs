@@ -159,11 +159,9 @@ namespace TestNamespace
         [DynamoDbAttribute(""sk"")]
         public string Sk { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""tenantId"")]
         [Extracted(""Pk"", 0)]
         public string TenantId { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""userId"")]
         [Extracted(""Pk"", 1)]
         public string UserId { get; set; } = string.Empty;
 

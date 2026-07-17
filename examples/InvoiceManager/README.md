@@ -156,9 +156,10 @@ public partial class Invoice
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
-    // Sort key prefix generates "INVOICE#{value}"
-    [SortKey(Prefix = "INVOICE")]
+    // Sort key computed from InvoiceNumber with format "INVOICE#{invoiceNumber}"
+    [SortKey]
     [DynamoDbAttribute("sk")]
+    [Computed("InvoiceNumber", Format = "INVOICE#{0}")]
     public string Sk { get; set; } = string.Empty;
 
     [DynamoDbAttribute("invoiceNumber")]

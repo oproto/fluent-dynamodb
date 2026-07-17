@@ -93,14 +93,13 @@ public partial class ComputedBothKeysEntity
 }
 
 /// <summary>
-/// Entity with computed PK that also has a prefix configured.
-/// PK has prefix "ORDER" AND is computed from TenantId + OrderNum.
-/// Exercises: Computed key with prefix.
+/// Entity with computed PK from TenantId + OrderNum.
+/// Exercises: Computed key without prefix (prefix on computed keys is invalid per FDDB125).
 /// </summary>
 [DynamoDbTable("test-computed-with-prefix")]
 public partial class ComputedWithPrefixEntity
 {
-    [PartitionKey(Prefix = "ORDER")]
+    [PartitionKey]
     [DynamoDbAttribute("pk")]
     [Computed("TenantId", "OrderNum", Separator = "#")]
     public string Pk { get; set; } = string.Empty;
