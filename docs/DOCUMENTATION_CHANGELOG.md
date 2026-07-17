@@ -57,6 +57,34 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-07-17]
+
+### SonarQube S6966 False Positive — Transaction Composition Pattern
+
+**Category:** Clarification
+
+### File: docs/reference/Troubleshooting.md
+
+**Description:** Added new "Third-Party Analyzer False Positives" section documenting SonarQube rule S6966 ("Awaitable method should be used") incorrectly firing on transaction composition patterns. When users pass builders to `DynamoDbTransactions.Write.Add(...)`, SonarQube detects that the builder has an async terminal method (`PutAsync()`, `UpdateAsync()`, `DeleteAsync()`) and suggests awaiting it — but the builder is being composed into a transaction, not executed independently. The section explains the false positive, why it's incorrect, and provides `#pragma warning disable S6966` suppression guidance.
+
+**Before:**
+No documentation existed for this third-party analyzer interaction.
+
+**After:**
+```csharp
+// SonarQube S6966 fires here — suppress with pragma
+#pragma warning disable S6966
+await DynamoDbTransactions.Write
+    .Add(table.Transactions.Put(transaction))
+    .Add(table.Orders.Update(orderId).Set(x => new OrderUpdateModel { Status = "shipped" }))
+    .ExecuteAsync();
+#pragma warning restore S6966
+```
+
+**Reason:** Users reported SonarQube S6966 warnings when composing operations into transactions via `.Add()`. The warning is a false positive from SonarAnalyzer.CSharp — the analyzer doesn't understand that builder objects passed to `.Add()` are not meant to be awaited individually. This is the same class of false positive reported for EF Core `DbContext.Add` vs `AddAsync`. Documentation added to help users understand and suppress the warning.
+
+---
+
 ## [2026-07-12]
 
 ### New Diagnostics: FDDB120–FDDB123 — Constant Key Conflict Detection

@@ -1528,4 +1528,35 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "DynamoDB key values must contain at least one non-whitespace character. Provide a meaningful constant value for the key property.",
         helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB123"));
+
+    /// <summary>
+    /// Error when a property has both [Extracted] and [DynamoDbAttribute] applied.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ExtractedPropertyHasAttributeMapping = new(
+        "FDDB124",
+        "Extracted property conflicts with DynamoDbAttribute",
+        "Property '{0}' has both [Extracted] and [DynamoDbAttribute]. Extracted properties derive their value from a composite key and must not have independent DynamoDB attribute mapping. Remove one of the attributes.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "An [Extracted] property derives its value from a composite key at read time and should not also map to an independent DynamoDB attribute. Remove either [Extracted] or [DynamoDbAttribute].",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB124"));
+
+    /// <summary>
+    /// Error when a computed key property has a redundant Prefix on its key attribute.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ComputedKeyPrefixConflict = new(
+        "FDDB125",
+        "Computed key property has redundant Prefix",
+        "Property '{0}' is a computed key with Prefix = \"{1}\" configured on its key attribute. " +
+        "Prefixes are not applied to computed keys — remove the Prefix and embed it in the " +
+        "[Computed] Format if the prefix should appear in the stored value",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A computed key derives its value entirely from [Computed] configuration. " +
+        "The Prefix on [PartitionKey] or [SortKey] is silently ignored at runtime. " +
+        "Remove the Prefix to avoid confusion, or use Format = \"PREFIX#{0}\" on [Computed] " +
+        "if the prefix should appear in the stored value.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB125"));
 }

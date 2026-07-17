@@ -41,16 +41,16 @@ public partial class CatalogItem
     /// <summary>
     /// Gets or sets the item category.
     /// This is a source property for the computed Gsi1Pk field.
+    /// Its value is extracted from the Gsi1Pk composite key at read time.
     /// </summary>
-    [DynamoDbAttribute("category")]
     [Extracted("Gsi1Pk", 0)]
     public string Category { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the item region.
     /// This is a source property for the computed Gsi1Pk field.
+    /// Its value is extracted from the Gsi1Pk composite key at read time.
     /// </summary>
-    [DynamoDbAttribute("region")]
     [Extracted("Gsi1Pk", 1)]
     public string Region { get; set; } = string.Empty;
 

@@ -315,7 +315,7 @@ namespace TestNamespace
     [DynamoDbTable(""events-table"", IsDefault = true)]
     public partial class Event
     {
-        [PartitionKey(Prefix = ""EVT"")]
+        [PartitionKey]
         [DynamoDbAttribute(""pk"")]
         [Computed(""Year"", ""Month"", Separator = ""#"")]
         public string Pk { get; set; } = string.Empty;
@@ -544,7 +544,7 @@ namespace TestNamespace
     [DynamoDbTable(""events-table"", IsDefault = true)]
     public partial class Event
     {
-        [PartitionKey(Prefix = ""EVT"")]
+        [PartitionKey]
         [DynamoDbAttribute(""pk"")]
         [Computed(""Year"", ""Month"", Separator = ""#"")]
         public string Pk { get; set; } = string.Empty;

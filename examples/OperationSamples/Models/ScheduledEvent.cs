@@ -42,21 +42,18 @@ public partial class ScheduledEvent
     /// Gets or sets the year component extracted from the partition key.
     /// </summary>
     [Extracted("Pk", 0)]
-    [DynamoDbAttribute("year")]
     public int Year { get; set; }
 
     /// <summary>
     /// Gets or sets the month component extracted from the partition key.
     /// </summary>
     [Extracted("Pk", 1)]
-    [DynamoDbAttribute("month")]
     public int Month { get; set; }
 
     /// <summary>
     /// Gets or sets the day component extracted from the partition key.
     /// </summary>
     [Extracted("Pk", 2)]
-    [DynamoDbAttribute("day")]
     public int Day { get; set; }
 
     /// <summary>

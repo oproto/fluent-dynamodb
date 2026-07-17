@@ -19,7 +19,7 @@ namespace Oproto.FluentDynamoDb.UnitTests.Requests.PutKeyPrefix;
 /// 
 /// Validates:
 ///   - Computed PK excluded from prefix, non-computed SK gets prefix (Req 3.1, 3.2)
-///   - Non-computed PK gets prefix, computed SK excluded from prefix (Req 3.3)
+///   - Non-computed PK gets prefix, computed SK passes through unchanged (Req 3.3)
 ///   - GSI key carrying primary key prefix attribute gets prefix applied (Req 10.1, 10.2, 10.3)
 ///   - GSI key without primary key prefix attribute passes through unchanged (Req 10.4, 10.5)
 ///   - Hydrator path receives and applies KeyInputMode (Req 7.3)
@@ -139,8 +139,8 @@ public class PutComputedAndGsiIntegrationTests
     #region Non-computed PK + computed SK: only PK gets prefix
 
     /// <summary>
-    /// When entity has a non-computed PK with prefix and a computed SK,
-    /// only the PK gets prefix applied. The computed SK value passes through as-is.
+    /// When entity has a non-computed PK with prefix and a computed SK (no prefix configured),
+    /// only the PK gets prefix applied. The computed SK value passes through unchanged.
     /// Validates: Requirements 3.3
     /// </summary>
     [Fact]
@@ -148,7 +148,7 @@ public class PutComputedAndGsiIntegrationTests
     {
         // Arrange — NonComputedPkComputedSkTestEntity has:
         //   PK: [PartitionKey(Prefix = "CUST")] — non-computed
-        //   SK: [SortKey(Prefix = "LOC")] + [Computed("Region", "City", Separator = "#")] — computed
+        //   SK: [SortKey] + [Computed("Region", "City", Separator = "#")] — computed, no prefix
         var entity = new NonComputedPkComputedSkTestEntity
         {
             Pk = "customer123",
@@ -162,15 +162,15 @@ public class PutComputedAndGsiIntegrationTests
         // Act
         await builder.PutAsync();
 
-        // Assert — Non-computed PK gets "CUST#" prefix, computed SK stays as computed value
+        // Assert — Non-computed PK gets "CUST#" prefix, computed SK passes through unchanged
         _capturedRequest.Should().NotBeNull();
         _capturedRequest!.Item["pk"].S.Should().Be("CUST#customer123"); // Non-computed, gets prefix
-        _capturedRequest.Item["sk"].S.Should().Be("US#Seattle"); // Computed value, no prefix
+        _capturedRequest.Item["sk"].S.Should().Be("US#Seattle"); // Computed value, passes through unchanged
     }
 
     /// <summary>
-    /// When entity has a non-computed PK with prefix and a computed SK,
-    /// using Value mode, only the PK gets prefix (computed SK excluded).
+    /// When entity has a non-computed PK with prefix and a computed SK (no prefix configured),
+    /// using Value mode, only the PK gets prefix (computed SK passes through unchanged).
     /// Validates: Requirements 3.3
     /// </summary>
     [Fact]
@@ -190,10 +190,10 @@ public class PutComputedAndGsiIntegrationTests
         // Act
         await builder.PutAsync();
 
-        // Assert — PK always gets prefix in Value mode, computed SK never gets prefix
+        // Assert — PK always gets prefix in Value mode, computed SK passes through unchanged
         _capturedRequest.Should().NotBeNull();
         _capturedRequest!.Item["pk"].S.Should().Be("CUST#customer123"); // Value mode, always prepends
-        _capturedRequest.Item["sk"].S.Should().Be("US#Seattle"); // Computed, excluded
+        _capturedRequest.Item["sk"].S.Should().Be("US#Seattle"); // Computed, passes through unchanged
     }
 
     #endregion
@@ -372,13 +372,13 @@ public class PutComputedAndGsiIntegrationTests
 #region Test Entity Definitions
 
 /// <summary>
-/// Test entity with non-computed PK (with prefix) and computed SK (with prefix configured).
+/// Test entity with non-computed PK (with prefix) and computed SK (no prefix).
 /// The source generator should:
 /// - Apply prefix to the non-computed PK (normal prefix behavior)
-/// - NOT apply prefix to the computed SK (computed key exclusion)
+/// - NOT apply prefix to the computed SK (computed values pass through unchanged)
 /// 
 /// PK: [PartitionKey(Prefix = "CUST")] — non-computed, gets prefix
-/// SK: [SortKey(Prefix = "LOC")] + [Computed("Region", "City", Separator = "#")] — computed, excluded
+/// SK: [SortKey] + [Computed("Region", "City", Separator = "#")] — computed, passes through unchanged
 /// </summary>
 [DynamoDbTable("test-noncomputed-pk-computed-sk")]
 public partial class NonComputedPkComputedSkTestEntity
@@ -387,7 +387,7 @@ public partial class NonComputedPkComputedSkTestEntity
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
-    [SortKey(Prefix = "LOC")]
+    [SortKey]
     [DynamoDbAttribute("sk")]
     [Computed("Region", "City", Separator = "#")]
     public string Sk { get; set; } = string.Empty;

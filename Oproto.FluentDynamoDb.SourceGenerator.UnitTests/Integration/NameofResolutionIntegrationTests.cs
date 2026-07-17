@@ -145,11 +145,9 @@ namespace TestNamespace
         [DynamoDbAttribute(""eventId"")]
         public string EventId { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedTenant"")]
         [Extracted(nameof(Pk), 0)]
         public string ExtractedTenant { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedEvent"")]
         [Extracted(nameof(Pk), 1)]
         public string ExtractedEvent { get; set; } = string.Empty;
     }
@@ -240,11 +238,9 @@ namespace TestNamespace
         [DynamoDbAttribute(""eventId"")]
         public string EventId { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedTenant"")]
         [Extracted(""Pk"", TenantIndex)]
         public string ExtractedTenant { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedEvent"")]
         [Extracted(""Pk"", EventIndex)]
         public string ExtractedEvent { get; set; } = string.Empty;
     }

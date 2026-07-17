@@ -1104,6 +1104,55 @@ finally
 > **Warning**  
 > `DynamoDbOperationContextDiagnostics` is intended for diagnostics and test scenarios only. Production code should continue to read metadata from `DynamoDbOperationContext.Current`.
 
+## Third-Party Analyzer False Positives
+
+### SonarQube S6966: "Await PutAsync instead" in Transaction Composition
+
+**Symptoms:**
+- SonarQube/SonarCloud reports warning S6966 on each `.Add()` call inside a transaction
+- Message: "Await PutAsync instead" (or UpdateAsync, DeleteAsync)
+
+**Example triggering the warning:**
+```csharp
+await DynamoDbTransactions.Write
+    .Add(table.Transactions.Put(transaction))  // ⚠️ S6966: "Await PutAsync instead"
+    .Add(table.Orders.Update(orderId).Set(x => new OrderUpdateModel { Status = "shipped" }))  // ⚠️ S6966
+    .ExecuteAsync();
+```
+
+**Cause:**
+SonarQube rule S6966 ("Awaitable method should be used") detects that `PutItemRequestBuilder<T>` has a `PutAsync()` extension method available and suggests awaiting it. The analyzer doesn't understand the compositional builder pattern — in this context, `Put(entity)` creates a builder object that gets composed into the transaction via `.Add()`, not one that should be executed independently.
+
+**Why it's a false positive:**
+Calling `.PutAsync()` on the individual builder would execute the Put operation **outside** the transaction, which defeats the purpose of using a transaction. The correct execution point is `.ExecuteAsync()` on the `TransactionWriteBuilder`, which executes all operations atomically.
+
+This is the same category of false positive that affects other .NET libraries with builder patterns (e.g., EF Core's `DbContext.Add` vs `AddAsync`).
+
+**Solution:**
+
+Suppress S6966 at the call site:
+
+```csharp
+#pragma warning disable S6966 // Builders are composed into transaction, not executed individually
+await DynamoDbTransactions.Write
+    .Add(table.Transactions.Put(transaction))
+    .Add(table.Orders.Update(orderId).Set(x => new OrderUpdateModel { Status = "shipped" }))
+    .ExecuteAsync();
+#pragma warning restore S6966
+```
+
+Or suppress for a file or project in your `.editorconfig`:
+```ini
+[*.cs]
+dotnet_diagnostic.S6966.severity = suggestion
+```
+
+**Note:** This warning comes from SonarAnalyzer.CSharp, not from Oproto.FluentDynamoDb. The library itself does not produce this warning.
+
+**See Also:**
+- [SonarSource Community — S6966 false positives](https://community.sonarsource.com/t/csharpsquid-s6966-should-not-be-given-for-dbcontext-add/117655)
+
+
 ## Getting Help
 
 If you're still experiencing issues:

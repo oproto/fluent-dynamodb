@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **SonarQube S6966 False Positive in Transaction Composition** - Documented a known SonarQube/SonarCloud false positive where rule S6966 ("Awaitable method should be used") fires on each `.Add()` call inside `DynamoDbTransactions.Write` because the analyzer sees that `PutItemRequestBuilder<T>` has a `PutAsync()` method and suggests awaiting it. This is incorrect — the builder is being composed into a transaction, not executed independently. Added troubleshooting entry with explanation and suppression guidance.
+
 ### Fixed
 
 - **BlobData\<T\> Internal Methods Inaccessible from Generated Code in External Assemblies** - Fixed the source generator emitting calls to `internal` BlobData\<T\> methods (`FromReferenceKey`, `GetPendingValue`, `SetReferenceKey`) that caused CS1061/CS0117 compile errors in external consuming assemblies (NuGet consumers). Introduced a public `BlobDataOperations` helper class (hidden from IntelliSense) and updated the generator to emit calls to the public helpers instead. Removed the `InternalsVisibleTo("S3BlobDemo")` workaround that was masking the issue.
