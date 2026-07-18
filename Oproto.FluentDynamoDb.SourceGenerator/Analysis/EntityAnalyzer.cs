@@ -73,7 +73,7 @@ internal class EntityAnalyzer
         foreach (var property in entityModel.Properties)
         {
             ValidatePropertyModel(property, semanticModel);
-            ValidatePropertyPerformance(property);
+            // ValidatePropertyPerformance is called internally by ValidatePropertyModel
         }
 
         // Validate entity configuration
@@ -1700,6 +1700,24 @@ internal class EntityAnalyzer
 
     private void ValidatePropertyPerformance(PropertyModel propertyModel)
     {
+        // Skip properties not mapped to DynamoDB — no DynamoDB warning is relevant
+        if (!propertyModel.HasAttributeMapping)
+        {
+            return;
+        }
+
+        // Skip extracted properties — source-only, never serialized to DynamoDB
+        if (propertyModel.IsExtracted)
+        {
+            return;
+        }
+
+        // Skip enum properties — simple value types stored as string/int in DynamoDB
+        if (propertyModel.IsEnum)
+        {
+            return;
+        }
+
         // Skip performance warnings for RelatedEntity properties - these are intentionally
         // designed for composite entity patterns and should not trigger DYNDB023 warnings
         if (propertyModel.IsRelatedEntity)
