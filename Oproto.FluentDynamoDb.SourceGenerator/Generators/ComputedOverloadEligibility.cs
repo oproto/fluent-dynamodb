@@ -10,7 +10,7 @@ internal static class ComputedOverloadEligibility
 {
     /// <summary>
     /// Determines whether an entity qualifies for typed parameter convenience overloads.
-    /// Returns true when at least one key has IsComputed == true and ComputedKey.SourceProperties.Length >= 2.
+    /// Returns true when at least one key has IsComputed == true.
     /// </summary>
     /// <param name="entity">The entity model to evaluate.</param>
     /// <returns>True if the entity qualifies for a typed parameter convenience overload.</returns>
@@ -19,10 +19,8 @@ internal static class ComputedOverloadEligibility
         var pk = entity.PartitionKeyProperty;
         var sk = entity.SortKeyProperty;
 
-        bool pkComputed = pk?.IsComputed == true
-            && pk.ComputedKey!.SourceProperties.Length >= 2;
-        bool skComputed = sk?.IsComputed == true
-            && sk.ComputedKey!.SourceProperties.Length >= 2;
+        bool pkComputed = pk?.IsComputed == true;
+        bool skComputed = sk?.IsComputed == true;
 
         return pkComputed || skComputed;
     }
