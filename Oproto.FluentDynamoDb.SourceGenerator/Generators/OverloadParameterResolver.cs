@@ -51,7 +51,7 @@ internal static class OverloadParameterResolver
 
     /// <summary>
     /// Returns the combined typed overload parameter list for an entity's keys (PK + SK) in declaration order.
-    /// For computed keys with 2+ source properties, resolves individual source property parameters.
+    /// For computed keys, resolves individual source property parameters.
     /// For non-computed keys, uses a single string parameter with standard naming ("pK" or "sK").
     /// Returns null if any source property resolution fails.
     /// </summary>
@@ -63,7 +63,7 @@ internal static class OverloadParameterResolver
         var pk = entity.PartitionKeyProperty;
         var sk = entity.SortKeyProperty;
 
-        if (pk?.IsComputed == true && pk.ComputedKey!.SourceProperties.Length >= 2)
+        if (pk?.IsComputed == true)
         {
             var pkParams = ResolveParameters(entity, pk);
             if (pkParams == null) return null;
@@ -74,7 +74,7 @@ internal static class OverloadParameterResolver
             parameters.Add(new ParameterInfo("pK", "string", false));
         }
 
-        if (sk?.IsComputed == true && sk.ComputedKey!.SourceProperties.Length >= 2)
+        if (sk?.IsComputed == true)
         {
             var skParams = ResolveParameters(entity, sk);
             if (skParams == null) return null;

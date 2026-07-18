@@ -130,6 +130,76 @@ public class ComputedOverloadPropertyTests
     }
 
     /// <summary>
+    /// Property 1 (continued): For single-source computed SK entities (simple PK + computed SK with 1 non-string source),
+    /// the generated typed overload has PK string parameter first, then the single SK source property parameter.
+    /// **Validates: Requirements 2.1, 2.3**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property TypedOverload_GeneratesCorrectParameters_ForSingleSourceComputedSk()
+    {
+        var entityGen = CreateSingleSourceComputedSkGenerator();
+
+        return Prop.ForAll(entityGen, entity =>
+        {
+            if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+                return true.Label("Does not qualify — skipping");
+
+            if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+                return true.Label("Would be ambiguous — skipping");
+
+            var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+            if (typedParams == null)
+                return true.Label("Unresolvable — skipping");
+
+            var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
+            var expectedParams = BuildExpectedParams(entity);
+
+            if (!VerifyParamsMatch(typedParams, expectedParams))
+                return false.Label($"Parameter mismatch. Expected: ({FormatParams(expectedParams)}), Got: ({FormatTypedParams(typedParams)})");
+
+            var paramSignature = FormatParams(expectedParams);
+            var hasGetOverload = generatedCode.Contains($"Get({paramSignature})");
+
+            return hasGetOverload.Label($"Generated code missing Get({paramSignature})");
+        });
+    }
+
+    /// <summary>
+    /// Property 1 (continued): For single-source computed PK entities (computed PK with 1 non-string source + simple SK),
+    /// the generated typed overload has the single PK source property parameter first, then SK string parameter.
+    /// **Validates: Requirements 2.1, 2.3**
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public Property TypedOverload_GeneratesCorrectParameters_ForSingleSourceComputedPk()
+    {
+        var entityGen = CreateSingleSourceComputedPkGenerator();
+
+        return Prop.ForAll(entityGen, entity =>
+        {
+            if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+                return true.Label("Does not qualify — skipping");
+
+            if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+                return true.Label("Would be ambiguous — skipping");
+
+            var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+            if (typedParams == null)
+                return true.Label("Unresolvable — skipping");
+
+            var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
+            var expectedParams = BuildExpectedParams(entity);
+
+            if (!VerifyParamsMatch(typedParams, expectedParams))
+                return false.Label($"Parameter mismatch. Expected: ({FormatParams(expectedParams)}), Got: ({FormatTypedParams(typedParams)})");
+
+            var paramSignature = FormatParams(expectedParams);
+            var hasGetOverload = generatedCode.Contains($"Get({paramSignature})");
+
+            return hasGetOverload.Label($"Generated code missing Get({paramSignature})");
+        });
+    }
+
+    /// <summary>
     /// Property 1 (continued): For computed PK only (no SK) entities,
     /// the generated typed overload has only the PK source property parameters.
     /// </summary>
@@ -171,8 +241,8 @@ public class ComputedOverloadPropertyTests
         var pk = entity.PartitionKeyProperty;
         var sk = entity.SortKeyProperty;
 
-        bool pkComputed = pk?.IsComputed == true && pk.ComputedKey!.SourceProperties.Length >= 2;
-        bool skComputed = sk?.IsComputed == true && sk.ComputedKey!.SourceProperties.Length >= 2;
+        bool pkComputed = pk?.IsComputed == true;
+        bool skComputed = sk?.IsComputed == true;
 
         if (pkComputed)
         {
@@ -312,6 +382,44 @@ public class ComputedOverloadPropertyTests
     {
         return Gen.Elements("Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta",
                 "Order", "Event", "Invoice", "Customer", "Product", "Session", "Record", "Entry");
+    }
+
+    /// <summary>
+    /// Creates generator for entities with simple string PK + computed SK with exactly 1 non-string source property.
+    /// Ensures the source property is non-string to avoid ambiguity.
+    /// </summary>
+    private static Arbitrary<EntityModel> CreateSingleSourceComputedSkGenerator()
+    {
+        var nonStringTypes = new[] { "int", "long", "DateTime", "Guid", "decimal", "DateOnly" };
+
+        var gen = from entityName in GenSafeIdentifier()
+                  from tableName in GenSafeIdentifier()
+                  from sourceType in Gen.Elements(nonStringTypes)
+                  let entity = BuildSingleSourceComputedSkEntity(entityName, tableName, sourceType)
+                  where ComputedOverloadEligibility.QualifiesForTypedOverload(entity)
+                      && !ComputedOverloadEligibility.WouldBeAmbiguous(entity)
+                  select entity;
+
+        return Arb.From(gen);
+    }
+
+    /// <summary>
+    /// Creates generator for entities with computed PK with exactly 1 non-string source property + simple string SK.
+    /// Ensures the source property is non-string to avoid ambiguity.
+    /// </summary>
+    private static Arbitrary<EntityModel> CreateSingleSourceComputedPkGenerator()
+    {
+        var nonStringTypes = new[] { "int", "long", "DateTime", "Guid", "decimal", "DateOnly" };
+
+        var gen = from entityName in GenSafeIdentifier()
+                  from tableName in GenSafeIdentifier()
+                  from sourceType in Gen.Elements(nonStringTypes)
+                  let entity = BuildSingleSourceComputedPkEntity(entityName, tableName, sourceType)
+                  where ComputedOverloadEligibility.QualifiesForTypedOverload(entity)
+                      && !ComputedOverloadEligibility.WouldBeAmbiguous(entity)
+                  select entity;
+
+        return Arb.From(gen);
     }
 
     #endregion
@@ -505,6 +613,82 @@ public class ComputedOverloadPropertyTests
                 SourceProperties = pkSourceProps.ToArray(),
                 Separator = "#"
             }
+        });
+
+        return CreateEntity(entityName, tableName, properties.ToArray());
+    }
+
+    private static EntityModel BuildSingleSourceComputedSkEntity(string entityName, string tableName, string sourceType)
+    {
+        var properties = new List<PropertyModel>();
+
+        // Simple string PK
+        properties.Add(new PropertyModel
+        {
+            PropertyName = "Pk",
+            PropertyType = "string",
+            AttributeName = "pk",
+            IsPartitionKey = true
+        });
+
+        // Single non-string SK source property
+        properties.Add(new PropertyModel
+        {
+            PropertyName = "SkSource",
+            PropertyType = sourceType,
+            AttributeName = "sksource"
+        });
+
+        // Computed SK with exactly 1 source property
+        properties.Add(new PropertyModel
+        {
+            PropertyName = "Sk",
+            PropertyType = "string",
+            AttributeName = "sk",
+            IsSortKey = true,
+            ComputedKey = new ComputedKeyModel
+            {
+                SourceProperties = new[] { "SkSource" },
+                Separator = "#"
+            }
+        });
+
+        return CreateEntity(entityName, tableName, properties.ToArray());
+    }
+
+    private static EntityModel BuildSingleSourceComputedPkEntity(string entityName, string tableName, string sourceType)
+    {
+        var properties = new List<PropertyModel>();
+
+        // Single non-string PK source property
+        properties.Add(new PropertyModel
+        {
+            PropertyName = "PkSource",
+            PropertyType = sourceType,
+            AttributeName = "pksource"
+        });
+
+        // Computed PK with exactly 1 source property
+        properties.Add(new PropertyModel
+        {
+            PropertyName = "Pk",
+            PropertyType = "string",
+            AttributeName = "pk",
+            IsPartitionKey = true,
+            ComputedKey = new ComputedKeyModel
+            {
+                SourceProperties = new[] { "PkSource" },
+                Separator = "#"
+            }
+        });
+
+        // Simple string SK
+        properties.Add(new PropertyModel
+        {
+            PropertyName = "Sk",
+            PropertyType = "string",
+            AttributeName = "sk",
+            IsSortKey = true
         });
 
         return CreateEntity(entityName, tableName, properties.ToArray());
