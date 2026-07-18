@@ -261,7 +261,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Compute composite keys before mapping");
             foreach (var computedProperty in computedProperties)
             {
-                GenerateComputedKeyLogic(sb, computedProperty);
+                GenerateComputedKeyLogic(sb, computedProperty, entity.Properties);
             }
             sb.AppendLine();
         }
@@ -325,10 +325,11 @@ internal static class MapperGenerator
             var escapedPropertyName = EscapePropertyName(property.PropertyName);
             var prefix = property.KeyFormat!.Prefix!;
             var separator = property.KeyFormat.Separator;
+            var valueExpr = KeysGenerator.GetValueExpression($"typedEntity.{escapedPropertyName}", property.PropertyType);
 
             // Null check before prefix application
             sb.AppendLine($"                ArgumentNullException.ThrowIfNull(typedEntity.{escapedPropertyName}, nameof(typedEntity.{escapedPropertyName}));");
-            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = Oproto.FluentDynamoDb.Utility.KeyPrefixHelper.ApplyKeyPrefix(typedEntity.{escapedPropertyName}, \"{prefix}\", \"{separator}\", resolvedMode) }};");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = Oproto.FluentDynamoDb.Utility.KeyPrefixHelper.ApplyKeyPrefix({valueExpr}, \"{prefix}\", \"{separator}\", resolvedMode) }};");
         }
     }
 
@@ -585,7 +586,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Compute composite keys before mapping");
             foreach (var computedProperty in computedProperties)
             {
-                GenerateComputedKeyLogic(sb, computedProperty);
+                GenerateComputedKeyLogic(sb, computedProperty, entity.Properties);
             }
             sb.AppendLine();
         }
@@ -5600,7 +5601,7 @@ internal static class MapperGenerator
         return "#";
     }
 
-    private static void GenerateComputedKeyLogic(StringBuilder sb, PropertyModel computedProperty)
+    private static void GenerateComputedKeyLogic(StringBuilder sb, PropertyModel computedProperty, PropertyModel[] entityProperties)
     {
         var computedKey = computedProperty.ComputedKey!;
         var propertyName = computedProperty.PropertyName;
@@ -5624,8 +5625,17 @@ internal static class MapperGenerator
         }
         else
         {
-            // Use separator-based concatenation
-            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", computedKey.SourceProperties.Select(sp => $"typedEntity.{EscapePropertyName(sp)}"));
+            // Use separator-based concatenation with proper type conversion via GetValueExpression
+            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", computedKey.SourceProperties.Select(sp =>
+            {
+                var sourceProperty = entityProperties.FirstOrDefault(p => p.PropertyName == sp);
+                var expr = $"typedEntity.{EscapePropertyName(sp)}";
+                if (sourceProperty != null)
+                {
+                    return KeysGenerator.GetValueExpression(expr, sourceProperty.PropertyType);
+                }
+                return expr;
+            }));
             sb.AppendLine($"            typedEntity.{escapedPropertyName} = {sourceValues};");
         }
     }
