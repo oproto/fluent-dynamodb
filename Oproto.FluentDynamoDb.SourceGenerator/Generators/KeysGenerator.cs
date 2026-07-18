@@ -855,7 +855,7 @@ internal static class KeysGenerator
     /// <summary>
     /// Gets the expression to convert a parameter to string for key building.
     /// </summary>
-    private static string GetValueExpression(string parameterName, string propertyType)
+    internal static string GetValueExpression(string parameterName, string propertyType)
     {
         // Handle different types appropriately
         if (propertyType == "string" || propertyType.EndsWith("?"))
