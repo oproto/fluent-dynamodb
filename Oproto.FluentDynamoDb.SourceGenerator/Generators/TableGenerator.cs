@@ -1077,6 +1077,15 @@ internal static class TableGenerator
         
         // Generate typed convenience overload if eligible
         GenerateTypedGetOverload(sb, entity, modifier, diagnostics);
+        
+        // Generate typed async convenience method if eligible
+        GenerateTypedGetAsyncMethod(sb, entity, modifier, diagnostics);
+        
+        // Generate typed FluentResults GetAsyncResult method if eligible
+        if (entity.UseFluentResults)
+        {
+            GenerateTypedGetAsyncResultMethod(sb, entity, modifier, diagnostics);
+        }
     }
     
     /// <summary>
@@ -1171,6 +1180,118 @@ internal static class TableGenerator
     }
     
     /// <summary>
+    /// Generates a typed parameter async convenience method for the Get accessor.
+    /// This method accepts individual source property components and delegates to Get(...).GetItemAsync(cancellationToken).
+    /// </summary>
+    private static void GenerateTypedGetAsyncMethod(StringBuilder sb, EntityModel entity, string modifier, List<Diagnostic>? diagnostics)
+    {
+        // Check if entity qualifies for typed overload
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        // Check if the overload would be ambiguous with the standard overload
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        // Respect HideGeneratedAsyncMethods flag: skip when UseFluentResults=true and HideGeneratedAsyncMethods=true
+        var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
+        if (!generateTraditionalAsync)
+            return;
+        
+        // Resolve typed overload parameters
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+        {
+            // Parameter resolution failed - diagnostic already emitted by GenerateTypedGetOverload
+            return;
+        }
+        
+        // Build the parameter list string (typed params + CancellationToken)
+        var paramList = string.Join(", ", typedParams.Select(p => 
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", System.Threading.CancellationToken cancellationToken = default";
+        
+        // Build XML doc param elements
+        var paramDocs = typedParams.Select(p => 
+            $"        /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        // Build the delegation call arguments (just the typed params forwarded to Get(...))
+        var delegationArgs = string.Join(", ", typedParams.Select(p => p.Name));
+        
+        // Emit the typed GetAsync method
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Gets a {entity.ClassName} using typed source property parameters and executes the request.");
+        sb.AppendLine($"        /// This is an express-route method that combines Get() and GetItemAsync().");
+        sb.AppendLine($"        /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"        /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+        sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({paramList})");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            return await Get({delegationArgs}).GetItemAsync(cancellationToken);");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a typed parameter FluentResults convenience method for GetAsyncResult on the entity accessor.
+    /// This method uses expression-body syntax and delegates to Get(...).GetItemAsyncResult(cancellationToken).
+    /// Only emitted when entity.UseFluentResults is true.
+    /// </summary>
+    private static void GenerateTypedGetAsyncResultMethod(StringBuilder sb, EntityModel entity, string modifier, List<Diagnostic>? diagnostics)
+    {
+        // Only generate when UseFluentResults is enabled
+        if (!entity.UseFluentResults)
+            return;
+        
+        // Check if entity qualifies for typed overload
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        // Check if the overload would be ambiguous with the standard overload
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        // Resolve typed overload parameters
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+        {
+            // Parameter resolution failed - diagnostic already emitted by GenerateTypedGetOverload
+            return;
+        }
+        
+        // Build the parameter list string (typed params + CancellationToken)
+        var paramList = string.Join(", ", typedParams.Select(p => 
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", System.Threading.CancellationToken cancellationToken = default";
+        
+        // Build XML doc param elements
+        var paramDocs = typedParams.Select(p => 
+            $"        /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        // Build the delegation call arguments (just the typed params forwarded to Get(...))
+        var delegationArgs = string.Join(", ", typedParams.Select(p => p.Name));
+        
+        // Emit the typed GetAsyncResult method with expression-body syntax
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Gets a {entity.ClassName} using typed source property parameters and returns a Result.");
+        sb.AppendLine($"        /// This is an express-route method that combines Get() and GetItemAsyncResult().");
+        sb.AppendLine($"        /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"        /// <returns>A Result containing the {entity.ClassName} entity if found, otherwise null, or error details.</returns>");
+        sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({paramList}) =>");
+        sb.AppendLine($"            Get({delegationArgs}).GetItemAsyncResult(cancellationToken);");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
     /// Generates a typed parameter convenience overload for the Delete accessor method.
     /// This overload accepts individual source property components instead of pre-built key strings.
     /// </summary>
@@ -1253,6 +1374,128 @@ internal static class TableGenerator
         // Delegate to the standard overload
         var delegationArgStr = string.Join(", ", delegationArgs);
         sb.AppendLine($"            return Delete({delegationArgStr});");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a typed async convenience method for DeleteAsync on the entity accessor.
+    /// This method accepts individual source property parameters and delegates to the typed Delete builder,
+    /// conditionally applies WithKeyCondition, then calls .DeleteAsync(cancellationToken).
+    /// </summary>
+    private static void GenerateTypedDeleteAsyncMethod(StringBuilder sb, EntityModel entity, string modifier, List<Diagnostic>? diagnostics)
+    {
+        // Respect HideGeneratedAsyncMethods flag: skip when UseFluentResults=true AND HideGeneratedAsyncMethods=true
+        if (entity.UseFluentResults && entity.HideGeneratedAsyncMethods)
+            return;
+        
+        // Check if entity qualifies for typed overload
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        // Check if the overload would be ambiguous with the standard overload
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        // Resolve typed overload parameters
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+        {
+            // Parameter resolution failed - diagnostic already emitted by GenerateTypedDeleteOverload
+            return;
+        }
+        
+        // Build the parameter list string (typed params + KeyCondition + CancellationToken)
+        var paramList = string.Join(", ", typedParams.Select(p => 
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default";
+        
+        // Build the delegation argument list (just the typed params)
+        var delegationArgs = string.Join(", ", typedParams.Select(p => p.Name));
+        
+        // Build XML doc param elements
+        var paramDocs = typedParams.Select(p => 
+            $"        /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        // Emit the typed async method
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Deletes a {entity.ClassName} using typed source property parameters and executes the request.");
+        sb.AppendLine($"        /// This convenience method composes the key internally via {entity.ClassName}.Keys and calls DeleteAsync.");
+        sb.AppendLine($"        /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+        sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"        /// <returns>A task representing the async operation.</returns>");
+        sb.AppendLine($"        {modifier} async System.Threading.Tasks.Task DeleteAsync({paramList})");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            var builder = Delete({delegationArgs});");
+        sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+        sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+        sb.AppendLine($"            await builder.DeleteAsync(cancellationToken);");
+        sb.AppendLine($"        }}");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a typed parameter convenience method for DeleteAsyncResult on the entity accessor.
+    /// This method is only emitted when the entity has [UseFluentResults] enabled.
+    /// It returns Task&lt;Result&gt; without async/await since it directly returns the Task from the builder.
+    /// </summary>
+    private static void GenerateTypedDeleteAsyncResultMethod(StringBuilder sb, EntityModel entity, string modifier, List<Diagnostic>? diagnostics)
+    {
+        // Only generate when UseFluentResults is enabled
+        if (!entity.UseFluentResults)
+            return;
+        
+        // Check if entity qualifies for typed overload
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        // Check if the overload would be ambiguous with the standard overload
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        // Resolve typed overload parameters
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+        {
+            // Parameter resolution failed - diagnostic already emitted by GenerateTypedDeleteOverload
+            return;
+        }
+        
+        // Build the parameter list string (typed params + KeyCondition + CancellationToken)
+        var paramList = string.Join(", ", typedParams.Select(p => 
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default";
+        
+        // Build the delegation argument list (just the typed params)
+        var delegationArgs = string.Join(", ", typedParams.Select(p => p.Name));
+        
+        // Build XML doc param elements
+        var paramDocs = typedParams.Select(p => 
+            $"        /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        // Emit the typed DeleteAsyncResult method (not expression-body due to conditional WithKeyCondition)
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Deletes a {entity.ClassName} using typed source property parameters and returns a Result.");
+        sb.AppendLine($"        /// This method returns a Result instead of throwing exceptions.");
+        sb.AppendLine($"        /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"        /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+        sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"        /// <returns>A Result indicating success or containing error details.</returns>");
+        sb.AppendLine($"        {modifier} System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({paramList})");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            var builder = Delete({delegationArgs});");
+        sb.AppendLine($"            if (keyCondition != KeyCondition.None)");
+        sb.AppendLine($"                builder.WithKeyCondition(keyCondition);");
+        sb.AppendLine($"            return builder.DeleteAsyncResult(cancellationToken);");
         sb.AppendLine($"        }}");
         sb.AppendLine();
     }
@@ -2048,6 +2291,15 @@ internal static class TableGenerator
         
         // Generate typed convenience overload if eligible
         GenerateTypedDeleteOverload(sb, entity, modifier, diagnostics);
+        
+        // Generate typed async convenience method if eligible
+        GenerateTypedDeleteAsyncMethod(sb, entity, modifier, diagnostics);
+        
+        // Generate typed DeleteAsyncResult method if eligible (FluentResults only)
+        if (entity.UseFluentResults)
+        {
+            GenerateTypedDeleteAsyncResultMethod(sb, entity, modifier, diagnostics);
+        }
     }
     
     /// <summary>
@@ -2624,6 +2876,12 @@ internal static class TableGenerator
         
         // Generate typed overload at table level if eligible
         GenerateTableLevelTypedGetOverload(sb, entity, entityPropertyName, diagnostics);
+        
+        // Generate typed GetAsync at table level if eligible
+        GenerateTableLevelTypedGetAsyncMethod(sb, entity, entityPropertyName, diagnostics);
+        
+        // Generate typed GetAsyncResult at table level if eligible (FluentResults variant)
+        GenerateTableLevelTypedGetAsyncResultMethod(sb, entity, entityPropertyName, diagnostics);
     }
     
     /// <summary>
@@ -2972,6 +3230,12 @@ internal static class TableGenerator
         
         // Generate typed overload at table level if eligible
         GenerateTableLevelTypedDeleteOverload(sb, entity, entityPropertyName, diagnostics);
+        
+        // Generate typed DeleteAsync at table level if eligible
+        GenerateTableLevelTypedDeleteAsyncMethod(sb, entity, entityPropertyName, diagnostics);
+        
+        // Generate typed DeleteAsyncResult at table level if eligible (FluentResults variant)
+        GenerateTableLevelTypedDeleteAsyncResultMethod(sb, entity, entityPropertyName, diagnostics);
     }
     
     /// <summary>
@@ -3124,6 +3388,192 @@ internal static class TableGenerator
         sb.AppendLine($"    /// <returns>A DeleteItemRequestBuilder&lt;{entity.ClassName}&gt; configured with the composed key.</returns>");
         sb.AppendLine($"    public DeleteItemRequestBuilder<{entity.ClassName}> Delete({paramList}) =>");
         sb.AppendLine($"        {entityPropertyName}.Delete({argList});");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a table-level typed parameter GetAsync convenience method that delegates to the entity accessor's typed GetAsync.
+    /// Uses expression-body syntax: public Task&lt;T?&gt; GetAsync(...) =&gt; entityAccessor.GetAsync(...);
+    /// </summary>
+    private static void GenerateTableLevelTypedGetAsyncMethod(StringBuilder sb, EntityModel entity, string entityPropertyName, List<Diagnostic>? diagnostics)
+    {
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        // Respect HideGeneratedAsyncMethods flag: skip when UseFluentResults=true and HideGeneratedAsyncMethods=true
+        var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
+        if (!generateTraditionalAsync)
+            return;
+        
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+            return; // diagnostic already emitted at entity accessor level
+        
+        var paramList = string.Join(", ", typedParams.Select(p =>
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", System.Threading.CancellationToken cancellationToken = default";
+        
+        var argList = string.Join(", ", typedParams.Select(p => p.Name));
+        argList += ", cancellationToken";
+        
+        var paramDocs = typedParams.Select(p =>
+            $"    /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Gets a {entity.ClassName} using typed source property parameters and executes the request.");
+        sb.AppendLine($"    /// This convenience method delegates to the entity accessor's typed GetAsync.");
+        sb.AppendLine($"    /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"    /// <returns>The {entity.ClassName} entity if found, otherwise null.</returns>");
+        sb.AppendLine($"    public System.Threading.Tasks.Task<{entity.ClassName}?> GetAsync({paramList}) =>");
+        sb.AppendLine($"        {entityPropertyName}.GetAsync({argList});");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a table-level typed parameter DeleteAsync convenience method that delegates to the entity accessor's typed DeleteAsync.
+    /// Uses expression-body syntax: public Task DeleteAsync(...) =&gt; entityAccessor.DeleteAsync(...);
+    /// </summary>
+    private static void GenerateTableLevelTypedDeleteAsyncMethod(StringBuilder sb, EntityModel entity, string entityPropertyName, List<Diagnostic>? diagnostics)
+    {
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        // Respect HideGeneratedAsyncMethods flag: skip when UseFluentResults=true and HideGeneratedAsyncMethods=true
+        var generateTraditionalAsync = !entity.UseFluentResults || !entity.HideGeneratedAsyncMethods;
+        if (!generateTraditionalAsync)
+            return;
+        
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+            return; // diagnostic already emitted at entity accessor level
+        
+        var paramList = string.Join(", ", typedParams.Select(p =>
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default";
+        
+        var argList = string.Join(", ", typedParams.Select(p => p.Name));
+        argList += ", keyCondition, cancellationToken";
+        
+        var paramDocs = typedParams.Select(p =>
+            $"    /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Deletes a {entity.ClassName} using typed source property parameters and executes the request.");
+        sb.AppendLine($"    /// This convenience method delegates to the entity accessor's typed DeleteAsync.");
+        sb.AppendLine($"    /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+        sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"    /// <returns>A task representing the async operation.</returns>");
+        sb.AppendLine($"    public System.Threading.Tasks.Task DeleteAsync({paramList}) =>");
+        sb.AppendLine($"        {entityPropertyName}.DeleteAsync({argList});");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a table-level typed parameter GetAsyncResult convenience method that delegates to the entity accessor's typed GetAsyncResult.
+    /// Uses expression-body syntax: public Task&lt;Result&lt;T?&gt;&gt; GetAsyncResult(...) =&gt; entityAccessor.GetAsyncResult(...);
+    /// Only emitted when entity.UseFluentResults is true.
+    /// </summary>
+    private static void GenerateTableLevelTypedGetAsyncResultMethod(StringBuilder sb, EntityModel entity, string entityPropertyName, List<Diagnostic>? diagnostics)
+    {
+        // Only generate when UseFluentResults is enabled
+        if (!entity.UseFluentResults)
+            return;
+        
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+            return; // diagnostic already emitted at entity accessor level
+        
+        var paramList = string.Join(", ", typedParams.Select(p =>
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", System.Threading.CancellationToken cancellationToken = default";
+        
+        var argList = string.Join(", ", typedParams.Select(p => p.Name));
+        argList += ", cancellationToken";
+        
+        var paramDocs = typedParams.Select(p =>
+            $"    /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Gets a {entity.ClassName} using typed source property parameters and returns a Result.");
+        sb.AppendLine($"    /// This convenience method delegates to the entity accessor's typed GetAsyncResult.");
+        sb.AppendLine($"    /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"    /// <returns>A Result containing the {entity.ClassName} entity if found, otherwise null, or error details.</returns>");
+        sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result<{entity.ClassName}?>> GetAsyncResult({paramList}) =>");
+        sb.AppendLine($"        {entityPropertyName}.GetAsyncResult({argList});");
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a table-level typed parameter DeleteAsyncResult convenience method that delegates to the entity accessor's typed DeleteAsyncResult.
+    /// Uses expression-body syntax: public Task&lt;Result&gt; DeleteAsyncResult(...) =&gt; entityAccessor.DeleteAsyncResult(...);
+    /// Only emitted when entity.UseFluentResults is true.
+    /// </summary>
+    private static void GenerateTableLevelTypedDeleteAsyncResultMethod(StringBuilder sb, EntityModel entity, string entityPropertyName, List<Diagnostic>? diagnostics)
+    {
+        // Only generate when UseFluentResults is enabled
+        if (!entity.UseFluentResults)
+            return;
+        
+        if (!ComputedOverloadEligibility.QualifiesForTypedOverload(entity))
+            return;
+        
+        if (ComputedOverloadEligibility.WouldBeAmbiguous(entity))
+            return;
+        
+        var typedParams = OverloadParameterResolver.GetTypedOverloadParameters(entity);
+        if (typedParams == null)
+            return; // diagnostic already emitted at entity accessor level
+        
+        var paramList = string.Join(", ", typedParams.Select(p =>
+            $"{p.Type}{(p.IsNullable ? "?" : "")} {p.Name}"));
+        paramList += ", KeyCondition keyCondition = KeyCondition.None, System.Threading.CancellationToken cancellationToken = default";
+        
+        var argList = string.Join(", ", typedParams.Select(p => p.Name));
+        argList += ", keyCondition, cancellationToken";
+        
+        var paramDocs = typedParams.Select(p =>
+            $"    /// <param name=\"{p.Name}\">The {p.Name} component value.</param>");
+        
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Deletes a {entity.ClassName} using typed source property parameters and returns a Result.");
+        sb.AppendLine($"    /// This convenience method delegates to the entity accessor's typed DeleteAsyncResult.");
+        sb.AppendLine($"    /// </summary>");
+        foreach (var doc in paramDocs)
+        {
+            sb.AppendLine(doc);
+        }
+        sb.AppendLine($"    /// <param name=\"keyCondition\">Optional key condition to check before the operation. Defaults to None (no condition).</param>");
+        sb.AppendLine($"    /// <param name=\"cancellationToken\">Cancellation token for the async operation.</param>");
+        sb.AppendLine($"    /// <returns>A Result indicating success or containing error details.</returns>");
+        sb.AppendLine($"    public System.Threading.Tasks.Task<global::FluentResults.Result> DeleteAsyncResult({paramList}) =>");
+        sb.AppendLine($"        {entityPropertyName}.DeleteAsyncResult({argList});");
         sb.AppendLine();
     }
     

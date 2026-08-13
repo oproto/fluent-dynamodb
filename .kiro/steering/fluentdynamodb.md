@@ -321,11 +321,18 @@ public partial class Event
 Event.Keys.BuildPk(2024, 12, 25)              // Returns "2024#12#25"
 Event.Keys.ExtractPkComponents("2024#12#25")  // Returns (Year: 2024, Month: 12, Day: 25)
 
+// Typed async convenience methods (simplest approach):
+var evt = await table.Events.GetAsync(2024, 12, 25, "sk");
+await table.Events.DeleteAsync(2024, 12, 25, "sk");
+
+// Typed builder overloads (when you need options like consistent read):
+var evt2 = await table.Events.Get(2024, 12, 25, "sk").UsingConsistentRead().GetItemAsync();
+
 // When reading, extracted properties are auto-populated:
-var evt = await table.Events.Get(Event.Keys.BuildPk(2024, 12, 25)).GetItemAsync();
-Console.WriteLine(evt.Year);   // 2024
-Console.WriteLine(evt.Month);  // 12
-Console.WriteLine(evt.Day);    // 25
+var evt3 = await table.Events.GetAsync(2024, 12, 25, "sk");
+Console.WriteLine(evt3.Year);   // 2024
+Console.WriteLine(evt3.Month);  // 12
+Console.WriteLine(evt3.Day);    // 25
 ```
 
 ### Key Handling Summary
@@ -373,6 +380,10 @@ var user = await table.Users.Get(userId).GetItemAsync();              // Entity 
 // Convenience methods
 var user = await table.GetAsync(userId);
 var user = await table.Users.GetAsync(userId);
+
+// Typed async convenience (computed key entities)
+var evt = await table.Events.GetAsync(2024, 12, 25, "sk");           // Typed params, one-shot
+var evt = await table.GetAsync(2024, 12, 25, "sk");                  // Table-level typed
 
 // Options
 var user = await table.Users.Get(userId).UsingConsistentRead().WithProjection("name, email").GetItemAsync();
@@ -511,6 +522,11 @@ await table.Users.Update(userId)
 await table.Delete(userId).DeleteAsync();
 await table.Users.Delete(userId).DeleteAsync();
 await table.Users.DeleteAsync(userId);  // Convenience
+
+// Typed async convenience (computed key entities)
+await table.Events.DeleteAsync(2024, 12, 25, "sk");                              // Typed params, one-shot
+await table.Events.DeleteAsync(2024, 12, 25, "sk", KeyCondition.MustExist);      // With key condition
+await table.DeleteAsync(2024, 12, 25, "sk");                                      // Table-level typed
 
 // With condition
 await table.Users.Delete(userId).Where(x => x.Status == "inactive").DeleteAsync();
@@ -739,6 +755,10 @@ await DynamoDbTransactions.WriteAsync(client, transactWriteRequest);
 | Put | `.PutAsync()` | `PutAsync()` |
 | Update | `.UpdateAsync()` | - |
 | Delete | `.DeleteAsync()` | `DeleteAsync()` |
+| Get (typed, computed key) | `.Get(typed...).GetItemAsync()` | `GetAsync(typed...)` |
+| Delete (typed, computed key) | `.Delete(typed...).DeleteAsync()` | `DeleteAsync(typed..., keyCondition)` |
+| Get (FluentResults) | `.GetItemAsyncResult()` | `GetAsyncResult()` |
+| Delete (FluentResults) | `.DeleteAsyncResult()` | `DeleteAsyncResult()` |
 | Query/Scan | `.ToListAsync()` | - |
 | Batch/Transaction | `.ExecuteAsync()` | `.ExecuteAndMapAsync<T1,T2>()` |
 | PartiQL | `.ToListAsync()`, `.ExecuteAsync()` | - |
