@@ -1559,4 +1559,19 @@ internal static class DiagnosticDescriptors
         "Remove the Prefix to avoid confusion, or use Format = \"PREFIX#{0}\" on [Computed] " +
         "if the prefix should appear in the stored value.",
         helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB125"));
+
+    /// <summary>
+    /// Error when a key property uses expression-body or read-only auto-property syntax but references a non-compile-time-constant value.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConstantKeyNonConstReference = new(
+        "FDDB126",
+        "Key property references non-compile-time-constant value",
+        "Property '{0}' uses expression-body or read-only auto-property syntax but its value is not a compile-time constant — use a string literal or a 'const' field instead",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A key property with expression-body (=>) or read-only auto-property ({ get; }) syntax must resolve to a compile-time constant string (string literal or const field). " +
+        "References to static readonly fields, properties, or method calls cannot be resolved at compile time and will produce uncompilable generated code. " +
+        "Use a string literal (e.g., => \"VALUE\") or a const field (e.g., => MyConstants.Value where Value is const) instead.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB126"));
 }

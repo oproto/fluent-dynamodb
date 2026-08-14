@@ -1,0 +1,106 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Read-Only Key With Non-Const Reference Generates Uncompilable Code
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases: expression-body key properties referencing `static readonly` fields, property accesses, and method calls
+  - Test that for any key property (partition or sort) using expression-body or read-only auto-property syntax with a non-compile-time-constant value:
+    - The source generator emits diagnostic FDDB126 with severity Error
+    - The generated `FromDynamoDb()` code does NOT contain `entity.{PropertyName} = ` assignment
+    - `PropertyModel.IsReadOnlyKeyProperty` is set to `true`
+  - Use FsCheck to generate test cases covering:
+    - Expression-body with `static readonly` field reference: `[SortKey] public string Sk => StaticFields.Value;`
+    - Read-only auto-property with `static readonly` initializer: `[SortKey] public string Sk { get; } = StaticFields.Value;`
+    - Expression-body with method call: `[SortKey] public string Sk => GetKey();`
+    - Expression-body with property access: `[SortKey] public string Sk => Config.DefaultKey;`
+  - Test project: `Oproto.FluentDynamoDb.SourceGenerator.UnitTests`
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists: no FDDB126 is emitted, and uncompilable assignment code IS generated)
+  - Document counterexamples found (e.g., "Generator produces `entity.Sk = attrValue.S;` for property with no setter, no diagnostic emitted")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Compile-Time Constant Keys Continue To Resolve
+  - **IMPORTANT**: Follow observation-first methodology
+  - **IMPORTANT**: Run `dotnet build-server shutdown` before building/testing
+  - Observe behavior on UNFIXED code for non-buggy inputs:
+    - Observe: Expression-body key with string literal `=> "PROFILE"` resolves to `IsConstantKey = true`, `ConstantKeyValue = "PROFILE"` on unfixed code
+    - Observe: Expression-body key with `const` field reference resolves via `GetConstantValue()` and sets `IsConstantKey = true` on unfixed code
+    - Observe: Read-only auto-property key with string literal initializer `{ get; } = "PROFILE"` resolves to `IsConstantKey = true` on unfixed code
+    - Observe: Read-only auto-property key with `const` field initializer resolves correctly on unfixed code
+    - Observe: Mutable key property `{ get; set; }` is treated as normal key with no constant detection attempted on unfixed code
+    - Observe: Non-key properties (no `[PartitionKey]`/`[SortKey]`) are completely unaffected on unfixed code
+  - Write property-based tests using FsCheck capturing observed behavior patterns:
+    - For any random non-empty string V, expression-body key `=> "V"` must resolve `ConstantKeyValue = V` and `IsReadOnlyKeyProperty = false`
+    - For any `const string` field reference, `GetConstantValue()` must resolve the value and set `IsConstantKey = true`
+    - For any property with `{ get; set; }`, `IsReadOnlyKeyProperty` must remain `false` and constant key detection must not be attempted
+    - For any property without `[PartitionKey]`/`[SortKey]`, neither `IsConstantKey` nor `IsReadOnlyKeyProperty` should be set
+  - Test project: `Oproto.FluentDynamoDb.SourceGenerator.UnitTests`
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [x] 3. Fix for read-only key property with non-compile-time-constant reference
+  - [x] 3.1 Add FDDB126 diagnostic descriptor
+    - File: `Oproto.FluentDynamoDb.SourceGenerator/Diagnostics/DiagnosticDescriptors.cs`
+    - Add new `ConstantKeyNonConstReference` descriptor with id "FDDB126", severity Error
+    - Message format: indicate property uses expression-body/read-only syntax but value is not a compile-time constant, with guidance to use a string literal or `const` field
+    - _Bug_Condition: isBugCondition(input) where key property is expression-body or get-only auto-property AND GetConstantValue() returns null_
+    - _Expected_Behavior: Diagnostic FDDB126 emitted with Error severity on the property declaration_
+    - _Preservation: Existing FDDB120–FDDB125 diagnostics must continue to fire in their original conditions_
+    - _Requirements: 2.1, 2.2_
+  - [x] 3.2 Add IsReadOnlyKeyProperty flag to PropertyModel
+    - File: `Oproto.FluentDynamoDb.SourceGenerator/Models/PropertyModel.cs`
+    - Add `public bool IsReadOnlyKeyProperty { get; set; }` property
+    - Set to `true` when a key property is expression-body or get-only auto-property AND `ConstantKeyValue` remains null after detection
+    - _Bug_Condition: Key property is syntactically read-only and value could not be resolved as compile-time constant_
+    - _Expected_Behavior: Flag provides clear signal to downstream generators to skip property assignment_
+    - _Requirements: 2.3, 2.4_
+  - [x] 3.3 Add read-only detection in EntityAnalyzer.DetectConstantKeyValue
+    - File: `Oproto.FluentDynamoDb.SourceGenerator/Analysis/EntityAnalyzer.cs`
+    - In Case 1 (expression-body) and Case 2 (read-only auto-property): after `GetConstantValue()` returns null or non-string, check property is read-only (no setter)
+    - If read-only: set `propertyModel.IsReadOnlyKeyProperty = true` and emit FDDB126 via `ReportDiagnostic`
+    - Use `propertyDecl.Identifier.GetLocation()` for diagnostic location
+    - Include property name in message format argument
+    - Run `dotnet build-server shutdown` after modifying the source generator
+    - _Bug_Condition: isBugCondition(input) where GetConstantValue() yields null for expression-body or get-only auto-property key_
+    - _Expected_Behavior: FDDB126 emitted, IsReadOnlyKeyProperty = true_
+    - _Preservation: String literals and const field references must still resolve correctly via existing logic_
+    - _Requirements: 1.1, 1.3, 1.4, 2.1, 2.2_
+  - [x] 3.4 Guard against assignment to read-only properties in MapperGenerator
+    - File: `Oproto.FluentDynamoDb.SourceGenerator/Generators/MapperGenerator.cs`
+    - In `GeneratePropertyFromAttributeValue` (FromDynamoDb path): after existing `IsConstantKey` early-return, add check for `property.IsReadOnlyKeyProperty` — if true, skip property assignment entirely
+    - In `GeneratePropertyToAttributeValue` (ToDynamoDb path): after existing `IsConstantKey` early-return, add check for `property.IsReadOnlyKeyProperty` — if true, skip serialization
+    - This is a safety net: with FDDB126 as Error, generation should halt, but guard prevents uncompilable output if diagnostic severity is ever downgraded
+    - Run `dotnet build-server shutdown` after modifying the source generator
+    - _Bug_Condition: Generator previously emitted entity.Property = value for properties with no setter_
+    - _Expected_Behavior: No assignment code generated for IsReadOnlyKeyProperty properties_
+    - _Preservation: Normal mutable properties and constant key properties continue to generate correctly_
+    - _Requirements: 2.3, 2.4_
+  - [x] 3.5 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Read-Only Key With Non-Const Reference Emits FDDB126
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior (FDDB126 emitted, no assignment generated)
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run `dotnet build-server shutdown` then run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 3.6 Verify preservation tests still pass
+    - **Property 2: Preservation** - Compile-Time Constant Keys Continue To Resolve
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run `dotnet build-server shutdown` then run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run `dotnet build-server shutdown` then `dotnet build` to verify clean build
+  - Run `dotnet test` to verify all tests pass (both new and existing)
+  - Ensure no regressions in existing constant key detection tests
+  - Ensure FDDB126 is emitted correctly for all bug condition cases
+  - Ensure preservation tests confirm unchanged behavior for valid constant keys
+  - Ask the user if questions arise

@@ -59,6 +59,74 @@ Entries may be categorized as:
 
 ## [2026-08-14]
 
+### New Diagnostic: FDDB126 — Constant Key Non-Const Reference Detection
+
+**Category:** New Feature Documentation
+
+### File: docs/diagnostics/FDDB/FDDB126.md
+
+**Description:** Added diagnostic documentation page for FDDB126, which is emitted when a key property (`[PartitionKey]` or `[SortKey]`) uses expression-body (`=>`) or read-only auto-property (`{ get; }`) syntax but references a non-compile-time-constant value (e.g., `static readonly` field, property access, or method call). The diagnostic has Error severity and halts code generation for the affected entity.
+
+| Code | Severity | Title |
+|------|----------|-------|
+| FDDB126 | Error | Key property references non-compile-time-constant value |
+
+**Before:**
+```csharp
+// No diagnostic — generator silently produces uncompilable code (CS0200)
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk => DynamoDB.DefaultSortKeyValue;  // static readonly — NOT const
+}
+// Generated: entity.Sk = attrValue.S; → CS0200 "property has no setter"
+```
+
+**After:**
+```csharp
+// FDDB126 Error: Property 'Sk' uses expression-body or read-only auto-property syntax
+// but its value is not a compile-time constant — use a string literal or a 'const' field instead
+[DynamoDbTable("Orders")]
+public partial class Order
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk => "PROFILE";  // ✅ String literal — compile-time constant
+    // OR
+    public string Sk => Constants.SortKey;  // ✅ const field — compile-time constant
+}
+```
+
+**Reason:** New diagnostic detects when a read-only key property references a value that `SemanticModel.GetConstantValue()` cannot resolve at compile time. Previously the source generator silently fell through to normal code generation, emitting property assignments for properties with no setter — producing uncompilable output. The diagnostic guides users to use string literals or `const` field references instead.
+
+---
+
+### File: docs/diagnostics/README.md
+
+**Change:** Updated diagnostic index to include FDDB126. Incremented total count and added row to the FDDB table.
+
+---
+
+### File: docs/core-features/ConstantKeyDetection.md
+
+**Change:** Added "Non-Compile-Time Constants (FDDB126)" subsection documenting which patterns are NOT supported as constant keys and why, with examples of `static readonly`, property access, and method call patterns that trigger FDDB126.
+
+**Reason:** Users need to understand the boundary between valid constant key patterns (string literals, `const` fields) and invalid patterns (runtime values) that trigger the new diagnostic.
+
+---
+
+## [2026-08-14]
+
 ### Unified Keys Class API — Breaking Change Documentation
 
 **Category:** Pattern Update

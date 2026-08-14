@@ -215,4 +215,14 @@ internal class PropertyModel
     /// Gets a value indicating whether this property is a constant key.
     /// </summary>
     public bool IsConstantKey => ConstantKeyValue != null;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this key property is syntactically read-only
+    /// but its value could not be resolved as a compile-time constant.
+    /// Set to <c>true</c> when a key property uses expression-body or get-only auto-property syntax
+    /// AND <see cref="ConstantKeyValue"/> remains null after constant detection.
+    /// Downstream generators use this flag to skip property assignment, preventing uncompilable code
+    /// (e.g., assigning to a property with no setter).
+    /// </summary>
+    public bool IsReadOnlyKeyProperty { get; set; }
 }

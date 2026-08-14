@@ -635,6 +635,14 @@ internal static class MapperGenerator
             return;
         }
 
+        // Handle read-only key properties with non-const references — skip serialization
+        if (property.IsReadOnlyKeyProperty)
+        {
+            // Skip serialization — read-only key property with non-compile-time-constant value.
+            // The property value may not be deterministic, so don't include it in the item.
+            return;
+        }
+
         // Handle encrypted properties - these require async methods
         if (property.Security?.IsEncrypted == true)
         {
@@ -747,6 +755,14 @@ internal static class MapperGenerator
         if (property.IsConstantKey)
         {
             sb.AppendLine($"            item[\"{attributeName}\"] = new AttributeValue {{ S = \"{EscapeString(property.ConstantKeyValue!)}\" }};");
+            return;
+        }
+
+        // Handle read-only key properties with non-const references — skip serialization
+        if (property.IsReadOnlyKeyProperty)
+        {
+            // Skip serialization — read-only key property with non-compile-time-constant value.
+            // The property value may not be deterministic, so don't include it in the item.
             return;
         }
 
@@ -2874,6 +2890,15 @@ internal static class MapperGenerator
             sb.AppendLine($"{indentation}}}");
             // No property assignment — expression-body has no setter,
             // read-only auto-property is set by initializer
+            return;
+        }
+
+        // Handle read-only key properties with non-const references — skip assignment entirely
+        if (property.IsReadOnlyKeyProperty)
+        {
+            // No property assignment — read-only key property with non-compile-time-constant value.
+            // FDDB126 diagnostic prevents this entity from compiling, but this guard ensures
+            // no uncompilable assignment is generated if the diagnostic severity is ever downgraded.
             return;
         }
 
