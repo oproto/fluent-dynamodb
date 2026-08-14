@@ -44,20 +44,36 @@ await table.Events.Update(Event.Keys.BuildPk(2024, 12, 25), "EVT#christmas")
     .UpdateAsync();
 ```
 
-### After: Typed Parameter Overloads
+### After: Typed Async Convenience Methods (Simplest)
 
 ```csharp
-// Pass source property components directly — the generator composes the key internally
-var evt = await table.Events.Get(2024, 12, 25, "EVT#christmas").GetItemAsync();
+// One-shot convenience methods — pass typed parameters and get the result directly
+var evt = await table.Events.GetAsync(2024, 12, 25, "EVT#christmas");
 
-await table.Events.Delete(2024, 12, 25, "EVT#christmas").DeleteAsync();
+await table.Events.DeleteAsync(2024, 12, 25, "EVT#christmas");
+
+// DeleteAsync also accepts an optional KeyCondition
+await table.Events.DeleteAsync(2024, 12, 25, "EVT#christmas", KeyCondition.MustExist);
+```
+
+### After: Typed Builder Overloads (When You Need Options)
+
+```csharp
+// Use the builder pattern when you need projections, conditions, or consistent reads
+var evt = await table.Events.Get(2024, 12, 25, "EVT#christmas")
+    .UsingConsistentRead()
+    .GetItemAsync();
+
+await table.Events.Delete(2024, 12, 25, "EVT#christmas")
+    .Where(x => x.Status == "cancelled")
+    .DeleteAsync();
 
 await table.Events.Update(2024, 12, 25, "EVT#christmas")
     .Set(x => new EventUpdateModel { Status = "archived" })
     .UpdateAsync();
 ```
 
-The generated overload calls `Event.Keys.BuildPk(year, month, day)` internally and passes the composed key to the standard accessor.
+The generated overloads call `Event.Keys.BuildPk(year, month, day)` internally and pass the composed key to the standard accessor.
 
 ## When Typed Overloads Are Generated
 
@@ -184,20 +200,36 @@ public partial class TimeSeriesEntry
 var entry = await table.TimeSeriesEntries
     .Get("sensor-42", "us-west", 2024, 12, 25)
     .GetItemAsync();
+
+// Or use the async convenience method for simple gets:
+var entry2 = await table.TimeSeriesEntries.GetAsync("sensor-42", "us-west", 2024, 12, 25);
 ```
 
 ## Consistent Across All CRUD Methods
 
-The same typed overload signature is generated for Get, Delete, Update, and ConditionCheck:
+The same typed overload signature is generated for Get, Delete, Update, and ConditionCheck. For Get and Delete, one-shot async convenience methods are also available:
 
 ```csharp
-// Get
-var evt = await table.Events.Get(2024, 12, 25, "EVT#party").GetItemAsync();
+// GetAsync — simplest approach for retrieving an item
+var evt = await table.Events.GetAsync(2024, 12, 25, "EVT#party");
 
-// Delete
-await table.Events.Delete(2024, 12, 25, "EVT#party").DeleteAsync();
+// DeleteAsync — simplest approach for deleting an item
+await table.Events.DeleteAsync(2024, 12, 25, "EVT#party");
 
-// Update
+// DeleteAsync with KeyCondition
+await table.Events.DeleteAsync(2024, 12, 25, "EVT#party", KeyCondition.MustExist);
+
+// Get builder — when you need options like consistent read or projections
+var evt2 = await table.Events.Get(2024, 12, 25, "EVT#party")
+    .UsingConsistentRead()
+    .GetItemAsync();
+
+// Delete builder — when you need a condition expression
+await table.Events.Delete(2024, 12, 25, "EVT#party")
+    .Where(x => x.Status == "cancelled")
+    .DeleteAsync();
+
+// Update — always uses the builder pattern (needs Set clause)
 await table.Events.Update(2024, 12, 25, "EVT#party")
     .Set(x => new EventUpdateModel { Title = "Updated" })
     .UpdateAsync();
@@ -212,12 +244,40 @@ await DynamoDbTransactions.Write
 
 ## Table-Level Overloads
 
-Typed overloads are also generated at the table level for single-entity tables:
+Typed overloads and async convenience methods are also generated at the table level for single-entity tables:
 
 ```csharp
-// Table-level typed overload (delegates to entity accessor)
-var evt = await table.Get(2024, 12, 25, "EVT#party").GetItemAsync();
+// Table-level GetAsync (delegates to entity accessor)
+var evt = await table.GetAsync(2024, 12, 25, "EVT#party");
+
+// Table-level DeleteAsync
+await table.DeleteAsync(2024, 12, 25, "EVT#party");
+
+// Table-level builder (when you need options)
+var evt2 = await table.Get(2024, 12, 25, "EVT#party").GetItemAsync();
 ```
+
+## FluentResults Variants
+
+When an entity has `[UseFluentResults]`, the generator also produces `GetAsyncResult` and `DeleteAsyncResult` methods that return `Result<T?>` and `Result` instead of throwing exceptions:
+
+```csharp
+// GetAsyncResult — returns Result<Event?> instead of throwing
+var result = await table.Events.GetAsyncResult(2024, 12, 25, "EVT#party");
+if (result.IsSuccess)
+{
+    var evt = result.Value;
+}
+
+// DeleteAsyncResult — returns Result instead of throwing
+var deleteResult = await table.Events.DeleteAsyncResult(2024, 12, 25, "EVT#party", KeyCondition.MustExist);
+if (deleteResult.IsFailed)
+{
+    // Handle error
+}
+```
+
+Table-level `GetAsyncResult` and `DeleteAsyncResult` are also generated for single-entity tables.
 
 ## Standard Overloads Remain Unchanged
 

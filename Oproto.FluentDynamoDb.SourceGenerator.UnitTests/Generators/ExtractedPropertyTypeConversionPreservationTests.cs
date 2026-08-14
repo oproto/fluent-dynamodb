@@ -127,7 +127,7 @@ public class ExtractedPropertyTypeConversionPreservationTests
     /// Validates: Requirement 3.5
     /// </summary>
     [Fact]
-    public void ComputedPropertyWithExtracted_KeysGeneration_ShouldGenerateBuildMethod()
+    public void ComputedPropertyWithExtracted_KeysGeneration_ShouldGeneratePkMethod()
     {
         // Arrange
         var entity = CreateEntityWithComputedAndExtractedProperties();
@@ -135,9 +135,9 @@ public class ExtractedPropertyTypeConversionPreservationTests
         // Act
         var result = KeysGenerator.GenerateKeysClass(entity);
 
-        // Assert - computed key should generate Build method
-        result.Should().Contain("BuildPk",
-            "Computed key should generate a BuildPk method");
+        // Assert - computed key should generate Pk method
+        result.Should().Contain("Pk(",
+            "Computed key should generate a Pk method");
         result.Should().Contain("ExtractPkComponents",
             "Extracted properties should generate an ExtractPkComponents method");
     }

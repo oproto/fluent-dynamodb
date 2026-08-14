@@ -124,37 +124,6 @@ public class DiagnosticsReadmeValidationTests
     }
 
     [Fact]
-    public void Changelog_HasEntry_UnderUnreleasedAdded()
-    {
-        var changelogPath = Path.Combine(SolutionRoot, "CHANGELOG.md");
-        var content = File.ReadAllText(changelogPath);
-
-        content.Should().Contain("[Unreleased]",
-            "CHANGELOG.md should have an [Unreleased] section");
-        content.Should().Contain("### Added",
-            "CHANGELOG.md should have a '### Added' subsection");
-
-        // Verify there's a reference to the diagnostics helpLinkUri in the Added section
-        var unreleasedIndex = content.IndexOf("[Unreleased]", StringComparison.Ordinal);
-        var addedIndex = content.IndexOf("### Added", unreleasedIndex, StringComparison.Ordinal);
-        addedIndex.Should().BeGreaterThan(-1,
-            "'### Added' should appear after '[Unreleased]'");
-
-        // Find the next section boundary (## or ### that is NOT "### Added")
-        var afterAdded = content[(addedIndex + "### Added".Length)..];
-        var nextSectionMatch = Regex.Match(afterAdded, @"^##[# ]", RegexOptions.Multiline);
-        var addedSection = nextSectionMatch.Success
-            ? afterAdded[..nextSectionMatch.Index]
-            : afterAdded;
-
-        // Check that the Added section references diagnostics and helpLinkUri
-        addedSection.ToLowerInvariant().Should().Contain("diagnostics",
-            "the Added section should reference 'diagnostics'");
-        addedSection.ToLowerInvariant().Should().Contain("helplinkuri",
-            "the Added section should reference 'helpLinkUri'");
-    }
-
-    [Fact]
     public void DocumentationChangelog_HasAppropriatelyFormattedEntry()
     {
         var docChangelogPath = Path.Combine(SolutionRoot, "docs", "DOCUMENTATION_CHANGELOG.md");

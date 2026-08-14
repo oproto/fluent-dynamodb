@@ -7,23 +7,23 @@ using SourceGenAccessModifier = Oproto.FluentDynamoDb.SourceGenerator.Models.Acc
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 
 /// <summary>
-/// Property-based tests for delegation to Keys.Build methods with Raw bypass.
+/// Property-based tests for delegation to Keys.Pk/Sk methods with Raw bypass.
 ///
-/// **Feature: computed-key-accessor-overloads, Property 5: Delegation to Keys.Build methods with Raw bypass**
-/// **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 5.1, 5.2**
+/// **Feature: unify-keys-class-api, Property 6: Typed overloads delegate to unified methods**
+/// **Validates: Requirements 10.1**
 /// </summary>
 public class DelegationToKeysBuildPropertyTests
 {
     private static readonly string[] NonStringTypes = { "int", "long", "DateTime", "Guid", "decimal", "DateOnly" };
 
     /// <summary>
-    /// Property 5: For any entity with a computed PK and simple SK, the generated overload
-    /// SHALL call Entity.Keys.Build{PropertyName}(...) for computed partition keys with parameters
+    /// Property 6: For any entity with a computed PK and simple SK, the generated overload
+    /// SHALL call Entity.Keys.Pk(...) for computed partition keys with parameters
     /// in declaration order, and the composed key value SHALL be passed to the standard overload
     /// without any further prefix transformation (equivalent to KeyInputMode.Raw behavior).
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property TypedOverload_DelegatesToKeysBuildPk_ForComputedPkWithSimpleSk()
+    public Property TypedOverload_DelegatesToKeysPk_ForComputedPkWithSimpleSk()
     {
         var entityGen = CreateComputedPkSimpleSkGenerator();
 
@@ -35,9 +35,9 @@ public class DelegationToKeysBuildPropertyTests
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, pk)!;
             var pkArgs = string.Join(", ", pkSourceParams.Select(p => p.Name));
 
-            // Verify: generated code contains call to Entity.Keys.Build{PropertyName}(...)
-            var expectedBuildCall = $"{entity.ClassName}.Keys.Build{pk.PropertyName}({pkArgs})";
-            var hasBuildPkCall = generatedCode.Contains(expectedBuildCall);
+            // Verify: generated code contains call to Entity.Keys.Pk(...)
+            var expectedPkCall = $"{entity.ClassName}.Keys.{pk.PropertyName}({pkArgs})";
+            var hasPkCall = generatedCode.Contains(expectedPkCall);
 
             // Verify: the composed key is passed to the standard overload (delegation pattern)
             // The code should contain "return Get(computedPk" (with optional second arg)
@@ -45,22 +45,22 @@ public class DelegationToKeysBuildPropertyTests
                 || generatedCode.Contains("return Get(computedPk,");
 
             // Verify: no KeyInputMode parameter on standard overload when typed overload exists
-            // (per Requirement 4 AC 2 / 5.1 — typed overloads bypass prefix logic)
+            // (per Requirement 10.1 — typed overloads bypass prefix logic)
             var hasNoKeyInputModeOnStandard = !generatedCode.Contains("KeyInputMode mode = KeyInputMode.Default");
 
-            return (hasBuildPkCall && hasDelegation && hasNoKeyInputModeOnStandard)
-                .Label($"BuildPk call: {hasBuildPkCall}, Delegation: {hasDelegation}, No KeyInputMode: {hasNoKeyInputModeOnStandard}. " +
-                       $"Expected: {expectedBuildCall}");
+            return (hasPkCall && hasDelegation && hasNoKeyInputModeOnStandard)
+                .Label($"Pk call: {hasPkCall}, Delegation: {hasDelegation}, No KeyInputMode: {hasNoKeyInputModeOnStandard}. " +
+                       $"Expected: {expectedPkCall}");
         });
     }
 
     /// <summary>
-    /// Property 5 (continued): For any entity with a simple PK and computed SK, the generated
-    /// overload SHALL call Entity.Keys.Build{PropertyName}(...) for computed sort keys with
+    /// Property 6 (continued): For any entity with a simple PK and computed SK, the generated
+    /// overload SHALL call Entity.Keys.Sk(...) for computed sort keys with
     /// parameters in declaration order.
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property TypedOverload_DelegatesToKeysBuildSk_ForSimplePkWithComputedSk()
+    public Property TypedOverload_DelegatesToKeysSk_ForSimplePkWithComputedSk()
     {
         var entityGen = CreateSimplePkComputedSkGenerator();
 
@@ -72,9 +72,9 @@ public class DelegationToKeysBuildPropertyTests
             var skSourceParams = OverloadParameterResolver.ResolveParameters(entity, sk)!;
             var skArgs = string.Join(", ", skSourceParams.Select(p => p.Name));
 
-            // Verify: generated code contains call to Entity.Keys.Build{PropertyName}(...)
-            var expectedBuildCall = $"{entity.ClassName}.Keys.Build{sk.PropertyName}({skArgs})";
-            var hasBuildSkCall = generatedCode.Contains(expectedBuildCall);
+            // Verify: generated code contains call to Entity.Keys.Sk(...)
+            var expectedSkCall = $"{entity.ClassName}.Keys.{sk.PropertyName}({skArgs})";
+            var hasSkCall = generatedCode.Contains(expectedSkCall);
 
             // Verify: delegation to standard overload using computed SK
             var hasDelegation = generatedCode.Contains("return Get(pK, computedSk)");
@@ -82,19 +82,19 @@ public class DelegationToKeysBuildPropertyTests
             // Verify: no KeyInputMode parameter on standard overload
             var hasNoKeyInputModeOnStandard = !generatedCode.Contains("KeyInputMode mode = KeyInputMode.Default");
 
-            return (hasBuildSkCall && hasDelegation && hasNoKeyInputModeOnStandard)
-                .Label($"BuildSk call: {hasBuildSkCall}, Delegation: {hasDelegation}, No KeyInputMode: {hasNoKeyInputModeOnStandard}. " +
-                       $"Expected: {expectedBuildCall}");
+            return (hasSkCall && hasDelegation && hasNoKeyInputModeOnStandard)
+                .Label($"Sk call: {hasSkCall}, Delegation: {hasDelegation}, No KeyInputMode: {hasNoKeyInputModeOnStandard}. " +
+                       $"Expected: {expectedSkCall}");
         });
     }
 
     /// <summary>
-    /// Property 5 (continued): For any entity with both computed PK and computed SK, the generated
-    /// overload SHALL call Entity.Keys.Build{PropertyName}(...) for BOTH keys independently
+    /// Property 6 (continued): For any entity with both computed PK and computed SK, the generated
+    /// overload SHALL call Entity.Keys.Pk(...) and Entity.Keys.Sk(...) for BOTH keys independently
     /// and pass both returned strings to the standard two-key accessor overload.
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property TypedOverload_DelegatesToBothKeysBuild_ForBothKeysComputed()
+    public Property TypedOverload_DelegatesToBothKeysPkSk_ForBothKeysComputed()
     {
         var entityGen = CreateBothKeysComputedGenerator();
 
@@ -107,15 +107,15 @@ public class DelegationToKeysBuildPropertyTests
 
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, pk)!;
             var pkArgs = string.Join(", ", pkSourceParams.Select(p => p.Name));
-            var expectedBuildPk = $"{entity.ClassName}.Keys.Build{pk.PropertyName}({pkArgs})";
+            var expectedPkCall = $"{entity.ClassName}.Keys.{pk.PropertyName}({pkArgs})";
 
             var skSourceParams = OverloadParameterResolver.ResolveParameters(entity, sk)!;
             var skArgs = string.Join(", ", skSourceParams.Select(p => p.Name));
-            var expectedBuildSk = $"{entity.ClassName}.Keys.Build{sk.PropertyName}({skArgs})";
+            var expectedSkCall = $"{entity.ClassName}.Keys.{sk.PropertyName}({skArgs})";
 
-            // Verify: generated code contains calls to both Build methods
-            var hasBuildPkCall = generatedCode.Contains(expectedBuildPk);
-            var hasBuildSkCall = generatedCode.Contains(expectedBuildSk);
+            // Verify: generated code contains calls to both Pk and Sk methods
+            var hasPkCall = generatedCode.Contains(expectedPkCall);
+            var hasSkCall = generatedCode.Contains(expectedSkCall);
 
             // Verify: delegation to standard overload using both computed values
             var hasDelegation = generatedCode.Contains("return Get(computedPk, computedSk)");
@@ -123,20 +123,20 @@ public class DelegationToKeysBuildPropertyTests
             // Verify: no KeyInputMode on standard overload
             var hasNoKeyInputModeOnStandard = !generatedCode.Contains("KeyInputMode mode = KeyInputMode.Default");
 
-            return (hasBuildPkCall && hasBuildSkCall && hasDelegation && hasNoKeyInputModeOnStandard)
-                .Label($"BuildPk: {hasBuildPkCall}, BuildSk: {hasBuildSkCall}, Delegation: {hasDelegation}, " +
+            return (hasPkCall && hasSkCall && hasDelegation && hasNoKeyInputModeOnStandard)
+                .Label($"Pk: {hasPkCall}, Sk: {hasSkCall}, Delegation: {hasDelegation}, " +
                        $"No KeyInputMode: {hasNoKeyInputModeOnStandard}. " +
-                       $"Expected PK: {expectedBuildPk}, Expected SK: {expectedBuildSk}");
+                       $"Expected PK: {expectedPkCall}, Expected SK: {expectedSkCall}");
         });
     }
 
     /// <summary>
-    /// Property 5 (continued): For any entity with a computed PK and no SK, the generated
-    /// overload SHALL call Entity.Keys.Build{PropertyName}(...) and delegate to the standard
+    /// Property 6 (continued): For any entity with a computed PK and no SK, the generated
+    /// overload SHALL call Entity.Keys.Pk(...) and delegate to the standard
     /// overload with the composed key value passed directly (Raw bypass).
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property TypedOverload_DelegatesToKeysBuildPk_ForComputedPkNoSk()
+    public Property TypedOverload_DelegatesToKeysPk_ForComputedPkNoSk()
     {
         var entityGen = CreateComputedPkNoSkGenerator();
 
@@ -148,21 +148,21 @@ public class DelegationToKeysBuildPropertyTests
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, pk)!;
             var pkArgs = string.Join(", ", pkSourceParams.Select(p => p.Name));
 
-            // Verify: generated code contains call to Entity.Keys.Build{PropertyName}(...)
-            var expectedBuildCall = $"{entity.ClassName}.Keys.Build{pk.PropertyName}({pkArgs})";
-            var hasBuildPkCall = generatedCode.Contains(expectedBuildCall);
+            // Verify: generated code contains call to Entity.Keys.Pk(...)
+            var expectedPkCall = $"{entity.ClassName}.Keys.{pk.PropertyName}({pkArgs})";
+            var hasPkCall = generatedCode.Contains(expectedPkCall);
 
             // Verify: delegation — "return Get(computedPk)"
             var hasDelegation = generatedCode.Contains("return Get(computedPk)");
 
-            return (hasBuildPkCall && hasDelegation)
-                .Label($"BuildPk call: {hasBuildPkCall}, Delegation: {hasDelegation}. " +
-                       $"Expected: {expectedBuildCall}");
+            return (hasPkCall && hasDelegation)
+                .Label($"Pk call: {hasPkCall}, Delegation: {hasDelegation}. " +
+                       $"Expected: {expectedPkCall}");
         });
     }
 
     /// <summary>
-    /// Property 5 (continued): Parameters SHALL be passed in declaration order to the Build method.
+    /// Property 6 (continued): Parameters SHALL be passed in declaration order to the Pk/Sk method.
     /// Verifies that the parameter order matches the SourceProperties declaration order.
     /// </summary>
     [Property(MaxTest = 100)]
@@ -182,18 +182,18 @@ public class DelegationToKeysBuildPropertyTests
                 .Select(sp => OverloadParameterResolver.ToCamelCase(sp))
                 .ToList();
 
-            // The generated Build call should have args in this exact order
-            var expectedBuildCall = $"{entity.ClassName}.Keys.Build{pk.PropertyName}({string.Join(", ", expectedArgOrder)})";
-            var hasCorrectOrder = generatedCode.Contains(expectedBuildCall);
+            // The generated Pk call should have args in this exact order
+            var expectedPkCall = $"{entity.ClassName}.Keys.{pk.PropertyName}({string.Join(", ", expectedArgOrder)})";
+            var hasCorrectOrder = generatedCode.Contains(expectedPkCall);
 
             return hasCorrectOrder
-                .Label($"Declaration order mismatch. Expected: {expectedBuildCall}");
+                .Label($"Declaration order mismatch. Expected: {expectedPkCall}");
         });
     }
 
     /// <summary>
-    /// Property 5 (continued): Verifies that the delegation pattern is consistent across
-    /// Get, Delete, Update, and ConditionCheck methods — all use the same Keys.Build call.
+    /// Property 6 (continued): Verifies that the delegation pattern is consistent across
+    /// Get, Delete, Update, and ConditionCheck methods — all use the same Keys.Pk/Sk call.
     /// </summary>
     [Property(MaxTest = 100)]
     public Property TypedOverload_DelegationConsistent_AcrossAllCrudMethods()
@@ -207,11 +207,11 @@ public class DelegationToKeysBuildPropertyTests
             var pk = entity.PartitionKeyProperty!;
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, pk)!;
             var pkArgs = string.Join(", ", pkSourceParams.Select(p => p.Name));
-            var expectedBuildCall = $"{entity.ClassName}.Keys.Build{pk.PropertyName}({pkArgs})";
+            var expectedPkCall = $"{entity.ClassName}.Keys.{pk.PropertyName}({pkArgs})";
 
-            // Count occurrences of the Build call — should appear at least once per CRUD method
+            // Count occurrences of the Pk call — should appear at least once per CRUD method
             // (Get, Delete, Update, ConditionCheck = 4 minimum for entity accessor level)
-            var buildCallCount = CountOccurrences(generatedCode, expectedBuildCall);
+            var pkCallCount = CountOccurrences(generatedCode, expectedPkCall);
 
             // Also check for delegation patterns in all four methods
             var hasGetDelegation = generatedCode.Contains("return Get(computedPk");
@@ -219,13 +219,13 @@ public class DelegationToKeysBuildPropertyTests
             var hasUpdateDelegation = generatedCode.Contains("return Update(computedPk");
             var hasConditionCheckDelegation = generatedCode.Contains("return ConditionCheck(computedPk");
 
-            // Should have at least 4 Build calls (one per entity accessor CRUD method)
+            // Should have at least 4 Pk calls (one per entity accessor CRUD method)
             // Could have more if table-level overloads also generate (they delegate differently)
-            var hasSufficientBuildCalls = buildCallCount >= 4;
+            var hasSufficientPkCalls = pkCallCount >= 4;
 
-            return (hasSufficientBuildCalls && hasGetDelegation && hasDeleteDelegation
+            return (hasSufficientPkCalls && hasGetDelegation && hasDeleteDelegation
                     && hasUpdateDelegation && hasConditionCheckDelegation)
-                .Label($"Build call count: {buildCallCount} (need >= 4), " +
+                .Label($"Pk call count: {pkCallCount} (need >= 4), " +
                        $"Get: {hasGetDelegation}, Delete: {hasDeleteDelegation}, " +
                        $"Update: {hasUpdateDelegation}, ConditionCheck: {hasConditionCheckDelegation}");
         });

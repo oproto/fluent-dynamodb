@@ -117,19 +117,7 @@ Customer.Keys.Sk       // Returns "PROFILE" (parameterless property)
 Customer.Keys.Pk("123")  // Returns "CUSTOMER#123" (parameterized method)
 ```
 
-### Composite Key() Method
-
-The `Key()` method only accepts parameters for variable keys:
-
-```csharp
-// One constant SK + one variable PK:
-var (pk, sk) = Customer.Keys.Key("123");
-// pk = "CUSTOMER#123", sk = "PROFILE"
-
-// Both keys constant (e.g., AppConfig):
-var (pk, sk) = AppConfig.Keys.Key();
-// pk = "APP_CONFIG", sk = "SETTINGS"
-```
+Use `Pk()` and `Sk` independently to construct key values:
 
 ## Convenience Method Simplification
 
@@ -314,7 +302,6 @@ public partial class CustomerProfile
 // Keys class — only PK is parameterized
 var pk = CustomerProfile.Keys.Pk("cust-123");     // "CUSTOMER#cust-123"
 var sk = CustomerProfile.Keys.Sk;                  // "PROFILE"
-var (pkVal, skVal) = CustomerProfile.Keys.Key("cust-123");  // ("CUSTOMER#cust-123", "PROFILE")
 
 // Convenience methods — only PK parameter needed
 var profile = await table.CustomerProfiles.Get("cust-123").GetItemAsync();

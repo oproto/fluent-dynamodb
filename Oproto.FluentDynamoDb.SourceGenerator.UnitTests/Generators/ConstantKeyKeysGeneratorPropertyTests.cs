@@ -1,9 +1,7 @@
-using System.Collections.Immutable;
 using FsCheck;
 using FsCheck.Xunit;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Text;
 using Oproto.FluentDynamoDb.SourceGenerator.UnitTests.TestHelpers;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
@@ -13,11 +11,13 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Generators;
 /// 
 /// **Feature: constant-key-detection**
 /// - Property 5: Keys class provides parameterless accessor for constant keys (Validates: Requirements 4.1, 4.4)
-/// - Property 6: Composite Key() method accepts only variable parameters (Validates: Requirements 4.2)
+/// 
+/// **Feature: unify-keys-class-api**
+/// - Property 4: No Key() composite method in output (Validates: Requirements 4.1)
 /// 
 /// These tests verify that the source generator produces a parameterless static property
 /// in the Keys class for constant keys and does NOT produce a parameterized method.
-/// They also verify that the composite Key() method only accepts variable parameters.
+/// They also verify that the composite Key() method is NOT generated.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Category", "PropertyBased")]
@@ -156,18 +156,17 @@ public class ConstantKeyKeysGeneratorPropertyTests
 
     #endregion
 
-    #region Property 6: Composite Key() method accepts only variable parameters
+    #region Property 4 (unify-keys-class-api): No Key() composite method in output
 
     /// <summary>
-    /// **Feature: constant-key-detection, Property 6: Composite Key() method accepts only variable parameters**
-    /// **Validates: Requirements 4.2**
+    /// **Feature: unify-keys-class-api, Property 4: No Key() composite method in output**
+    /// **Validates: Requirements 4.1**
     /// 
-    /// Property: For any entity with one constant sort key (value C) and one variable partition key
-    /// (with prefix), the generated Key() method SHALL accept exactly one parameter (for the variable
-    /// partition key) and SHALL return a tuple containing both the variable key result and constant value.
+    /// Property: For any entity with one constant sort key and one variable partition key
+    /// (with prefix), the generated Keys class SHALL NOT contain a Key() composite method.
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property CompositeKey_ConstantSortKey_AcceptsOnlyVariablePartitionKeyParameter()
+    public Property CompositeKey_ConstantSortKey_DoesNotGenerateKeyMethod()
     {
         return Prop.ForAll(ValidStringLiteralArb(), value =>
         {
@@ -181,37 +180,23 @@ public class ConstantKeyKeysGeneratorPropertyTests
             if (keysCode == null)
                 return false.Label("No generated code found for TestEntity");
 
-            // The Key() method should accept exactly ONE parameter (for the variable PK)
-            // Signature: public static (string PartitionKey, string SortKey) Key(string tenantId)
-            var hasOneParamKey = keysCode.Contains("(string PartitionKey, string SortKey) Key(string tenantId)");
-            if (!hasOneParamKey)
-                return false.Label($"Key() method does not have single-parameter signature 'Key(string tenantId)'. " +
-                                   $"Value='{value}'");
-
-            // The Key() method should NOT be parameterless (that's for both-constant case)
-            var hasParameterlessKey = keysCode.Contains("(string PartitionKey, string SortKey) Key()");
-            if (hasParameterlessKey)
-                return false.Label($"Key() method is incorrectly parameterless when only SK is constant");
-
-            // The Key() method body should call Pk(param) and reference the Sk constant property
-            var bodyReferencesCorrectly = keysCode.Contains("(Pk(tenantId), Sk)");
-            if (!bodyReferencesCorrectly)
-                return false.Label($"Key() method body does not contain '(Pk(tenantId), Sk)'. Value='{value}'");
-
-            return true.Label("Key() correctly accepts only variable PK parameter and references constant SK");
+            // The Key() method declaration should NOT exist in the generated output
+            // Check for the tuple return type signature that indicates a Key() method
+            var hasKeyMethodDeclaration = keysCode.Contains("(string PartitionKey, string SortKey) Key(");
+            return (!hasKeyMethodDeclaration)
+                .Label($"hasKeyMethodDeclaration={hasKeyMethodDeclaration}. Key() composite method should not be generated. Value='{value}'");
         });
     }
 
     /// <summary>
-    /// **Feature: constant-key-detection, Property 6: Composite Key() method accepts only variable parameters**
-    /// **Validates: Requirements 4.2**
+    /// **Feature: unify-keys-class-api, Property 4: No Key() composite method in output**
+    /// **Validates: Requirements 4.1**
     /// 
-    /// Property: For any entity with one constant partition key (value C) and one variable sort key
-    /// (with prefix), the generated Key() method SHALL accept exactly one parameter (for the variable
-    /// sort key) and SHALL return a tuple containing both the constant PK value and the variable SK result.
+    /// Property: For any entity with one constant partition key and one variable sort key
+    /// (with prefix), the generated Keys class SHALL NOT contain a Key() composite method.
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property CompositeKey_ConstantPartitionKey_AcceptsOnlyVariableSortKeyParameter()
+    public Property CompositeKey_ConstantPartitionKey_DoesNotGenerateKeyMethod()
     {
         return Prop.ForAll(ValidStringLiteralArb(), value =>
         {
@@ -225,55 +210,11 @@ public class ConstantKeyKeysGeneratorPropertyTests
             if (keysCode == null)
                 return false.Label("No generated code found for TestEntity");
 
-            // The Key() method should accept exactly ONE parameter (for the variable SK)
-            // Signature: public static (string PartitionKey, string SortKey) Key(string itemId)
-            var hasOneParamKey = keysCode.Contains("(string PartitionKey, string SortKey) Key(string itemId)");
-            if (!hasOneParamKey)
-                return false.Label($"Key() method does not have single-parameter signature 'Key(string itemId)'. " +
-                                   $"Value='{value}'");
-
-            // The Key() method should NOT be parameterless (that's for both-constant case)
-            var hasParameterlessKey = keysCode.Contains("(string PartitionKey, string SortKey) Key()");
-            if (hasParameterlessKey)
-                return false.Label($"Key() method is incorrectly parameterless when only PK is constant");
-
-            // The Key() method body should reference the Pk constant property and call Sk(param)
-            var bodyReferencesCorrectly = keysCode.Contains("(Pk, Sk(itemId))");
-            if (!bodyReferencesCorrectly)
-                return false.Label($"Key() method body does not contain '(Pk, Sk(itemId))'. Value='{value}'");
-
-            return true.Label("Key() correctly accepts only variable SK parameter and references constant PK");
-        });
-    }
-
-    /// <summary>
-    /// **Feature: constant-key-detection, Property 6: Composite Key() method accepts only variable parameters**
-    /// **Validates: Requirements 4.2**
-    /// 
-    /// Property: For any entity with one constant key and one variable key, the generated Key()
-    /// method SHALL return a tuple of type (string PartitionKey, string SortKey).
-    /// </summary>
-    [Property(MaxTest = 100)]
-    public Property CompositeKey_WithOneConstantKey_ReturnsTupleWithBothKeys()
-    {
-        return Prop.ForAll(ValidStringLiteralArb(), value =>
-        {
-            var source = GenerateCompositeConstantSortKeySource(value);
-            var result = RunSourceGenerator(source);
-
-            if (result.HasErrors)
-                return false.Label($"Generator produced errors: {result.ErrorMessages}");
-
-            var keysCode = result.EntityGeneratedCode;
-            if (keysCode == null)
-                return false.Label("No generated code found for TestEntity");
-
-            // The Key() method should return a (string PartitionKey, string SortKey) tuple
-            var hasTupleReturn = keysCode.Contains("(string PartitionKey, string SortKey) Key(");
-            if (!hasTupleReturn)
-                return false.Label($"Key() method does not return (string PartitionKey, string SortKey) tuple. Value='{value}'");
-
-            return true.Label("Key() method correctly returns (string PartitionKey, string SortKey) tuple");
+            // The Key() method declaration should NOT exist in the generated output
+            // Check for the tuple return type signature that indicates a Key() method
+            var hasKeyMethodDeclaration = keysCode.Contains("(string PartitionKey, string SortKey) Key(");
+            return (!hasKeyMethodDeclaration)
+                .Label($"hasKeyMethodDeclaration={hasKeyMethodDeclaration}. Key() composite method should not be generated. Value='{value}'");
         });
     }
 

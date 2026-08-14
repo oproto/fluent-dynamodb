@@ -51,10 +51,10 @@ public class ComputedSkOnlyOutputVerificationTests
     }
 
     /// <summary>
-    /// Verifies that the typed overload delegates to Entity.Keys.BuildSk(...) for the computed sort key.
+    /// Verifies that the typed overload delegates to Entity.Keys.Sk(...) for the computed sort key.
     /// </summary>
     [Fact]
-    public void ComputedSkOnly_TypedOverload_DelegatesToKeysBuildSkMethod()
+    public void ComputedSkOnly_TypedOverload_DelegatesToKeysSkMethod()
     {
         // Arrange
         var entity = CreateEntityWithSimplePkAndComputedSk();
@@ -62,8 +62,8 @@ public class ComputedSkOnlyOutputVerificationTests
         // Act
         var generatedCode = GenerateMultiEntityTable(entity);
 
-        // Assert - delegates to Keys.BuildSk (via Build{PropertyName} with property name "Sk")
-        generatedCode.Should().Contain("TestEntity.Keys.BuildSk(region, category)");
+        // Assert - delegates to Keys.Sk (via unified Pk/Sk API)
+        generatedCode.Should().Contain("TestEntity.Keys.Sk(region, category)");
     }
 
     /// <summary>
@@ -134,10 +134,10 @@ public class ComputedSkOnlyOutputVerificationTests
     }
 
     /// <summary>
-    /// Verifies that the typed overloads delegate to Keys.BuildSk for all CRUD methods.
+    /// Verifies that the typed overloads delegate to Keys.Sk for all CRUD methods.
     /// </summary>
     [Fact]
-    public void ComputedSkOnly_AllCrudOverloads_DelegateToKeysBuildSk()
+    public void ComputedSkOnly_AllCrudOverloads_DelegateToKeysSk()
     {
         // Arrange
         var entity = CreateEntityWithSimplePkAndComputedSk();
@@ -145,10 +145,10 @@ public class ComputedSkOnlyOutputVerificationTests
         // Act
         var generatedCode = GenerateMultiEntityTable(entity);
 
-        // Assert - count occurrences of Keys.BuildSk delegation (should appear for Get, Delete, Update, ConditionCheck)
-        var buildSkCount = generatedCode.Split("TestEntity.Keys.BuildSk(region, category)").Length - 1;
-        buildSkCount.Should().BeGreaterThanOrEqualTo(4,
-            "BuildSk should be called in Get, Delete, Update, and ConditionCheck typed overloads");
+        // Assert - count occurrences of Keys.Sk delegation (should appear for Get, Delete, Update, ConditionCheck)
+        var skCount = generatedCode.Split("TestEntity.Keys.Sk(region, category)").Length - 1;
+        skCount.Should().BeGreaterThanOrEqualTo(4,
+            "Sk should be called in Get, Delete, Update, and ConditionCheck typed overloads");
     }
 
     #region Helper Methods

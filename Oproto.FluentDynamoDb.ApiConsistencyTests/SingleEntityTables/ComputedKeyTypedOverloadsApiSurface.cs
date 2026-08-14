@@ -9,8 +9,8 @@ namespace Oproto.FluentDynamoDb.ApiConsistencyTests.SingleEntityTables;
 /// <summary>
 /// API surface compile tests for typed parameter convenience overloads (computed key entities).
 /// These tests verify that typed overload method signatures compile correctly for
-/// Get, Delete, Update, and ConditionCheck operations.
-/// Requirements: 1.1, 1.3, 1.4, 1.6, 6.1
+/// Get, Delete, Update, ConditionCheck, GetAsync, and DeleteAsync operations.
+/// Requirements: 1.1, 1.2, 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 6.1
 /// </summary>
 public class ComputedKeyTypedOverloadsApiSurface
 {
@@ -116,5 +116,55 @@ public class ComputedKeyTypedOverloadsApiSurface
         deleteBuilder = table.Delete("2024#12#25", "sortKeyValue");
         updateBuilder = table.Update("2024#12#25", "sortKeyValue");
         conditionBuilder = table.ConditionCheck("2024#12#25", "sortKeyValue");
+    }
+
+    [Fact(Skip = "API Surface Validation")]
+    public async Task TypedOverloads_ComputedKeyEntity_GetAsync_ShouldCompile()
+    {
+        var client = Substitute.For<IAmazonDynamoDB>();
+        var table = new ComputedKeyTableTable(client, "computedKeyTable", options: null);
+
+        // === Entity Accessor: Typed overload GetAsync ===
+        // ComputedKeyEntity has computed PK (Year, Month, Day) + simple string SK
+        // GetAsync accepts the typed source property parameters and returns Task<ComputedKeyEntity?>
+        Task<ComputedKeyEntity?> getTask = table.ComputedKeyEntitys.GetAsync(2024, 12, 25, "sk");
+
+        // Execute and verify return type
+        ComputedKeyEntity? result = await table.ComputedKeyEntitys.GetAsync(2024, 12, 25, "sk");
+    }
+
+    [Fact(Skip = "API Surface Validation")]
+    public async Task TypedOverloads_ComputedKeyEntity_DeleteAsync_ShouldCompile()
+    {
+        var client = Substitute.For<IAmazonDynamoDB>();
+        var table = new ComputedKeyTableTable(client, "computedKeyTable", options: null);
+
+        // === Entity Accessor: Typed overload DeleteAsync ===
+        // DeleteAsync accepts typed source property parameters + KeyCondition and returns Task
+        Task deleteTask = table.ComputedKeyEntitys.DeleteAsync(2024, 12, 25, "sk", KeyCondition.None);
+
+        // Execute with explicit KeyCondition
+        await table.ComputedKeyEntitys.DeleteAsync(2024, 12, 25, "sk", KeyCondition.MustExist);
+
+        // Execute with default KeyCondition (omitted)
+        await table.ComputedKeyEntitys.DeleteAsync(2024, 12, 25, "sk");
+    }
+
+    [Fact(Skip = "API Surface Validation")]
+    public async Task TypedOverloads_ComputedKeyEntity_TableLevel_Async_ShouldCompile()
+    {
+        var client = Substitute.For<IAmazonDynamoDB>();
+        var table = new ComputedKeyTableTable(client, "computedKeyTable", options: null);
+
+        // === Table-level typed GetAsync ===
+        // Delegates to entity accessor's typed GetAsync, returns Task<ComputedKeyEntity?>
+        Task<ComputedKeyEntity?> getTask = table.GetAsync(2024, 12, 25, "sk");
+        ComputedKeyEntity? getResult = await table.GetAsync(2024, 12, 25, "sk");
+
+        // === Table-level typed DeleteAsync ===
+        // Delegates to entity accessor's typed DeleteAsync, returns Task
+        Task deleteTask = table.DeleteAsync(2024, 12, 25, "sk");
+        await table.DeleteAsync(2024, 12, 25, "sk", KeyCondition.MustExist);
+        await table.DeleteAsync(2024, 12, 25, "sk", KeyCondition.None);
     }
 }

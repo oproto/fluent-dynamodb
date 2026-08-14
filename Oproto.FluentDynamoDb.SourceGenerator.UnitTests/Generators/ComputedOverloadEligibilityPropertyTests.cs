@@ -78,13 +78,13 @@ public class ComputedOverloadEligibilityPropertyTests
                 var qualifies = ComputedOverloadEligibility.QualifiesForTypedOverload(entity);
 
                 // If the standard get method exists, no additional typed overload should exist
-                // Typed overloads would contain calls to Keys.BuildPk or Keys.BuildSk
-                var hasBuildPkCall = generatedCode.Contains("Keys.BuildPk(");
-                var hasBuildSkCall = generatedCode.Contains("Keys.BuildSk(");
+                // Typed overloads would contain calls to Keys.Pk or Keys.Sk
+                var hasPkCall = generatedCode.Contains("Keys.Pk(");
+                var hasSkCall = generatedCode.Contains("Keys.Sk(");
 
-                return (!qualifies && !hasBuildPkCall && !hasBuildSkCall)
+                return (!qualifies && !hasPkCall && !hasSkCall)
                     .Label($"Entity '{entity.ClassName}' (hasSK={hasSk}) should not have typed overloads. " +
-                           $"qualifies={qualifies}, hasBuildPk={hasBuildPkCall}, hasBuildSk={hasBuildSkCall}.");
+                           $"qualifies={qualifies}, hasPk={hasPkCall}, hasSk={hasSkCall}.");
             });
     }
 

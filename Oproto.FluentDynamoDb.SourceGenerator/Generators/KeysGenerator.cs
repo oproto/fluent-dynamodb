@@ -31,9 +31,6 @@ internal static class KeysGenerator
         // Generate main table key builders
         GenerateMainTableKeyBuilders(sb, entity);
 
-        // Generate computed composite key builders
-        GenerateComputedKeyBuilders(sb, entity);
-
         // Generate extraction helper methods
         GenerateExtractionHelpers(sb, entity);
 
@@ -86,9 +83,6 @@ internal static class KeysGenerator
         // Generate main table key builders with nested indentation
         GenerateMainTableKeyBuilders(sb, entity, indentLevel: 3);
 
-        // Generate computed composite key builders with nested indentation
-        GenerateComputedKeyBuilders(sb, entity, indentLevel: 3);
-
         // Generate extraction helper methods with nested indentation
         GenerateExtractionHelpers(sb, entity, indentLevel: 3);
 
@@ -106,147 +100,14 @@ internal static class KeysGenerator
         // Generate partition key builder
         if (entity.PartitionKeyProperty != null)
         {
-            GeneratePartitionKeyBuilder(sb, entity.PartitionKeyProperty, "Pk", isMainTable: true, index: null, indentLevel);
+            GeneratePartitionKeyBuilder(sb, entity.PartitionKeyProperty, "Pk", isMainTable: true, entity, index: null, indentLevel);
         }
 
         // Generate sort key builder if exists
         if (entity.SortKeyProperty != null)
         {
-            GenerateSortKeyBuilder(sb, entity.SortKeyProperty, "Sk", isMainTable: true, index: null, indentLevel);
+            GenerateSortKeyBuilder(sb, entity.SortKeyProperty, "Sk", isMainTable: true, entity, index: null, indentLevel);
         }
-
-        // Generate composite key builder if both keys exist
-        if (entity.PartitionKeyProperty != null && entity.SortKeyProperty != null)
-        {
-            GenerateCompositeKeyBuilder(sb, entity.PartitionKeyProperty, entity.SortKeyProperty, "Key", isMainTable: true, index: null, indentLevel);
-        }
-    }
-
-    /// <summary>
-    /// Generates key builder methods for computed composite keys.
-    /// </summary>
-    private static void GenerateComputedKeyBuilders(StringBuilder sb, EntityModel entity, int indentLevel = 2)
-    {
-        var computedProperties = entity.Properties.Where(p => p.IsComputed).ToArray();
-
-        foreach (var computedProperty in computedProperties)
-        {
-            GenerateComputedKeyBuilder(sb, computedProperty, entity, indentLevel);
-        }
-    }
-
-    /// <summary>
-    /// Generates a key builder method for a computed composite key.
-    /// </summary>
-    private static void GenerateComputedKeyBuilder(StringBuilder sb, PropertyModel computedProperty, EntityModel entity, int indentLevel = 2)
-    {
-        var computedKey = computedProperty.ComputedKey!;
-        var methodName = $"Build{computedProperty.PropertyName}";
-        var indent = new string(' ', indentLevel * 4);
-
-        // Get source property information
-        var sourceProperties = computedKey.SourceProperties
-            .Select(sp => entity.Properties.FirstOrDefault(p => p.PropertyName == sp))
-            .Where(p => p != null)
-            .ToArray();
-
-        if (sourceProperties.Length == 0)
-            return;
-
-        // Generate method signature
-        sb.AppendLine();
-        sb.AppendLine($"{indent}/// <summary>");
-        sb.AppendLine($"{indent}/// Builds the computed composite key for {computedProperty.PropertyName}.");
-        sb.AppendLine($"{indent}/// Combines: {string.Join(", ", computedKey.SourceProperties)}");
-        sb.AppendLine($"{indent}/// </summary>");
-
-        foreach (var sourceProperty in sourceProperties)
-        {
-            var paramName = GetParameterName(sourceProperty!.PropertyName);
-            sb.AppendLine($"{indent}/// <param name=\"{paramName}\">The {sourceProperty.PropertyName} value.</param>");
-        }
-
-        sb.AppendLine($"{indent}/// <returns>The computed composite key value.</returns>");
-
-        var parameters = sourceProperties.Select(p => $"{GetParameterType(p!.PropertyType)} {GetParameterName(p.PropertyName)}").ToArray();
-        sb.AppendLine($"{indent}public static string {methodName}({string.Join(", ", parameters)})");
-        sb.AppendLine($"{indent}{{");
-
-        // Generate parameter validation
-        foreach (var sourceProperty in sourceProperties)
-        {
-            var paramName = GetParameterName(sourceProperty!.PropertyName);
-            GenerateParameterValidation(sb, paramName, sourceProperty.PropertyType, indentLevel + 1);
-        }
-
-        // Generate key construction logic
-        sb.AppendLine($"{indent}    try");
-        sb.AppendLine($"{indent}    {{");
-
-        if (computedKey.HasCustomFormat)
-        {
-            // Determine which indices have format specifiers
-            var specifierIndices = FormatSpecifierHelper.GetIndicesWithFormatSpecifiers(computedKey.Format);
-
-            var formatArgs = string.Join(", ", sourceProperties.Select((p, idx) =>
-            {
-                if (specifierIndices.Contains(idx))
-                {
-                    // Pass typed value cast to object — let string.Format apply the format specifier via IFormattable
-                    return $"(object){GetParameterName(p!.PropertyName)}";
-                }
-                else
-                {
-                    // No format specifier at this index — use existing pre-stringification logic
-                    return GetValueExpression(GetParameterName(p!.PropertyName), p!.PropertyType);
-                }
-            }));
-
-            if (specifierIndices.Count > 0)
-            {
-                // Use CultureInfo.InvariantCulture when format specifiers are present
-                sb.AppendLine($"{indent}        var keyValue = string.Format(System.Globalization.CultureInfo.InvariantCulture, \"{computedKey.Format}\", {formatArgs});");
-            }
-            else
-            {
-                sb.AppendLine($"{indent}        var keyValue = string.Format(\"{computedKey.Format}\", {formatArgs});");
-            }
-        }
-        else
-        {
-            // Use separator-based concatenation
-            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ",
-                sourceProperties.Select(p => GetValueExpression(GetParameterName(p!.PropertyName), p.PropertyType)));
-            sb.AppendLine($"{indent}        var keyValue = {sourceValues};");
-        }
-
-        // Add key validation
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        // Validate generated key");
-        sb.AppendLine($"{indent}        if (string.IsNullOrEmpty(keyValue))");
-        sb.AppendLine($"{indent}        {{");
-        sb.AppendLine($"{indent}            throw new System.ArgumentException(\"Generated key cannot be null or empty. Check input parameters.\");");
-        sb.AppendLine($"{indent}        }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        if (keyValue.Length > 2048)");
-        sb.AppendLine($"{indent}        {{");
-        sb.AppendLine($"{indent}            throw new System.ArgumentException($\"Generated key length ({{keyValue.Length}}) exceeds DynamoDB limit of 2048 bytes.\");");
-        sb.AppendLine($"{indent}        }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        return keyValue;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine($"{indent}    catch (System.ArgumentException)");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        throw;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine($"{indent}    catch (System.Exception ex)");
-        sb.AppendLine($"{indent}    {{");
-
-        var parameterInfo = string.Join(", ", sourceProperties.Select(p => $"{GetParameterName(p!.PropertyName)}: {{{GetParameterName(p.PropertyName)}}}"));
-        sb.AppendLine($"{indent}        throw new System.InvalidOperationException(");
-        sb.AppendLine($"{indent}            $\"Failed to generate computed key {computedProperty.PropertyName} with parameters: {parameterInfo}. {{ex.Message}}\", ex);");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine($"{indent}}}");
     }
 
     /// <summary>
@@ -420,7 +281,7 @@ internal static class KeysGenerator
         var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.PropertyName == index.PartitionKeyProperty);
         if (partitionKeyProperty != null)
         {
-            GeneratePartitionKeyBuilder(sb, partitionKeyProperty, "Pk", isMainTable: false, index, indentLevel + 1);
+            GeneratePartitionKeyBuilder(sb, partitionKeyProperty, "Pk", isMainTable: false, entity, index, indentLevel + 1);
         }
 
         // Get sort key property for this GSI if exists
@@ -429,17 +290,7 @@ internal static class KeysGenerator
             var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.PropertyName == index.SortKeyProperty);
             if (sortKeyProperty != null)
             {
-                GenerateSortKeyBuilder(sb, sortKeyProperty, "Sk", isMainTable: false, index, indentLevel + 1);
-            }
-        }
-
-        // Generate composite key builder if both keys exist
-        if (partitionKeyProperty != null && !string.IsNullOrEmpty(index.SortKeyProperty))
-        {
-            var sortKeyProperty = entity.Properties.FirstOrDefault(p => p.PropertyName == index.SortKeyProperty);
-            if (sortKeyProperty != null)
-            {
-                GenerateCompositeKeyBuilder(sb, partitionKeyProperty, sortKeyProperty, "Key", isMainTable: false, index, indentLevel + 1);
+                GenerateSortKeyBuilder(sb, sortKeyProperty, "Sk", isMainTable: false, entity, index, indentLevel + 1);
             }
         }
 
@@ -449,7 +300,7 @@ internal static class KeysGenerator
     /// <summary>
     /// Generates a partition key builder method.
     /// </summary>
-    private static void GeneratePartitionKeyBuilder(StringBuilder sb, PropertyModel property, string methodName, bool isMainTable, IndexModel? index = null, int indentLevel = 2)
+    private static void GeneratePartitionKeyBuilder(StringBuilder sb, PropertyModel property, string methodName, bool isMainTable, EntityModel entity, IndexModel? index = null, int indentLevel = 2)
     {
         var indent = new string(' ', indentLevel * 4);
 
@@ -469,9 +320,128 @@ internal static class KeysGenerator
             return;
         }
 
+        // Computed key: emit multi-param method using computed format logic
+        if (property.IsComputed)
+        {
+            var computedKey = property.ComputedKey!;
+
+            // Get source property information
+            var sourceProperties = computedKey.SourceProperties
+                .Select(sp => entity.Properties.FirstOrDefault(p => p.PropertyName == sp))
+                .Where(p => p != null)
+                .ToArray();
+
+            if (sourceProperties.Length == 0)
+                return;
+
+            // Generate method signature
+            sb.AppendLine();
+            sb.AppendLine($"{indent}/// <summary>");
+            sb.AppendLine($"{indent}/// Builds the partition key value for {property.PropertyName}.");
+            sb.AppendLine($"{indent}/// Combines: {string.Join(", ", computedKey.SourceProperties)}");
+            if (!isMainTable && index != null)
+            {
+                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
+            }
+            sb.AppendLine($"{indent}/// </summary>");
+
+            foreach (var sourceProperty in sourceProperties)
+            {
+                var paramName = GetParameterName(sourceProperty!.PropertyName);
+                sb.AppendLine($"{indent}/// <param name=\"{paramName}\">The {sourceProperty.PropertyName} value.</param>");
+            }
+
+            sb.AppendLine($"{indent}/// <returns>The formatted partition key value ready for use in DynamoDB operations.</returns>");
+
+            var parameters = sourceProperties.Select(p => $"{GetParameterType(p!.PropertyType)} {GetParameterName(p.PropertyName)}").ToArray();
+            sb.AppendLine($"{indent}public static string {methodName}({string.Join(", ", parameters)})");
+            sb.AppendLine($"{indent}{{");
+
+            // Generate parameter validation
+            foreach (var sourceProperty in sourceProperties)
+            {
+                var paramName = GetParameterName(sourceProperty!.PropertyName);
+                GenerateParameterValidation(sb, paramName, sourceProperty.PropertyType, indentLevel + 1);
+            }
+
+            // Generate key construction logic
+            sb.AppendLine($"{indent}    try");
+            sb.AppendLine($"{indent}    {{");
+
+            if (computedKey.HasCustomFormat)
+            {
+                // Determine which indices have format specifiers
+                var specifierIndices = FormatSpecifierHelper.GetIndicesWithFormatSpecifiers(computedKey.Format);
+
+                var formatArgs = string.Join(", ", sourceProperties.Select((p, idx) =>
+                {
+                    if (specifierIndices.Contains(idx))
+                    {
+                        // Pass typed value cast to object — let string.Format apply the format specifier via IFormattable
+                        return $"(object){GetParameterName(p!.PropertyName)}";
+                    }
+                    else
+                    {
+                        // No format specifier at this index — use existing pre-stringification logic
+                        return GetValueExpression(GetParameterName(p!.PropertyName), p!.PropertyType);
+                    }
+                }));
+
+                if (specifierIndices.Count > 0)
+                {
+                    // Use CultureInfo.InvariantCulture when format specifiers are present
+                    sb.AppendLine($"{indent}        var keyValue = string.Format(System.Globalization.CultureInfo.InvariantCulture, \"{computedKey.Format}\", {formatArgs});");
+                }
+                else
+                {
+                    sb.AppendLine($"{indent}        var keyValue = string.Format(\"{computedKey.Format}\", {formatArgs});");
+                }
+            }
+            else
+            {
+                // Use separator-based concatenation
+                var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ",
+                    sourceProperties.Select(p => GetValueExpression(GetParameterName(p!.PropertyName), p.PropertyType)));
+                sb.AppendLine($"{indent}        var keyValue = {sourceValues};");
+            }
+
+            // Add key validation
+            sb.AppendLine();
+            sb.AppendLine($"{indent}        // Validate generated key");
+            sb.AppendLine($"{indent}        if (string.IsNullOrEmpty(keyValue))");
+            sb.AppendLine($"{indent}        {{");
+            sb.AppendLine($"{indent}            throw new System.ArgumentException(\"Generated key cannot be null or empty. Check input parameters.\");");
+            sb.AppendLine($"{indent}        }}");
+            sb.AppendLine();
+            sb.AppendLine($"{indent}        if (keyValue.Length > 2048)");
+            sb.AppendLine($"{indent}        {{");
+            sb.AppendLine($"{indent}            throw new System.ArgumentException($\"Generated key length ({{keyValue.Length}}) exceeds DynamoDB limit of 2048 bytes.\");");
+            sb.AppendLine($"{indent}        }}");
+            sb.AppendLine();
+            sb.AppendLine($"{indent}        return keyValue;");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}    catch (System.ArgumentException)");
+            sb.AppendLine($"{indent}    {{");
+            sb.AppendLine($"{indent}        throw;");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}    catch (System.Exception ex)");
+            sb.AppendLine($"{indent}    {{");
+
+            var parameterInfo = string.Join(", ", sourceProperties.Select(p => $"{GetParameterName(p!.PropertyName)}: {{{GetParameterName(p.PropertyName)}}}"));
+            sb.AppendLine($"{indent}        throw new System.InvalidOperationException(");
+            sb.AppendLine($"{indent}            $\"Failed to generate partition key {property.PropertyName} with parameters: {parameterInfo}. {{ex.Message}}\", ex);");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}}}");
+            return;
+        }
+
         var keyFormat = GetKeyFormat(property, index, isPartitionKey: true);
         var parameterType = GetParameterType(property.PropertyType);
         var parameterName = GetParameterName(property.PropertyName);
+
+        // Bare key (no prefix, not computed): no useful builder needed
+        if (string.IsNullOrEmpty(keyFormat.Prefix))
+            return;
 
         sb.AppendLine();
         sb.AppendLine($"{indent}/// <summary>");
@@ -500,7 +470,7 @@ internal static class KeysGenerator
     /// <summary>
     /// Generates a sort key builder method.
     /// </summary>
-    private static void GenerateSortKeyBuilder(StringBuilder sb, PropertyModel property, string methodName, bool isMainTable, IndexModel? index = null, int indentLevel = 2)
+    private static void GenerateSortKeyBuilder(StringBuilder sb, PropertyModel property, string methodName, bool isMainTable, EntityModel entity, IndexModel? index = null, int indentLevel = 2)
     {
         var indent = new string(' ', indentLevel * 4);
 
@@ -520,9 +490,128 @@ internal static class KeysGenerator
             return;
         }
 
+        // Computed key: emit multi-param method using computed format logic
+        if (property.IsComputed)
+        {
+            var computedKey = property.ComputedKey!;
+
+            // Get source property information
+            var sourceProperties = computedKey.SourceProperties
+                .Select(sp => entity.Properties.FirstOrDefault(p => p.PropertyName == sp))
+                .Where(p => p != null)
+                .ToArray();
+
+            if (sourceProperties.Length == 0)
+                return;
+
+            // Generate method signature
+            sb.AppendLine();
+            sb.AppendLine($"{indent}/// <summary>");
+            sb.AppendLine($"{indent}/// Builds the sort key value for {property.PropertyName}.");
+            sb.AppendLine($"{indent}/// Combines: {string.Join(", ", computedKey.SourceProperties)}");
+            if (!isMainTable && index != null)
+            {
+                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
+            }
+            sb.AppendLine($"{indent}/// </summary>");
+
+            foreach (var sourceProperty in sourceProperties)
+            {
+                var paramName = GetParameterName(sourceProperty!.PropertyName);
+                sb.AppendLine($"{indent}/// <param name=\"{paramName}\">The {sourceProperty.PropertyName} value.</param>");
+            }
+
+            sb.AppendLine($"{indent}/// <returns>The formatted sort key value ready for use in DynamoDB operations.</returns>");
+
+            var parameters = sourceProperties.Select(p => $"{GetParameterType(p!.PropertyType)} {GetParameterName(p.PropertyName)}").ToArray();
+            sb.AppendLine($"{indent}public static string {methodName}({string.Join(", ", parameters)})");
+            sb.AppendLine($"{indent}{{");
+
+            // Generate parameter validation
+            foreach (var sourceProperty in sourceProperties)
+            {
+                var paramName = GetParameterName(sourceProperty!.PropertyName);
+                GenerateParameterValidation(sb, paramName, sourceProperty.PropertyType, indentLevel + 1);
+            }
+
+            // Generate key construction logic
+            sb.AppendLine($"{indent}    try");
+            sb.AppendLine($"{indent}    {{");
+
+            if (computedKey.HasCustomFormat)
+            {
+                // Determine which indices have format specifiers
+                var specifierIndices = FormatSpecifierHelper.GetIndicesWithFormatSpecifiers(computedKey.Format);
+
+                var formatArgs = string.Join(", ", sourceProperties.Select((p, idx) =>
+                {
+                    if (specifierIndices.Contains(idx))
+                    {
+                        // Pass typed value cast to object — let string.Format apply the format specifier via IFormattable
+                        return $"(object){GetParameterName(p!.PropertyName)}";
+                    }
+                    else
+                    {
+                        // No format specifier at this index — use existing pre-stringification logic
+                        return GetValueExpression(GetParameterName(p!.PropertyName), p!.PropertyType);
+                    }
+                }));
+
+                if (specifierIndices.Count > 0)
+                {
+                    // Use CultureInfo.InvariantCulture when format specifiers are present
+                    sb.AppendLine($"{indent}        var keyValue = string.Format(System.Globalization.CultureInfo.InvariantCulture, \"{computedKey.Format}\", {formatArgs});");
+                }
+                else
+                {
+                    sb.AppendLine($"{indent}        var keyValue = string.Format(\"{computedKey.Format}\", {formatArgs});");
+                }
+            }
+            else
+            {
+                // Use separator-based concatenation
+                var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ",
+                    sourceProperties.Select(p => GetValueExpression(GetParameterName(p!.PropertyName), p.PropertyType)));
+                sb.AppendLine($"{indent}        var keyValue = {sourceValues};");
+            }
+
+            // Add key validation
+            sb.AppendLine();
+            sb.AppendLine($"{indent}        // Validate generated key");
+            sb.AppendLine($"{indent}        if (string.IsNullOrEmpty(keyValue))");
+            sb.AppendLine($"{indent}        {{");
+            sb.AppendLine($"{indent}            throw new System.ArgumentException(\"Generated key cannot be null or empty. Check input parameters.\");");
+            sb.AppendLine($"{indent}        }}");
+            sb.AppendLine();
+            sb.AppendLine($"{indent}        if (keyValue.Length > 2048)");
+            sb.AppendLine($"{indent}        {{");
+            sb.AppendLine($"{indent}            throw new System.ArgumentException($\"Generated key length ({{keyValue.Length}}) exceeds DynamoDB limit of 2048 bytes.\");");
+            sb.AppendLine($"{indent}        }}");
+            sb.AppendLine();
+            sb.AppendLine($"{indent}        return keyValue;");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}    catch (System.ArgumentException)");
+            sb.AppendLine($"{indent}    {{");
+            sb.AppendLine($"{indent}        throw;");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}    catch (System.Exception ex)");
+            sb.AppendLine($"{indent}    {{");
+
+            var parameterInfo = string.Join(", ", sourceProperties.Select(p => $"{GetParameterName(p!.PropertyName)}: {{{GetParameterName(p.PropertyName)}}}"));
+            sb.AppendLine($"{indent}        throw new System.InvalidOperationException(");
+            sb.AppendLine($"{indent}            $\"Failed to generate sort key {property.PropertyName} with parameters: {parameterInfo}. {{ex.Message}}\", ex);");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}}}");
+            return;
+        }
+
         var keyFormat = GetKeyFormat(property, index, isPartitionKey: false);
         var parameterType = GetParameterType(property.PropertyType);
         var parameterName = GetParameterName(property.PropertyName);
+
+        // Bare key (no prefix, not computed): no useful builder needed
+        if (string.IsNullOrEmpty(keyFormat.Prefix))
+            return;
 
         sb.AppendLine();
         sb.AppendLine($"{indent}/// <summary>");
@@ -546,122 +635,6 @@ internal static class KeysGenerator
 
         GenerateKeyBuilderBody(sb, keyFormat, new[] { (parameterName, property.PropertyType) }, indentLevel + 1);
 
-        sb.AppendLine($"{indent}}}");
-    }
-
-    /// <summary>
-    /// Generates a composite key builder method that accepts both partition and sort key parameters.
-    /// </summary>
-    private static void GenerateCompositeKeyBuilder(StringBuilder sb, PropertyModel partitionKeyProperty, PropertyModel sortKeyProperty, string methodName, bool isMainTable, IndexModel? index = null, int indentLevel = 2)
-    {
-        var indent = new string(' ', indentLevel * 4);
-
-        var pkIsConstant = partitionKeyProperty.IsConstantKey;
-        var skIsConstant = sortKeyProperty.IsConstantKey;
-
-        // All keys constant — parameterless Key() returning tuple of constants
-        if (pkIsConstant && skIsConstant)
-        {
-            sb.AppendLine();
-            sb.AppendLine($"{indent}/// <summary>");
-            sb.AppendLine($"{indent}/// Gets the composite key containing both constant partition and sort key values.");
-            if (!isMainTable && index != null)
-            {
-                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
-            }
-            sb.AppendLine($"{indent}/// </summary>");
-            sb.AppendLine($"{indent}/// <returns>A tuple containing the constant partition key and sort key values.</returns>");
-            sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}() => (Pk, Sk);");
-            return;
-        }
-
-        // One constant, one variable — single-parameter Key(variable)
-        if (pkIsConstant && !skIsConstant)
-        {
-            var skParameterType = GetParameterType(sortKeyProperty.PropertyType);
-            var skParameterName = GetParameterName(sortKeyProperty.PropertyName);
-
-            sb.AppendLine();
-            sb.AppendLine($"{indent}/// <summary>");
-            sb.AppendLine($"{indent}/// Builds a composite key containing the constant partition key and the formatted sort key value.");
-            if (!isMainTable && index != null)
-            {
-                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
-            }
-            sb.AppendLine($"{indent}/// </summary>");
-            sb.AppendLine($"{indent}/// <param name=\"{skParameterName}\">The {sortKeyProperty.PropertyName} value for the sort key. Must not be null or empty.</param>");
-            sb.AppendLine($"{indent}/// <returns>A tuple containing the constant partition key and formatted sort key values, ready for use in DynamoDB operations.</returns>");
-            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentNullException\">Thrown when {skParameterName} is null.</exception>");
-            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentException\">Thrown when {skParameterName} is invalid.</exception>");
-            sb.AppendLine($"{indent}/// <remarks>");
-            sb.AppendLine($"{indent}/// The partition key is constant and injected automatically. Only the sort key parameter is required.");
-            sb.AppendLine($"{indent}/// </remarks>");
-            sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}({skParameterType} {skParameterName})");
-            sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    return (Pk, Sk({skParameterName}));");
-            sb.AppendLine($"{indent}}}");
-            return;
-        }
-
-        if (!pkIsConstant && skIsConstant)
-        {
-            var pkParameterType = GetParameterType(partitionKeyProperty.PropertyType);
-            var pkParameterName = GetParameterName(partitionKeyProperty.PropertyName);
-
-            sb.AppendLine();
-            sb.AppendLine($"{indent}/// <summary>");
-            sb.AppendLine($"{indent}/// Builds a composite key containing the formatted partition key and the constant sort key value.");
-            if (!isMainTable && index != null)
-            {
-                sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
-            }
-            sb.AppendLine($"{indent}/// </summary>");
-            sb.AppendLine($"{indent}/// <param name=\"{pkParameterName}\">The {partitionKeyProperty.PropertyName} value for the partition key. Must not be null or empty.</param>");
-            sb.AppendLine($"{indent}/// <returns>A tuple containing the formatted partition key and constant sort key values, ready for use in DynamoDB operations.</returns>");
-            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentNullException\">Thrown when {pkParameterName} is null.</exception>");
-            sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentException\">Thrown when {pkParameterName} is invalid.</exception>");
-            sb.AppendLine($"{indent}/// <remarks>");
-            sb.AppendLine($"{indent}/// The sort key is constant and injected automatically. Only the partition key parameter is required.");
-            sb.AppendLine($"{indent}/// </remarks>");
-            sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}({pkParameterType} {pkParameterName})");
-            sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    return (Pk({pkParameterName}), Sk);");
-            sb.AppendLine($"{indent}}}");
-            return;
-        }
-
-        // Both variable — standard parameterized Key(pk, sk)
-        var pkParamType = GetParameterType(partitionKeyProperty.PropertyType);
-        var pkParamName = GetParameterName(partitionKeyProperty.PropertyName);
-        var skParamType = GetParameterType(sortKeyProperty.PropertyType);
-        var skParamName = GetParameterName(sortKeyProperty.PropertyName);
-
-        sb.AppendLine();
-        sb.AppendLine($"{indent}/// <summary>");
-        sb.AppendLine($"{indent}/// Builds a composite key containing both partition and sort key values.");
-        if (!isMainTable && index != null)
-        {
-            sb.AppendLine($"{indent}/// Used for {index.IndexName} Global Secondary Index.");
-        }
-        sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <param name=\"{pkParamName}\">The {partitionKeyProperty.PropertyName} value for the partition key. Must not be null or empty.</param>");
-        sb.AppendLine($"{indent}/// <param name=\"{skParamName}\">The {sortKeyProperty.PropertyName} value for the sort key. Must not be null or empty.</param>");
-        sb.AppendLine($"{indent}/// <returns>A tuple containing the formatted partition key and sort key values, ready for use in DynamoDB operations.</returns>");
-        sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentNullException\">Thrown when either parameter is null.</exception>");
-        sb.AppendLine($"{indent}/// <exception cref=\"System.ArgumentException\">Thrown when either parameter is invalid.</exception>");
-        sb.AppendLine($"{indent}/// <remarks>");
-        sb.AppendLine($"{indent}/// This convenience method builds both keys in a single call by delegating to Pk() and Sk() methods.");
-        sb.AppendLine($"{indent}/// Use this when you need both keys for operations like GetItem, DeleteItem, or UpdateItem.");
-        sb.AppendLine($"{indent}/// </remarks>");
-        sb.AppendLine($"{indent}/// <example>");
-        sb.AppendLine($"{indent}/// <code>");
-        sb.AppendLine($"{indent}/// var (pk, sk) = {methodName}({pkParamName}Value, {skParamName}Value);");
-        sb.AppendLine($"{indent}/// var item = await table.Get().WithKey(\"pk\", pk, \"sk\", sk).ExecuteAsync();");
-        sb.AppendLine($"{indent}/// </code>");
-        sb.AppendLine($"{indent}/// </example>");
-        sb.AppendLine($"{indent}public static (string PartitionKey, string SortKey) {methodName}({pkParamType} {pkParamName}, {skParamType} {skParamName})");
-        sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{indent}    return (Pk({pkParamName}), Sk({skParamName}));");
         sb.AppendLine($"{indent}}}");
     }
 

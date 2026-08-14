@@ -69,10 +69,10 @@ public class ComputedPkOnlyOverloadUnitTests
     }
 
     /// <summary>
-    /// Verifies the typed overload method delegates to Entity.Keys.Build{PropertyName}(...).
+    /// Verifies the typed overload method delegates to Entity.Keys.Pk(...).
     /// </summary>
     [Fact]
-    public void ComputedPkNoSk_DelegatesToKeysBuildPk()
+    public void ComputedPkNoSk_DelegatesToKeysPk()
     {
         // Arrange
         var entity = CreateComputedPkNoSkEntity(
@@ -81,8 +81,8 @@ public class ComputedPkOnlyOverloadUnitTests
         // Act
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
-        // Assert — method body calls Entity.Keys.BuildPk(...)
-        generatedCode.Should().Contain("TestEntity.Keys.BuildPk(year, month)");
+        // Assert — method body calls Entity.Keys.Pk(...)
+        generatedCode.Should().Contain("TestEntity.Keys.Pk(year, month)");
     }
 
     /// <summary>

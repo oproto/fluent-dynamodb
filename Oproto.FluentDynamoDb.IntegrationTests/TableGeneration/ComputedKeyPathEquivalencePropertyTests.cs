@@ -11,10 +11,10 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TableGeneration;
 /// Property 6: Path equivalence (round-trip)
 /// For any valid set of source property component values, invoking the typed convenience overload
 /// SHALL produce a DynamoDB request with key AttributeValue entries byte-for-byte identical to
-/// manually calling Entity.Keys.BuildPk(...) with the same values and passing the results to the
+/// manually calling Entity.Keys.Pk(...) with the same values and passing the results to the
 /// standard accessor overload with the composed key strings.
 ///
-/// **Validates: Requirements 3.5, 9.3**
+/// **Validates: Requirements 10.1, 11.2**
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Category", "PropertyTest")]
@@ -25,13 +25,13 @@ public class ComputedKeyPathEquivalencePropertyTests
     /// For any random int values for year, month, day, the typed overload
     /// table.ComputedPkOnlyEvents.Get(year, month, day) produces a DynamoDB request with
     /// key AttributeValue entries identical to manually calling
-    /// ComputedPkOnlyEvent.Keys.BuildPk(year, month, day) and passing the result to the
+    /// ComputedPkOnlyEvent.Keys.Pk(year, month, day) and passing the result to the
     /// standard accessor overload.
     ///
-    /// **Validates: Requirements 3.5, 9.3**
+    /// **Validates: Requirements 10.1, 11.2**
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property TypedOverload_ProducesIdenticalKeys_AsManualBuildPkWithStandardOverload()
+    public Property TypedOverload_ProducesIdenticalKeys_AsManualPkWithStandardOverload()
     {
         // Generate constrained int values that are valid for year/month/day components
         // We use positive ints to represent realistic key components
@@ -51,8 +51,8 @@ public class ComputedKeyPathEquivalencePropertyTests
             // Act - Path 1: Typed convenience overload
             var typedRequest = table.ComputedPkOnlyEvents.Get(year, month, day).ToGetItemRequest();
 
-            // Act - Path 2: Manual BuildPk + standard string overload
-            var manualPk = ComputedPkOnlyEvent.Keys.BuildPk(year, month, day);
+            // Act - Path 2: Manual Pk + standard string overload
+            var manualPk = ComputedPkOnlyEvent.Keys.Pk(year, month, day);
             var standardRequest = table.ComputedPkOnlyEvents.Get(manualPk).ToGetItemRequest();
 
             // Assert - Key AttributeValue entries must be byte-for-byte identical

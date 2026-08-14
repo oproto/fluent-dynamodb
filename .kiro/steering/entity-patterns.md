@@ -153,6 +153,48 @@ public partial class Order
 }
 ```
 
+### Computed Key Construction
+
+For keys built from multiple source properties using `[Computed]`, the generated `Keys` class provides `Pk(...)` and `Sk(...)` methods with typed parameters matching the source properties:
+
+```csharp
+[DynamoDbTable("Events")]
+public partial class Event
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    [Computed("Year", "Month", "Day", Separator = "#")]
+    public string Pk { get; set; } = string.Empty;
+
+    [Extracted("Pk", 0)]
+    public int Year { get; set; }
+    [Extracted("Pk", 1)]
+    public int Month { get; set; }
+    [Extracted("Pk", 2)]
+    public int Day { get; set; }
+}
+
+// ✅ CORRECT: Use Pk() with typed component parameters
+var pk = Event.Keys.Pk(2024, 12, 25);   // Returns "2024#12#25"
+
+// For computed sort keys:
+var sk = InvoiceLine.Keys.Sk("INV-001", 1);  // Returns "INVOICE#INV-001#LINE#1"
+```
+
+**Key rules for computed keys:**
+- `Pk()` and `Sk()` accept multiple typed parameters matching the source properties
+- Parameter names match source property names in camelCase
+- Parameter types match source property types
+- Bare keys (no prefix, no `[Computed]`) produce no `Pk()` or `Sk()` method
+
+```csharp
+// ❌ INCORRECT: BuildPk/BuildSk methods do not exist
+var pk = Event.Keys.BuildPk(2024, 12, 25);   // ❌ Removed — use Pk() instead
+
+// ❌ INCORRECT: Key() composite method does not exist
+var (pk, sk) = Entity.Keys.Key(pk, sk);       // ❌ Removed — use Pk() and Sk() separately
+```
+
 ### Constant Values for Documentation
 
 You MAY keep constant values for documentation purposes, but use the generated `Keys` class for actual key construction:
@@ -295,7 +337,9 @@ When both `[GsiPartitionKey]` and `[GsiSortKey]` specify `Name` or `ProjectionTy
 | Table entity attribute | `[DynamoDbTable("Name")]` | `[DynamoDbEntity]` + `[DynamoDbTable]` |
 | Nested type attribute | `[DynamoDbEntity]` | `[DynamoDbTable]` on nested types |
 | Interface | Let source generator add it | `: IDynamoDbEntity` manually |
-| Key construction | `Entity.Keys.Pk(value)` | `Entity.CreatePk(value)` |
+| Key construction (prefix) | `Entity.Keys.Pk(value)` | `Entity.CreatePk(value)` |
+| Key construction (computed) | `Entity.Keys.Pk(a, b, c)` | `Entity.Keys.BuildPk(a, b, c)` |
+| Construct PK and SK separately | `Entity.Keys.Pk(...)` + `Entity.Keys.Sk(...)` | `Entity.Keys.Key(pk, sk)` |
 | Key prefix | `[PartitionKey(Prefix = "X")]` | Manual string interpolation |
 | GSI partition key | `[GsiPartitionKey("index-name")]` | `[GlobalSecondaryIndex("name", IsPartitionKey = true)]` |
 | GSI sort key | `[GsiSortKey("index-name")]` | `[GlobalSecondaryIndex("name", IsSortKey = true)]` |
@@ -308,3 +352,5 @@ When both `[GsiPartitionKey]` and `[GsiSortKey]` specify `Name` or `ProjectionTy
 3. **Manual key methods**: Never write `CreatePk()` or `CreateSk()` methods - use the generated `Keys` class
 4. **Missing partial**: Always declare entity classes as `partial` to allow source generation
 5. **Old index attributes**: Do not use `[GlobalSecondaryIndex]` or `[LocalSecondaryIndex]` — these have been removed. Use `[GsiPartitionKey]`, `[GsiSortKey]`, and `[LsiSortKey]` instead
+6. **Using BuildPk/BuildSk**: These methods have been removed. Use `Entity.Keys.Pk(...)` and `Entity.Keys.Sk(...)` for all key construction including computed keys
+7. **Using Keys.Key()**: The composite `Key()` method has been removed. Use `Pk()` and `Sk()` separately

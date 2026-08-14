@@ -51,7 +51,7 @@ public class ComputedOverloadAmbiguityPropertyTests
 
     /// <summary>
     /// Property 8 (direction 1 - generated code): When an entity is ambiguous,
-    /// the generated code SHALL NOT contain typed overloads (no Keys.BuildPk or Keys.BuildSk calls).
+    /// the generated code SHALL NOT contain typed overloads (no Keys.Pk or Keys.Sk calls).
     /// </summary>
     [Property(MaxTest = 100)]
     public Property AmbiguousEntities_GeneratedCode_DoesNotContainTypedOverloads()
@@ -66,12 +66,12 @@ public class ComputedOverloadAmbiguityPropertyTests
                 var generatedCode = TableGenerator.GenerateTableClass(entity);
 
                 // The generated code should NOT contain typed overload delegation calls
-                var hasBuildPkCall = generatedCode.Contains("Keys.BuildPk(");
-                var hasBuildSkCall = generatedCode.Contains("Keys.BuildSk(");
+                var hasPkCall = generatedCode.Contains("Keys.Pk(");
+                var hasSkCall = generatedCode.Contains("Keys.Sk(");
 
-                return (!hasBuildPkCall && !hasBuildSkCall)
+                return (!hasPkCall && !hasSkCall)
                     .Label($"Entity '{entity.ClassName}' is ambiguous but generated code contains " +
-                           $"typed overload delegation. BuildPk={hasBuildPkCall}, BuildSk={hasBuildSkCall}.");
+                           $"typed overload delegation. Pk={hasPkCall}, Sk={hasSkCall}.");
             });
     }
 

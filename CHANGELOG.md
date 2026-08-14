@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **InvoiceManager Example: Multi-Level Menu Navigation** — Refactored the InvoiceManager example from a flat menu (requiring re-entry of customer and invoice IDs for every operation) to a hierarchical three-level menu: Main → Customer → Invoice. Selected context is displayed in the menu header and carried through sub-operations. Also added Delete Line Item and Update Line Item operations that demonstrate the typed convenience method overloads (`GetAsync`, `DeleteAsync`, `Update` with computed SK components).
+
+### Removed
+
+- **BREAKING: `BuildPk()`/`BuildSk()` Methods from Generated Keys Class** — The `BuildPk(...)` and `BuildSk(...)` methods are removed from the source-generated `Keys` class. Computed key construction now happens via the unified `Pk(...)` and `Sk(...)` methods, which handle both prefix-based and computed key construction.
+
+- **BREAKING: `Key()` Composite Method from Generated Keys Class** — The `Key()` method that returned a tuple of `(pk, sk)` is removed. Use `Pk(...)` and `Sk(...)` independently.
+
+- **BREAKING: Passthrough `Pk(string)`/`Sk(string)` Methods for Bare Keys** — Single-parameter passthrough methods that simply returned the input unchanged (no prefix, no computed format) are no longer generated. These methods added no value and confused the API surface.
+
+### Changed
+
+- **BREAKING: Computed Key Construction via Unified `Pk(...)`/`Sk(...)` Methods** — Computed keys with multiple source properties are now constructed through the same `Pk(...)` and `Sk(...)` methods that handle prefix keys. The method signature accepts typed parameters matching the source property types and applies the format string internally.
+
+- **BREAKING: Typed Get/Delete/Update Overloads Delegate to `Keys.Pk(...)`/`Keys.Sk(...)`** — Generated typed convenience overloads for Get, Delete, and Update operations now delegate to `Keys.Pk(...)` / `Keys.Sk(...)` instead of `Keys.BuildPk(...)` / `Keys.BuildSk(...)`. No change is required for consumers using the typed overloads directly — they continue to accept the same typed parameters.
+
+  **Migration Guide:**
+
+  | Before | After |
+  |--------|-------|
+  | `Entity.Keys.BuildPk(a, b)` | `Entity.Keys.Pk(a, b)` |
+  | `Entity.Keys.BuildSk(a, b)` | `Entity.Keys.Sk(a, b)` |
+  | `Entity.Keys.Key(pk, sk)` | Use `Pk(...)` and `Sk(...)` separately |
+
+  **Examples:**
+  ```csharp
+  // Before
+  var pk = Event.Keys.BuildPk(2024, 12, 25);
+  var sk = Invoice.Keys.BuildSk("INV-001");
+  var (pk, sk) = Customer.Keys.Key("cust-123");
+
+  // After
+  var pk = Event.Keys.Pk(2024, 12, 25);
+  var sk = Invoice.Keys.Sk("INV-001");
+  var pk = Customer.Keys.Pk("cust-123");
+  var sk = Customer.Keys.Sk;  // constant key — no change needed
+  ```
+
 ### Documentation
 
 - **SonarQube S6966 False Positive in Transaction Composition** - Documented a known SonarQube/SonarCloud false positive where rule S6966 ("Awaitable method should be used") fires on each `.Add()` call inside `DynamoDbTransactions.Write` because the analyzer sees that `PutItemRequestBuilder<T>` has a `PutAsync()` method and suggests awaiting it. This is incorrect — the builder is being composed into a transaction, not executed independently. Added troubleshooting entry with explanation and suppression guidance.

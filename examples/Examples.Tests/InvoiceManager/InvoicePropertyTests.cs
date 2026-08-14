@@ -592,7 +592,7 @@ public class InvoicePropertyTests
         {
             await Delete<InvoiceLine>()
                 .WithKey("pk", Customer.Keys.Pk(customerId))
-                .WithKey("sk", InvoiceLine.Keys.BuildSk(invoiceNumber, lineNumber))
+                .WithKey("sk", InvoiceLine.Keys.Sk(invoiceNumber, lineNumber))
                 .DeleteAsync();
         }
 
@@ -600,7 +600,7 @@ public class InvoicePropertyTests
         {
             return await Get<InvoiceLine>()
                 .WithKey("pk", Customer.Keys.Pk(customerId))
-                .WithKey("sk", InvoiceLine.Keys.BuildSk(invoiceNumber, lineNumber))
+                .WithKey("sk", InvoiceLine.Keys.Sk(invoiceNumber, lineNumber))
                 .GetItemAsync();
         }
 
