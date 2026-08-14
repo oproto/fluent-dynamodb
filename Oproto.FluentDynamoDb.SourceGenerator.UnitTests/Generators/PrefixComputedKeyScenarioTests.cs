@@ -36,10 +36,10 @@ public class PrefixComputedKeyScenarioTests
 
     /// <summary>
     /// Entity with computed PK + prefix "ORDER". Verify the typed overload body
-    /// calls Entity.Keys.BuildPk(...) which incorporates the prefix.
+    /// calls Entity.Keys.Pk(...) which incorporates the prefix.
     /// </summary>
     [Fact]
-    public void ComputedPkWithPrefix_TypedOverloadDelegatesToKeysBuildPk()
+    public void ComputedPkWithPrefix_TypedOverloadDelegatesToKeysPk()
     {
         // Arrange
         var entity = BuildComputedPkWithPrefixEntity(
@@ -48,9 +48,9 @@ public class PrefixComputedKeyScenarioTests
         // Act
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
-        // Assert — typed overload calls Keys.BuildPk(tenantId, userId)
-        generatedCode.Should().Contain("Order.Keys.BuildPk(tenantId, userId)",
-            "typed overload should delegate to Entity.Keys.BuildPk(...) which incorporates the prefix");
+        // Assert — typed overload calls Keys.Pk(tenantId, userId)
+        generatedCode.Should().Contain("Order.Keys.Pk(tenantId, userId)",
+            "typed overload should delegate to Entity.Keys.Pk(...) which incorporates the prefix");
     }
 
     /// <summary>
@@ -92,10 +92,10 @@ public class PrefixComputedKeyScenarioTests
 
     /// <summary>
     /// Entity with computed SK + prefix "META" on SK (PK is simple string).
-    /// Verify the typed overload delegates to Keys.BuildSk(...).
+    /// Verify the typed overload delegates to Keys.Sk(...).
     /// </summary>
     [Fact]
-    public void ComputedSkWithPrefix_TypedOverloadDelegatesToKeysBuildSk()
+    public void ComputedSkWithPrefix_TypedOverloadDelegatesToKeysSk()
     {
         // Arrange
         var entity = BuildComputedSkWithPrefixEntity(
@@ -104,17 +104,17 @@ public class PrefixComputedKeyScenarioTests
         // Act
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
-        // Assert — typed overload calls Keys.BuildSk(year, month)
-        generatedCode.Should().Contain("Event.Keys.BuildSk(year, month)",
-            "typed overload should delegate to Entity.Keys.BuildSk(...) which incorporates the prefix");
+        // Assert — typed overload calls Keys.Sk(year, month)
+        generatedCode.Should().Contain("Event.Keys.Sk(year, month)",
+            "typed overload should delegate to Entity.Keys.Sk(...) which incorporates the prefix");
     }
 
     /// <summary>
     /// Entity with computed PK (3 sources) + prefix "CUSTOMER". Verify all CRUD methods
-    /// have typed overloads that delegate to Keys.BuildPk.
+    /// have typed overloads that delegate to Keys.Pk.
     /// </summary>
     [Fact]
-    public void ComputedPkWithPrefix_AllCrudMethodsDelegateToBuildPk()
+    public void ComputedPkWithPrefix_AllCrudMethodsDelegateToPk()
     {
         // Arrange
         var entity = BuildComputedPkWithPrefixEntity(
@@ -124,10 +124,10 @@ public class PrefixComputedKeyScenarioTests
         // Act
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
-        // Assert — all CRUD methods should contain delegation to Keys.BuildPk
-        var expectedBuildCall = "Customer.Keys.BuildPk(region, division, accountId)";
+        // Assert — all CRUD methods should contain delegation to Keys.Pk
+        var expectedBuildCall = "Customer.Keys.Pk(region, division, accountId)";
         generatedCode.Should().Contain(expectedBuildCall,
-            "all CRUD typed overloads should delegate to Keys.BuildPk(...)");
+            "all CRUD typed overloads should delegate to Keys.Pk(...)");
 
         // Verify each CRUD method has the delegation (Get, Delete, Update, ConditionCheck)
         generatedCode.Should().Contain("return Get(computedPk)",
@@ -142,10 +142,10 @@ public class PrefixComputedKeyScenarioTests
 
     /// <summary>
     /// Entity with both computed PK (prefix "ORDER") and computed SK (prefix "LINE").
-    /// Verify both Keys.BuildPk and Keys.BuildSk are called.
+    /// Verify both Keys.Pk and Keys.Sk are called.
     /// </summary>
     [Fact]
-    public void BothKeysComputedWithPrefixes_DelegatesToBothBuildMethods()
+    public void BothKeysComputedWithPrefixes_DelegatesToBothKeysMethods()
     {
         // Arrange
         var entity = BuildBothKeysComputedWithPrefixesEntity(
@@ -156,11 +156,11 @@ public class PrefixComputedKeyScenarioTests
         // Act
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
-        // Assert — both Build calls should be present
-        generatedCode.Should().Contain("OrderLine.Keys.BuildPk(tenantId, customerId)",
-            "should delegate PK construction to Keys.BuildPk(...)");
-        generatedCode.Should().Contain("OrderLine.Keys.BuildSk(year, sequence)",
-            "should delegate SK construction to Keys.BuildSk(...)");
+        // Assert — both Pk and Sk calls should be present
+        generatedCode.Should().Contain("OrderLine.Keys.Pk(tenantId, customerId)",
+            "should delegate PK construction to Keys.Pk(...)");
+        generatedCode.Should().Contain("OrderLine.Keys.Sk(year, sequence)",
+            "should delegate SK construction to Keys.Sk(...)");
     }
 
     /// <summary>

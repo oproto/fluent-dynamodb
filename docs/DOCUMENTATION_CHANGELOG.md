@@ -57,6 +57,122 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-08-14]
+
+### Unified Keys Class API — Breaking Change Documentation
+
+**Category:** Pattern Update
+
+**Summary:** All documentation files referencing `BuildPk()`/`BuildSk()` or `Keys.Key()` have been updated to use the unified `Pk()`/`Sk()` API. The `Key()` composite method and `BuildPk()`/`BuildSk()` methods have been removed from the generated Keys class. Bare keys (no prefix, no computed) no longer generate passthrough methods.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Before:**
+```csharp
+// Generated methods:
+Order.Keys.Pk("12345")           // Returns "ORDER#12345"
+Order.Keys.Sk("abc")             // Returns "META#abc" (if SK has prefix)
+Order.Keys.Key("12345", "abc")   // Returns ("ORDER#12345", "META#abc")
+
+// Computed keys:
+Event.Keys.BuildPk(2024, 12, 25)              // Returns "2024#12#25"
+
+// Best practice:
+var (pk, sk) = Order.Keys.Key(orderId, lineId);
+```
+
+**After:**
+```csharp
+// Generated methods:
+Order.Keys.Pk("12345")           // Returns "ORDER#12345"
+Order.Keys.Sk("abc")             // Returns "META#abc" (if SK has prefix)
+
+// Computed keys use same Pk()/Sk() methods:
+Event.Keys.Pk(2024, 12, 25)                   // Returns "2024#12#25"
+
+// Best practice — use Pk() and Sk() separately:
+var pk = Order.Keys.Pk(orderId);
+var sk = Order.Keys.Sk(lineId);
+```
+
+**Reason:** The `Key()` composite method and `BuildPk()`/`BuildSk()` methods have been removed. All key construction now flows through unified `Pk()` and `Sk()` methods, which handle prefix-based, computed, and constant key patterns.
+
+---
+
+### File: .kiro/steering/entity-patterns.md
+
+**Before:**
+```csharp
+// Quick Reference table:
+| Key construction | `Entity.Keys.Pk(value)` | `Entity.CreatePk(value)` |
+```
+
+**After:**
+```csharp
+// Quick Reference table:
+| Key construction (prefix) | `Entity.Keys.Pk(value)` | `Entity.CreatePk(value)` |
+| Key construction (computed) | `Entity.Keys.Pk(a, b, c)` | `Entity.Keys.BuildPk(a, b, c)` |
+| Construct PK and SK separately | `Entity.Keys.Pk(...)` + `Entity.Keys.Sk(...)` | `Entity.Keys.Key(pk, sk)` |
+```
+
+**Reason:** Added computed key construction pattern and separate PK/SK construction to the Quick Reference. Added "Common Mistakes" entries for `BuildPk`/`BuildSk` and `Keys.Key()`.
+
+---
+
+### File: docs/core-features/BasicOperations.md
+
+**Before:**
+```csharp
+// Composite Key Patterns section existed with Keys.Key() examples
+var (pk, sk) = User.Keys.Key(userId, profileType);
+```
+
+**After:**
+Section removed entirely — `Keys.Key()` no longer exists.
+
+**Reason:** The `Key()` composite method has been removed from the generated Keys class. Use `Pk()` and `Sk()` independently.
+
+---
+
+### File: docs/core-features/ConstantKeyDetection.md
+
+**Before:**
+```csharp
+// Composite Key() Method section:
+Customer.Keys.Key("cust-123")  // Returns ("CUSTOMER#cust-123", "PROFILE")
+AppConfig.Keys.Key()           // Returns ("APP_CONFIG", "SETTINGS")
+```
+
+**After:**
+Section removed — use `Pk()` and `Sk` independently.
+
+**Reason:** The `Key()` composite method has been removed. Documentation updated to show `Pk()` and `Sk` used independently.
+
+---
+
+### File: DISCUSSION_whats_new_since_1.0.7.md
+
+**Before:**
+```csharp
+Event.Keys.BuildPk(2024, 12, 25)
+Keys.BuildSk(new DateOnly(2024, 3, 15), "electronics")
+var (pk, sk) = Customer.Keys.Key("cust-123");
+```
+
+**After:**
+```csharp
+Event.Keys.Pk(2024, 12, 25)
+Keys.Sk(new DateOnly(2024, 3, 15), "electronics")
+var pk = Customer.Keys.Pk("cust-123");
+var sk = Customer.Keys.Sk;  // constant key
+```
+
+**Reason:** Updated all key construction examples to unified API. Added new "Unified Keys Class API" section documenting the consolidation.
+
+---
+
 ## [2026-07-17]
 
 ### SonarQube S6966 False Positive — Transaction Composition Pattern

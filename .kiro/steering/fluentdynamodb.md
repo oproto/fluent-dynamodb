@@ -255,7 +255,6 @@ The source generator creates a nested `Keys` class with builder methods:
 // Generated methods:
 Order.Keys.Pk("12345")           // Returns "ORDER#12345"
 Order.Keys.Sk("abc")             // Returns "META#abc" (if SK has prefix)
-Order.Keys.Key("12345", "abc")   // Returns ("ORDER#12345", "META#abc")
 
 // Extraction helpers (for composite keys):
 Order.Keys.ExtractPkComponents("ORDER#12345")  // Returns "12345"
@@ -318,7 +317,7 @@ public partial class Event
 }
 
 // Generated methods:
-Event.Keys.BuildPk(2024, 12, 25)              // Returns "2024#12#25"
+Event.Keys.Pk(2024, 12, 25)                   // Returns "2024#12#25"
 Event.Keys.ExtractPkComponents("2024#12#25")  // Returns (Year: 2024, Month: 12, Day: 25)
 
 // Typed async convenience methods (simplest approach):
@@ -350,7 +349,7 @@ Console.WriteLine(evt3.Day);    // 25
 ```csharp
 // Building keys for operations - ALWAYS use Keys.Pk() for prefixed keys
 var pk = Order.Keys.Pk(orderId);                    // "ORDER#12345"
-var (pk, sk) = Order.Keys.Key(orderId, lineId);     // ("ORDER#12345", "LINE#abc")
+var sk = Order.Keys.Sk(lineId);                     // "LINE#abc"
 
 // CRUD operations with prefixed keys
 var order = await table.Orders.Get(Order.Keys.Pk(orderId)).GetItemAsync();

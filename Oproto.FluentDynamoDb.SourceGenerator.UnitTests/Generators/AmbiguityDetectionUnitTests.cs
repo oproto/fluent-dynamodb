@@ -30,9 +30,9 @@ public class AmbiguityDetectionUnitTests
         // Act
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
-        // Assert — no typed overload delegation to Keys.BuildPk or Keys.BuildSk
-        generatedCode.Should().NotContain("Keys.BuildPk(");
-        generatedCode.Should().NotContain("Keys.BuildSk(");
+        // Assert — no typed overload delegation to Keys.Pk or Keys.Sk
+        generatedCode.Should().NotContain("Keys.Pk(");
+        generatedCode.Should().NotContain("Keys.Sk(");
     }
 
     /// <summary>
@@ -179,7 +179,7 @@ public class AmbiguityDetectionUnitTests
 
         // Assert — the typed overload is simply omitted (silent skip)
         // No "ambiguity" or "collision" message in the generated code
-        generatedCode.Should().NotContain("Keys.BuildPk(");
+        generatedCode.Should().NotContain("Keys.Pk(");
         // Standard overload remains (the entity is still functional)
         generatedCode.Should().Contain("Get(string pk");
     }
@@ -198,7 +198,7 @@ public class AmbiguityDetectionUnitTests
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
         // Assert — typed overload is generated
-        generatedCode.Should().Contain("Keys.BuildPk(");
+        generatedCode.Should().Contain("Keys.Pk(");
         generatedCode.Should().Contain("Get(int year, int month)");
     }
 
@@ -216,8 +216,8 @@ public class AmbiguityDetectionUnitTests
         var generatedCode = TableGenerator.GenerateTableClass(entity.TableName, new List<EntityModel> { entity });
 
         // Assert — no typed overloads for any CRUD method
-        generatedCode.Should().NotContain("Keys.BuildPk(");
-        generatedCode.Should().NotContain("Keys.BuildSk(");
+        generatedCode.Should().NotContain("Keys.Pk(");
+        generatedCode.Should().NotContain("Keys.Sk(");
 
         // But standard string overloads remain
         generatedCode.Should().Contain("Get(string pk");

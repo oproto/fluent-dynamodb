@@ -195,26 +195,6 @@ public class RecordTypeSerializationTests
     }
 
     [Fact]
-    public void TestRecordEntity_Keys_GeneratesCorrectPartitionKey()
-    {
-        // Act
-        var pk = TestRecordEntity.Keys.Pk("my-id");
-
-        // Assert
-        pk.Should().Be("my-id");
-    }
-
-    [Fact]
-    public void TestRecordEntity_Keys_GeneratesCorrectSortKey()
-    {
-        // Act
-        var sk = TestRecordEntity.Keys.Sk("my-sort-key");
-
-        // Assert
-        sk.Should().Be("my-sort-key");
-    }
-
-    [Fact]
     public void TestRecordEntity_Fields_ContainsCorrectAttributeNames()
     {
         // Assert

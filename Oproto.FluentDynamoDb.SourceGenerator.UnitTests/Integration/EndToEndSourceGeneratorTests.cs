@@ -108,7 +108,6 @@ namespace TestNamespace
         entityCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
         entityCode.Should().Contain("public static string Sk(string transactionId)");
         entityCode.Should().Contain("var keyValue = \"txn#\" + transactionId;");
-        entityCode.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, string transactionId)");
         entityCode.Should().Contain("public static partial class StatusIndex");
     }
 

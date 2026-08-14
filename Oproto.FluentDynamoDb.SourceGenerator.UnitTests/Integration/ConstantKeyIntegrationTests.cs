@@ -71,12 +71,12 @@ public class ConstantKeyIntegrationTests
         var allGeneratedCode = GetAllGeneratedCode(result);
 
         // Assert - Get, Delete, Update should have single-parameter overloads (PK only)
-        // The key builder Key() should accept only the variable key parameter
+        // The Key() composite method no longer exists — verify Pk() is parameterized and Sk is a property
         var entityCode = GetGeneratedSource(result, "Customer.g.cs");
-        entityCode.Should().Contain("(string PartitionKey, string SortKey) Key(string customerId)",
-            "Key() should accept only the variable PK parameter");
-        entityCode.Should().NotContain("Key(string customerId, string sk)",
-            "Key() should NOT accept both keys when SK is constant");
+        entityCode.Should().Contain("public static string Pk(string customerId)",
+            "Pk() should accept the variable PK parameter");
+        entityCode.Should().NotContain("Key(string customerId",
+            "Key() composite method should not exist");
     }
 
     /// <summary>
@@ -250,10 +250,10 @@ public class ConstantKeyIntegrationTests
     }
 
     /// <summary>
-    /// Verifies that when both keys are constant, the Key() method is parameterless.
+    /// Verifies that when both keys are constant, no Key() composite method is generated.
     /// </summary>
     [Fact]
-    public void BothKeysConstant_KeysClass_HasParameterlessKeyMethod()
+    public void BothKeysConstant_KeysClass_HasNoKeyMethod()
     {
         // Arrange
         var source = GetBothKeysConstantSource();
@@ -262,11 +262,13 @@ public class ConstantKeyIntegrationTests
         var result = RunSourceGenerator(source);
         var entityCode = GetGeneratedSource(result, "SingletonConfig.g.cs");
 
-        // Assert
-        entityCode.Should().Contain("(string PartitionKey, string SortKey) Key()",
-            "Key() should be parameterless when both keys are constant");
-        entityCode.Should().Contain("(Pk, Sk)",
-            "Key() body should reference both constant key properties");
+        // Assert - Key() composite method no longer exists
+        entityCode.Should().NotContain("Key()",
+            "Key() composite method should not be generated");
+        entityCode.Should().Contain("public static string Pk =>",
+            "Both-constant entity should have Pk as a static property");
+        entityCode.Should().Contain("public static string Sk =>",
+            "Both-constant entity should have Sk as a static property");
     }
 
     /// <summary>
@@ -351,8 +353,8 @@ public class ConstantKeyIntegrationTests
             "Non-constant entity should have parameterized Pk method");
         entityCode.Should().Contain("public static string Sk(string lineId)",
             "Non-constant entity should have parameterized Sk method");
-        entityCode.Should().Contain("Key(string orderId, string lineId)",
-            "Non-constant entity should have Key() accepting both parameters");
+        entityCode.Should().NotContain("Key(string orderId, string lineId)",
+            "Key() composite method should not be generated");
     }
 
     /// <summary>

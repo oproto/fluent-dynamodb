@@ -1143,10 +1143,10 @@ internal static class TableGenerator
         
         if (pkComputed)
         {
-            // Emit: var computedPk = Entity.Keys.Build{PropertyName}(param1, param2, ...);
+            // Emit: var computedPk = Entity.Keys.Pk(param1, param2, ...);
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, partitionKey);
             var pkArgs = string.Join(", ", pkSourceParams!.Select(p => p.Name));
-            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Build{partitionKey.PropertyName}({pkArgs});");
+            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Pk({pkArgs});");
             delegationArgs.Add("computedPk");
         }
         else
@@ -1159,10 +1159,10 @@ internal static class TableGenerator
         {
             if (skComputed)
             {
-                // Emit: var computedSk = Entity.Keys.Build{PropertyName}(param1, param2, ...);
+                // Emit: var computedSk = Entity.Keys.Sk(param1, param2, ...);
                 var skSourceParams = OverloadParameterResolver.ResolveParameters(entity, sortKey);
                 var skArgs = string.Join(", ", skSourceParams!.Select(p => p.Name));
-                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Build{sortKey.PropertyName}({skArgs});");
+                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Sk({skArgs});");
                 delegationArgs.Add("computedSk");
             }
             else
@@ -1348,7 +1348,7 @@ internal static class TableGenerator
         {
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, partitionKey);
             var pkArgs = string.Join(", ", pkSourceParams!.Select(p => p.Name));
-            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Build{partitionKey.PropertyName}({pkArgs});");
+            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Pk({pkArgs});");
             delegationArgs.Add("computedPk");
         }
         else
@@ -1362,7 +1362,7 @@ internal static class TableGenerator
             {
                 var skSourceParams = OverloadParameterResolver.ResolveParameters(entity, sortKey);
                 var skArgs = string.Join(", ", skSourceParams!.Select(p => p.Name));
-                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Build{sortKey.PropertyName}({skArgs});");
+                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Sk({skArgs});");
                 delegationArgs.Add("computedSk");
             }
             else
@@ -1558,7 +1558,7 @@ internal static class TableGenerator
         {
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, partitionKey);
             var pkArgs = string.Join(", ", pkSourceParams!.Select(p => p.Name));
-            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Build{partitionKey.PropertyName}({pkArgs});");
+            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Pk({pkArgs});");
             delegationArgs.Add("computedPk");
         }
         else
@@ -1572,7 +1572,7 @@ internal static class TableGenerator
             {
                 var skSourceParams = OverloadParameterResolver.ResolveParameters(entity, sortKey);
                 var skArgs = string.Join(", ", skSourceParams!.Select(p => p.Name));
-                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Build{sortKey.PropertyName}({skArgs});");
+                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Sk({skArgs});");
                 delegationArgs.Add("computedSk");
             }
             else
@@ -1645,7 +1645,7 @@ internal static class TableGenerator
         {
             var pkSourceParams = OverloadParameterResolver.ResolveParameters(entity, partitionKey);
             var pkArgs = string.Join(", ", pkSourceParams!.Select(p => p.Name));
-            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Build{partitionKey.PropertyName}({pkArgs});");
+            sb.AppendLine($"            var computedPk = {entity.ClassName}.Keys.Pk({pkArgs});");
             delegationArgs.Add("computedPk");
         }
         else
@@ -1659,7 +1659,7 @@ internal static class TableGenerator
             {
                 var skSourceParams = OverloadParameterResolver.ResolveParameters(entity, sortKey);
                 var skArgs = string.Join(", ", skSourceParams!.Select(p => p.Name));
-                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Build{sortKey.PropertyName}({skArgs});");
+                sb.AppendLine($"            var computedSk = {entity.ClassName}.Keys.Sk({skArgs});");
                 delegationArgs.Add("computedSk");
             }
             else

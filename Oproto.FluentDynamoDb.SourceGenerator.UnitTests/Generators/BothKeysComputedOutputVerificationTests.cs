@@ -53,10 +53,10 @@ public class BothKeysComputedOutputVerificationTests
     }
 
     /// <summary>
-    /// Verifies that the method body calls Entity.Keys.BuildPk(...) for the PK independently.
+    /// Verifies that the method body calls Entity.Keys.Pk(...) for the PK independently.
     /// </summary>
     [Fact]
-    public void BothKeysComputed_TypedOverload_CallsKeysBuildPkForPartitionKey()
+    public void BothKeysComputed_TypedOverload_CallsKeysPkForPartitionKey()
     {
         // Arrange
         var entity = CreateEntityWithBothKeysComputed();
@@ -64,15 +64,15 @@ public class BothKeysComputedOutputVerificationTests
         // Act
         var generatedCode = GenerateMultiEntityTable(entity);
 
-        // Assert - method body calls Keys.BuildPk with PK source params
-        generatedCode.Should().Contain("TestEntity.Keys.BuildPk(year, month)");
+        // Assert - method body calls Keys.Pk with PK source params
+        generatedCode.Should().Contain("TestEntity.Keys.Pk(year, month)");
     }
 
     /// <summary>
-    /// Verifies that the method body calls Entity.Keys.BuildSk(...) for the SK independently.
+    /// Verifies that the method body calls Entity.Keys.Sk(...) for the SK independently.
     /// </summary>
     [Fact]
-    public void BothKeysComputed_TypedOverload_CallsKeysBuildSkForSortKey()
+    public void BothKeysComputed_TypedOverload_CallsKeysSkForSortKey()
     {
         // Arrange
         var entity = CreateEntityWithBothKeysComputed();
@@ -80,13 +80,13 @@ public class BothKeysComputedOutputVerificationTests
         // Act
         var generatedCode = GenerateMultiEntityTable(entity);
 
-        // Assert - method body calls Keys.BuildSk with SK source params
-        generatedCode.Should().Contain("TestEntity.Keys.BuildSk(region, category)");
+        // Assert - method body calls Keys.Sk with SK source params
+        generatedCode.Should().Contain("TestEntity.Keys.Sk(region, category)");
     }
 
     /// <summary>
     /// Verifies that the delegation uses return Get(computedPk, computedSk) pattern.
-    /// The typed overload calls BuildPk and BuildSk independently and passes both to the standard overload.
+    /// The typed overload calls Pk and Sk independently and passes both to the standard overload.
     /// </summary>
     [Fact]
     public void BothKeysComputed_TypedOverload_DelegatesWithBothComputedKeys()
@@ -97,9 +97,9 @@ public class BothKeysComputedOutputVerificationTests
         // Act
         var generatedCode = GenerateMultiEntityTable(entity);
 
-        // Assert - delegation pattern: both BuildPk and BuildSk called, results passed to standard overload
-        generatedCode.Should().Contain("TestEntity.Keys.BuildPk(year, month)");
-        generatedCode.Should().Contain("TestEntity.Keys.BuildSk(region, category)");
+        // Assert - delegation pattern: both Pk and Sk called, results passed to standard overload
+        generatedCode.Should().Contain("TestEntity.Keys.Pk(year, month)");
+        generatedCode.Should().Contain("TestEntity.Keys.Sk(region, category)");
     }
 
     /// <summary>
@@ -167,10 +167,10 @@ public class BothKeysComputedOutputVerificationTests
     }
 
     /// <summary>
-    /// Verifies that the BuildSk delegation occurs in all four CRUD method typed overloads.
+    /// Verifies that the Sk delegation occurs in all four CRUD method typed overloads.
     /// </summary>
     [Fact]
-    public void BothKeysComputed_AllCrudOverloads_DelegateToKeysBuildSkAndBuildPk()
+    public void BothKeysComputed_AllCrudOverloads_DelegateToKeysSkAndPk()
     {
         // Arrange
         var entity = CreateEntityWithBothKeysComputed();
@@ -178,13 +178,13 @@ public class BothKeysComputedOutputVerificationTests
         // Act
         var generatedCode = GenerateMultiEntityTable(entity);
 
-        // Assert - BuildPk and BuildSk both called in Get, Delete, Update, ConditionCheck
-        var buildPkCount = generatedCode.Split("TestEntity.Keys.BuildPk(year, month)").Length - 1;
-        var buildSkCount = generatedCode.Split("TestEntity.Keys.BuildSk(region, category)").Length - 1;
-        buildPkCount.Should().BeGreaterThanOrEqualTo(4,
-            "BuildPk should be called in Get, Delete, Update, and ConditionCheck typed overloads");
-        buildSkCount.Should().BeGreaterThanOrEqualTo(4,
-            "BuildSk should be called in Get, Delete, Update, and ConditionCheck typed overloads");
+        // Assert - Pk and Sk both called in Get, Delete, Update, ConditionCheck
+        var pkCount = generatedCode.Split("TestEntity.Keys.Pk(year, month)").Length - 1;
+        var skCount = generatedCode.Split("TestEntity.Keys.Sk(region, category)").Length - 1;
+        pkCount.Should().BeGreaterThanOrEqualTo(4,
+            "Pk should be called in Get, Delete, Update, and ConditionCheck typed overloads");
+        skCount.Should().BeGreaterThanOrEqualTo(4,
+            "Sk should be called in Get, Delete, Update, and ConditionCheck typed overloads");
     }
 
     /// <summary>

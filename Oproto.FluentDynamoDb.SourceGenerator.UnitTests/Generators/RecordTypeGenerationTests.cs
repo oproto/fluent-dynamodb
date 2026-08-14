@@ -54,9 +54,8 @@ namespace TestNamespace
         entityCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute");
         entityCode.Should().Contain("public const string Value = \"value\";", "should map Value property to value attribute");
 
-        // Check nested keys class
+        // Check nested keys class (bare keys have no Pk/Sk methods since there is no prefix or computed key)
         entityCode.ShouldContainClass("Keys");
-        entityCode.ShouldContainMethod("Pk");
     }
 
     [Fact]
@@ -95,10 +94,8 @@ namespace TestNamespace
         var entityCode = result.GeneratedSources.First(s => s.FileName.Contains("TestRecordWithSortKey.g.cs")).SourceText.ToString();
         CompilationVerifier.AssertGeneratedCodeCompiles(entityCode, source);
         
-        // Check keys class has both Pk and Sk methods
+        // Check keys class exists (bare keys have no Pk/Sk methods since there is no prefix or computed key)
         entityCode.ShouldContainClass("Keys");
-        entityCode.ShouldContainMethod("Pk");
-        entityCode.ShouldContainMethod("Sk");
     }
 
     [Fact]

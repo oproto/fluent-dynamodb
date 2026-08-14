@@ -137,7 +137,7 @@ public class KeyInputModeNoPrefixIntegrationTests
         var mockClient = Substitute.For<IAmazonDynamoDB>();
         var table = new TestComputedPkOnlyTable(mockClient, "test-computed-pk-only");
 
-        // Use typed overload which composes key via Keys.BuildPk()
+        // Use typed overload which composes key via Keys.Pk()
         mockClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new GetItemResponse { Item = new Dictionary<string, AttributeValue>() });
 
@@ -145,7 +145,7 @@ public class KeyInputModeNoPrefixIntegrationTests
         await table.ComputedPkOnlyEvents.Get(2024, 12, 25).GetItemAsync();
 
         // Assert — composed key "2024#12#25" should be passed through unchanged (no prefix)
-        var expectedKey = ComputedPkOnlyEvent.Keys.BuildPk(2024, 12, 25);
+        var expectedKey = ComputedPkOnlyEvent.Keys.Pk(2024, 12, 25);
         await mockClient.Received(1).GetItemAsync(
             Arg.Is<GetItemRequest>(req =>
                 req.Key["pk"].S == expectedKey),

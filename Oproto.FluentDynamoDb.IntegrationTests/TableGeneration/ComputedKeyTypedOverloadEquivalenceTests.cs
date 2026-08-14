@@ -5,8 +5,8 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.TableGeneration;
 
 /// <summary>
 /// Integration tests verifying that typed parameter overloads produce identical DynamoDB key values
-/// as the standard overloads when invoked with manually-built keys via Entity.Keys.BuildPk/BuildSk.
-/// Validates: Requirements 14.1, 3.5, 9.3
+/// as the standard overloads when invoked with manually-built keys via Entity.Keys.Pk/Sk.
+/// Validates: Requirements 10.1, 11.2
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Feature", "ComputedKeyOverloads")]
@@ -28,7 +28,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
         var typedRequest = typedBuilder.ToGetItemRequest();
 
         // Act - Standard overload path with manually-built key
-        var manualPk = ComputedPkOnlyEvent.Keys.BuildPk(year, month, day);
+        var manualPk = ComputedPkOnlyEvent.Keys.Pk(year, month, day);
         var standardBuilder = table.ComputedPkOnlyEvents.Get(manualPk);
         var standardRequest = standardBuilder.ToGetItemRequest();
 
@@ -55,7 +55,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
         var typedRequest = typedBuilder.ToGetItemRequest();
 
         // Act - Standard overload path with manually-built key
-        var manualSk = ComputedSkOnlyOrder.Keys.BuildSk(region, category);
+        var manualSk = ComputedSkOnlyOrder.Keys.Sk(region, category);
         var standardBuilder = table.ComputedSkOnlyOrders.Get(orderId, manualSk);
         var standardRequest = standardBuilder.ToGetItemRequest();
 
@@ -84,8 +84,8 @@ public class ComputedKeyTypedOverloadEquivalenceTests
         var typedRequest = typedBuilder.ToGetItemRequest();
 
         // Act - Standard overload path with manually-built keys
-        var manualPk = ComputedBothKeysEntity.Keys.BuildPk(tenantId, userId);
-        var manualSk = ComputedBothKeysEntity.Keys.BuildSk(year, month);
+        var manualPk = ComputedBothKeysEntity.Keys.Pk(tenantId, userId);
+        var manualSk = ComputedBothKeysEntity.Keys.Sk(year, month);
         var standardBuilder = table.ComputedBothKeysEntitys.Get(manualPk, manualSk);
         var standardRequest = standardBuilder.ToGetItemRequest();
 
@@ -113,7 +113,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
         var typedRequest = typedBuilder.ToGetItemRequest();
 
         // Act - Standard overload path with manually-built key
-        var manualPk = ComputedWithPrefixEntity.Keys.BuildPk(tenantId, orderNum);
+        var manualPk = ComputedWithPrefixEntity.Keys.Pk(tenantId, orderNum);
         var standardBuilder = table.ComputedWithPrefixEntitys.Get(manualPk, sk);
         var standardRequest = standardBuilder.ToGetItemRequest();
 
@@ -152,7 +152,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
             .Returns(Task.FromResult(new GetItemResponse { Item = null }));
 
         // Act - Standard overload path with manually-built key
-        var manualPk = ComputedPkOnlyEvent.Keys.BuildPk(year, month, day);
+        var manualPk = ComputedPkOnlyEvent.Keys.Pk(year, month, day);
         await table.ComputedPkOnlyEvents.Get(manualPk).GetItemAsync();
 
         // Assert - Captured requests have identical key entries
@@ -189,7 +189,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
             .Returns(Task.FromResult(new GetItemResponse { Item = null }));
 
         // Act - Standard overload path with manually-built key
-        var manualSk = ComputedSkOnlyOrder.Keys.BuildSk(region, category);
+        var manualSk = ComputedSkOnlyOrder.Keys.Sk(region, category);
         await table.ComputedSkOnlyOrders.Get(orderId, manualSk).GetItemAsync();
 
         // Assert - Captured requests have identical key entries
@@ -216,7 +216,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
         var typedRequest = typedBuilder.ToDeleteItemRequest();
 
         // Act - Standard overload path
-        var manualPk = ComputedPkOnlyEvent.Keys.BuildPk(year, month, day);
+        var manualPk = ComputedPkOnlyEvent.Keys.Pk(year, month, day);
         var standardBuilder = table.ComputedPkOnlyEvents.Delete(manualPk);
         var standardRequest = standardBuilder.ToDeleteItemRequest();
 
@@ -240,7 +240,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
         var typedRequest = typedBuilder.ToDeleteItemRequest();
 
         // Act - Standard overload path
-        var manualSk = ComputedSkOnlyOrder.Keys.BuildSk(region, category);
+        var manualSk = ComputedSkOnlyOrder.Keys.Sk(region, category);
         var standardBuilder = table.ComputedSkOnlyOrders.Delete(orderId, manualSk);
         var standardRequest = standardBuilder.ToDeleteItemRequest();
 
@@ -266,8 +266,8 @@ public class ComputedKeyTypedOverloadEquivalenceTests
         var typedRequest = typedBuilder.ToDeleteItemRequest();
 
         // Act - Standard overload path
-        var manualPk = ComputedBothKeysEntity.Keys.BuildPk(tenantId, userId);
-        var manualSk = ComputedBothKeysEntity.Keys.BuildSk(year, month);
+        var manualPk = ComputedBothKeysEntity.Keys.Pk(tenantId, userId);
+        var manualSk = ComputedBothKeysEntity.Keys.Sk(year, month);
         var standardBuilder = table.ComputedBothKeysEntitys.Delete(manualPk, manualSk);
         var standardRequest = standardBuilder.ToDeleteItemRequest();
 
@@ -295,7 +295,7 @@ public class ComputedKeyTypedOverloadEquivalenceTests
             .ToUpdateItemRequest();
 
         // Act - Standard overload path
-        var manualPk = ComputedPkOnlyEvent.Keys.BuildPk(year, month, day);
+        var manualPk = ComputedPkOnlyEvent.Keys.Pk(year, month, day);
         var standardBuilder = table.ComputedPkOnlyEvents.Update(manualPk);
         var standardRequest = standardBuilder.Set("SET #title = :t")
             .WithValue(":t", "test")
@@ -326,8 +326,8 @@ public class ComputedKeyTypedOverloadEquivalenceTests
             .ToUpdateItemRequest();
 
         // Act - Standard overload path
-        var manualPk = ComputedBothKeysEntity.Keys.BuildPk(tenantId, userId);
-        var manualSk = ComputedBothKeysEntity.Keys.BuildSk(year, month);
+        var manualPk = ComputedBothKeysEntity.Keys.Pk(tenantId, userId);
+        var manualSk = ComputedBothKeysEntity.Keys.Sk(year, month);
         var standardBuilder = table.ComputedBothKeysEntitys.Update(manualPk, manualSk);
         var standardRequest = standardBuilder.Set("SET #data = :d")
             .WithValue(":d", "updated")

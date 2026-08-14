@@ -354,7 +354,7 @@ namespace TestNamespace
     /// <summary>
     /// Validates: Requirement 5.2
     /// Verifies the source generator produces compilable code for an entity with {0:D4}#{1} format
-    /// and that the generated Keys.BuildPk method uses typed value casting and InvariantCulture.
+    /// and that the generated Keys.Pk method uses typed value casting and InvariantCulture.
     /// </summary>
     [Fact]
     public void IntZeroPadding_SourceGeneratorOutput_ContainsCorrectCodePatterns()
@@ -420,7 +420,7 @@ namespace TestNamespace
     /// <summary>
     /// Validates: Requirement 5.2
     /// Full source generator integration: compiles entity with [Computed("Priority", "Name", Format = "{0:D4}#{1}")]
-    /// and dynamically invokes Keys.BuildPk and ToDynamoDb to verify both produce "0042#TaskName".
+    /// and dynamically invokes Keys.Pk and ToDynamoDb to verify both produce "0042#TaskName".
     /// </summary>
     [Fact]
     public void IntZeroPadding_FullSourceGenerator_KeysAndToDynamoDbProduceConsistentValues()
@@ -461,18 +461,18 @@ namespace TestNamespace
         var entityType = compilationResult.Assembly.GetType("TestNamespace.TaskEntity")
             ?? throw new InvalidOperationException("TaskEntity type not found");
 
-        // Invoke Keys.BuildPk(int priority, string name) via reflection
+        // Invoke Keys.Pk(int priority, string name) via reflection (unified API)
         var keysType = entityType.GetNestedType("Keys", BindingFlags.Public | BindingFlags.Static)
             ?? throw new InvalidOperationException("Keys nested type not found");
 
-        var buildPkMethod = keysType.GetMethod("BuildPk", BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException("BuildPk method not found");
+        var pkMethod = keysType.GetMethod("Pk", BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Pk method not found");
 
-        var keysResult = (string)buildPkMethod.Invoke(null, new object[] { 42, "TaskName" })!;
+        var keysResult = (string)pkMethod.Invoke(null, new object[] { 42, "TaskName" })!;
 
         // Assert: Keys builder produces correct value
         keysResult.Should().Be("0042#TaskName",
-            "Keys.BuildPk(42, \"TaskName\") should produce '0042#TaskName' via D4 format specifier");
+            "Keys.Pk(42, \"TaskName\") should produce '0042#TaskName' via D4 format specifier");
 
         // Invoke ToDynamoDb to verify the Put mapper path
         var instance = Activator.CreateInstance(entityType)!;

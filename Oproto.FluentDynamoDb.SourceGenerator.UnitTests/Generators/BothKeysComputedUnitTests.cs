@@ -75,11 +75,11 @@ public class BothKeysComputedUnitTests
     }
 
     /// <summary>
-    /// Verifies that the generated method body calls Entity.Keys.BuildPk(...) for the PK
-    /// and Entity.Keys.BuildSk(...) for the SK independently.
+    /// Verifies that the generated method body calls Entity.Keys.Pk(...) for the PK
+    /// and Entity.Keys.Sk(...) for the SK independently.
     /// </summary>
     [Fact]
-    public void BothKeysComputed_MethodBody_CallsBuildPkAndBuildSkIndependently()
+    public void BothKeysComputed_MethodBody_CallsPkAndSkIndependently()
     {
         // Arrange
         var entity = CreateBothKeysComputedEntity(
@@ -90,9 +90,9 @@ public class BothKeysComputedUnitTests
         // Act
         var generatedCode = GenerateCode(entity);
 
-        // Assert — method body calls both Build methods independently
-        generatedCode.Should().Contain("Event.Keys.BuildPk(year, month)");
-        generatedCode.Should().Contain("Event.Keys.BuildSk(category, itemId)");
+        // Assert — method body calls both Keys methods independently
+        generatedCode.Should().Contain("Event.Keys.Pk(year, month)");
+        generatedCode.Should().Contain("Event.Keys.Sk(category, itemId)");
     }
 
     /// <summary>
@@ -223,8 +223,8 @@ public class BothKeysComputedUnitTests
         // Assert — correct combined parameter list
         generatedCode.Should().Contain(
             "Get(int hotel, int floor, int room, DateTime checkInDate, Guid guestId)");
-        generatedCode.Should().Contain("Booking.Keys.BuildPk(hotel, floor, room)");
-        generatedCode.Should().Contain("Booking.Keys.BuildSk(checkInDate, guestId)");
+        generatedCode.Should().Contain("Booking.Keys.Pk(hotel, floor, room)");
+        generatedCode.Should().Contain("Booking.Keys.Sk(checkInDate, guestId)");
     }
 
     #region Helper Methods
