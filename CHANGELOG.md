@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **InvoiceManager Example: Multi-Level Menu Navigation** — Refactored the InvoiceManager example from a flat menu (requiring re-entry of customer and invoice IDs for every operation) to a hierarchical three-level menu: Main → Customer → Invoice. Selected context is displayed in the menu header and carried through sub-operations. Also added Delete Line Item and Update Line Item operations that demonstrate the typed convenience method overloads (`GetAsync`, `DeleteAsync`, `Update` with computed SK components).
+
 ### Removed
 
 - **BREAKING: `BuildPk()`/`BuildSk()` Methods from Generated Keys Class** — The `BuildPk(...)` and `BuildSk(...)` methods are removed from the source-generated `Keys` class. Computed key construction now happens via the unified `Pk(...)` and `Sk(...)` methods, which handle both prefix-based and computed key construction.
