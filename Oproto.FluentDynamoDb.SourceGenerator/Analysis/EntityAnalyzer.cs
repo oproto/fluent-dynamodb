@@ -724,6 +724,16 @@ internal class EntityAnalyzer
             {
                 propertyModel.ConstantKeyValue = strValue;
             }
+            else
+            {
+                // Expression-body properties have no setter by definition.
+                // If GetConstantValue() did not resolve to a string, the value is not a compile-time constant.
+                propertyModel.IsReadOnlyKeyProperty = true;
+                ReportDiagnostic(
+                    DiagnosticDescriptors.ConstantKeyNonConstReference,
+                    propertyDecl.Identifier.GetLocation(),
+                    propertyModel.PropertyName);
+            }
             return;
         }
 
@@ -741,6 +751,16 @@ internal class EntityAnalyzer
                 if (constantValue.HasValue && constantValue.Value is string strValue)
                 {
                     propertyModel.ConstantKeyValue = strValue;
+                }
+                else
+                {
+                    // Get-only auto-property with no setter.
+                    // If GetConstantValue() did not resolve to a string, the value is not a compile-time constant.
+                    propertyModel.IsReadOnlyKeyProperty = true;
+                    ReportDiagnostic(
+                        DiagnosticDescriptors.ConstantKeyNonConstReference,
+                        propertyDecl.Identifier.GetLocation(),
+                        propertyModel.PropertyName);
                 }
             }
         }

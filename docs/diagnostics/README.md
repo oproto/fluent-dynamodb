@@ -1,6 +1,6 @@
 # Diagnostics Reference
 
-This reference documents all **116** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
+This reference documents all **117** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
 
 ## Numbering Conventions
 
@@ -8,7 +8,7 @@ This reference documents all **116** diagnostic codes emitted by the Oproto.Flue
 |--------|-----------|--------|
 | DISC | 001–006 | Discriminator configuration and pattern matching |
 | DYNDB | 001–036, 101–115, 120–127, 1001–1004 | Core DynamoDB entity validation and mapping |
-| FDDB | 001–006, 0020–0021, 050–055, 060–062, 070–072, 080, 090, 100–103, 110–116, 120–125 | Table/index generation and configuration |
+| FDDB | 001–006, 0020–0021, 050–055, 060–062, 070–072, 080, 090, 100–103, 110–116, 120–126 | Table/index generation and configuration |
 | PROJ | 001–006, 101–102 | Projection model validation |
 | SEC | 001–002 | Security and package dependency checks |
 
@@ -156,6 +156,7 @@ Codes `FDDB0020` and `FDDB0021` use four-digit numbering while other FDDB codes 
 | [FDDB123](FDDB/FDDB123.md) | Error | Empty constant key value |
 | [FDDB124](FDDB/FDDB124.md) | Error | Extracted property conflicts with DynamoDbAttribute |
 | [FDDB125](FDDB/FDDB125.md) | Error | Computed key property has redundant Prefix |
+| [FDDB126](FDDB/FDDB126.md) | Error | Key property references non-compile-time-constant value |
 
 ## PROJ — Projection Model Validation
 
