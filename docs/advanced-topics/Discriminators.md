@@ -537,6 +537,7 @@ public partial class Order
 | FDDB101 | Error | Explicit discriminator contradicts key format | Fix the conflict (remove explicit, or align it) |
 | FDDB102 | Warning | Overlapping auto-derived patterns | Advisory — consider more specific key formats |
 | FDDB103 | Info | Redundant explicit discriminator | Optional cleanup — remove the explicit specification |
+| FDDB104 | Info | Compound promotion resolved same-score overlap | No action — overlap resolved via cross-key check |
 
 ## GSI-Specific Discriminators
 
@@ -1050,6 +1051,161 @@ Overlap analysis only applies when:
 - Both patterns could match the same string value
 
 Entities with different `DiscriminatorProperty` values are never considered overlapping, regardless of pattern content.
+
+## Compound Key Discrimination
+
+When two entities on the same table have identical discriminator patterns on one key property (same specificity score), the source generator automatically attempts to resolve the overlap by inspecting the **other** key property's pattern. If the cross-key patterns differ, the generator promotes to a compound discriminator check that verifies both keys, suppresses FDDB102/DISC004 diagnostics, and emits an FDDB104 info diagnostic confirming the resolution.
+
+### When Compound Promotion Applies
+
+Compound promotion resolves the scenario where entities share the same sort key prefix but differ by partition key structure (or vice versa):
+
+```csharp
+[DynamoDbTable("capabilities", IsDefault = true)]
+public partial class PlatformCapability
+{
+    [PartitionKey(Prefix = "PLATFORM")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("capabilities")]
+public partial class TenantCapability
+{
+    [PartitionKey(Prefix = "TENANT")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+```
+
+Both entities derive `CAP#*` as their sort key discriminator pattern — same score, same property. Without compound promotion, this would produce a DISC004 error (ambiguous same-score overlap). The compound promotion pass detects that the partition key patterns differ (`PLATFORM#*` vs `TENANT#*`) and resolves the overlap automatically.
+
+### Generated MatchesEntity with Compound Check
+
+**Generated `PlatformCapability.MatchesEntity`:**
+```csharp
+public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+{
+    if (!item.ContainsKey("pk")) return false;
+    if (!item.ContainsKey("sk")) return false;
+
+    if (!item.TryGetValue("sk", out var discriminatorValue) || discriminatorValue.S == null)
+        return false;
+
+    // Positive match: this entity's SK pattern
+    if (!discriminatorValue.S.StartsWith("CAP#"))
+        return false;
+
+    // Compound constraint: pk (resolved overlap with TenantCapability)
+    if (!item.TryGetValue("pk", out var compoundValue) || compoundValue.S == null)
+        return false;
+    if (!compoundValue.S.StartsWith("PLATFORM#"))
+        return false;
+
+    return true;
+}
+```
+
+**Generated `TenantCapability.MatchesEntity`:**
+```csharp
+public static bool MatchesEntity(Dictionary<string, AttributeValue> item)
+{
+    if (!item.ContainsKey("pk")) return false;
+    if (!item.ContainsKey("sk")) return false;
+
+    if (!item.TryGetValue("sk", out var discriminatorValue) || discriminatorValue.S == null)
+        return false;
+
+    // Positive match: this entity's SK pattern
+    if (!discriminatorValue.S.StartsWith("CAP#"))
+        return false;
+
+    // Compound constraint: pk (resolved overlap with PlatformCapability)
+    if (!item.TryGetValue("pk", out var compoundValue) || compoundValue.S == null)
+        return false;
+    if (!compoundValue.S.StartsWith("TENANT#"))
+        return false;
+
+    return true;
+}
+```
+
+### Asymmetric Case: One Entity Has No Cross-Key Pattern
+
+When one entity has a derivable cross-key pattern and the other has a bare key (no prefix), the generator uses an **exclusion guard** on the bare-key entity:
+
+```csharp
+[DynamoDbTable("capabilities", IsDefault = true)]
+public partial class PlatformCapability
+{
+    [PartitionKey(Prefix = "PLATFORM")]  // Derives "PLATFORM#*"
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("capabilities")]
+public partial class GenericCapability
+{
+    [PartitionKey]  // No prefix → no DerivedDiscriminatorPattern
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+```
+
+- **PlatformCapability** gets a positive compound constraint: pk must start with `"PLATFORM#"`
+- **GenericCapability** gets an exclusion guard: if pk starts with `"PLATFORM#"`, return false (that item belongs to PlatformCapability)
+
+The exclusion guard uses pass-through semantics for missing/null cross-key values — if the pk attribute is absent, the exclusion doesn't fire and the primary discriminator match stands.
+
+### Resolution Rules
+
+| Cross-Key Patterns | Resolution |
+|--------------------|------------|
+| Both entities have different non-null patterns | Both get positive compound constraint (each checks its own PK/SK pattern) |
+| One entity has pattern, other has null (bare key) | Pattern entity gets positive check; bare-key entity gets exclusion guard |
+| Both entities have null patterns (both bare keys) | **Not resolvable** — FDDB102/DISC004 emitted |
+| Both entities have identical patterns | **Not resolvable** — FDDB102/DISC004 emitted |
+| Cross-key pattern has Complex strategy (multi-wildcard) | Treated as null — cannot be used for compound promotion |
+
+### Multi-Entity Groups
+
+When three or more entities share the same discriminator pattern, compound promotion evaluates all unique pairs independently:
+
+```csharp
+// All three share SK "CAP#*" but have different PK prefixes
+PlatformCapability: PK = "PLATFORM#*"
+TenantCapability:   PK = "TENANT#*"
+AdminCapability:    PK = "ADMIN#*"
+// All three pairs resolved independently — each gets its own positive compound constraint
+```
+
+If some pairs are resolvable and others are not (e.g., two entities share the same PK pattern), only the resolvable pairs are promoted; unresolved pairs still emit FDDB102/DISC004.
+
+### Diagnostic: FDDB104
+
+When compound promotion resolves an overlap, the source generator emits an **FDDB104 Info** diagnostic:
+
+```
+Entity 'PlatformCapability' promoted to compound discrimination (sk: 'CAP#*' + pk: 'PLATFORM#*') to resolve overlap with 'TenantCapability'
+```
+
+This is informational only — no action is required. See [FDDB104](../diagnostics/FDDB/FDDB104.md) for details.
 
 ## Troubleshooting
 

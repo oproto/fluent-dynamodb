@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2026-07-12
+# Updated 2026-08-17
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -661,6 +661,55 @@ var customersByEmail = await table.EmailIndex.Query<Customer>(x => x.Email == "u
 | Same index, different sort key | FDDB054 diagnostic error |
 | Same index, different type (GSI vs LSI) | FDDB055 diagnostic error |
 | Index on non-default entity | Index property generated normally |
+
+## Compound Key Discrimination (Multi-Entity Tables)
+
+When two entities on the same table have the same discriminator pattern on one key (e.g., both use `CAP#*` on SK), the source generator automatically promotes to compound discrimination using the other key's pattern.
+
+```csharp
+// Both entities share SK prefix "CAP" — generator auto-promotes to compound check
+[DynamoDbTable("capabilities", IsDefault = true)]
+public partial class PlatformCapability
+{
+    [PartitionKey(Prefix = "PLATFORM")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("capabilities")]
+public partial class TenantCapability
+{
+    [PartitionKey(Prefix = "TENANT")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+// Generated MatchesEntity checks BOTH sk StartsWith("CAP#") AND pk StartsWith("PLATFORM#"/"TENANT#")
+// No FDDB102/DISC004 warning — resolved automatically via FDDB104
+```
+
+### Compound Discrimination Behavior
+
+| Scenario | Result |
+|----------|--------|
+| Both entities have different PK prefixes | Both get positive compound constraint (each checks its own PK pattern) |
+| One entity has PK prefix, other has bare PK | Prefixed entity gets positive check, bare entity gets exclusion guard |
+| Both entities have same/null PK patterns | Not resolvable — FDDB102/DISC004 emitted as before |
+| Cross-key has Complex pattern (multi-wildcard) | Treated as null — cannot be used for compound promotion |
+
+### Diagnostics
+
+| Code | Severity | Meaning |
+|------|----------|---------|
+| FDDB104 | Info | Compound promotion resolved a same-score overlap |
+| FDDB102 | Warning | Same-score overlap NOT resolved (patterns cannot disambiguate) |
 
 ## Projection Queries
 

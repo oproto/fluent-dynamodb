@@ -4419,8 +4419,9 @@ internal static class MapperGenerator
         sb.AppendLine("                return false;");
         sb.AppendLine();
 
-        // When there are overlapping patterns, restructure to emit positive match + exclusion guards + return true
-        if (disc.OverlappingPatterns.Count > 0)
+        // When there are overlapping patterns or compound constraints, restructure to emit
+        // positive match + exclusion guards + compound constraint + return true
+        if (disc.OverlappingPatterns.Count > 0 || disc.CompoundConstraint != null)
         {
             GenerateDiscriminatorCheckWithExclusions(sb, disc);
         }
@@ -4545,8 +4546,123 @@ internal static class MapperGenerator
             sb.AppendLine();
         }
 
-        // Step 3: Return true — passed all checks
+        // Step 3: Compound constraint check (if applicable)
+        if (disc.CompoundConstraint != null && !disc.CompoundConstraint.IsExclusion)
+        {
+            GeneratePositiveCompoundConstraintCheck(sb, disc.CompoundConstraint);
+        }
+        else if (disc.CompoundConstraint != null && disc.CompoundConstraint.IsExclusion)
+        {
+            GenerateExclusionCompoundConstraintCheck(sb, disc.CompoundConstraint);
+        }
+
+        // Step 4: Return true — passed all checks
         sb.AppendLine("            return true;");
+    }
+
+    /// <summary>
+    /// Generates code for a positive compound constraint check.
+    /// This verifies that the cross-key attribute exists with a non-null string value
+    /// and matches the compound constraint pattern using the appropriate strategy.
+    /// </summary>
+    private static void GeneratePositiveCompoundConstraintCheck(StringBuilder sb, CompoundConstraint constraint)
+    {
+        sb.AppendLine($"            // Compound constraint: {constraint.PropertyName}");
+        sb.AppendLine($"            if (!item.TryGetValue(\"{constraint.PropertyName}\", out var compoundValue) || compoundValue.S == null)");
+        sb.AppendLine("                return false;");
+
+        switch (constraint.Strategy)
+        {
+            case DiscriminatorStrategy.StartsWith:
+                sb.AppendLine($"            if (!compoundValue.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.ExactMatch:
+                sb.AppendLine($"            if (compoundValue.S != \"{EscapeString(constraint.LiteralText)}\")");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.EndsWith:
+                sb.AppendLine($"            if (!compoundValue.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.Contains:
+                sb.AppendLine($"            if (!compoundValue.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
+                sb.AppendLine("                return false;");
+                break;
+        }
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Generates code for an exclusion guard compound constraint check.
+    /// This returns false if the cross-key value MATCHES the exclusion pattern.
+    /// If the cross-key attribute is missing or null, the exclusion does NOT fire
+    /// (passes through to return true), because the exclusion only applies when
+    /// the cross-key attribute is present with a matching value.
+    /// Also handles AdditionalExclusions for multi-entity overlap scenarios.
+    /// </summary>
+    private static void GenerateExclusionCompoundConstraintCheck(StringBuilder sb, CompoundConstraint constraint)
+    {
+        // Generate the primary exclusion check
+        GenerateSingleExclusionCheck(sb, constraint, "compoundValue");
+
+        // Generate additional exclusion checks if present
+        if (constraint.AdditionalExclusions != null)
+        {
+            var varIndex = 2;
+            foreach (var additionalExclusion in constraint.AdditionalExclusions)
+            {
+                var varName = $"compoundValue{varIndex}";
+                GenerateSingleExclusionCheck(sb, additionalExclusion, varName);
+                varIndex++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Generates a single exclusion guard check using the specified variable name.
+    /// The generated code returns false if the cross-key attribute exists, is non-null,
+    /// and matches the exclusion pattern.
+    /// </summary>
+    private static void GenerateSingleExclusionCheck(StringBuilder sb, CompoundConstraint constraint, string varName)
+    {
+        var sourceComment = !string.IsNullOrEmpty(constraint.ExclusionSourceEntity)
+            ? $" from {constraint.ExclusionSourceEntity}"
+            : string.Empty;
+        sb.AppendLine($"            // Compound exclusion: {constraint.PropertyName} pattern{sourceComment}");
+
+        switch (constraint.Strategy)
+        {
+            case DiscriminatorStrategy.StartsWith:
+                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                sb.AppendLine($"                && {varName}.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.ExactMatch:
+                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                sb.AppendLine($"                && {varName}.S == \"{EscapeString(constraint.LiteralText)}\")");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.EndsWith:
+                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                sb.AppendLine($"                && {varName}.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                sb.AppendLine("                return false;");
+                break;
+
+            case DiscriminatorStrategy.Contains:
+                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                sb.AppendLine($"                && {varName}.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
+                sb.AppendLine("                return false;");
+                break;
+        }
+
+        sb.AppendLine();
     }
 
     /// <summary>
