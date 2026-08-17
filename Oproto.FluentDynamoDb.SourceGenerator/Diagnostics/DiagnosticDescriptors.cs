@@ -1382,6 +1382,19 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB103"));
 
+    /// <summary>
+    /// Informational diagnostic when a same-score discriminator overlap is resolved by
+    /// compound promotion using cross-key pattern disambiguation.
+    /// </summary>
+    public static readonly DiagnosticDescriptor CompoundPromotionResolved = new(
+        "FDDB104",
+        "Compound discrimination resolved overlap",
+        "Entity '{0}' promoted to compound discrimination ({1}: '{2}' + {3}: '{4}') to resolve overlap with '{5}'",
+        "DynamoDb",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB104"));
+
     // Schema Version Attribute Diagnostics (FDDB110-FDDB116)
 
     /// <summary>

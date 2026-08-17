@@ -57,6 +57,41 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-08-17]
+
+### New Feature: Compound Key Discrimination (FDDB104)
+
+**Category:** New Feature Documentation
+
+### File: docs/advanced-topics/Discriminators.md
+
+**Description:** Added "Compound Key Discrimination" section documenting the new automatic compound promotion behavior. When two entities share the same discriminator pattern on one key property (same specificity score), the source generator inspects the other key's pattern and, if different, generates a compound `MatchesEntity` check that verifies both key patterns. This suppresses FDDB102/DISC004 false positives and emits FDDB104 info diagnostics. Section covers: symmetric positive constraints, asymmetric exclusion guards, resolution rules table, multi-entity group behavior, and generated code examples.
+
+### File: docs/diagnostics/FDDB/FDDB104.md
+
+**Description:** Created new diagnostic documentation page for FDDB104 (Info severity). Documents the message format, when it fires, example triggering code, generated behavior, and relationship to FDDB102/DISC004 suppression.
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Description:** Added compact "Compound Key Discrimination (Multi-Entity Tables)" reference section with code example, behavior table, and diagnostics reference. Updated file date to 2026-08-17.
+
+**Before:**
+```csharp
+// Two entities with same SK prefix on same table → DISC004 error or FDDB102 warning
+// No automatic resolution for same-score overlaps
+```
+
+**After:**
+```csharp
+// Two entities with same SK prefix but different PK prefixes → FDDB104 info
+// Generated MatchesEntity checks BOTH sk StartsWith("CAP#") AND pk StartsWith("PLATFORM#"/"TENANT#")
+// FDDB102/DISC004 suppressed — resolved automatically via compound promotion
+```
+
+**Reason:** New compound key discrimination feature automatically resolves same-score discriminator overlaps by inspecting cross-key patterns. Documentation added across all relevant files: human-readable advanced topics guide, diagnostic reference page, and AI steering file.
+
+---
+
 ## [2026-08-14]
 
 ### New Diagnostic: FDDB126 — Constant Key Non-Const Reference Detection

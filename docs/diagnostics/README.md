@@ -1,6 +1,6 @@
 # Diagnostics Reference
 
-This reference documents all **117** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
+This reference documents all **118** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
 
 ## Numbering Conventions
 
@@ -8,7 +8,7 @@ This reference documents all **117** diagnostic codes emitted by the Oproto.Flue
 |--------|-----------|--------|
 | DISC | 001–006 | Discriminator configuration and pattern matching |
 | DYNDB | 001–036, 101–115, 120–127, 1001–1004 | Core DynamoDB entity validation and mapping |
-| FDDB | 001–006, 0020–0021, 050–055, 060–062, 070–072, 080, 090, 100–103, 110–116, 120–126 | Table/index generation and configuration |
+| FDDB | 001–006, 0020–0021, 050–055, 060–062, 070–072, 080, 090, 100–104, 110–116, 120–126 | Table/index generation and configuration |
 | PROJ | 001–006, 101–102 | Projection model validation |
 | SEC | 001–002 | Security and package dependency checks |
 
@@ -143,6 +143,7 @@ Codes `FDDB0020` and `FDDB0021` use four-digit numbering while other FDDB codes 
 | [FDDB101](FDDB/FDDB101.md) | Error | Explicit discriminator pattern conflicts with key format |
 | [FDDB102](FDDB/FDDB102.md) | Warning | Overlapping auto-derived discriminator patterns |
 | [FDDB103](FDDB/FDDB103.md) | Info | Redundant explicit discriminator pattern |
+| [FDDB104](FDDB/FDDB104.md) | Info | Compound discrimination resolved overlap |
 | [FDDB110](FDDB/FDDB110.md) | Warning | Missing schema version attribute |
 | [FDDB111](FDDB/FDDB111.md) | Error | Declared version below minimum supported |
 | [FDDB112](FDDB/FDDB112.md) | Error | Declared version above current |

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Compound Key Discrimination (FDDB104)** — The source generator now automatically resolves same-score discriminator overlaps between entities on the same table by inspecting cross-key `DerivedDiscriminatorPattern` values. When two entities share an identical discriminator pattern on one key (e.g., both have `CAP#*` on the sort key), the generator checks whether their partition key patterns differ. If they do, it promotes both entities to a compound discriminator check (primary key match AND sort key match) in the generated `MatchesEntity` method, suppresses the previously-emitted FDDB102/DISC004 diagnostics, and emits a new FDDB104 info diagnostic confirming the resolution. This eliminates false overlap warnings in single-table designs where entities are distinguished by the combination of PK and SK prefixes.
+
 ### Changed
 
 - **InvoiceManager Example: Multi-Level Menu Navigation** — Refactored the InvoiceManager example from a flat menu (requiring re-entry of customer and invoice IDs for every operation) to a hierarchical three-level menu: Main → Customer → Invoice. Selected context is displayed in the menu header and carried through sub-operations. Also added Delete Line Item and Update Line Item operations that demonstrate the typed convenience method overloads (`GetAsync`, `DeleteAsync`, `Update` with computed SK components).

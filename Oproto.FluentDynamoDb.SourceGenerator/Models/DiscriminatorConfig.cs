@@ -45,6 +45,15 @@ internal class DiscriminatorConfig
     /// Populated by PatternOverlapAnalyzer during the overlap analysis pass.
     /// </summary>
     public List<ExclusionPattern> OverlappingPatterns { get; set; } = new();
+
+    /// <summary>
+    /// Optional secondary constraint (AND'd with primary check).
+    /// Populated by CompoundPromotionPass when a same-score overlap on the primary
+    /// discriminator property is resolvable via cross-key disambiguation.
+    /// When non-null, the generated MatchesEntity method verifies BOTH the primary
+    /// discriminator AND this compound constraint.
+    /// </summary>
+    public CompoundConstraint? CompoundConstraint { get; set; }
 }
 
 /// <summary>
