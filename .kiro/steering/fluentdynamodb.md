@@ -334,6 +334,83 @@ Console.WriteLine(evt3.Month);  // 12
 Console.WriteLine(evt3.Day);    // 25
 ```
 
+#### Computed Keys with Format String
+
+Use `Format` instead of `Separator` when your key needs fixed literal segments between values:
+
+```csharp
+[DynamoDbTable("invoices")]
+public partial class InvoiceLine
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    // Format string: literal text with {N} placeholders for source property values
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Sk", 0)]
+    public string InvoiceId { get; set; } = string.Empty;
+
+    [Extracted("Sk", 1)]
+    public int LineNumber { get; set; }
+}
+
+// Generated methods:
+InvoiceLine.Keys.Sk("INV-001", 1)              // Returns "INVOICE#INV-001#LINE#1"
+InvoiceLine.Keys.ExtractSkComponents("INVOICE#INV-001#LINE#1")  // Returns (InvoiceId: "INV-001", LineNumber: 1)
+```
+
+#### Separator vs Format
+
+| Approach | Attribute | Output for `("A", "B")` | Use When |
+|----------|-----------|--------------------------|----------|
+| Separator | `[Computed("X", "Y", Separator = "#")]` | `A#B` | Simple concatenation, no literal prefixes |
+| Format | `[Computed("X", "Y", Format = "PFX#{0}#SUF#{1}")]` | `PFX#A#SUF#B` | Need fixed literal segments in the key |
+
+#### Format Specifiers (`{N:format}`)
+
+Placeholders support .NET format specifiers for type-specific formatting:
+
+```csharp
+[DynamoDbTable("TimeSeries")]
+public partial class TimeEntry
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    [Computed("Date", Format = "ENTRY#{0:yyyy-MM-dd}")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("Sequence", Format = "SEQ#{0:D4}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Pk", 0)]
+    public DateTime Date { get; set; }
+
+    [Extracted("Sk", 0)]
+    public int Sequence { get; set; }
+}
+
+// Generated methods:
+TimeEntry.Keys.Pk(new DateTime(2024, 12, 25))  // Returns "ENTRY#2024-12-25"
+TimeEntry.Keys.Sk(7)                            // Returns "SEQ#0007"
+```
+
+Common format specifiers:
+
+| Type | Specifier | Input | Output |
+|------|-----------|-------|--------|
+| DateTime | `{0:yyyy-MM-dd}` | `2024-12-25` | `2024-12-25` |
+| DateTime | `{0:HH:mm:ss}` | `14:30:00` | `14:30:00` |
+| int | `{0:D4}` | `7` | `0007` |
+| int | `{0:D8}` | `42` | `00000042` |
+| decimal | `{0:F2}` | `3.5` | `3.50` |
+
 ### Key Handling Summary
 
 | Operation | What You Pass | What's Stored in DynamoDB |
