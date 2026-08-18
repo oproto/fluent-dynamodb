@@ -1114,8 +1114,8 @@ internal static class TableGenerator
         var partitionKey = entity.PartitionKeyProperty!;
         var sortKey = entity.SortKeyProperty;
         
-        bool pkComputed = partitionKey.IsComputed && partitionKey.ComputedKey!.SourceProperties.Length >= 2;
-        bool skComputed = sortKey?.IsComputed == true && sortKey.ComputedKey!.SourceProperties.Length >= 2;
+        bool pkComputed = partitionKey.IsComputed;
+        bool skComputed = sortKey?.IsComputed == true;
         
         // Build the parameter list string
         var paramList = string.Join(", ", typedParams.Select(p => 
@@ -1317,8 +1317,8 @@ internal static class TableGenerator
         var partitionKey = entity.PartitionKeyProperty!;
         var sortKey = entity.SortKeyProperty;
         
-        bool pkComputed = partitionKey.IsComputed && partitionKey.ComputedKey!.SourceProperties.Length >= 2;
-        bool skComputed = sortKey?.IsComputed == true && sortKey.ComputedKey!.SourceProperties.Length >= 2;
+        bool pkComputed = partitionKey.IsComputed;
+        bool skComputed = sortKey?.IsComputed == true;
         
         // Build the parameter list string
         var paramList = string.Join(", ", typedParams.Select(p => 
@@ -1527,8 +1527,8 @@ internal static class TableGenerator
         var sortKey = entity.SortKeyProperty;
         var updateBuilderClassName = $"{entity.ClassName}UpdateBuilder";
         
-        bool pkComputed = partitionKey.IsComputed && partitionKey.ComputedKey!.SourceProperties.Length >= 2;
-        bool skComputed = sortKey?.IsComputed == true && sortKey.ComputedKey!.SourceProperties.Length >= 2;
+        bool pkComputed = partitionKey.IsComputed;
+        bool skComputed = sortKey?.IsComputed == true;
         
         // Build the parameter list string
         var paramList = string.Join(", ", typedParams.Select(p => 
@@ -1614,8 +1614,8 @@ internal static class TableGenerator
         var partitionKey = entity.PartitionKeyProperty!;
         var sortKey = entity.SortKeyProperty;
         
-        bool pkComputed = partitionKey.IsComputed && partitionKey.ComputedKey!.SourceProperties.Length >= 2;
-        bool skComputed = sortKey?.IsComputed == true && sortKey.ComputedKey!.SourceProperties.Length >= 2;
+        bool pkComputed = partitionKey.IsComputed;
+        bool skComputed = sortKey?.IsComputed == true;
         
         // Build the parameter list string
         var paramList = string.Join(", ", typedParams.Select(p => 
@@ -1689,9 +1689,9 @@ internal static class TableGenerator
         string? failedPropertyName = null;
         string? keyPropertyName = null;
         
-        if (partitionKey?.IsComputed == true && partitionKey.ComputedKey!.SourceProperties.Length >= 2)
+        if (partitionKey?.IsComputed == true)
         {
-            foreach (var sourcePropName in partitionKey.ComputedKey.SourceProperties)
+            foreach (var sourcePropName in partitionKey.ComputedKey!.SourceProperties)
             {
                 if (!entity.Properties.Any(p => p.PropertyName == sourcePropName))
                 {
@@ -1702,9 +1702,9 @@ internal static class TableGenerator
             }
         }
         
-        if (failedPropertyName == null && sortKey?.IsComputed == true && sortKey.ComputedKey!.SourceProperties.Length >= 2)
+        if (failedPropertyName == null && sortKey?.IsComputed == true)
         {
-            foreach (var sourcePropName in sortKey.ComputedKey.SourceProperties)
+            foreach (var sourcePropName in sortKey.ComputedKey!.SourceProperties)
             {
                 if (!entity.Properties.Any(p => p.PropertyName == sourcePropName))
                 {
