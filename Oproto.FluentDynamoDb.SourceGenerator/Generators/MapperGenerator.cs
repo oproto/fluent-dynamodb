@@ -4512,6 +4512,15 @@ internal static class MapperGenerator
             var score = ComputeExclusionScore(exclusion);
             sb.AppendLine($"            // Exclusion: more-specific pattern from {exclusion.EntityName} (score: {score})");
 
+            // Positional IndexOf exclusions: when OffsetIndex > 0, use IndexOf regardless of strategy
+            if (exclusion.OffsetIndex > 0)
+            {
+                sb.AppendLine($"            if (discriminatorValue.S.IndexOf(\"{exclusion.LiteralText}\", {exclusion.OffsetIndex}) >= 0)");
+                sb.AppendLine("                return false;");
+                sb.AppendLine();
+                continue;
+            }
+
             switch (exclusion.Strategy)
             {
                 case DiscriminatorStrategy.StartsWith:
@@ -4715,10 +4724,20 @@ internal static class MapperGenerator
             // First segment: use StartsWith if it's the actual prefix (pattern doesn't start with *)
             if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
             {
-                conditions.Add($"discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+                var prefixSegment = nonEmptySegments[0];
+                conditions.Add($"discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
                 for (int i = 1; i < nonEmptySegments.Count; i++)
                 {
-                    conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    if (prefixSegment.Contains(nonEmptySegments[i]))
+                    {
+                        // Bare separator: positional check verifies segment exists beyond prefix
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length}) >= 0");
+                    }
+                    else
+                    {
+                        // Meaningful segment: standard Contains
+                        conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    }
                 }
             }
             else
@@ -4739,10 +4758,20 @@ internal static class MapperGenerator
 
             if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
             {
-                conditions.Add($"!discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+                var prefixSegment = nonEmptySegments[0];
+                conditions.Add($"!discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
                 for (int i = 1; i < nonEmptySegments.Count; i++)
                 {
-                    conditions.Add($"!discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    if (prefixSegment.Contains(nonEmptySegments[i]))
+                    {
+                        // Bare separator: negated positional check (return false if NOT found beyond prefix)
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length}) < 0");
+                    }
+                    else
+                    {
+                        // Meaningful segment: standard Contains (negated)
+                        conditions.Add($"!discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    }
                 }
             }
             else
@@ -4779,10 +4808,20 @@ internal static class MapperGenerator
 
         if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
         {
-            conditions.Add($"discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+            var prefixSegment = nonEmptySegments[0];
+            conditions.Add($"discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
             for (int i = 1; i < nonEmptySegments.Count; i++)
             {
-                conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                if (prefixSegment.Contains(nonEmptySegments[i]))
+                {
+                    // Bare separator: positional check verifies segment exists beyond prefix
+                    conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length}) >= 0");
+                }
+                else
+                {
+                    // Meaningful segment: standard Contains
+                    conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                }
             }
         }
         else
