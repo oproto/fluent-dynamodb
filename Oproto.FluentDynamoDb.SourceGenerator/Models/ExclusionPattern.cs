@@ -26,4 +26,12 @@ internal class ExclusionPattern
     /// The literal text to use in the exclusion check (extracted from the pattern).
     /// </summary>
     public string LiteralText { get; set; } = string.Empty;
+
+    /// <summary>
+    /// When greater than 0, the code generator emits <c>IndexOf(LiteralText, OffsetIndex) &gt;= 0</c>
+    /// instead of <c>Contains(LiteralText)</c>. This is used for bare-separator exclusions where a
+    /// simple Contains check would be tautological (always true given the positive StartsWith match).
+    /// A value of 0 (default) preserves existing Contains behavior.
+    /// </summary>
+    public int OffsetIndex { get; set; }
 }

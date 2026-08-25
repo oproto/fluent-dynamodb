@@ -448,14 +448,39 @@ internal static class PatternOverlapAnalyzer
 
             if (internalSegments.Count > 0)
             {
-                // Use the last internal segment as the distinguishing literal
-                var lastSegment = internalSegments[internalSegments.Count - 1];
+                var prefixSegment = segments.FirstOrDefault(s => s.Length > 0) ?? string.Empty;
+
+                // Try segments from last to first, looking for a meaningful (non-bare) segment.
+                // A segment is "bare" when it is already contained within the prefix segment,
+                // meaning a Contains check for it would be tautological after StartsWith(prefix).
+                for (int i = internalSegments.Count - 1; i >= 0; i--)
+                {
+                    var candidate = internalSegments[i];
+                    if (!prefixSegment.Contains(candidate))
+                    {
+                        // Meaningful segment found — use it with standard Contains (OffsetIndex = 0)
+                        return new ExclusionPattern
+                        {
+                            EntityName = moreSpecificEntity.ClassName,
+                            Pattern = config.Pattern,
+                            Strategy = DiscriminatorStrategy.Contains,
+                            LiteralText = candidate
+                        };
+                    }
+                }
+
+                // ALL internal segments are bare separators — use positional approach.
+                // Set OffsetIndex to prefix length so the generator emits IndexOf(literal, offset)
+                // instead of Contains(literal), which would be tautological.
+                // Use Strategy = None to signal this is a positional check, not a plain Contains.
+                var bareSeparator = internalSegments[0];
                 return new ExclusionPattern
                 {
                     EntityName = moreSpecificEntity.ClassName,
                     Pattern = config.Pattern,
-                    Strategy = DiscriminatorStrategy.Contains,
-                    LiteralText = lastSegment
+                    Strategy = DiscriminatorStrategy.None,
+                    LiteralText = bareSeparator,
+                    OffsetIndex = prefixSegment.Length
                 };
             }
 
@@ -518,8 +543,31 @@ internal static class PatternOverlapAnalyzer
                 return false;
         }
 
-        return exclusion.Strategy == positiveStrategy
-               && string.Equals(exclusion.LiteralText, positiveLiteral, StringComparison.Ordinal);
+        // Identity check: same strategy AND same literal text
+        if (exclusion.Strategy == positiveStrategy
+            && string.Equals(exclusion.LiteralText, positiveLiteral, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // Semantic subsumption check: if the exclusion is a Contains check and the positive
+        // strategy is StartsWith (or Complex normalized to StartsWith), then the exclusion is
+        // tautological if the positive prefix already contains the exclusion literal.
+        // For example: Contains("#") is always true when StartsWith("CAP#") has already passed.
+        // However, if the exclusion has OffsetIndex > 0, it uses IndexOf with a positional offset
+        // and is NOT tautological — it correctly discriminates by checking for the literal
+        // beyond the prefix boundary.
+        if (exclusion.Strategy == DiscriminatorStrategy.Contains
+            && exclusion.OffsetIndex == 0
+            && positiveStrategy == DiscriminatorStrategy.StartsWith
+            && !string.IsNullOrEmpty(exclusion.LiteralText)
+            && !string.IsNullOrEmpty(positiveLiteral)
+            && positiveLiteral.Contains(exclusion.LiteralText))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
