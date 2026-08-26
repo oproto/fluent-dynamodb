@@ -4730,8 +4730,9 @@ internal static class MapperGenerator
                 {
                     if (prefixSegment.Contains(nonEmptySegments[i]))
                     {
-                        // Bare separator: positional check verifies segment exists beyond prefix
-                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length}) >= 0");
+                        // Bare separator: positional check with one-plus wildcard semantics
+                        // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures last wildcard is at least 1 char
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
                     }
                     else
                     {
@@ -4764,8 +4765,9 @@ internal static class MapperGenerator
                 {
                     if (prefixSegment.Contains(nonEmptySegments[i]))
                     {
-                        // Bare separator: negated positional check (return false if NOT found beyond prefix)
-                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length}) < 0");
+                        // Bare separator: negated positional check with one-plus wildcard semantics
+                        // Offset +1 ensures first wildcard is at least 1 char; >= Length-1 rejects terminal separator
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < 0 || discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= discriminatorValue.S.Length - 1");
                     }
                     else
                     {
@@ -4814,8 +4816,9 @@ internal static class MapperGenerator
             {
                 if (prefixSegment.Contains(nonEmptySegments[i]))
                 {
-                    // Bare separator: positional check verifies segment exists beyond prefix
-                    conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length}) >= 0");
+                    // Bare separator: positional check with one-plus wildcard semantics
+                    // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures last wildcard is at least 1 char
+                    conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
                 }
                 else
                 {

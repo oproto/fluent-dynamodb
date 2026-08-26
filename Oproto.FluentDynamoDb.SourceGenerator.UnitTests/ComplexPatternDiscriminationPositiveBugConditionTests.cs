@@ -30,7 +30,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
     /// check, not just StartsWith alone.
     ///
     /// For "CAP#*#*" (prefix "CAP#", length 4, bare segment "#"):
-    ///   Expected: return discriminatorValue.S.StartsWith("CAP#") && discriminatorValue.S.IndexOf("#", 4) >= 0;
+    ///   Expected: return discriminatorValue.S.StartsWith("CAP#") && discriminatorValue.S.IndexOf("#", 5) >= 0 && ... < Length - 1;
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): return discriminatorValue.S.StartsWith("CAP#");
     ///
     /// On unfixed code, this test FAILS because the `continue` skips the bare segment entirely,
@@ -49,9 +50,9 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 InvokeGenerateComplexPatternCheck(sb, pattern, "return");
                 var output = sb.ToString();
 
-                // Expected: positional IndexOf("#", 4) >= 0
+                // Expected: positional IndexOf("#", 5) >= 0 (prefixLength + 1 for one-plus wildcard semantics)
                 var hasStartsWith = output.Contains("StartsWith(\"CAP#\")");
-                var hasPositionalIndexOf = output.Contains("IndexOf(\"#\", 4) >= 0");
+                var hasPositionalIndexOf = output.Contains("IndexOf(\"#\", 5) >= 0");
 
                 return (hasStartsWith && hasPositionalIndexOf)
                     .Label($"Pattern: \"{pattern}\", prefix length 4. " +
@@ -62,7 +63,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: In "return" mode for ORDER#*#* (prefix "ORDER#", length 6, bare segment "#"):
-    ///   Expected: return discriminatorValue.S.StartsWith("ORDER#") && discriminatorValue.S.IndexOf("#", 6) >= 0;
+    ///   Expected: return discriminatorValue.S.StartsWith("ORDER#") && discriminatorValue.S.IndexOf("#", 7) >= 0 && ... < Length - 1;
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): return discriminatorValue.S.StartsWith("ORDER#");
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -79,7 +81,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasStartsWith = output.Contains("StartsWith(\"ORDER#\")");
-                var hasPositionalIndexOf = output.Contains("IndexOf(\"#\", 6) >= 0");
+                var hasPositionalIndexOf = output.Contains("IndexOf(\"#\", 7) >= 0");
 
                 return (hasStartsWith && hasPositionalIndexOf)
                     .Label($"Pattern: \"{pattern}\", prefix length 6. " +
@@ -90,7 +92,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: In "return" mode for NS:*:* (prefix "NS:", length 3, bare segment ":"):
-    ///   Expected: return discriminatorValue.S.StartsWith("NS:") && discriminatorValue.S.IndexOf(":", 3) >= 0;
+    ///   Expected: return discriminatorValue.S.StartsWith("NS:") && discriminatorValue.S.IndexOf(":", 4) >= 0 && ... < Length - 1;
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): return discriminatorValue.S.StartsWith("NS:");
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -107,7 +110,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasStartsWith = output.Contains("StartsWith(\"NS:\")");
-                var hasPositionalIndexOf = output.Contains("IndexOf(\":\", 3) >= 0");
+                var hasPositionalIndexOf = output.Contains("IndexOf(\":\", 4) >= 0");
 
                 return (hasStartsWith && hasPositionalIndexOf)
                     .Label($"Pattern: \"{pattern}\", prefix length 3. " +
@@ -118,7 +121,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: In "return" mode for X_*_* (prefix "X_", length 2, bare segment "_"):
-    ///   Expected: return discriminatorValue.S.StartsWith("X_") && discriminatorValue.S.IndexOf("_", 2) >= 0;
+    ///   Expected: return discriminatorValue.S.StartsWith("X_") && discriminatorValue.S.IndexOf("_", 3) >= 0 && ... < Length - 1;
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): return discriminatorValue.S.StartsWith("X_");
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -135,7 +139,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasStartsWith = output.Contains("StartsWith(\"X_\")");
-                var hasPositionalIndexOf = output.Contains("IndexOf(\"_\", 2) >= 0");
+                var hasPositionalIndexOf = output.Contains("IndexOf(\"_\", 3) >= 0");
 
                 return (hasStartsWith && hasPositionalIndexOf)
                     .Label($"Pattern: \"{pattern}\", prefix length 2. " +
@@ -146,10 +150,12 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: In "negated" mode, GenerateComplexPatternCheck for bare-separator segments
-    /// MUST produce a negated positional IndexOf check (IndexOf &lt; 0), not just !StartsWith alone.
+    /// MUST produce a negated positional IndexOf check (IndexOf &lt; 0 || IndexOf >= Length - 1),
+    /// not just !StartsWith alone.
     ///
     /// For "CAP#*#*" (prefix "CAP#", length 4, bare segment "#"):
-    ///   Expected: if (!discriminatorValue.S.StartsWith("CAP#") || discriminatorValue.S.IndexOf("#", 4) &lt; 0)
+    ///   Expected: if (!discriminatorValue.S.StartsWith("CAP#") || discriminatorValue.S.IndexOf("#", 5) &lt; 0 || ... >= Length - 1)
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): if (!discriminatorValue.S.StartsWith("CAP#"))
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -166,7 +172,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasNegatedStartsWith = output.Contains("!discriminatorValue.S.StartsWith(\"CAP#\")");
-                var hasNegatedPositionalIndexOf = output.Contains("IndexOf(\"#\", 4) < 0");
+                var hasNegatedPositionalIndexOf = output.Contains("IndexOf(\"#\", 5) < 0");
 
                 return (hasNegatedStartsWith && hasNegatedPositionalIndexOf)
                     .Label($"Pattern: \"{pattern}\" negated mode, prefix length 4. " +
@@ -178,7 +184,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: In "negated" mode for NS:*:* (prefix "NS:", length 3, bare segment ":"):
-    ///   Expected: if (!discriminatorValue.S.StartsWith("NS:") || discriminatorValue.S.IndexOf(":", 3) &lt; 0)
+    ///   Expected: if (!discriminatorValue.S.StartsWith("NS:") || discriminatorValue.S.IndexOf(":", 4) &lt; 0 || ... >= Length - 1)
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): if (!discriminatorValue.S.StartsWith("NS:"))
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -195,7 +202,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasNegatedStartsWith = output.Contains("!discriminatorValue.S.StartsWith(\"NS:\")");
-                var hasNegatedPositionalIndexOf = output.Contains("IndexOf(\":\", 3) < 0");
+                var hasNegatedPositionalIndexOf = output.Contains("IndexOf(\":\", 4) < 0");
 
                 return (hasNegatedStartsWith && hasNegatedPositionalIndexOf)
                     .Label($"Pattern: \"{pattern}\" negated mode, prefix length 3. " +
@@ -207,7 +214,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: In "negated" mode for X_*_* (prefix "X_", length 2, bare segment "_"):
-    ///   Expected: if (!discriminatorValue.S.StartsWith("X_") || discriminatorValue.S.IndexOf("_", 2) &lt; 0)
+    ///   Expected: if (!discriminatorValue.S.StartsWith("X_") || discriminatorValue.S.IndexOf("_", 3) &lt; 0 || ... >= Length - 1)
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): if (!discriminatorValue.S.StartsWith("X_"))
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -224,7 +232,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasNegatedStartsWith = output.Contains("!discriminatorValue.S.StartsWith(\"X_\")");
-                var hasNegatedPositionalIndexOf = output.Contains("IndexOf(\"_\", 2) < 0");
+                var hasNegatedPositionalIndexOf = output.Contains("IndexOf(\"_\", 3) < 0");
 
                 return (hasNegatedStartsWith && hasNegatedPositionalIndexOf)
                     .Label($"Pattern: \"{pattern}\" negated mode, prefix length 2. " +
@@ -239,7 +247,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
     /// a positional IndexOf check, not a tautological Contains.
     ///
     /// For "CAP#*#*" (prefix "CAP#", length 4, bare segment "#"):
-    ///   Expected: if (discriminatorValue.S.StartsWith("CAP#") && discriminatorValue.S.IndexOf("#", 4) >= 0)
+    ///   Expected: if (discriminatorValue.S.StartsWith("CAP#") && discriminatorValue.S.IndexOf("#", 5) >= 0 && ... < Length - 1)
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): if (discriminatorValue.S.StartsWith("CAP#") && discriminatorValue.S.Contains("#"))
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -256,7 +265,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasStartsWith = output.Contains("StartsWith(\"CAP#\")");
-                var hasPositionalIndexOf = output.Contains("IndexOf(\"#\", 4) >= 0");
+                var hasPositionalIndexOf = output.Contains("IndexOf(\"#\", 5) >= 0");
                 var hasTautologicalContains = output.Contains("Contains(\"#\")");
 
                 return (hasStartsWith && hasPositionalIndexOf && !hasTautologicalContains)
@@ -269,7 +278,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: GenerateComplexExclusionCheck for NS:*:* (prefix "NS:", length 3, bare segment ":"):
-    ///   Expected: if (discriminatorValue.S.StartsWith("NS:") && discriminatorValue.S.IndexOf(":", 3) >= 0)
+    ///   Expected: if (discriminatorValue.S.StartsWith("NS:") && discriminatorValue.S.IndexOf(":", 4) >= 0 && ... < Length - 1)
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): if (discriminatorValue.S.StartsWith("NS:") && discriminatorValue.S.Contains(":"))
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -286,7 +296,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasStartsWith = output.Contains("StartsWith(\"NS:\")");
-                var hasPositionalIndexOf = output.Contains("IndexOf(\":\", 3) >= 0");
+                var hasPositionalIndexOf = output.Contains("IndexOf(\":\", 4) >= 0");
                 var hasTautologicalContains = output.Contains("Contains(\":\")");
 
                 return (hasStartsWith && hasPositionalIndexOf && !hasTautologicalContains)
@@ -299,7 +309,8 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
 
     /// <summary>
     /// Property 1: GenerateComplexExclusionCheck for X_*_* (prefix "X_", length 2, bare segment "_"):
-    ///   Expected: if (discriminatorValue.S.StartsWith("X_") && discriminatorValue.S.IndexOf("_", 2) >= 0)
+    ///   Expected: if (discriminatorValue.S.StartsWith("X_") && discriminatorValue.S.IndexOf("_", 3) >= 0 && ... < Length - 1)
+    ///   (offset is prefixLength + 1 to enforce one-plus wildcard semantics)
     ///   Actual (buggy): if (discriminatorValue.S.StartsWith("X_") && discriminatorValue.S.Contains("_"))
     ///
     /// **Validates: Requirements 1.2, 1.3**
@@ -316,7 +327,7 @@ public class ComplexPatternDiscriminationPositiveBugConditionTests
                 var output = sb.ToString();
 
                 var hasStartsWith = output.Contains("StartsWith(\"X_\")");
-                var hasPositionalIndexOf = output.Contains("IndexOf(\"_\", 2) >= 0");
+                var hasPositionalIndexOf = output.Contains("IndexOf(\"_\", 3) >= 0");
                 var hasTautologicalContains = output.Contains("Contains(\"_\")");
 
                 return (hasStartsWith && hasPositionalIndexOf && !hasTautologicalContains)
