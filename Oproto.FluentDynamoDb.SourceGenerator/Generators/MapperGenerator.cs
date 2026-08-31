@@ -2087,7 +2087,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Extract component properties from composite keys");
             foreach (var extractedProperty in extractedProperties)
             {
-                GenerateExtractedKeyLogic(sb, extractedProperty);
+                GenerateExtractedKeyLogic(sb, extractedProperty, entity);
             }
         }
 
@@ -2200,7 +2200,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Extract component properties from composite keys");
             foreach (var extractedProperty in extractedPropertiesAsync)
             {
-                GenerateExtractedKeyLogic(sb, extractedProperty);
+                GenerateExtractedKeyLogic(sb, extractedProperty, entity);
             }
         }
 
@@ -5823,24 +5823,35 @@ internal static class MapperGenerator
         }
     }
 
-    private static void GenerateExtractedKeyLogic(StringBuilder sb, PropertyModel extractedProperty)
+    private static void GenerateExtractedKeyLogic(StringBuilder sb, PropertyModel extractedProperty, EntityModel entity)
     {
         var extractedKey = extractedProperty.ExtractedKey!;
         var propertyName = extractedProperty.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
-        var sourceProperty = extractedKey.SourceProperty;
-        var escapedSourceProperty = EscapePropertyName(sourceProperty);
+        var sourcePropertyName = extractedKey.SourceProperty;
+        var escapedSourceProperty = EscapePropertyName(sourcePropertyName);
         var index = extractedKey.Index;
         var separator = extractedKey.Separator;
 
-        var partsVariable = $"{sourceProperty.ToLowerInvariant()}Parts";
-        var valueExpression = $"{partsVariable}[{index}]";
+        // Look up the source property to check for custom format strings
+        var sourcePropertyModel = entity.Properties.FirstOrDefault(p => p.PropertyName == sourcePropertyName);
+
+        // Map placeholder index to actual split index when the source property uses a custom format
+        var actualIndex = index;
+        if (sourcePropertyModel?.ComputedKey?.HasCustomFormat == true)
+        {
+            actualIndex = FormatPlaceholderMapper.GetSplitIndex(
+                sourcePropertyModel.ComputedKey.Format!, separator[0], index);
+        }
+
+        var partsVariable = $"{sourcePropertyName.ToLowerInvariant()}Parts";
+        var valueExpression = $"{partsVariable}[{actualIndex}]";
         var conversionExpression = GetExtractedPropertyConversionExpression(extractedProperty, valueExpression);
 
         sb.AppendLine($"            if (!string.IsNullOrEmpty(entity.{escapedSourceProperty}))");
         sb.AppendLine("            {");
         sb.AppendLine($"                var {partsVariable} = entity.{escapedSourceProperty}.Split('{separator}');");
-        sb.AppendLine($"                if ({partsVariable}.Length > {index})");
+        sb.AppendLine($"                if ({partsVariable}.Length > {actualIndex})");
         sb.AppendLine("                {");
         sb.AppendLine($"                    entity.{escapedPropertyName} = {conversionExpression};");
         sb.AppendLine("                }");
