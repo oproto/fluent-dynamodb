@@ -177,9 +177,11 @@ internal static class KeysGenerator
         if (returnProperties.Length == 1)
         {
             var extractedProperty = returnProperties[0];
+            var placeholderIndex = extractedProperty.ExtractedKey!.Index;
             var splitIndex = placeholderMapping != null
-                ? placeholderMapping[extractedProperty.ExtractedKey!.Index]
-                : extractedProperty.ExtractedKey!.Index;
+                && placeholderMapping.TryGetValue(placeholderIndex, out var mapped)
+                ? mapped
+                : placeholderIndex;
             sb.AppendLine($"{indent}    if (parts.Length <= {splitIndex})");
             sb.AppendLine($"{indent}        throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {splitIndex + 1}, got {{parts.Length}}.\");");
             sb.AppendLine();
@@ -187,18 +189,19 @@ internal static class KeysGenerator
         }
         else
         {
-            var maxIndex = placeholderMapping != null
-                ? returnProperties.Max(p => placeholderMapping[p.ExtractedKey!.Index])
-                : returnProperties.Max(p => p.ExtractedKey!.Index);
+            var maxIndex = returnProperties.Max(p =>
+            {
+                var pi = p.ExtractedKey!.Index;
+                return placeholderMapping != null && placeholderMapping.TryGetValue(pi, out var m) ? m : pi;
+            });
             sb.AppendLine($"{indent}    if (parts.Length <= {maxIndex})");
             sb.AppendLine($"{indent}        throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {maxIndex + 1}, got {{parts.Length}}.\");");
             sb.AppendLine();
 
             var returnValues = returnProperties.Select(p =>
             {
-                var idx = placeholderMapping != null
-                    ? placeholderMapping[p.ExtractedKey!.Index]
-                    : p.ExtractedKey!.Index;
+                var pi = p.ExtractedKey!.Index;
+                var idx = placeholderMapping != null && placeholderMapping.TryGetValue(pi, out var m) ? m : pi;
                 return $"{p.PropertyName}: {GetExtractionExpression($"parts[{idx}]", p.PropertyType, p.IsEnum)}";
             });
             sb.AppendLine($"{indent}    return ({string.Join(", ", returnValues)});");
