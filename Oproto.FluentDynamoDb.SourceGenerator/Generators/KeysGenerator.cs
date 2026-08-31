@@ -166,24 +166,44 @@ internal static class KeysGenerator
         sb.AppendLine($"{indent}    var parts = {GetParameterName(sourcePropertyName)}.Split('{separator}');");
         sb.AppendLine();
 
+        // Build placeholder-to-split-index mapping for format-string computed keys
+        Dictionary<int, int>? placeholderMapping = null;
+        if (sourceProperty.ComputedKey?.HasCustomFormat == true)
+        {
+            placeholderMapping = FormatPlaceholderMapper.BuildPlaceholderToSplitIndexMap(
+                sourceProperty.ComputedKey.Format!, separator[0]);
+        }
+
         if (returnProperties.Length == 1)
         {
             var extractedProperty = returnProperties[0];
-            var index = extractedProperty.ExtractedKey!.Index;
-            sb.AppendLine($"{indent}    if (parts.Length <= {index})");
-            sb.AppendLine($"{indent}        throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {index + 1}, got {{parts.Length}}.\");");
+            var placeholderIndex = extractedProperty.ExtractedKey!.Index;
+            var splitIndex = placeholderMapping != null
+                && placeholderMapping.TryGetValue(placeholderIndex, out var mapped)
+                ? mapped
+                : placeholderIndex;
+            sb.AppendLine($"{indent}    if (parts.Length <= {splitIndex})");
+            sb.AppendLine($"{indent}        throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {splitIndex + 1}, got {{parts.Length}}.\");");
             sb.AppendLine();
-            sb.AppendLine($"{indent}    return {GetExtractionExpression("parts[" + index + "]", extractedProperty.PropertyType, extractedProperty.IsEnum)};");
+            sb.AppendLine($"{indent}    return {GetExtractionExpression("parts[" + splitIndex + "]", extractedProperty.PropertyType, extractedProperty.IsEnum)};");
         }
         else
         {
-            var maxIndex = returnProperties.Max(p => p.ExtractedKey!.Index);
+            var maxIndex = returnProperties.Max(p =>
+            {
+                var pi = p.ExtractedKey!.Index;
+                return placeholderMapping != null && placeholderMapping.TryGetValue(pi, out var m) ? m : pi;
+            });
             sb.AppendLine($"{indent}    if (parts.Length <= {maxIndex})");
             sb.AppendLine($"{indent}        throw new System.ArgumentException($\"Composite key does not contain enough components. Expected at least {maxIndex + 1}, got {{parts.Length}}.\");");
             sb.AppendLine();
 
             var returnValues = returnProperties.Select(p =>
-                $"{p.PropertyName}: {GetExtractionExpression($"parts[{p.ExtractedKey!.Index}]", p.PropertyType, p.IsEnum)}");
+            {
+                var pi = p.ExtractedKey!.Index;
+                var idx = placeholderMapping != null && placeholderMapping.TryGetValue(pi, out var m) ? m : pi;
+                return $"{p.PropertyName}: {GetExtractionExpression($"parts[{idx}]", p.PropertyType, p.IsEnum)}";
+            });
             sb.AppendLine($"{indent}    return ({string.Join(", ", returnValues)});");
         }
 
