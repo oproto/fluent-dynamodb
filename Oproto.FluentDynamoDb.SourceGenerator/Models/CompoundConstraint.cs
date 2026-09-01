@@ -42,6 +42,15 @@ internal class CompoundConstraint
     public string ExclusionSourceEntity { get; set; } = string.Empty;
 
     /// <summary>
+    /// When greater than 0, the code generator emits <c>IndexOf(LiteralText, OffsetIndex) &gt;= 0</c>
+    /// instead of <c>Contains(LiteralText)</c>. Used for all internal-segment compound constraints
+    /// to prevent false matches from coincidental substring presence in wildcard values
+    /// within the prefix portion. A value of 0 (default) preserves existing Contains/StartsWith
+    /// behavior for prefix-based compound constraints.
+    /// </summary>
+    public int OffsetIndex { get; set; }
+
+    /// <summary>
     /// Additional exclusion guards when entity has multiple compound-resolved overlaps.
     /// Populated when this entity has a null cross-key pattern and overlaps with
     /// multiple entities that each have different cross-key patterns.
