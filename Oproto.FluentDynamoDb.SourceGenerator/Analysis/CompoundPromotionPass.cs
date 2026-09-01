@@ -74,6 +74,35 @@ internal static class CompoundPromotionPass
                         // Positive constraints are idempotent (entity's own cross-key pattern is always the same)
                         AssignPositiveConstraint(entityA, crossKeyAttrName, crossKeyPatternA);
                         AssignPositiveConstraint(entityB, crossKeyAttrName, crossKeyPatternB);
+
+                        // Post-assignment prefix subsumption detection (Bug 1 fix):
+                        // When both entities receive positive StartsWith constraints, check if one
+                        // literal text is a prefix of the other. If so, the shorter-prefix entity
+                        // needs an exclusion guard to maintain mutual exclusivity of MatchesEntity.
+                        var constraintA = entityA.Discriminator!.CompoundConstraint!;
+                        var constraintB = entityB.Discriminator!.CompoundConstraint!;
+
+                        if (constraintA.Strategy == DiscriminatorStrategy.StartsWith &&
+                            constraintB.Strategy == DiscriminatorStrategy.StartsWith &&
+                            !constraintA.IsExclusion && !constraintB.IsExclusion)
+                        {
+                            var litA = constraintA.LiteralText;
+                            var litB = constraintB.LiteralText;
+
+                            if (!string.Equals(litA, litB, StringComparison.Ordinal))
+                            {
+                                if (litB.StartsWith(litA, StringComparison.Ordinal))
+                                {
+                                    // litA is the shorter prefix — entityA needs exclusion for litB
+                                    ApplyPrefixSubsumptionExclusion(entityA, crossKeyAttrName, litB, entityB.ClassName);
+                                }
+                                else if (litA.StartsWith(litB, StringComparison.Ordinal))
+                                {
+                                    // litB is the shorter prefix — entityB needs exclusion for litA
+                                    ApplyPrefixSubsumptionExclusion(entityB, crossKeyAttrName, litA, entityA.ClassName);
+                                }
+                            }
+                        }
                     }
                     else if (crossKeyPatternA != null)
                     {
@@ -304,6 +333,41 @@ internal static class CompoundPromotionPass
             existing.AdditionalExclusions.Add(newExclusion);
         }
         // If existing is a positive constraint, do not replace it (positive takes precedence)
+    }
+
+    /// <summary>
+    /// Applies a prefix subsumption exclusion guard to an entity that already has a positive
+    /// <see cref="CompoundConstraint"/>. When two entities both receive positive <c>StartsWith</c>
+    /// compound constraints and one entity's literal text is an ordinal string prefix of the other's,
+    /// the shorter-prefix entity must exclude items that match the longer prefix to preserve mutual
+    /// exclusivity of <c>MatchesEntity</c>.
+    /// </summary>
+    /// <param name="shorterPrefixEntity">The entity with the shorter <c>StartsWith</c> prefix that needs an exclusion guard.</param>
+    /// <param name="crossKeyAttrName">The DynamoDB attribute name of the cross-key property.</param>
+    /// <param name="longerPrefixLiteralText">The literal text of the longer prefix to exclude (e.g., <c>"TENANT#PLATFORM#ROLE#"</c>).</param>
+    /// <param name="sourceEntityName">The class name of the entity that owns the longer prefix (for generated code comments).</param>
+    private static void ApplyPrefixSubsumptionExclusion(
+        EntityModel shorterPrefixEntity,
+        string crossKeyAttrName,
+        string longerPrefixLiteralText,
+        string sourceEntityName)
+    {
+        var exclusion = new CompoundConstraint
+        {
+            PropertyName = crossKeyAttrName,
+            Pattern = longerPrefixLiteralText + "*",
+            Strategy = DiscriminatorStrategy.StartsWith,
+            LiteralText = longerPrefixLiteralText,
+            IsExclusion = true,
+            ExclusionSourceEntity = sourceEntityName
+        };
+
+        var existingPositive = shorterPrefixEntity.Discriminator!.CompoundConstraint;
+
+        // The entity already has a positive constraint from AssignPositiveConstraint.
+        // Attach the exclusion to its AdditionalExclusions list.
+        existingPositive!.AdditionalExclusions ??= new List<CompoundConstraint>();
+        existingPositive.AdditionalExclusions.Add(exclusion);
     }
 
     /// <summary>

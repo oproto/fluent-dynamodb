@@ -168,26 +168,27 @@ internal static class PatternOverlapAnalyzer
                         moreSpecificConfig = configB;
                     }
 
-                    // FDDB102: Warn when both overlapping patterns are auto-derived
-                    if (configA.IsAutoDerived && configB.IsAutoDerived)
-                    {
-                        var fddb102Diagnostic = Diagnostic.Create(
-                            DiagnosticDescriptors.OverlappingAutoDerivedPatterns,
-                            lessSpecific.TypeDeclaration?.GetLocation(),
-                            lessSpecific.ClassName,
-                            moreSpecific.ClassName,
-                            GetDisplayPattern(lessSpecific.Discriminator!),
-                            GetDisplayPattern(moreSpecificConfig),
-                            configA.PropertyName);
-                        diagnostics.Add(fddb102Diagnostic);
-                    }
-
                     // Create exclusion pattern from the more-specific entity
                     var exclusion = CreateExclusionPattern(moreSpecific, moreSpecificConfig);
 
                     // Check if the exclusion is tautological (same as the entity's own positive match)
                     if (IsTautologicalExclusion(lessSpecific.Discriminator!, exclusion))
                     {
+                        // FDDB102: Warn when both overlapping patterns are auto-derived
+                        // Only emit for tautological exclusions (unresolvable overlaps)
+                        if (configA.IsAutoDerived && configB.IsAutoDerived)
+                        {
+                            var fddb102Diagnostic = Diagnostic.Create(
+                                DiagnosticDescriptors.OverlappingAutoDerivedPatterns,
+                                lessSpecific.TypeDeclaration?.GetLocation(),
+                                lessSpecific.ClassName,
+                                moreSpecific.ClassName,
+                                GetDisplayPattern(lessSpecific.Discriminator!),
+                                GetDisplayPattern(moreSpecificConfig),
+                                configA.PropertyName);
+                            diagnostics.Add(fddb102Diagnostic);
+                        }
+
                         // DISC006: Tautological exclusion guard detected — do NOT add to OverlappingPatterns
                         var strategyName = exclusion.Strategy.ToString();
                         var diagnostic = Diagnostic.Create(
@@ -204,6 +205,7 @@ internal static class PatternOverlapAnalyzer
                     else
                     {
                         // Valid exclusion — add to OverlappingPatterns and emit DISC005
+                        // Do NOT emit FDDB102 for non-tautological exclusions (resolved overlaps)
                         lessSpecific.Discriminator!.OverlappingPatterns.Add(exclusion);
 
                         // DISC005: Informational — overlap resolved
@@ -239,9 +241,38 @@ internal static class PatternOverlapAnalyzer
             DiscriminatorStrategy.StartsWith => exactValue.StartsWith(literalText, StringComparison.Ordinal),
             DiscriminatorStrategy.EndsWith => exactValue.EndsWith(literalText, StringComparison.Ordinal),
             DiscriminatorStrategy.Contains => exactValue.IndexOf(literalText, StringComparison.Ordinal) >= 0,
-            DiscriminatorStrategy.Complex => true, // Conservative: assume overlap
+            DiscriminatorStrategy.Complex => ExactValueMatchesComplexPattern(exactValue, patternConfig.Pattern),
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Checks whether an exact value could structurally match a Complex pattern by examining
+    /// the pattern's leading prefix (text before the first wildcard). Returns false when the
+    /// exact value cannot possibly match; returns true conservatively otherwise.
+    /// </summary>
+    private static bool ExactValueMatchesComplexPattern(string exactValue, string pattern)
+    {
+        var segments = pattern.Split('*');
+
+        // The leading prefix is the first segment (text before the first '*')
+        // If the pattern starts with '*', this segment is empty — no leading prefix available
+        var leadingPrefix = segments[0];
+
+        if (leadingPrefix.Length == 0)
+        {
+            // Pattern starts with '*' — no leading prefix to rule out overlap; conservative: assume overlap
+            return true;
+        }
+
+        // If the exact value does not start with the leading prefix, it cannot match
+        if (!exactValue.StartsWith(leadingPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Exact value starts with the leading prefix — conservative: assume overlap
+        return true;
     }
 
     /// <summary>
