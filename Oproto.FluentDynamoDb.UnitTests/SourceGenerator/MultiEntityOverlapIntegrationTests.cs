@@ -12,7 +12,9 @@ namespace Oproto.FluentDynamoDb.UnitTests.SourceGenerator;
 /// - Entity A: SK pattern "ORDER#*" (less specific)
 /// - Entity B: SK pattern "ORDER#*#LINE#*" (more specific)
 /// Both are auto-derived (no explicit discriminators).
-/// Verifies FDDB102 is emitted and exclusion guards are generated for Entity A.
+/// Verifies exclusion guards are generated for Entity A.
+/// After Bug 3 fix: FDDB102 is NOT emitted for non-tautological exclusions —
+/// DISC005 is emitted instead since the overlap is resolved.
 /// </summary>
 public class MultiEntityOverlapIntegrationTests
 {
@@ -101,7 +103,7 @@ public class MultiEntityOverlapIntegrationTests
     }
 
     [Fact]
-    public void MultiEntityTable_OverlappingAutoDerivdPatterns_EmitsFDDB102()
+    public void MultiEntityTable_OverlappingAutoDerivdPatterns_DoesNotEmitFDDB102_WhenExclusionIsNonTautological()
     {
         // Arrange: Two entities on the same table with overlapping auto-derived patterns
         var orderEntity = CreateOrderEntity();
@@ -111,12 +113,12 @@ public class MultiEntityOverlapIntegrationTests
         // Act: Run the PatternOverlapAnalyzer
         var diagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
 
-        // Assert: FDDB102 should be emitted because both patterns are auto-derived
-        // and "ORDER#*" overlaps with "ORDER#*#LINE#*" (different specificity)
-        diagnostics.Should().Contain(d => d.Id == "FDDB102");
-
-        var fddb102 = diagnostics.First(d => d.Id == "FDDB102");
-        fddb102.Severity.Should().Be(DiagnosticSeverity.Warning);
+        // Assert: FDDB102 should NOT be emitted because the overlap between "ORDER#*" and
+        // "ORDER#*#LINE#*" is resolved by a non-tautological exclusion pattern (IndexOf check).
+        // After Bug 3 fix, FDDB102 is deferred until after tautological check and suppressed
+        // for non-tautological exclusions. DISC005 should be emitted instead.
+        diagnostics.Should().NotContain(d => d.Id == "FDDB102");
+        diagnostics.Should().Contain(d => d.Id == "DISC005");
     }
 
     [Fact]
@@ -176,7 +178,7 @@ public class MultiEntityOverlapIntegrationTests
     }
 
     [Fact]
-    public void MultiEntityTable_FDDB102DiagnosticMessage_IdentifiesBothEntities()
+    public void MultiEntityTable_FDDB102DiagnosticMessage_NotEmittedForNonTautologicalExclusion()
     {
         // Arrange
         var orderEntity = CreateOrderEntity();
@@ -186,12 +188,14 @@ public class MultiEntityOverlapIntegrationTests
         // Act
         var diagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
 
-        // Assert: The FDDB102 message should reference both entity names and both patterns
-        var fddb102 = diagnostics.First(d => d.Id == "FDDB102");
-        var message = fddb102.GetMessage();
-
+        // Assert: FDDB102 should NOT be emitted for "ORDER#*" vs "ORDER#*#LINE#*" because
+        // the exclusion is non-tautological (the overlap is resolved).
+        // DISC005 should be emitted instead, which references both entities.
+        diagnostics.Should().NotContain(d => d.Id == "FDDB102");
+        
+        var disc005 = diagnostics.First(d => d.Id == "DISC005");
+        var message = disc005.GetMessage();
         message.Should().Contain("Order");
         message.Should().Contain("OrderLine");
-        message.Should().Contain("ORDER#*");
     }
 }

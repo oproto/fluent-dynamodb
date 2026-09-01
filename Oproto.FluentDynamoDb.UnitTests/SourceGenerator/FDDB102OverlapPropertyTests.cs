@@ -87,14 +87,16 @@ public class FDDB102OverlapPropertyTests
     }
 
     /// <summary>
-    /// **Validates: Requirements 5.1, 5.6**
-    /// For any pair of overlapping patterns with different specificity where both are auto-derived,
-    /// FDDB102 SHALL be emitted.
+    /// **Validates: Requirements 5.1, 5.6 (updated for Bug 3 fix)**
+    /// For any pair of overlapping patterns with different specificity where both are auto-derived
+    /// and the exclusion is non-tautological, FDDB102 SHALL NOT be emitted (DISC005 emitted instead).
+    /// The generated pattern pairs (e.g., "ORDER#*" vs "ORDER#*#LINE#*") all have non-tautological
+    /// exclusions (resolved by IndexOf check), so FDDB102 should not be emitted for any of them.
     /// </summary>
     [Property(MaxTest = 100)]
     [Trait("Feature", "unify-prefix-computed-discriminator")]
     [Trait("Property", "8")]
-    public Property FDDB102_Emitted_WhenBothAutoDerived()
+    public Property FDDB102_NotEmitted_WhenBothAutoDerived_AndExclusionIsNonTautological()
     {
         var testCaseGen = from patterns in GenOverlappingPatternPair()
                           from attrName in GenAttributeName()
@@ -120,13 +122,16 @@ public class FDDB102OverlapPropertyTests
                 // Act
                 var diagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
 
-                // Assert: FDDB102 should be emitted
-                var fddb102Emitted = diagnostics.Any(d => d.Id == "FDDB102");
+                // Assert: After Bug 3 fix, FDDB102 should NOT be emitted for non-tautological
+                // exclusions. All generated pattern pairs have non-tautological exclusions.
+                // DISC005 should be emitted instead.
+                var fddb102NotEmitted = !diagnostics.Any(d => d.Id == "FDDB102");
+                var disc005Emitted = diagnostics.Any(d => d.Id == "DISC005");
 
-                return fddb102Emitted.ToProperty()
+                return (fddb102NotEmitted && disc005Emitted).ToProperty()
                     .Label($"lessSpecific='{lessSpecificPattern}', moreSpecific='{moreSpecificPattern}', " +
                            $"attrName='{attrName}', classA='{classNameA}', classB='{classNameB}', " +
-                           $"fddb102Emitted={fddb102Emitted}, " +
+                           $"fddb102NotEmitted={fddb102NotEmitted}, disc005Emitted={disc005Emitted}, " +
                            $"diagnosticCount={diagnostics.Count}, " +
                            $"diagnosticIds=[{string.Join(", ", diagnostics.Select(d => d.Id))}]");
             });

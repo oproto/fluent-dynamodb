@@ -260,7 +260,7 @@ public class DiagnosticEmissionTests
     // ===== FDDB102 Tests =====
 
     [Fact]
-    public void FDDB102_Emitted_ForAutoDerivedOverlap_NotForExplicitOverlap()
+    public void FDDB102_NotEmitted_ForNonTautologicalAutoDerivedOverlap_NotForExplicitOverlap()
     {
         // Arrange: Two entities with overlapping auto-derived patterns
         var entityA = new EntityModel
@@ -313,8 +313,11 @@ public class DiagnosticEmissionTests
         var tableEntities = new List<EntityModel> { entityA, entityB };
         var diagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
 
-        // Assert — FDDB102 should be emitted for auto-derived overlap
-        diagnostics.Should().Contain(d => d.Id == "FDDB102");
+        // Assert — After Bug 3 fix: FDDB102 should NOT be emitted for auto-derived overlap
+        // when the exclusion is non-tautological (ORDER#* vs ORDER#*#LINE#* is resolved
+        // by IndexOf check). DISC005 should be emitted instead.
+        diagnostics.Should().NotContain(d => d.Id == "FDDB102");
+        diagnostics.Should().Contain(d => d.Id == "DISC005");
 
         // Now test that explicit overlap does NOT emit FDDB102
         var entityC = new EntityModel
