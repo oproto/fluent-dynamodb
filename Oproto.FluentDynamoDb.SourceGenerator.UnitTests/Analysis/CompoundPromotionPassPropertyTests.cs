@@ -134,9 +134,12 @@ public class CompoundPromotionPassPropertyTests
     /// <summary>
     /// **Feature: compound-key-discrimination, Property 1: Disambiguability Classification**
     /// **Validates: Requirements 1.2, 1.3, 1.4, 7.6**
+    /// **Updated by: compound-discrimination-internal-segment (Requirement 3.3)**
     ///
-    /// Complex cross-key patterns are treated as null for disambiguation purposes.
-    /// When both entities have Complex cross-key patterns, they are NOT disambiguable.
+    /// Same-prefix Complex patterns with DIFFERENT internal segments are now disambiguable
+    /// via internal-segment positional constraints. Each entity gets a positive positional
+    /// constraint using its respective internal segment with Strategy=None and OffsetIndex
+    /// equal to the prefix length.
     /// </summary>
     [Property(MaxTest = 100)]
     public Property ComplexCrossKeyPatternsTreatedAsNull_NotDisambiguable()
@@ -152,8 +155,24 @@ public class CompoundPromotionPassPropertyTests
                 var result = CompoundPromotionPass.Analyze(tableEntities, overlapDiagnostics);
 
                 var orderedPair = OrderPair(pair.EntityA.ClassName, pair.EntityB.ClassName);
-                return (!result.ResolvedPairs.Contains(orderedPair))
-                    .Label("Both-Complex cross-key patterns (treated as null) should NOT be disambiguable");
+
+                // With internal-segment fallback, same-prefix Complex pairs with different
+                // suffixes ARE now resolvable via positional constraints
+                var isResolved = result.ResolvedPairs.Contains(orderedPair);
+
+                // Both entities should get positive positional compound constraints
+                var constraintA = pair.EntityA.Discriminator!.CompoundConstraint;
+                var constraintB = pair.EntityB.Discriminator!.CompoundConstraint;
+                var bothHaveConstraints = constraintA != null && constraintB != null;
+                var bothPositional = bothHaveConstraints
+                    && !constraintA!.IsExclusion && !constraintB!.IsExclusion
+                    && constraintA.Strategy == DiscriminatorStrategy.None
+                    && constraintB.Strategy == DiscriminatorStrategy.None
+                    && constraintA.OffsetIndex > 0
+                    && constraintB.OffsetIndex > 0;
+
+                return (isResolved && bothPositional)
+                    .Label("Same-prefix Complex cross-key patterns with different internal segments should be disambiguable via positional constraints");
             });
     }
 
@@ -161,8 +180,8 @@ public class CompoundPromotionPassPropertyTests
     /// **Feature: compound-key-discrimination, Property 1: Disambiguability Classification**
     /// **Validates: Requirements 1.2, 1.3, 1.4, 7.6**
     ///
-    /// When one entity has a Complex cross-key pattern (treated as null) and the other
-    /// has a valid non-null cross-key pattern, the pair IS disambiguable.
+    /// Complex patterns are reduced to their leading prefix. When the prefix differs
+    /// from the valid pattern, the pair is disambiguable via dual positive constraints.
     /// </summary>
     [Property(MaxTest = 100)]
     public Property OneComplexOneValid_Disambiguable()
@@ -179,7 +198,7 @@ public class CompoundPromotionPassPropertyTests
 
                 var orderedPair = OrderPair(pair.EntityA.ClassName, pair.EntityB.ClassName);
                 return result.ResolvedPairs.Contains(orderedPair)
-                    .Label("One-Complex-one-valid cross-key patterns should be disambiguable");
+                    .Label("One-Complex-one-valid cross-key patterns with different prefixes should be disambiguable");
             });
     }
 
@@ -558,26 +577,35 @@ public class CompoundPromotionPassPropertyTests
     }
 
     /// <summary>
-    /// Creates an entity pair where both have Complex cross-key patterns (treated as null).
+    /// Creates an entity pair where both have Complex cross-key patterns sharing the SAME
+    /// leading prefix. After prefix extraction, both reduce to the same effective pattern
+    /// (e.g., both become "CAP#*"), so they remain not disambiguable.
     /// </summary>
     private static Gen<EntityPair> GenSameScoreOverlapPairWithBothComplexCrossKey()
     {
         return GenClassName.Two().SelectMany(names =>
             GenPrefix.SelectMany(prefix =>
-                GenComplexCrossKeyPattern().Two().Select(complexPatterns =>
-                {
-                    var (nameA, nameB) = names;
-                    if (nameA == nameB) nameB += "Alt";
+                GenPrefix.SelectMany(sharedPkPrefix =>
+                    GenPrefix.Two()
+                        .Where(suffixes => suffixes.Item1 != suffixes.Item2)
+                        .Select(suffixes =>
+                        {
+                            var (nameA, nameB) = names;
+                            if (nameA == nameB) nameB += "Alt";
 
-                    var skPattern = $"{prefix}#*";
+                            var skPattern = $"{prefix}#*";
 
-                    var entityA = CreateEntityWithCrossKeyPattern(
-                        nameA, "sk", skPattern, "pk", complexPatterns.Item1);
-                    var entityB = CreateEntityWithCrossKeyPattern(
-                        nameB, "sk", skPattern, "pk", complexPatterns.Item2);
+                            // Both Complex PK patterns have the SAME leading prefix
+                            var complexPatternA = $"{sharedPkPrefix}#*#{suffixes.Item1}#*";
+                            var complexPatternB = $"{sharedPkPrefix}#*#{suffixes.Item2}#*";
 
-                    return new EntityPair(entityA, entityB);
-                })));
+                            var entityA = CreateEntityWithCrossKeyPattern(
+                                nameA, "sk", skPattern, "pk", complexPatternA);
+                            var entityB = CreateEntityWithCrossKeyPattern(
+                                nameB, "sk", skPattern, "pk", complexPatternB);
+
+                            return new EntityPair(entityA, entityB);
+                        }))));
     }
 
     /// <summary>
@@ -612,29 +640,36 @@ public class CompoundPromotionPassPropertyTests
     }
 
     /// <summary>
-    /// Creates an entity pair where one has a Complex cross-key pattern (treated as null)
-    /// and the other has a valid non-Complex cross-key pattern.
+    /// Creates an entity pair where one has a Complex cross-key pattern and the other
+    /// has a valid non-Complex cross-key pattern. The Complex pattern's leading prefix
+    /// is guaranteed to differ from the valid pattern's prefix, ensuring the pair is
+    /// disambiguable via dual positive constraints after prefix extraction.
     /// </summary>
     private static Gen<EntityPair> GenSameScoreOverlapPairWithOneComplexOneValid()
     {
         return GenClassName.Two().SelectMany(names =>
             GenPrefix.SelectMany(prefix =>
-                GenComplexCrossKeyPattern().SelectMany(complexPattern =>
-                    GenValidCrossKeyPattern().Select(validPattern =>
-                    {
-                        var (nameA, nameB) = names;
-                        if (nameA == nameB) nameB += "Alt";
+                GenPrefix.Two()
+                    .Where(pkPrefixes => pkPrefixes.Item1 != pkPrefixes.Item2)
+                    .SelectMany(pkPrefixes =>
+                        GenPrefix.Select(suffix =>
+                        {
+                            var (nameA, nameB) = names;
+                            if (nameA == nameB) nameB += "Alt";
 
-                        var skPattern = $"{prefix}#*";
+                            var skPattern = $"{prefix}#*";
 
-                        // EntityA has complex (treated as null), EntityB has valid
-                        var entityA = CreateEntityWithCrossKeyPattern(
-                            nameA, "sk", skPattern, "pk", complexPattern);
-                        var entityB = CreateEntityWithCrossKeyPattern(
-                            nameB, "sk", skPattern, "pk", validPattern);
+                            // EntityA: Complex PK with prefix different from EntityB's prefix
+                            var complexPattern = $"{pkPrefixes.Item1}#*#{suffix}#*";
+                            var validPattern = $"{pkPrefixes.Item2}#*";  // StartsWith
 
-                        return new EntityPair(entityA, entityB);
-                    }))));
+                            var entityA = CreateEntityWithCrossKeyPattern(
+                                nameA, "sk", skPattern, "pk", complexPattern);
+                            var entityB = CreateEntityWithCrossKeyPattern(
+                                nameB, "sk", skPattern, "pk", validPattern);
+
+                            return new EntityPair(entityA, entityB);
+                        }))));
     }
 
     // ──────────────────────────────────────────────────────────────────────

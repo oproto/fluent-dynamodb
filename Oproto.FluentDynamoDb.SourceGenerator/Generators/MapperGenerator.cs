@@ -4580,27 +4580,36 @@ internal static class MapperGenerator
         sb.AppendLine($"            if (!item.TryGetValue(\"{constraint.PropertyName}\", out var compoundValue) || compoundValue.S == null)");
         sb.AppendLine("                return false;");
 
-        switch (constraint.Strategy)
+        if (constraint.OffsetIndex > 0)
         {
-            case DiscriminatorStrategy.StartsWith:
-                sb.AppendLine($"            if (!compoundValue.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
-                sb.AppendLine("                return false;");
-                break;
+            // OffsetIndex > 0 — positional check (internal-segment compound constraint)
+            sb.AppendLine($"            if (compoundValue.S.IndexOf(\"{EscapeString(constraint.LiteralText)}\", {constraint.OffsetIndex}) < 0)");
+            sb.AppendLine("                return false;");
+        }
+        else
+        {
+            switch (constraint.Strategy)
+            {
+                case DiscriminatorStrategy.StartsWith:
+                    sb.AppendLine($"            if (!compoundValue.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
 
-            case DiscriminatorStrategy.ExactMatch:
-                sb.AppendLine($"            if (compoundValue.S != \"{EscapeString(constraint.LiteralText)}\")");
-                sb.AppendLine("                return false;");
-                break;
+                case DiscriminatorStrategy.ExactMatch:
+                    sb.AppendLine($"            if (compoundValue.S != \"{EscapeString(constraint.LiteralText)}\")");
+                    sb.AppendLine("                return false;");
+                    break;
 
-            case DiscriminatorStrategy.EndsWith:
-                sb.AppendLine($"            if (!compoundValue.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
-                sb.AppendLine("                return false;");
-                break;
+                case DiscriminatorStrategy.EndsWith:
+                    sb.AppendLine($"            if (!compoundValue.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
 
-            case DiscriminatorStrategy.Contains:
-                sb.AppendLine($"            if (!compoundValue.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
-                sb.AppendLine("                return false;");
-                break;
+                case DiscriminatorStrategy.Contains:
+                    sb.AppendLine($"            if (!compoundValue.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+            }
         }
 
         sb.AppendLine();
@@ -4644,31 +4653,41 @@ internal static class MapperGenerator
             : string.Empty;
         sb.AppendLine($"            // Compound exclusion: {constraint.PropertyName} pattern{sourceComment}");
 
-        switch (constraint.Strategy)
+        // OffsetIndex > 0 with Strategy == None: positional exclusion check using IndexOf
+        if (constraint.Strategy == DiscriminatorStrategy.None && constraint.OffsetIndex > 0)
         {
-            case DiscriminatorStrategy.StartsWith:
-                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
-                sb.AppendLine($"                && {varName}.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
-                sb.AppendLine("                return false;");
-                break;
+            sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+            sb.AppendLine($"                && {varName}.S.IndexOf(\"{EscapeString(constraint.LiteralText)}\", {constraint.OffsetIndex}) >= 0)");
+            sb.AppendLine("                return false;");
+        }
+        else
+        {
+            switch (constraint.Strategy)
+            {
+                case DiscriminatorStrategy.StartsWith:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
 
-            case DiscriminatorStrategy.ExactMatch:
-                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
-                sb.AppendLine($"                && {varName}.S == \"{EscapeString(constraint.LiteralText)}\")");
-                sb.AppendLine("                return false;");
-                break;
+                case DiscriminatorStrategy.ExactMatch:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S == \"{EscapeString(constraint.LiteralText)}\")");
+                    sb.AppendLine("                return false;");
+                    break;
 
-            case DiscriminatorStrategy.EndsWith:
-                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
-                sb.AppendLine($"                && {varName}.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
-                sb.AppendLine("                return false;");
-                break;
+                case DiscriminatorStrategy.EndsWith:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
 
-            case DiscriminatorStrategy.Contains:
-                sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
-                sb.AppendLine($"                && {varName}.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
-                sb.AppendLine("                return false;");
-                break;
+                case DiscriminatorStrategy.Contains:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+            }
         }
 
         sb.AppendLine();

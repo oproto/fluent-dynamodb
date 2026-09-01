@@ -63,70 +63,179 @@ internal static class CompoundPromotionPass
                 var crossKeyPatternB = GetEffectiveCrossKeyPattern(entityB, configB.PropertyName);
 
                 // Requirement 1.3, 1.4: Check disambiguability — patterns must differ
-                if (!AreDisambiguable(crossKeyPatternA, crossKeyPatternB))
+                if (AreDisambiguable(crossKeyPatternA, crossKeyPatternB))
                 {
+                    // Pair is disambiguable via prefix — assign compound constraints
+                    var crossKeyAttrName = GetCrossKeyAttributeName(entityA, configA.PropertyName);
+
+                    if (crossKeyPatternA != null && crossKeyPatternB != null)
+                    {
+                        // Both non-null and different: assign positive CompoundConstraint to both
+                        // Positive constraints are idempotent (entity's own cross-key pattern is always the same)
+                        AssignPositiveConstraint(entityA, crossKeyAttrName, crossKeyPatternA);
+                        AssignPositiveConstraint(entityB, crossKeyAttrName, crossKeyPatternB);
+                    }
+                    else if (crossKeyPatternA != null)
+                    {
+                        // A non-null, B null: positive to A, exclusion to B
+                        AssignPositiveConstraint(entityA, crossKeyAttrName, crossKeyPatternA);
+                        AssignExclusionConstraint(entityB, crossKeyAttrName, crossKeyPatternA, entityA.ClassName);
+                    }
+                    else
+                    {
+                        // B non-null, A null: positive to B, exclusion to A
+                        AssignPositiveConstraint(entityB, crossKeyAttrName, crossKeyPatternB!);
+                        AssignExclusionConstraint(entityA, crossKeyAttrName, crossKeyPatternB!, entityB.ClassName);
+                    }
+
+                    // Mark pair as resolved
+                    var orderedPair = OrderPair(entityA.ClassName, entityB.ClassName);
+                    result.ResolvedPairs.Add(orderedPair);
+
+                    // Emit FDDB104 info diagnostic for entityA
+                    var primaryDiscriminatorPattern = configA.Pattern ?? configA.ExactValue ?? string.Empty;
+                    var compoundPatternA = crossKeyPatternA ?? crossKeyPatternB!;
+                    var locationA = entityA.TypeDeclaration?.GetLocation()
+                        ?? entityA.ClassDeclaration?.Identifier.GetLocation()
+                        ?? Location.None;
+
+                    result.Diagnostics.Add(Diagnostic.Create(
+                        DiagnosticDescriptors.CompoundPromotionResolved,
+                        locationA,
+                        entityA.ClassName,
+                        configA.PropertyName,
+                        primaryDiscriminatorPattern,
+                        crossKeyAttrName,
+                        compoundPatternA,
+                        entityB.ClassName));
+
+                    // Emit FDDB104 info diagnostic for entityB
+                    var compoundPatternB = crossKeyPatternB ?? crossKeyPatternA!;
+                    var locationB = entityB.TypeDeclaration?.GetLocation()
+                        ?? entityB.ClassDeclaration?.Identifier.GetLocation()
+                        ?? Location.None;
+
+                    result.Diagnostics.Add(Diagnostic.Create(
+                        DiagnosticDescriptors.CompoundPromotionResolved,
+                        locationB,
+                        entityB.ClassName,
+                        configB.PropertyName,
+                        primaryDiscriminatorPattern,
+                        crossKeyAttrName,
+                        compoundPatternB,
+                        entityA.ClassName));
+
                     continue;
                 }
 
-                // Pair is disambiguable — assign compound constraints
-                var crossKeyAttrName = GetCrossKeyAttributeName(entityA, configA.PropertyName);
-
-                if (crossKeyPatternA != null && crossKeyPatternB != null)
+                // Internal-segment fallback: only applies when both effective patterns
+                // are non-null and identical (same reduced prefix). Both-null is already
+                // handled by AreDisambiguable returning false above.
+                if (crossKeyPatternA != null && crossKeyPatternB != null &&
+                    string.Equals(crossKeyPatternA, crossKeyPatternB, StringComparison.Ordinal))
                 {
-                    // Both non-null and different: assign positive CompoundConstraint to both
-                    // Positive constraints are idempotent (entity's own cross-key pattern is always the same)
-                    AssignPositiveConstraint(entityA, crossKeyAttrName, crossKeyPatternA);
-                    AssignPositiveConstraint(entityB, crossKeyAttrName, crossKeyPatternB);
+                    // Both reduced to the same prefix — try internal segment disambiguation
+                    var crossKeyPropertyA = GetCrossKeyProperty(entityA, configA.PropertyName);
+                    var crossKeyPropertyB = GetCrossKeyProperty(entityB, configB.PropertyName);
+
+                    var originalPatternA = crossKeyPropertyA?.DerivedDiscriminatorPattern;
+                    var originalPatternB = crossKeyPropertyB?.DerivedDiscriminatorPattern;
+
+                    var strategyA = !string.IsNullOrEmpty(originalPatternA)
+                        ? DiscriminatorAnalyzer.DeterminePatternStrategy(originalPatternA)
+                        : DiscriminatorStrategy.None;
+                    var strategyB = !string.IsNullOrEmpty(originalPatternB)
+                        ? DiscriminatorAnalyzer.DeterminePatternStrategy(originalPatternB)
+                        : DiscriminatorStrategy.None;
+
+                    // The reduced prefix text (without trailing '*')
+                    var reducedPrefix = crossKeyPatternA.TrimEnd('*');
+
+                    (string LiteralText, DiscriminatorStrategy Strategy, int OffsetIndex)? segmentA = null;
+                    (string LiteralText, DiscriminatorStrategy Strategy, int OffsetIndex)? segmentB = null;
+
+                    if (strategyA == DiscriminatorStrategy.Complex && !string.IsNullOrEmpty(originalPatternA))
+                    {
+                        segmentA = ExtractInternalSegment(originalPatternA, reducedPrefix);
+                    }
+
+                    if (strategyB == DiscriminatorStrategy.Complex && !string.IsNullOrEmpty(originalPatternB))
+                    {
+                        segmentB = ExtractInternalSegment(originalPatternB, reducedPrefix);
+                    }
+
+                    var fallbackResolved = false;
+                    var fallbackCrossKeyAttrName = GetCrossKeyAttributeName(entityA, configA.PropertyName);
+
+                    // Case 1: One has segment, other doesn't → positive to complex, exclusion to simple
+                    if (segmentA != null && segmentB == null)
+                    {
+                        AssignInternalSegmentConstraint(entityA, fallbackCrossKeyAttrName, segmentA.Value,
+                            originalPatternA ?? string.Empty, isExclusion: false);
+                        AssignInternalSegmentConstraint(entityB, fallbackCrossKeyAttrName, segmentA.Value,
+                            originalPatternA ?? string.Empty, isExclusion: true, sourceEntity: entityA.ClassName);
+                        fallbackResolved = true;
+                    }
+                    else if (segmentB != null && segmentA == null)
+                    {
+                        AssignInternalSegmentConstraint(entityB, fallbackCrossKeyAttrName, segmentB.Value,
+                            originalPatternB ?? string.Empty, isExclusion: false);
+                        AssignInternalSegmentConstraint(entityA, fallbackCrossKeyAttrName, segmentB.Value,
+                            originalPatternB ?? string.Empty, isExclusion: true, sourceEntity: entityB.ClassName);
+                        fallbackResolved = true;
+                    }
+                    // Case 2: Both have segments and they differ → positive to each
+                    else if (segmentA != null && segmentB != null &&
+                             !string.Equals(segmentA.Value.LiteralText, segmentB.Value.LiteralText, StringComparison.Ordinal))
+                    {
+                        AssignInternalSegmentConstraint(entityA, fallbackCrossKeyAttrName, segmentA.Value,
+                            originalPatternA ?? string.Empty, isExclusion: false);
+                        AssignInternalSegmentConstraint(entityB, fallbackCrossKeyAttrName, segmentB.Value,
+                            originalPatternB ?? string.Empty, isExclusion: false);
+                        fallbackResolved = true;
+                    }
+                    // Case 3: Same segments or no segments → not disambiguable (do nothing)
+
+                    if (fallbackResolved)
+                    {
+                        // Mark pair as resolved
+                        var orderedPair = OrderPair(entityA.ClassName, entityB.ClassName);
+                        result.ResolvedPairs.Add(orderedPair);
+
+                        // Emit FDDB104 info diagnostic for entityA
+                        var primaryDiscriminatorPattern = configA.Pattern ?? configA.ExactValue ?? string.Empty;
+                        var segmentDescA = segmentA?.LiteralText ?? segmentB!.Value.LiteralText;
+                        var locationA = entityA.TypeDeclaration?.GetLocation()
+                            ?? entityA.ClassDeclaration?.Identifier.GetLocation()
+                            ?? Location.None;
+
+                        result.Diagnostics.Add(Diagnostic.Create(
+                            DiagnosticDescriptors.CompoundPromotionResolved,
+                            locationA,
+                            entityA.ClassName,
+                            configA.PropertyName,
+                            primaryDiscriminatorPattern,
+                            fallbackCrossKeyAttrName,
+                            segmentDescA,
+                            entityB.ClassName));
+
+                        // Emit FDDB104 info diagnostic for entityB
+                        var segmentDescB = segmentB?.LiteralText ?? segmentA!.Value.LiteralText;
+                        var locationB = entityB.TypeDeclaration?.GetLocation()
+                            ?? entityB.ClassDeclaration?.Identifier.GetLocation()
+                            ?? Location.None;
+
+                        result.Diagnostics.Add(Diagnostic.Create(
+                            DiagnosticDescriptors.CompoundPromotionResolved,
+                            locationB,
+                            entityB.ClassName,
+                            configB.PropertyName,
+                            primaryDiscriminatorPattern,
+                            fallbackCrossKeyAttrName,
+                            segmentDescB,
+                            entityA.ClassName));
+                    }
                 }
-                else if (crossKeyPatternA != null)
-                {
-                    // A non-null, B null: positive to A, exclusion to B
-                    AssignPositiveConstraint(entityA, crossKeyAttrName, crossKeyPatternA);
-                    AssignExclusionConstraint(entityB, crossKeyAttrName, crossKeyPatternA, entityA.ClassName);
-                }
-                else
-                {
-                    // B non-null, A null: positive to B, exclusion to A
-                    AssignPositiveConstraint(entityB, crossKeyAttrName, crossKeyPatternB!);
-                    AssignExclusionConstraint(entityA, crossKeyAttrName, crossKeyPatternB!, entityB.ClassName);
-                }
-
-                // Mark pair as resolved
-                var orderedPair = OrderPair(entityA.ClassName, entityB.ClassName);
-                result.ResolvedPairs.Add(orderedPair);
-
-                // Emit FDDB104 info diagnostic for entityA
-                var primaryDiscriminatorPattern = configA.Pattern ?? configA.ExactValue ?? string.Empty;
-                var compoundPatternA = crossKeyPatternA ?? crossKeyPatternB!;
-                var locationA = entityA.TypeDeclaration?.GetLocation()
-                    ?? entityA.ClassDeclaration?.Identifier.GetLocation()
-                    ?? Location.None;
-
-                result.Diagnostics.Add(Diagnostic.Create(
-                    DiagnosticDescriptors.CompoundPromotionResolved,
-                    locationA,
-                    entityA.ClassName,
-                    configA.PropertyName,
-                    primaryDiscriminatorPattern,
-                    crossKeyAttrName,
-                    compoundPatternA,
-                    entityB.ClassName));
-
-                // Emit FDDB104 info diagnostic for entityB
-                var compoundPatternB = crossKeyPatternB ?? crossKeyPatternA!;
-                var locationB = entityB.TypeDeclaration?.GetLocation()
-                    ?? entityB.ClassDeclaration?.Identifier.GetLocation()
-                    ?? Location.None;
-
-                result.Diagnostics.Add(Diagnostic.Create(
-                    DiagnosticDescriptors.CompoundPromotionResolved,
-                    locationB,
-                    entityB.ClassName,
-                    configB.PropertyName,
-                    primaryDiscriminatorPattern,
-                    crossKeyAttrName,
-                    compoundPatternB,
-                    entityA.ClassName));
             }
         }
 
@@ -198,6 +307,150 @@ internal static class CompoundPromotionPass
     }
 
     /// <summary>
+    /// Assigns an internal-segment CompoundConstraint to an entity.
+    /// For positive constraints (isExclusion=false): sets the entity's own internal-segment check.
+    /// For exclusion constraints (isExclusion=true): sets a negated check for the other entity's segment.
+    /// Respects existing idempotency rules: if entity already has a positive constraint, skip;
+    /// if entity already has an exclusion, accumulate in AdditionalExclusions.
+    /// </summary>
+    /// <param name="entity">The entity to assign the constraint to.</param>
+    /// <param name="crossKeyAttrName">The DynamoDB attribute name of the cross-key property.</param>
+    /// <param name="segment">The extracted internal segment tuple (LiteralText, Strategy, OffsetIndex).</param>
+    /// <param name="originalPattern">The original DerivedDiscriminatorPattern for the Pattern field on the constraint.</param>
+    /// <param name="isExclusion">Whether this is an exclusion guard (true) or positive constraint (false).</param>
+    /// <param name="sourceEntity">The source entity class name for exclusion guards.</param>
+    private static void AssignInternalSegmentConstraint(
+        EntityModel entity,
+        string crossKeyAttrName,
+        (string LiteralText, DiscriminatorStrategy Strategy, int OffsetIndex) segment,
+        string originalPattern,
+        bool isExclusion,
+        string sourceEntity = "")
+    {
+        var newConstraint = new CompoundConstraint
+        {
+            PropertyName = crossKeyAttrName,
+            Pattern = originalPattern,
+            Strategy = segment.Strategy,
+            LiteralText = segment.LiteralText,
+            IsExclusion = isExclusion,
+            ExclusionSourceEntity = sourceEntity,
+            OffsetIndex = segment.OffsetIndex
+        };
+
+        var existing = entity.Discriminator!.CompoundConstraint;
+
+        if (!isExclusion)
+        {
+            // Positive constraint: if entity already has a positive constraint, skip (idempotent)
+            if (existing != null && !existing.IsExclusion)
+            {
+                return;
+            }
+
+            // If entity has an exclusion, replace it with positive (positive takes precedence)
+            entity.Discriminator.CompoundConstraint = newConstraint;
+        }
+        else
+        {
+            // Exclusion constraint
+            if (existing == null)
+            {
+                // First constraint — set directly
+                entity.Discriminator.CompoundConstraint = newConstraint;
+            }
+            else if (existing.IsExclusion)
+            {
+                // Already has an exclusion — accumulate in AdditionalExclusions
+                existing.AdditionalExclusions ??= new List<CompoundConstraint>();
+                existing.AdditionalExclusions.Add(newConstraint);
+            }
+            // If existing is a positive constraint, do not replace it (positive takes precedence)
+        }
+    }
+
+    /// <summary>
+    /// Gets the cross-key PropertyModel for an entity.
+    /// If discriminator is on SK attribute, returns the PK PropertyModel; if on PK, returns the SK PropertyModel.
+    /// </summary>
+    private static PropertyModel? GetCrossKeyProperty(EntityModel entity, string discriminatorPropertyName)
+    {
+        var pkProperty = entity.PartitionKeyProperty;
+        var skProperty = entity.SortKeyProperty;
+
+        if (pkProperty != null && string.Equals(discriminatorPropertyName, pkProperty.AttributeName, StringComparison.Ordinal))
+        {
+            // Discriminator is on PK → cross-key is SK
+            return skProperty;
+        }
+        else if (skProperty != null && string.Equals(discriminatorPropertyName, skProperty.AttributeName, StringComparison.Ordinal))
+        {
+            // Discriminator is on SK → cross-key is PK
+            return pkProperty;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts a distinguishing internal segment from a Complex cross-key pattern.
+    /// Replicates the segment-selection logic of
+    /// <see cref="PatternOverlapAnalyzer"/>.CreateExclusionPattern for Complex patterns:
+    /// splits the pattern on <c>*</c>, skips the prefix (first non-empty segment),
+    /// then iterates remaining segments last-to-first, selecting the first segment
+    /// that is not contained within <paramref name="reducedPrefix"/>.
+    ///
+    /// <para>
+    /// Unlike <c>CreateExclusionPattern</c> (which uses <c>Contains</c> strategy for
+    /// meaningful segments and <c>None</c>/<c>OffsetIndex</c> only for bare separators),
+    /// this method returns <c>Strategy=None</c> with <c>OffsetIndex=reducedPrefix.Length</c>
+    /// for <b>all</b> internal segments — both meaningful and bare. This ensures the code
+    /// generator always emits <c>IndexOf(literal, offset)</c> checks for compound constraints,
+    /// preventing false matches from coincidental substring presence in wildcard values
+    /// within the prefix portion.
+    /// </para>
+    ///
+    /// <list type="bullet">
+    /// <item><description>Meaningful segment found: <c>(segment, None, prefixLength)</c></description></item>
+    /// <item><description>All segments are bare separators: <c>(bareSeparator, None, prefixLength)</c></description></item>
+    /// <item><description>No internal segments: <c>null</c></description></item>
+    /// </list>
+    /// </summary>
+    /// <param name="complexPattern">The original Complex DerivedDiscriminatorPattern (e.g., "TENANT#*#ROLE#*").</param>
+    /// <param name="reducedPrefix">The prefix segment text (text before first '*', e.g., "TENANT#").</param>
+    /// <returns>A tuple of (LiteralText, Strategy, OffsetIndex) or <c>null</c> if no internal segments exist.</returns>
+    private static (string LiteralText, DiscriminatorStrategy Strategy, int OffsetIndex)?
+        ExtractInternalSegment(string complexPattern, string reducedPrefix)
+    {
+        var segments = complexPattern.Split('*');
+        var internalSegments = segments
+            .Where(s => s.Length > 0)
+            .Skip(1) // Skip the first non-empty segment (the prefix)
+            .ToList();
+
+        if (internalSegments.Count == 0)
+        {
+            return null;
+        }
+
+        // Try segments from last to first, looking for a meaningful (non-bare) segment.
+        // A segment is "bare" when it is already contained within the prefix segment,
+        // meaning a plain Contains check for it would be tautological.
+        for (int i = internalSegments.Count - 1; i >= 0; i--)
+        {
+            var candidate = internalSegments[i];
+            if (!reducedPrefix.Contains(candidate))
+            {
+                // Meaningful segment found — use positional IndexOf at prefix offset
+                return (candidate, DiscriminatorStrategy.None, reducedPrefix.Length);
+            }
+        }
+
+        // All internal segments are bare separators — still use positional approach
+        return (internalSegments[0], DiscriminatorStrategy.None, reducedPrefix.Length);
+    }
+
+    /// <summary>
     /// Gets the DynamoDB attribute name of the cross-key property for an entity.
     /// If discriminator is on SK attribute, returns PK attribute name; if on PK, returns SK attribute name.
     /// </summary>
@@ -248,7 +501,9 @@ internal static class CompoundPromotionPass
     /// <summary>
     /// Gets the effective cross-key DerivedDiscriminatorPattern for an entity.
     /// Requirement 1.5: If discriminator property is SK, inspect PK pattern; if PK, inspect SK pattern.
-    /// Requirement 7.6: Treat Complex-strategy patterns as null.
+    /// Complex patterns (2+ wildcards) with a non-empty leading prefix (text before the first '*')
+    /// are reduced to a synthetic StartsWith pattern using that prefix (e.g., "TENANT#*#ROLE#*" → "TENANT#*").
+    /// Complex patterns with no leading prefix (starting with '*') continue to return null.
     /// </summary>
     private static string? GetEffectiveCrossKeyPattern(EntityModel entity, string discriminatorPropertyName)
     {
@@ -281,10 +536,16 @@ internal static class CompoundPromotionPass
             return null;
         }
 
-        // Requirement 7.6: If pattern strategy is Complex, treat as null
+        // Complex patterns: extract leading prefix before first '*' for synthetic StartsWith
         var strategy = DiscriminatorAnalyzer.DeterminePatternStrategy(pattern);
         if (strategy == DiscriminatorStrategy.Complex)
         {
+            var starIndex = pattern.IndexOf('*');
+            if (starIndex > 0)
+            {
+                var prefix = pattern.Substring(0, starIndex);
+                return prefix + "*";
+            }
             return null;
         }
 

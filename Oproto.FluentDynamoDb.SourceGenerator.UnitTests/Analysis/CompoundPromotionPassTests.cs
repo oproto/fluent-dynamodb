@@ -207,16 +207,17 @@ public class CompoundPromotionPassTests
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // Test 6: Complex cross-key patterns treated as null
-    //         Entity A with PK="REGION#*#TENANT#*" (Complex) and Entity B with PK="PLATFORM#*"
-    //         → Complex pattern treated as null, so it becomes one-null-one-non-null → disambiguable
+    // Test 6: Complex cross-key pattern reduced to prefix → both get positive constraints
+    //         Entity A with PK="REGION#*#TENANT#*" (Complex) reduces to "REGION#*" (StartsWith)
+    //         Entity B with PK="PLATFORM#*" (StartsWith)
+    //         → Different prefixes → both get positive CompoundConstraint
     // ──────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Analyze_ComplexCrossKeyPattern_TreatedAsNull()
+    public void Analyze_ComplexCrossKeyPattern_ReducedToPrefix_BothGetPositiveConstraint()
     {
-        // Arrange: EntityA has Complex PK pattern (multi-wildcard)
-        //          EntityB has valid StartsWith PK pattern
+        // Arrange: EntityA has Complex PK pattern (multi-wildcard) that reduces to "REGION#*"
+        //          EntityB has valid StartsWith PK pattern "PLATFORM#*"
         var entityA = CreateEntity("RegionTenant", "sk", "DATA#*", "pk", "REGION#*#TENANT#*");
         var entityB = CreateEntity("PlatformData", "sk", "DATA#*", "pk", "PLATFORM#*");
 
@@ -226,10 +227,10 @@ public class CompoundPromotionPassTests
         // Act
         var result = CompoundPromotionPass.Analyze(tableEntities, overlapDiagnostics);
 
-        // Assert: pair is resolved (Complex treated as null → one-null-one-non-null → disambiguable)
+        // Assert: pair is resolved
         result.ResolvedPairs.Should().HaveCount(1);
 
-        // Assert: PlatformData (valid cross-key) gets positive CompoundConstraint
+        // Assert: PlatformData gets positive CompoundConstraint with its own pattern
         var constraintPlatform = entityB.Discriminator!.CompoundConstraint;
         constraintPlatform.Should().NotBeNull();
         constraintPlatform!.IsExclusion.Should().BeFalse();
@@ -238,13 +239,14 @@ public class CompoundPromotionPassTests
         constraintPlatform.Strategy.Should().Be(DiscriminatorStrategy.StartsWith);
         constraintPlatform.LiteralText.Should().Be("PLATFORM#");
 
-        // Assert: RegionTenant (Complex → null cross-key) gets exclusion guard
+        // Assert: RegionTenant (Complex → reduced to "REGION#*") gets positive CompoundConstraint
         var constraintRegion = entityA.Discriminator!.CompoundConstraint;
         constraintRegion.Should().NotBeNull();
-        constraintRegion!.IsExclusion.Should().BeTrue();
+        constraintRegion!.IsExclusion.Should().BeFalse();
         constraintRegion.PropertyName.Should().Be("pk");
-        constraintRegion.Pattern.Should().Be("PLATFORM#*");
-        constraintRegion.ExclusionSourceEntity.Should().Be("PlatformData");
+        constraintRegion.Pattern.Should().Be("REGION#*");
+        constraintRegion.Strategy.Should().Be(DiscriminatorStrategy.StartsWith);
+        constraintRegion.LiteralText.Should().Be("REGION#");
     }
 
     // ──────────────────────────────────────────────────────────────────────
