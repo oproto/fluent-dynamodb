@@ -8,6 +8,7 @@ namespace Oproto.FluentDynamoDb.IntegrationTests.Security;
 /// Integration tests for field-level security features including encryption and logging redaction.
 /// Tests end-to-end encryption with DynamoDB Local and validates security attribute behavior.
 /// </summary>
+[Collection("DynamoDB Local")]
 public class FieldLevelSecurityIntegrationTests : IntegrationTestBase
 {
     public FieldLevelSecurityIntegrationTests(DynamoDbLocalFixture fixture) : base(fixture)

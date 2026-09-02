@@ -48,8 +48,8 @@ public class TransactionComparison
                 {
                     var account = new Account
                     {
-                        Pk = Account.Keys.Pk(accountId),
-                        Sk = Account.ProfileSk,
+                        // Auto key mode applies "ACCOUNT#" prefix during serialization
+                        Pk = accountId,
                         AccountId = accountId,
                         Name = $"Account {i}",
                         Balance = 1000m * i
@@ -61,7 +61,9 @@ public class TransactionComparison
                     var targetAccountId = $"ACCT-{((i - 11) % 5) + 1:D3}";
                     var txnRecord = new TransactionRecord
                     {
-                        Pk = TransactionRecord.Keys.Pk(targetAccountId),
+                        // Auto key mode applies "ACCOUNT#" prefix during serialization
+                        Pk = targetAccountId,
+                        // Sort key constructed from multiple segments - manual composition required
                         Sk = $"TXN#{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}",
                         TxnId = txnId,
                         AccountId = targetAccountId,
@@ -109,7 +111,7 @@ public class TransactionComparison
                     var item = new Dictionary<string, AttributeValue>
                     {
                         ["pk"] = new AttributeValue { S = $"ACCOUNT#{accountId}" },
-                        ["sk"] = new AttributeValue { S = Account.ProfileSk },
+                        ["sk"] = new AttributeValue { S = "PROFILE" },
                         ["accountId"] = new AttributeValue { S = accountId },
                         ["accountName"] = new AttributeValue { S = $"Account {i}" },
                         ["balance"] = new AttributeValue { N = (1000m * i).ToString() }
@@ -176,8 +178,8 @@ public class TransactionComparison
             {
                 var account = new Account
                 {
-                    Pk = Account.Keys.Pk($"ROLLBACK-{i}"),
-                    Sk = Account.ProfileSk,
+                    // Auto key mode applies "ACCOUNT#" prefix during serialization
+                    Pk = $"ROLLBACK-{i}",
                     AccountId = $"ROLLBACK-{i}",
                     Name = $"Rollback Test {i}",
                     Balance = 500m
@@ -186,9 +188,9 @@ public class TransactionComparison
             }
 
             transaction = transaction.Add(
-                _table.Accounts.ConditionCheck(
-                    Account.Keys.Pk("NON-EXISTENT-ACCOUNT"),
-                    Account.ProfileSk)
+                _table.ConditionCheck<Account>()
+                    .WithKey("pk", Account.Keys.Pk("NON-EXISTENT-ACCOUNT"))
+                    .WithKey("sk", "PROFILE")
                     .Where("attribute_exists(pk)"));
 
             await transaction.ExecuteAsync();

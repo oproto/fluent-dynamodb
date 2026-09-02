@@ -108,7 +108,6 @@ namespace TestNamespace
         entityCode.Should().Contain("var keyValue = \"tenant#\" + tenantId;");
         entityCode.Should().Contain("public static string Sk(string transactionId)");
         entityCode.Should().Contain("var keyValue = \"txn#\" + transactionId;");
-        entityCode.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, string transactionId)");
         entityCode.Should().Contain("public static partial class StatusIndex");
     }
 
@@ -479,7 +478,8 @@ namespace TestNamespace
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] {
-                CSharpSyntaxTree.ParseText(source)
+                CSharpSyntaxTree.ParseText(source),
+                CSharpSyntaxTree.ParseText("[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]")
             },
             TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

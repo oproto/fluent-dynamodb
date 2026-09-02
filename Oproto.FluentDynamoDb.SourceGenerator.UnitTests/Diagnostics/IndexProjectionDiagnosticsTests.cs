@@ -426,7 +426,8 @@ namespace Oproto.FluentDynamoDb.Metadata
             "TestAssembly",
             new[] {
                 CSharpSyntaxTree.ParseText(source),
-                CSharpSyntaxTree.ParseText(attributeSource)
+                CSharpSyntaxTree.ParseText(attributeSource),
+                CSharpSyntaxTree.ParseText("[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]")
             },
             DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

@@ -87,15 +87,23 @@ public class InvoicePropertyTests
                     table.CreateCustomerAsync(customerId, "Test", "test@example.com")
                         .GetAwaiter().GetResult();
 
-                    var invoice = table.CreateInvoiceAsync(customerId, invoiceNumber)
+                    table.CreateInvoiceAsync(customerId, invoiceNumber)
+                        .GetAwaiter().GetResult();
+
+                    // Read back to verify key format
+                    var expectedPk = $"CUSTOMER#{customerId}";
+                    var expectedSk = $"INVOICE#{invoiceNumber}";
+                    var invoice = table.GetInvoiceAsync(customerId, invoiceNumber)
                         .GetAwaiter().GetResult();
 
                     // Clean up
                     table.DeleteInvoiceAsync(customerId, invoiceNumber).GetAwaiter().GetResult();
                     table.DeleteCustomerAsync(customerId).GetAwaiter().GetResult();
 
-                    var expectedPk = $"CUSTOMER#{customerId}";
-                    var expectedSk = $"INVOICE#{invoiceNumber}";
+                    if (invoice == null)
+                    {
+                        return false.ToProperty().Label("Invoice not found after Put");
+                    }
 
                     var pkMatches = invoice.Pk == expectedPk;
                     var skMatches = invoice.Sk == expectedSk;
@@ -144,7 +152,13 @@ public class InvoicePropertyTests
                     table.CreateInvoiceAsync(customerId, invoiceNumber)
                         .GetAwaiter().GetResult();
 
-                    var line = table.AddLineItemAsync(customerId, invoiceNumber, lineNumber, "Test Item", 1, 10.00m)
+                    table.AddLineItemAsync(customerId, invoiceNumber, lineNumber, "Test Item", 1, 10.00m)
+                        .GetAwaiter().GetResult();
+
+                    // Read back to verify key format
+                    var expectedPk = $"CUSTOMER#{customerId}";
+                    var expectedSk = $"INVOICE#{invoiceNumber}#LINE#{lineNumber}";
+                    var line = table.GetLineItemAsync(customerId, invoiceNumber, lineNumber)
                         .GetAwaiter().GetResult();
 
                     // Clean up
@@ -152,8 +166,10 @@ public class InvoicePropertyTests
                     table.DeleteInvoiceAsync(customerId, invoiceNumber).GetAwaiter().GetResult();
                     table.DeleteCustomerAsync(customerId).GetAwaiter().GetResult();
 
-                    var expectedPk = $"CUSTOMER#{customerId}";
-                    var expectedSk = $"INVOICE#{invoiceNumber}#LINE#{lineNumber}";
+                    if (line == null)
+                    {
+                        return false.ToProperty().Label("Line item not found after Put");
+                    }
 
                     var pkMatches = line.Pk == expectedPk;
                     var skMatches = line.Sk == expectedSk;
@@ -474,7 +490,6 @@ public class InvoicePropertyTests
             var customer = new Customer
             {
                 Pk = Customer.Keys.Pk(customerId),
-                Sk = Customer.ProfileSk,
                 CustomerId = customerId,
                 Name = name,
                 Email = email
@@ -488,7 +503,6 @@ public class InvoicePropertyTests
             var invoice = new Invoice
             {
                 Pk = Customer.Keys.Pk(customerId),
-                Sk = Invoice.Keys.Sk(invoiceNumber),
                 InvoiceNumber = invoiceNumber,
                 Date = DateTime.UtcNow,
                 Status = "Draft",
@@ -504,7 +518,7 @@ public class InvoicePropertyTests
             var line = new InvoiceLine
             {
                 Pk = Customer.Keys.Pk(customerId),
-                Sk = $"INVOICE#{invoiceNumber}#LINE#{lineNumber}",
+                InvoiceNumber = invoiceNumber,
                 LineNumber = lineNumber,
                 Description = description,
                 Quantity = quantity,
@@ -562,7 +576,7 @@ public class InvoicePropertyTests
         {
             await Delete<Customer>()
                 .WithKey("pk", Customer.Keys.Pk(customerId))
-                .WithKey("sk", Customer.ProfileSk)
+                .WithKey("sk", "PROFILE")
                 .DeleteAsync();
         }
 
@@ -578,8 +592,24 @@ public class InvoicePropertyTests
         {
             await Delete<InvoiceLine>()
                 .WithKey("pk", Customer.Keys.Pk(customerId))
-                .WithKey("sk", $"INVOICE#{invoiceNumber}#LINE#{lineNumber}")
+                .WithKey("sk", InvoiceLine.Keys.Sk(invoiceNumber, lineNumber))
                 .DeleteAsync();
+        }
+
+        public async Task<InvoiceLine?> GetLineItemAsync(string customerId, string invoiceNumber, int lineNumber)
+        {
+            return await Get<InvoiceLine>()
+                .WithKey("pk", Customer.Keys.Pk(customerId))
+                .WithKey("sk", InvoiceLine.Keys.Sk(invoiceNumber, lineNumber))
+                .GetItemAsync();
+        }
+
+        public async Task<Invoice?> GetInvoiceAsync(string customerId, string invoiceNumber)
+        {
+            return await Get<Invoice>()
+                .WithKey("pk", Customer.Keys.Pk(customerId))
+                .WithKey("sk", Invoice.Keys.Sk(invoiceNumber))
+                .GetItemAsync();
         }
     }
 

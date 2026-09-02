@@ -3,7 +3,6 @@ using Amazon.DynamoDBv2.Model;
 using NSubstitute;
 using Oproto.FluentDynamoDb.ApiConsistencyTests.Entities;
 using Oproto.FluentDynamoDb.FluentResults;
-using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.ApiConsistencyTests.FluentResults;
 
@@ -84,28 +83,6 @@ public class ScanApiSurfaceFluentResults
     }
     
     [Fact(Skip = "API Surface Validation")]
-    public async Task ToListAsyncResult_WithBlobProvider_ShouldCompile()
-    {
-        var client = Substitute.For<IAmazonDynamoDB>();
-        ScannableTable table = new ScannableTable(client, "scannable", options: null);
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-
-        // === ToListAsyncResult with blob provider overload ===
-        var result = await table.Scan().ToListAsyncResult(blobProvider);
-        
-        // Entity accessor with blob provider
-        result = await table.ScannableEntitys.Scan().ToListAsyncResult(blobProvider);
-        
-        // With filter and blob provider
-        result = await table.ScannableEntitys.Scan(x => x.Age >= 21).ToListAsyncResult(blobProvider);
-        
-        // With options and blob provider
-        result = await table.ScannableEntitys.Scan()
-            .Take(100)
-            .ToListAsyncResult(blobProvider);
-    }
-    
-    [Fact(Skip = "API Surface Validation")]
     public async Task ToCompositeEntityListAsyncResult_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
@@ -141,10 +118,6 @@ public class ScanApiSurfaceFluentResults
 
         // === ToListAsyncResult with cancellation token ===
         var result = await table.ScannableEntitys.Scan().ToListAsyncResult(cancellationToken);
-        
-        // With blob provider and cancellation token
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-        result = await table.ScannableEntitys.Scan().ToListAsyncResult(blobProvider, cancellationToken);
         
         // ToCompositeEntityListAsyncResult with cancellation token
         var compositeListResult = await table.ScannableEntitys.Scan().ToCompositeEntityListAsyncResult(cancellationToken);

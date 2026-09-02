@@ -47,12 +47,14 @@ Learn how to model complex relationships using multi-item entities and related d
 
 ### [Discriminators](Discriminators.md)
 Master flexible entity type identification for single-table designs. Covers:
+- **Auto-derivation from key formats** — discriminator patterns derived automatically from key prefixes and computed formats
 - Attribute-based discriminators
 - Sort key and partition key pattern discriminators
 - Pattern matching with wildcards
 - GSI-specific discriminators
 - Discriminator validation and error handling
 - Migration from legacy discriminator syntax
+- **Diagnostics (FDDB100–FDDB103)** — conflict detection for prefix/format, explicit vs derived, overlapping patterns, and redundancy
 
 ### [Field-Level Security](FieldLevelSecurity.md)
 Protect sensitive data with logging redaction and optional KMS-based encryption. Covers:
@@ -159,6 +161,22 @@ Lower-level manual approaches for dynamic scenarios. Covers:
 - When manual patterns might be necessary
 - Dynamic query building
 - Mixing approaches
+
+### [Internal Architecture](InternalArchitecture.md)
+Understand how internal components work together. Covers:
+- Architecture overview and component layers
+- IDynamoDbEntity interface and request builders
+- ExpressionTranslator pipeline
+- Source generator pipeline and generated artifacts
+- Extension method generation
+
+### [Computed Field Format Normalization](ComputedFieldFormatNormalization.md)
+Internal refactoring of computed field metadata representation. Covers:
+- `ComputedFieldMetadata` simplified to `SourceProperties` + `Format` (removed `Separator`/`Prefix`/`PrefixSeparator`)
+- Format string generation rules and examples
+- Unified runtime recomputation via `string.Format`
+- FDDB090 diagnostic for placeholder count mismatch
+- Impact on contributors (user-facing API unchanged)
 
 ### [Advanced Type System](AdvancedTypes.md)
 Use DynamoDB's native collection types, TTL, JSON blobs, and external storage. Covers:

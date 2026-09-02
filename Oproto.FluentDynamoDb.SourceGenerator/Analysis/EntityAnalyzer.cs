@@ -1,8 +1,10 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
+using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 
@@ -71,7 +73,7 @@ internal class EntityAnalyzer
         foreach (var property in entityModel.Properties)
         {
             ValidatePropertyModel(property, semanticModel);
-            ValidatePropertyPerformance(property);
+            // ValidatePropertyPerformance is called internally by ValidatePropertyModel
         }
 
         // Validate entity configuration
@@ -97,6 +99,16 @@ internal class EntityAnalyzer
         {
             ValidateRelatedEntityConfiguration(entityModel);
         }
+
+        // === Unified Key Format & Discriminator Analysis ===
+        ComputeNormalizedKeyFormats(entityModel);               // Step 1: Populate NormalizedKeyFormat
+        DeriveDiscriminatorPatterns(entityModel);                // Step 2: Populate DerivedDiscriminatorPattern
+        ValidatePrefixFormatConsistency(entityModel);            // Step 3: FDDB100
+        ApplyAutoDerivedDiscriminator(entityModel);              // Step 4: Set entity.Discriminator
+        ApplyAutoDerivedGsiDiscriminator(entityModel);           // Step 5: Set index.GsiDiscriminator
+        ValidateExplicitVsDerivedDiscriminator(entityModel);     // Step 6: FDDB101
+        DetectRedundantExplicitDiscriminator(entityModel);       // Step 7: FDDB103
+        // === END Unified Key Format & Discriminator Analysis ===
 
         // Only return null if there are critical errors that prevent code generation
         var criticalErrors = _diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && IsCriticalError(d.Id)).ToArray();
@@ -611,6 +623,9 @@ internal class EntityAnalyzer
         // Extract key attributes
         ExtractKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
+        // Detect constant key values (expression-body or read-only auto-property)
+        DetectConstantKeyValue(propertyDecl, semanticModel, propertyModel);
+
         // Extract new GSI partition key attributes
         ExtractGsiPartitionKeyAttributes(propertyDecl, semanticModel, propertyModel);
 
@@ -685,6 +700,70 @@ internal class EntityAnalyzer
         }
 
         return keyFormat;
+    }
+
+    /// <summary>
+    /// Detects whether a key property has a compile-time constant value via expression-body
+    /// or read-only auto-property syntax. Sets PropertyModel.ConstantKeyValue if detected.
+    /// </summary>
+    private void DetectConstantKeyValue(
+        PropertyDeclarationSyntax propertyDecl,
+        SemanticModel semanticModel,
+        PropertyModel propertyModel)
+    {
+        // Only applies to key properties
+        if (!propertyModel.IsPartitionKey && !propertyModel.IsSortKey)
+            return;
+
+        // Case 1: Expression-body property (public string Sk => "PROFILE")
+        if (propertyDecl.ExpressionBody != null)
+        {
+            var expr = propertyDecl.ExpressionBody.Expression;
+            var constantValue = semanticModel.GetConstantValue(expr);
+            if (constantValue.HasValue && constantValue.Value is string strValue)
+            {
+                propertyModel.ConstantKeyValue = strValue;
+            }
+            else
+            {
+                // Expression-body properties have no setter by definition.
+                // If GetConstantValue() did not resolve to a string, the value is not a compile-time constant.
+                propertyModel.IsReadOnlyKeyProperty = true;
+                ReportDiagnostic(
+                    DiagnosticDescriptors.ConstantKeyNonConstReference,
+                    propertyDecl.Identifier.GetLocation(),
+                    propertyModel.PropertyName);
+            }
+            return;
+        }
+
+        // Case 2: Read-only auto-property (public string Sk { get; } = "PROFILE")
+        if (propertyDecl.AccessorList != null)
+        {
+            var accessors = propertyDecl.AccessorList.Accessors;
+            bool hasOnlyGet = accessors.Count == 1
+                && accessors[0].Kind() == Microsoft.CodeAnalysis.CSharp.SyntaxKind.GetAccessorDeclaration;
+
+            if (hasOnlyGet && propertyDecl.Initializer != null)
+            {
+                var initExpr = propertyDecl.Initializer.Value;
+                var constantValue = semanticModel.GetConstantValue(initExpr);
+                if (constantValue.HasValue && constantValue.Value is string strValue)
+                {
+                    propertyModel.ConstantKeyValue = strValue;
+                }
+                else
+                {
+                    // Get-only auto-property with no setter.
+                    // If GetConstantValue() did not resolve to a string, the value is not a compile-time constant.
+                    propertyModel.IsReadOnlyKeyProperty = true;
+                    ReportDiagnostic(
+                        DiagnosticDescriptors.ConstantKeyNonConstReference,
+                        propertyDecl.Identifier.GetLocation(),
+                        propertyModel.PropertyName);
+                }
+            }
+        }
     }
 
     private void ExtractGsiPartitionKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
@@ -1414,6 +1493,41 @@ internal class EntityAnalyzer
                 propertyModel.PropertyName, "Entity");
         }
 
+        // FDDB120: Constant key + [Computed]
+        if (propertyModel.IsConstantKey && propertyModel.IsComputed)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyComputedConflict,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
+        // FDDB121: Constant key + Prefix
+        if (propertyModel.IsConstantKey && propertyModel.KeyFormat?.Prefix != null)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyPrefixConflict,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
+        // FDDB125: Computed key + Prefix conflict
+        if (propertyModel.IsComputed &&
+            (propertyModel.IsPartitionKey || propertyModel.IsSortKey) &&
+            !string.IsNullOrEmpty(propertyModel.KeyFormat?.Prefix))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ComputedKeyPrefixConflict,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName,
+                propertyModel.KeyFormat!.Prefix!);
+        }
+
+        // FDDB123: Empty/whitespace constant value
+        if (propertyModel.IsConstantKey && string.IsNullOrWhiteSpace(propertyModel.ConstantKeyValue))
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyEmptyValue,
+                propertyModel.PropertyDeclaration?.GetLocation(),
+                propertyModel.PropertyName);
+        }
+
         // Performance warnings for large types
         ValidatePropertyPerformance(propertyModel);
     }
@@ -1606,6 +1720,24 @@ internal class EntityAnalyzer
 
     private void ValidatePropertyPerformance(PropertyModel propertyModel)
     {
+        // Skip properties not mapped to DynamoDB — no DynamoDB warning is relevant
+        if (!propertyModel.HasAttributeMapping)
+        {
+            return;
+        }
+
+        // Skip extracted properties — source-only, never serialized to DynamoDB
+        if (propertyModel.IsExtracted)
+        {
+            return;
+        }
+
+        // Skip enum properties — simple value types stored as string/int in DynamoDB
+        if (propertyModel.IsEnum)
+        {
+            return;
+        }
+
         // Skip performance warnings for RelatedEntity properties - these are intentionally
         // designed for composite entity patterns and should not trigger DYNDB023 warnings
         if (propertyModel.IsRelatedEntity)
@@ -2061,6 +2193,15 @@ internal class EntityAnalyzer
 
     private void ValidateExtractedProperty(PropertyModel extractedProperty, HashSet<string> propertyNames, EntityModel entityModel)
     {
+        // FDDB124: Extracted property must not also have DynamoDbAttribute mapping
+        if (extractedProperty.HasAttributeMapping)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ExtractedPropertyHasAttributeMapping,
+                extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                extractedProperty.PropertyName);
+            return;
+        }
+
         var extractedKey = extractedProperty.ExtractedKey!;
 
         // Validate source property exists
@@ -2070,6 +2211,15 @@ internal class EntityAnalyzer
                 extractedProperty.PropertyDeclaration?.Identifier.GetLocation(),
                 extractedProperty.PropertyName, extractedKey.SourceProperty);
             return;
+        }
+
+        // FDDB122: Cannot extract from a constant key property
+        var sourceProperty = entityModel.Properties.FirstOrDefault(p => p.PropertyName == extractedKey.SourceProperty);
+        if (sourceProperty != null && sourceProperty.IsConstantKey)
+        {
+            ReportDiagnostic(DiagnosticDescriptors.ConstantKeyExtractedConflict,
+                extractedProperty.PropertyDeclaration?.GetLocation(),
+                extractedProperty.PropertyName, sourceProperty.PropertyName);
         }
 
         // Validate index is non-negative
@@ -2103,13 +2253,20 @@ internal class EntityAnalyzer
                     }
 
                     var placeholderText = format.Substring(i + 1, endIndex - i - 1);
-                    if (int.TryParse(placeholderText, out var placeholderIndex))
+
+                    // Extract index portion: everything before the first colon
+                    var colonIndex = placeholderText.IndexOf(':');
+                    var indexText = colonIndex >= 0
+                        ? placeholderText.Substring(0, colonIndex)
+                        : placeholderText;
+
+                    if (int.TryParse(indexText, out var placeholderIndex) && placeholderIndex >= 0)
                     {
                         placeholderCount = Math.Max(placeholderCount, placeholderIndex + 1);
                     }
-                    else if (!string.IsNullOrEmpty(placeholderText) && !placeholderText.Contains(':'))
+                    else
                     {
-                        // Invalid placeholder format
+                        // Invalid placeholder format - the index portion is not a valid non-negative integer
                         ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,
                             computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
                             computedProperty.PropertyName, format, $"Invalid placeholder: {{{placeholderText}}}");
@@ -2120,7 +2277,16 @@ internal class EntityAnalyzer
                 }
             }
 
-            // Check if placeholder count matches source property count
+            // For explicit formats (HasCustomFormat), emit FDDB090 error on placeholder count mismatch
+            if (computedKey.HasCustomFormat && placeholderCount != computedKey.SourceProperties.Length)
+            {
+                ReportDiagnostic(DiagnosticDescriptors.ComputedFormatPlaceholderMismatch,
+                    computedProperty.PropertyDeclaration?.Identifier.GetLocation(),
+                    computedProperty.PropertyName, format, placeholderCount, computedKey.SourceProperties.Length);
+                return;
+            }
+
+            // Check if placeholder count exceeds source property count (general warning for non-explicit formats)
             if (placeholderCount > computedKey.SourceProperties.Length)
             {
                 ReportDiagnostic(DiagnosticDescriptors.InvalidComputedKeyFormat,
@@ -2492,6 +2658,10 @@ internal class EntityAnalyzer
             "DYNDB002" => true, // Multiple partition keys
             "DYNDB010" => true, // Entity must be partial
             "FDDB051" => true, // Non-partial table type
+            "FDDB120" => true, // Constant key + Computed conflict
+            "FDDB121" => true, // Constant key + Prefix conflict
+            "FDDB122" => true, // Extracted from constant key conflict
+            "FDDB123" => true, // Empty constant key value
             "DYNDB007" => false, // Missing DynamoDbAttribute - not critical, can still generate
             _ => false
         };
@@ -2765,5 +2935,289 @@ internal class EntityAnalyzer
         }
 
         return string.IsNullOrEmpty(resultString) ? "Index" : resultString;
+    }
+
+    /// <summary>
+    /// Validates that explicit ComputedAttribute.Format values don't conflict with key attribute Prefix values.
+    /// For each key property with a non-empty Prefix and a ComputedKey with HasCustomFormat,
+    /// checks if the format starts with "{Prefix}{Separator}" using ordinal comparison.
+    /// Emits FDDB100 diagnostic if it doesn't match.
+    /// </summary>
+    /// <param name="entity">The entity model whose key properties will be validated for prefix/format consistency.</param>
+    private void ValidatePrefixFormatConsistency(EntityModel entity)
+    {
+        foreach (var property in entity.Properties)
+        {
+            if (!property.IsPartitionKey && !property.IsSortKey)
+                continue;
+
+            if (property.KeyFormat == null || string.IsNullOrEmpty(property.KeyFormat.Prefix))
+                continue;
+
+            if (property.ComputedKey == null || !property.ComputedKey.HasCustomFormat)
+                continue;
+
+            var separator = property.KeyFormat.Separator ?? "#";
+            var expectedStart = $"{property.KeyFormat.Prefix}{separator}";
+
+            if (!property.ComputedKey.Format!.StartsWith(expectedStart, StringComparison.Ordinal))
+            {
+                ReportDiagnostic(
+                    DiagnosticDescriptors.PrefixFormatConflict,
+                    property.PropertyDeclaration?.GetLocation(),
+                    property.PropertyName,
+                    property.KeyFormat.Prefix,
+                    expectedStart,
+                    property.ComputedKey.Format);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Computes the normalized key format for all partition key and sort key properties on the entity.
+    /// For computed keys, delegates to <see cref="MapperGenerator.ComputeFormatString"/>.
+    /// For non-computed keys, delegates to <see cref="ComputeNonComputedKeyFormat"/>.
+    /// Stores the result in each property's <see cref="PropertyModel.NormalizedKeyFormat"/>.
+    /// </summary>
+    /// <param name="entity">The entity model whose key properties will have NormalizedKeyFormat populated.</param>
+    private void ComputeNormalizedKeyFormats(EntityModel entity)
+    {
+        foreach (var property in entity.Properties)
+        {
+            if (!property.IsPartitionKey && !property.IsSortKey)
+                continue;
+
+            if (property.IsConstantKey)
+            {
+                // Constant key: the format IS the value — no placeholder substitution needed
+                property.NormalizedKeyFormat = property.ConstantKeyValue;
+            }
+            else if (property.ComputedKey != null)
+            {
+                // Resolve source property models for Format injection (positional correspondence maintained)
+                var sourcePropertyModels = property.ComputedKey.SourceProperties
+                    .Select(name => entity.Properties.FirstOrDefault(p => p.PropertyName == name))
+                    .ToArray();
+                property.NormalizedKeyFormat = MapperGenerator.ComputeFormatString(property.ComputedKey, property.KeyFormat, sourcePropertyModels!);
+            }
+            else
+            {
+                property.NormalizedKeyFormat = ComputeNonComputedKeyFormat(property.KeyFormat);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Computes the normalized key format for a non-computed key property.
+    /// For computed keys, defers to MapperGenerator.ComputeFormatString.
+    /// </summary>
+    /// <param name="keyFormat">The key format model containing prefix and separator information.</param>
+    /// <returns>
+    /// A format string: "{Prefix}{Separator}{0}" when prefix is present,
+    /// or "{0}" when no prefix is configured.
+    /// </returns>
+    internal static string ComputeNonComputedKeyFormat(KeyFormatModel? keyFormat)
+    {
+        if (keyFormat == null || string.IsNullOrEmpty(keyFormat.Prefix))
+            return "{0}";
+
+        var separator = keyFormat.Separator ?? "#";
+        return $"{keyFormat.Prefix}{separator}{{0}}";
+    }
+
+    /// <summary>
+    /// Iterates over all entity properties and derives discriminator patterns for those
+    /// that have a NormalizedKeyFormat populated (i.e., key properties).
+    /// Stores the result in each property's <see cref="PropertyModel.DerivedDiscriminatorPattern"/>.
+    /// </summary>
+    /// <param name="entity">The entity model whose key properties will have DerivedDiscriminatorPattern populated.</param>
+    private void DeriveDiscriminatorPatterns(EntityModel entity)
+    {
+        foreach (var property in entity.Properties)
+        {
+            if (property.NormalizedKeyFormat == null)
+                continue;
+
+            if (property.IsConstantKey)
+            {
+                // Constant key: the pattern IS the exact value — no wildcards
+                property.DerivedDiscriminatorPattern = property.ConstantKeyValue;
+            }
+            else
+            {
+                property.DerivedDiscriminatorPattern = DeriveDiscriminatorPattern(property.NormalizedKeyFormat);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Derives a discriminator pattern from a normalized key format by replacing
+    /// each {N} placeholder with *.
+    /// Returns null if the resulting pattern is just "*" or starts with "*"
+    /// (no useful fixed prefix for discrimination).
+    /// </summary>
+    /// <param name="normalizedKeyFormat">The normalized key format string (e.g., "ORDER#{0}", "{0}#{1}").</param>
+    /// <returns>
+    /// The discriminator pattern (e.g., "ORDER#*") when the pattern has a useful fixed prefix,
+    /// or null when the pattern provides no discrimination capability.
+    /// </returns>
+    internal static string? DeriveDiscriminatorPattern(string normalizedKeyFormat)
+    {
+        // Replace all {N} and {N:format} placeholders with *
+        var pattern = Regex.Replace(normalizedKeyFormat, @"\{\d+(?::[^}]*)?\}", "*");
+
+        // A pattern of just "*" or starting with "*" provides no useful discrimination
+        if (pattern == "*" || pattern.StartsWith("*"))
+            return null;
+
+        return pattern;
+    }
+
+    /// <summary>
+    /// Selects the best key property for entity discrimination and populates
+    /// EntityModel.Discriminator with an auto-derived DiscriminatorConfig.
+    /// Priority: Sort key > Partition key. Skips if pattern is null ("*").
+    /// Does not override existing explicit discriminators.
+    /// </summary>
+    /// <param name="entity">The entity model to populate with an auto-derived discriminator.</param>
+    private void ApplyAutoDerivedDiscriminator(EntityModel entity)
+    {
+        // Don't override explicit discriminators
+        if (entity.Discriminator != null && entity.Discriminator.IsValid)
+            return;
+
+        // Try sort key first (preferred for single-table designs)
+        var skProperty = entity.SortKeyProperty;
+        if (skProperty?.DerivedDiscriminatorPattern != null)
+        {
+            entity.Discriminator = CreateAutoDerivedDiscriminatorConfig(
+                skProperty.AttributeName,
+                skProperty.DerivedDiscriminatorPattern);
+            return;
+        }
+
+        // Fall back to partition key
+        var pkProperty = entity.PartitionKeyProperty;
+        if (pkProperty?.DerivedDiscriminatorPattern != null)
+        {
+            entity.Discriminator = CreateAutoDerivedDiscriminatorConfig(
+                pkProperty.AttributeName,
+                pkProperty.DerivedDiscriminatorPattern);
+        }
+    }
+
+    /// <summary>
+    /// Creates a DiscriminatorConfig for an auto-derived discriminator pattern.
+    /// </summary>
+    /// <param name="attributeName">The DynamoDB attribute name of the key property (e.g., "sk", "pk").</param>
+    /// <param name="pattern">The derived discriminator pattern (e.g., "ORDER#*", or "PROFILE" for constant keys).</param>
+    /// <returns>A new DiscriminatorConfig with IsAutoDerived set to true.</returns>
+    private static DiscriminatorConfig CreateAutoDerivedDiscriminatorConfig(
+        string attributeName, string pattern)
+    {
+        var strategy = DiscriminatorAnalyzer.DeterminePatternStrategy(pattern);
+
+        return new DiscriminatorConfig
+        {
+            PropertyName = attributeName,
+            Pattern = strategy == DiscriminatorStrategy.ExactMatch ? null : pattern,
+            ExactValue = strategy == DiscriminatorStrategy.ExactMatch ? pattern : null,
+            Strategy = strategy,
+            IsAutoDerived = true
+        };
+    }
+
+    /// <summary>
+    /// Populates GsiDiscriminator on IndexModel from the GSI partition key property's
+    /// derived discriminator pattern, when no explicit GSI discriminator is configured.
+    /// </summary>
+    /// <param name="entity">The entity model whose GSI indexes will have GsiDiscriminator populated.</param>
+    private void ApplyAutoDerivedGsiDiscriminator(EntityModel entity)
+    {
+        foreach (var index in entity.Indexes.Where(i => i.IsGsi && i.GsiDiscriminator == null))
+        {
+            var gsiPkProperty = entity.Properties
+                .FirstOrDefault(p => p.GsiPartitionKeys.Any(g => g.IndexName == index.IndexName));
+
+            if (gsiPkProperty?.DerivedDiscriminatorPattern != null)
+            {
+                index.GsiDiscriminator = new DiscriminatorConfig
+                {
+                    PropertyName = gsiPkProperty.AttributeName,
+                    Pattern = gsiPkProperty.DerivedDiscriminatorPattern,
+                    Strategy = DiscriminatorAnalyzer.DeterminePatternStrategy(
+                        gsiPkProperty.DerivedDiscriminatorPattern),
+                    IsAutoDerived = true
+                };
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validates that an explicit DiscriminatorPattern on DynamoDbTableAttribute
+    /// matches the auto-derived pattern for the referenced key property.
+    /// Emits FDDB101 if they differ and the derived pattern is not null.
+    /// </summary>
+    /// <param name="entity">The entity model to validate.</param>
+    private void ValidateExplicitVsDerivedDiscriminator(EntityModel entity)
+    {
+        if (entity.Discriminator == null || entity.Discriminator.IsAutoDerived)
+            return;
+
+        var explicitProperty = entity.Discriminator.PropertyName;
+        var explicitPattern = entity.Discriminator.Pattern;
+
+        if (string.IsNullOrEmpty(explicitPattern))
+            return; // ExactValue discriminators don't conflict
+
+        // Find the key property matching the discriminator property name
+        var matchingKey = entity.Properties.FirstOrDefault(p =>
+            (p.IsPartitionKey || p.IsSortKey) &&
+            string.Equals(p.AttributeName, explicitProperty, StringComparison.Ordinal));
+
+        if (matchingKey?.DerivedDiscriminatorPattern == null)
+            return; // Derived is "*" — explicit supplements rather than contradicts
+
+        if (!string.Equals(explicitPattern, matchingKey.DerivedDiscriminatorPattern, StringComparison.Ordinal))
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.DiscriminatorKeyFormatConflict,
+                entity.TypeDeclaration?.GetLocation(),
+                entity.ClassName,
+                explicitProperty,
+                explicitPattern,
+                matchingKey.DerivedDiscriminatorPattern);
+        }
+    }
+
+    /// <summary>
+    /// Detects when an explicit DiscriminatorPattern is redundant because it exactly
+    /// matches the auto-derived pattern from the referenced key property.
+    /// Emits FDDB103 Info diagnostic.
+    /// </summary>
+    /// <param name="entity">The entity model to check for redundant discriminator.</param>
+    private void DetectRedundantExplicitDiscriminator(EntityModel entity)
+    {
+        if (entity.Discriminator == null || entity.Discriminator.IsAutoDerived)
+            return;
+        if (entity.Discriminator.Strategy == DiscriminatorStrategy.ExactMatch)
+            return; // DiscriminatorValue doesn't get redundancy check
+
+        var explicitProperty = entity.Discriminator.PropertyName;
+        var explicitPattern = entity.Discriminator.Pattern;
+
+        var matchingKey = entity.Properties.FirstOrDefault(p =>
+            (p.IsPartitionKey || p.IsSortKey) &&
+            string.Equals(p.AttributeName, explicitProperty, StringComparison.Ordinal));
+
+        if (matchingKey?.DerivedDiscriminatorPattern != null &&
+            string.Equals(explicitPattern, matchingKey.DerivedDiscriminatorPattern, StringComparison.Ordinal))
+        {
+            ReportDiagnostic(
+                DiagnosticDescriptors.RedundantExplicitDiscriminator,
+                entity.TypeDeclaration?.GetLocation(),
+                entity.ClassName,
+                explicitPattern!);
+        }
     }
 }

@@ -1,0 +1,315 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add NormalizedKeyFormat and DerivedDiscriminatorPattern to PropertyModel": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422591765
+      },
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422605952
+      },
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422711716
+      }
+    ],
+    "1.2 Add IsAutoDerived flag to DiscriminatorConfig": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422591879
+      },
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422606838
+      },
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422712525
+      }
+    ],
+    "2.1 Add ComputeNonComputedKeyFormat helper method to EntityAnalyzer": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422591928
+      },
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422733675
+      }
+    ],
+    "2.2 Add ComputeNormalizedKeyFormats orchestration method to EntityAnalyzer": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422591967
+      }
+    ],
+    "2.3 Write property test: Non-Computed Key Format Derivation (Property 1)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592046
+      }
+    ],
+    "2.4 Write unit tests for ComputeNonComputedKeyFormat": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592094
+      }
+    ],
+    "3.1 Add DeriveDiscriminatorPattern helper method to EntityAnalyzer": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592131
+      }
+    ],
+    "3.2 Add DeriveDiscriminatorPatterns orchestration method to EntityAnalyzer": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592177
+      }
+    ],
+    "3.3 Write property test: Discriminator Pattern Derivation from Format (Property 2)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592216
+      }
+    ],
+    "3.4 Write unit tests for DeriveDiscriminatorPattern": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592253
+      }
+    ],
+    "4. Checkpoint - Ensure source generator compiles and core derivation tests pass": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592302
+      }
+    ],
+    "5.1 Add ApplyAutoDerivedDiscriminator method to EntityAnalyzer": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592355
+      }
+    ],
+    "5.2 Add ApplyAutoDerivedGsiDiscriminator method to EntityAnalyzer": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592400
+      }
+    ],
+    "5.3 Write property test: Discriminator Selection Priority (Property 3)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592432
+      }
+    ],
+    "5.4 Write unit tests for discriminator selection": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592466
+      }
+    ],
+    "5.5 Write property test: GSI Discriminator Auto-Derivation (Property 9)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592510
+      }
+    ],
+    "5.6 Write unit tests for GSI discriminator auto-derivation": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592549
+      }
+    ],
+    "6.1 Add FDDB100–FDDB103 diagnostic descriptors": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592588
+      },
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422734790
+      }
+    ],
+    "6.2 Implement ValidatePrefixFormatConsistency (FDDB100)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592631
+      }
+    ],
+    "6.3 Implement ValidateExplicitVsDerivedDiscriminator (FDDB101)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592677
+      }
+    ],
+    "6.4 Implement DetectRedundantExplicitDiscriminator (FDDB103)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592714
+      }
+    ],
+    "6.5 Enhance PatternOverlapAnalyzer for FDDB102": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592763
+      }
+    ],
+    "6.6 Write property test: FDDB100 Conflict Detection (Property 4)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592816
+      }
+    ],
+    "6.7 Write property test: FDDB101 Conflict Detection (Property 5)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592849
+      }
+    ],
+    "6.8 Write property test: FDDB103 Redundancy Detection (Property 6)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592882
+      }
+    ],
+    "6.9 Write property test: FDDB102 Emission Constraint (Property 8)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592922
+      }
+    ],
+    "6.10 Write unit tests for diagnostic emissions": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422592964
+      }
+    ],
+    "7. Checkpoint - Ensure all diagnostics compile and tests pass": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593017
+      }
+    ],
+    "8.1 Integrate new analysis methods into EntityAnalyzer.AnalyzeEntity ordering": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593068
+      }
+    ],
+    "8.2 Write property test: NormalizedKeyFormat Population Completeness (Property 10)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593115
+      }
+    ],
+    "9. Checkpoint - Full build pass with integrated analysis phases": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593149
+      }
+    ],
+    "10.1 Write property test: Backwards Compatibility of Explicit Discriminators (Property 7)": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593183
+      }
+    ],
+    "10.2 Write integration test: Existing entities with explicit discriminator produce same output": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593216
+      }
+    ],
+    "10.3 Write integration test: New entity with prefix-only auto-derives correct MatchesEntity": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593254
+      }
+    ],
+    "10.4 Write integration test: Multi-entity table with overlapping patterns produces exclusion guards": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593298
+      }
+    ],
+    "10.5 Write integration test: Single-entity table derives pattern but no MatchesEntity change": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593343
+      }
+    ],
+    "11.1 Update CHANGELOG.md": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593399
+      }
+    ],
+    "11.2 Update docs/DOCUMENTATION_CHANGELOG.md": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593432
+      }
+    ],
+    "12. Final checkpoint - Full build and all tests pass": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422593465
+      }
+    ],
+    "1. Extend PropertyModel and DiscriminatorConfig with new properties": [
+      {
+        "executionId": "5d78ea7d-070c-4d1c-b8d5-c0730167e11b",
+        "chatSessionId": "sess_53991bfb-7c52-42cd-95d3-36b9c272c9b1",
+        "timestamp": 1782422712562
+      }
+    ]
+  }
+}

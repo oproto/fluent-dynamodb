@@ -41,6 +41,9 @@ public class RequireWriteTransactionValidationTests
         public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) 
             where TSelf : IDynamoDbEntity 
             => new() { ["pk"] = new AttributeValue { S = (entity as TransactionRequiredEntity)?.Id ?? string.Empty } };
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+            where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
         
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
             where TSelf : IReadOnlyEntity 
@@ -80,6 +83,9 @@ public class RequireWriteTransactionValidationTests
         public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) 
             where TSelf : IDynamoDbEntity 
             => new() { ["pk"] = new AttributeValue { S = (entity as NormalEntity)?.Id ?? string.Empty } };
+
+        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+            where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
         
         public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) 
             where TSelf : IReadOnlyEntity 

@@ -51,7 +51,6 @@ public class TransactionAtomicityPropertyTests
                         var account = new Account
                         {
                             Pk = Account.Keys.Pk($"TEST-{Guid.NewGuid():N}"),
-                            Sk = Account.ProfileSk,
                             AccountId = $"TEST-{i}",
                             Name = $"Test Account {i}",
                             Balance = 1000m * i
@@ -122,7 +121,6 @@ public class TransactionAtomicityPropertyTests
                         var account = new Account
                         {
                             Pk = Account.Keys.Pk($"{uniquePrefix}-{i}"),
-                            Sk = Account.ProfileSk,
                             AccountId = $"{uniquePrefix}-{i}",
                             Name = $"Test Account {i}",
                             Balance = 1000m * i
@@ -135,7 +133,7 @@ public class TransactionAtomicityPropertyTests
                     transaction = transaction.Add(
                         table.ConditionCheck<Account>()
                             .WithKey("pk", nonExistentPk)
-                            .WithKey("sk", Account.ProfileSk)
+                            .WithKey("sk", "PROFILE")
                             .Where("attribute_exists(pk)")); // This will fail because item doesn't exist
 
                     // Execute the transaction (should fail)
@@ -197,7 +195,7 @@ public class TransactionAtomicityPropertyTests
         public async Task<List<Account>> GetAllAccountsAsync()
         {
             return await Scan<Account>()
-                .WithFilter(x => x.Sk == Account.ProfileSk)
+                .WithFilter(x => x.Sk == "PROFILE")
                 .ToListAsync();
         }
 

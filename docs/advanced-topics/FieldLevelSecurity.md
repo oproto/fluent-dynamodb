@@ -25,6 +25,7 @@ Both features use simple attributes and integrate seamlessly with the source gen
 - [Logging Redaction](#logging-redaction)
 - [Field Encryption](#field-encryption)
 - [Multi-Context Encryption](#multi-context-encryption)
+- [Per-Property Key Aliases](#per-property-key-aliases)
 - [Combined Security Features](#combined-security-features)
 - [Integration with Blob Storage](#integration-with-blob-storage)
 - [Best Practices](#best-practices)
@@ -167,6 +168,11 @@ var keyResolver = new DefaultKmsKeyResolver(
     {
         ["tenant-a"] = configuration["Kms:TenantA:KeyArn"],
         ["tenant-b"] = configuration["Kms:TenantB:KeyArn"]
+    },
+    aliasKeyMap: new Dictionary<string, string>
+    {
+        ["pii"] = configuration["Kms:PiiKeyArn"],
+        ["financial"] = configuration["Kms:FinancialKeyArn"]
     });
 ```
 
@@ -422,18 +428,30 @@ var table = new SecretsTable(client, "secrets", options);
 
 ### Key Resolution
 
-The context string (e.g., "tenant-123") is passed to `IKmsKeyResolver`, which returns the appropriate KMS key ARN:
+The context string (e.g., "tenant-123") and optional key alias are passed to `IKmsKeyResolver`, which returns the appropriate KMS key ARN:
 
 ```csharp
 public interface IKmsKeyResolver
 {
-    string ResolveKeyId(string? contextId);
+    Task<string> ResolveKeyIdAsync(
+        string? contextId,
+        string? keyAlias = null,
+        CancellationToken cancellationToken = default);
 }
 ```
 
+The resolver receives:
+- `contextId` — A runtime value (e.g., tenant ID) set via `EncryptionContext.Current` or `WithEncryptionContext()`
+- `keyAlias` — An optional data classification alias from `[Encrypted(KeyAlias = "...")]` on the property
+- `cancellationToken` — For cooperative cancellation of async operations
+
 ### Default Implementation
 
-The `DefaultKmsKeyResolver` uses a dictionary lookup with fallback:
+The `DefaultKmsKeyResolver` uses dictionary-based lookup with a three-tier resolution priority:
+
+1. **Alias map** — `keyAlias` → `aliasKeyMap` (highest priority)
+2. **Context map** — `contextId` → `contextKeyMap`
+3. **Default key** — `defaultKeyId` (fallback)
 
 ```csharp
 var keyResolver = new DefaultKmsKeyResolver(
@@ -443,14 +461,21 @@ var keyResolver = new DefaultKmsKeyResolver(
         ["tenant-a"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key",
         ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b-key",
         ["tenant-c"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-c-key"
+    },
+    aliasKeyMap: new Dictionary<string, string>
+    {
+        ["pii"] = "arn:aws:kms:us-east-1:123456789012:key/pii-key",
+        ["financial"] = "arn:aws:kms:us-east-1:123456789012:key/financial-key"
     });
 
-// Usage:
-// WithEncryptionContext("tenant-a") → uses tenant-a-key
-// WithEncryptionContext("tenant-b") → uses tenant-b-key
-// WithEncryptionContext("unknown") → uses default-key-id
-// No context provided → uses default-key-id
+// Resolution examples:
+// keyAlias="pii", contextId="tenant-a" → uses pii-key (alias wins)
+// keyAlias=null, contextId="tenant-a"  → uses tenant-a-key (context fallback)
+// keyAlias=null, contextId="unknown"   → uses default-key-id (final fallback)
+// keyAlias=null, contextId=null        → uses default-key-id
 ```
+
+All lookups are case-sensitive. All code paths return `Task.FromResult` (no actual async I/O).
 
 ### Custom Key Resolver
 
@@ -468,13 +493,18 @@ public class DatabaseKmsKeyResolver : IKmsKeyResolver
         _defaultKey = defaultKey;
     }
     
-    public string ResolveKeyId(string? contextId)
+    public async Task<string> ResolveKeyIdAsync(
+        string? contextId,
+        string? keyAlias = null,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        
         if (contextId == null)
             return _defaultKey;
             
         // Load from database, cache, external service, etc.
-        var keyArn = _keyRepo.GetKmsKeyForTenant(contextId);
+        var keyArn = await _keyRepo.GetKmsKeyForTenantAsync(contextId, cancellationToken);
         return keyArn ?? _defaultKey;
     }
 }
@@ -517,6 +547,184 @@ This provides:
 - Audit trail in CloudTrail logs
 - Additional authenticated data (AAD)
 - Protection against ciphertext substitution
+
+---
+
+## Per-Property Key Aliases
+
+### Overview
+
+Key aliases enable per-property KMS key selection based on data classification. Different encrypted properties on the same entity can use different KMS keys — for example, PII fields can use one key while financial data uses another.
+
+This is configured declaratively via the `[Encrypted(KeyAlias = "...")]` attribute property and resolved at runtime by `IKmsKeyResolver`.
+
+### Basic Usage
+
+```csharp
+using Oproto.FluentDynamoDb.Attributes;
+
+[DynamoDbTable("CustomerData")]
+public partial class CustomerData
+{
+    [PartitionKey]
+    public string CustomerId { get; set; } = string.Empty;
+    
+    public string Name { get; set; } = string.Empty;
+    
+    // PII data → encrypted with the "pii" key alias
+    [Encrypted(KeyAlias = "pii")]
+    [Sensitive]
+    public string SocialSecurityNumber { get; set; } = string.Empty;
+    
+    // Financial data → encrypted with the "financial" key alias
+    [Encrypted(KeyAlias = "financial")]
+    [Sensitive]
+    public string CreditCardNumber { get; set; } = string.Empty;
+    
+    // General encrypted field → no alias, uses context or default key
+    [Encrypted]
+    [Sensitive]
+    public string InternalNotes { get; set; } = string.Empty;
+}
+```
+
+### How It Works
+
+1. The source generator reads `KeyAlias` from `[Encrypted(KeyAlias = "...")]`
+2. It emits the alias into `FieldEncryptionContext.KeyAlias` in the generated mapper code
+3. At runtime, `ResolveKeyIdAsync(contextId, keyAlias, ct)` receives both the context and alias
+4. The resolver uses the alias to select the appropriate KMS key
+
+### Multi-Tenant with Data Classification
+
+Combine `contextId` (tenant isolation) with `keyAlias` (data classification) for fine-grained key selection:
+
+```csharp
+public class MultiTenantClassifiedKeyResolver : IKmsKeyResolver
+{
+    private readonly IKeyRepository _keyRepo;
+    private readonly IReadOnlyDictionary<string, string> _classificationKeys;
+    private readonly string _defaultKey;
+    
+    public MultiTenantClassifiedKeyResolver(
+        IKeyRepository keyRepo,
+        IReadOnlyDictionary<string, string> classificationKeys,
+        string defaultKey)
+    {
+        _keyRepo = keyRepo;
+        _classificationKeys = classificationKeys;
+        _defaultKey = defaultKey;
+    }
+    
+    public async Task<string> ResolveKeyIdAsync(
+        string? contextId,
+        string? keyAlias = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        
+        // Priority 1: Data classification key (e.g., PII, financial)
+        if (keyAlias != null && _classificationKeys.TryGetValue(keyAlias, out var classKey))
+            return classKey;
+        
+        // Priority 2: Tenant-specific key from external source
+        if (contextId != null)
+        {
+            var tenantKey = await _keyRepo.GetKeyForTenantAsync(contextId, cancellationToken);
+            if (tenantKey != null)
+                return tenantKey;
+        }
+        
+        // Priority 3: Default key
+        return _defaultKey;
+    }
+}
+```
+
+### Convention-Based Resolver Using KMS Aliases
+
+Use KMS aliases (e.g., `alias/pii-encryption`, `alias/financial-encryption`) instead of key ARNs for a simpler, convention-based approach:
+
+```csharp
+public class KmsAliasConventionResolver : IKmsKeyResolver
+{
+    private readonly string _aliasPrefix;
+    private readonly string _defaultAlias;
+    
+    /// <param name="aliasPrefix">
+    /// KMS alias prefix (e.g., "alias/myapp-"). The key alias from [Encrypted(KeyAlias)] 
+    /// will be appended to form the full KMS alias.
+    /// </param>
+    /// <param name="defaultAlias">
+    /// Default KMS alias when no keyAlias is specified (e.g., "alias/myapp-default").
+    /// </param>
+    public KmsAliasConventionResolver(string aliasPrefix, string defaultAlias)
+    {
+        _aliasPrefix = aliasPrefix;
+        _defaultAlias = defaultAlias;
+    }
+    
+    public Task<string> ResolveKeyIdAsync(
+        string? contextId,
+        string? keyAlias = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        
+        // Convention: [Encrypted(KeyAlias = "pii")] → "alias/myapp-pii"
+        if (keyAlias != null)
+            return Task.FromResult($"{_aliasPrefix}{keyAlias}");
+        
+        // Convention: contextId "tenant-a" → "alias/myapp-tenant-a"
+        if (contextId != null)
+            return Task.FromResult($"{_aliasPrefix}{contextId}");
+        
+        return Task.FromResult(_defaultAlias);
+    }
+}
+
+// Usage:
+var resolver = new KmsAliasConventionResolver(
+    aliasPrefix: "alias/myapp-",
+    defaultAlias: "alias/myapp-default");
+
+// [Encrypted(KeyAlias = "pii")]      → resolves to "alias/myapp-pii"
+// [Encrypted(KeyAlias = "financial")] → resolves to "alias/myapp-financial"
+// [Encrypted] with context "tenant-a" → resolves to "alias/myapp-tenant-a"
+// [Encrypted] with no context         → resolves to "alias/myapp-default"
+```
+
+### DefaultKmsKeyResolver with Alias Map
+
+For static alias-to-key mappings, use the built-in `DefaultKmsKeyResolver`:
+
+```csharp
+var resolver = new DefaultKmsKeyResolver(
+    defaultKeyId: "arn:aws:kms:us-east-1:123456789012:key/default-key",
+    contextKeyMap: new Dictionary<string, string>
+    {
+        ["tenant-a"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key",
+        ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b-key"
+    },
+    aliasKeyMap: new Dictionary<string, string>
+    {
+        ["pii"] = "arn:aws:kms:us-east-1:123456789012:key/pii-key",
+        ["financial"] = "arn:aws:kms:us-east-1:123456789012:key/financial-key"
+    });
+
+var encryptor = new AwsEncryptionSdkFieldEncryptor(resolver, new AwsEncryptionSdkOptions());
+var options = new FluentDynamoDbOptions().WithEncryption(encryptor);
+```
+
+### Resolution Priority
+
+When both `contextId` and `keyAlias` are available, `DefaultKmsKeyResolver` follows this priority:
+
+| Priority | Condition | Result |
+|----------|-----------|--------|
+| 1 (highest) | `keyAlias` is non-null AND found in `aliasKeyMap` | Returns alias mapping |
+| 2 | `contextId` is non-null AND found in `contextKeyMap` | Returns context mapping |
+| 3 (lowest) | Neither matches | Returns `defaultKeyId` |
 
 ---
 
@@ -684,7 +892,7 @@ public class AwsEncryptionSdkOptions
 
 ### DefaultKmsKeyResolver
 
-Resolves KMS key ARNs based on context identifiers:
+Resolves KMS key ARNs based on context identifiers and key aliases with three-tier priority:
 
 ```csharp
 // Single key for all contexts
@@ -699,7 +907,29 @@ var keyResolver = new DefaultKmsKeyResolver(
         ["tenant-a"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key",
         ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b-key"
     });
+
+// Multi-tenant with per-property key aliases
+var keyResolver = new DefaultKmsKeyResolver(
+    defaultKeyId: "arn:aws:kms:us-east-1:123456789012:key/default-key",
+    contextKeyMap: new Dictionary<string, string>
+    {
+        ["tenant-a"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-a-key",
+        ["tenant-b"] = "arn:aws:kms:us-east-1:123456789012:key/tenant-b-key"
+    },
+    aliasKeyMap: new Dictionary<string, string>
+    {
+        ["pii"] = "arn:aws:kms:us-east-1:123456789012:key/pii-key",
+        ["financial"] = "arn:aws:kms:us-east-1:123456789012:key/financial-key"
+    });
 ```
+
+**Constructor Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `defaultKeyId` | `string` | Yes | Fallback KMS key ARN. Must be non-null/non-whitespace. |
+| `contextKeyMap` | `IReadOnlyDictionary<string, string>?` | No | Maps context IDs → key ARNs |
+| `aliasKeyMap` | `IReadOnlyDictionary<string, string>?` | No | Maps key aliases → key ARNs |
 
 ### EncryptedAttribute
 
@@ -716,6 +946,14 @@ public sealed class EncryptedAttribute : Attribute
     /// by encryption providers that support data key caching.
     /// </summary>
     public int CacheTtlSeconds { get; set; } = 300;
+    
+    /// <summary>
+    /// Key alias for per-property KMS key selection.
+    /// When specified, the resolver uses this alias to select a specific KMS key
+    /// based on data classification (e.g., "pii", "financial").
+    /// Default: null (uses context-based or default key selection)
+    /// </summary>
+    public string? KeyAlias { get; set; }
 }
 ```
 
@@ -727,6 +965,12 @@ public string HighFrequencyField { get; set; } = string.Empty;
 
 [Encrypted(CacheTtlSeconds = 60)]  // 1 minute for this field
 public string LowFrequencyField { get; set; } = string.Empty;
+
+[Encrypted(KeyAlias = "pii")]  // Uses PII-specific KMS key
+public string SocialSecurityNumber { get; set; } = string.Empty;
+
+[Encrypted(KeyAlias = "financial", CacheTtlSeconds = 120)]  // Financial key, 2 min cache
+public string CreditCardNumber { get; set; } = string.Empty;
 ```
 
 ---
@@ -788,6 +1032,7 @@ catch (FieldEncryptionException ex)
 {
     Console.WriteLine($"Field: {ex.FieldName}");
     Console.WriteLine($"Context: {ex.ContextId}");
+    Console.WriteLine($"Key Alias: {ex.KeyAlias}");  // Data classification alias
     Console.WriteLine($"Key: {ex.KeyId}");
     Console.WriteLine($"Error: {ex.Message}");
     Console.WriteLine($"Inner: {ex.InnerException?.Message}");

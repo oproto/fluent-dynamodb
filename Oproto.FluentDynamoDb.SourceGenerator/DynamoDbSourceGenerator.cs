@@ -30,9 +30,13 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
                 predicate: static (s, _) => IsDynamoDbProjection(s),
                 transform: static (ctx, _) => ctx);
 
-        // Combine entity and projection classes for processing
+        // Access the compilation provider for schema version detection
+        var compilationProvider = context.CompilationProvider;
+
+        // Combine entity and projection classes with the compilation for processing
         var combined = entityClasses.Collect()
-            .Combine(projectionClasses.Collect());
+            .Combine(projectionClasses.Collect())
+            .Combine(compilationProvider);
 
         // Register code generation
         context.RegisterSourceOutput(combined, Execute);
@@ -126,10 +130,34 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
 
     private static void Execute(
         SourceProductionContext context,
-        (ImmutableArray<(EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics)> Entities,
-         ImmutableArray<GeneratorSyntaxContext> ProjectionContexts) input)
+        ((ImmutableArray<(EntityModel? Model, IReadOnlyList<Diagnostic> Diagnostics)> Entities,
+         ImmutableArray<GeneratorSyntaxContext> ProjectionContexts) Left,
+         Compilation Compilation) input)
     {
-        var (entities, projectionContexts) = input;
+        var (entities, projectionContexts) = input.Left;
+        var compilation = input.Compilation;
+
+        // No entities or projections in this compilation — nothing to generate, skip entirely.
+        // This prevents spurious diagnostics (e.g., FDDB110) in projects that only transitively
+        // reference FluentDynamoDb without defining any DynamoDB types.
+        if (entities.IsEmpty && projectionContexts.IsEmpty)
+            return;
+
+        // Schema version gate: detect and validate schema version before any code generation
+        var versionResult = SchemaVersionProvider.Detect(compilation);
+        if (versionResult.ShouldHaltGeneration)
+        {
+            foreach (var diagnostic in versionResult.Diagnostics)
+                context.ReportDiagnostic(diagnostic);
+            return; // No code generation
+        }
+
+        // Report non-fatal diagnostics (FDDB110, FDDB113, FDDB116)
+        foreach (var diagnostic in versionResult.Diagnostics)
+            context.ReportDiagnostic(diagnostic);
+
+        // Store the resolved schema version for future version-aware generation
+        var schemaVersion = versionResult.Version;
 
         // First pass: collect all valid entity models and report diagnostics
         var validEntityModels = new List<EntityModel>();
@@ -179,7 +207,20 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             var tableEntities = tableGroup.Value;
 
             var overlapDiagnostics = PatternOverlapAnalyzer.Analyze(tableEntities);
+
+            // Compound promotion pass — resolves same-score overlaps via cross-key disambiguation
+            var compoundResult = CompoundPromotionPass.Analyze(tableEntities, overlapDiagnostics);
+
+            // Filter out diagnostics for resolved pairs (Requirement 3.1, 3.2, 3.4)
             foreach (var diagnostic in overlapDiagnostics)
+            {
+                if (IsResolvedByCompoundPromotion(diagnostic, compoundResult.ResolvedPairs))
+                    continue; // Suppressed — compound promotion resolved this pair
+                context.ReportDiagnostic(diagnostic);
+            }
+
+            // Emit FDDB104 info diagnostics for resolved pairs (Requirement 3.3)
+            foreach (var diagnostic in compoundResult.Diagnostics)
             {
                 context.ReportDiagnostic(diagnostic);
             }
@@ -219,8 +260,13 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             var updateExpressionsCode = UpdateExpressionsGenerator.GenerateUpdateExpressionsClass(entity);
             context.AddSource($"{entity.ClassName}UpdateExpressions.g.cs", updateExpressionsCode);
 
-            var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity);
+            var updateModelDiagnostics = new List<Diagnostic>();
+            var updateModelCode = UpdateExpressionsGenerator.GenerateUpdateModelClass(entity, updateModelDiagnostics);
             context.AddSource($"{entity.ClassName}UpdateModel.g.cs", updateModelCode);
+            foreach (var diagnostic in updateModelDiagnostics)
+            {
+                context.ReportDiagnostic(diagnostic);
+            }
 
             // Generate nested UpdateModel classes for properties with [DynamoDbMap] attribute
             // where the property type has [DynamoDbEntity] attribute
@@ -239,8 +285,8 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             // Discover extension methods for wrapper generation (do this once to avoid redundant work)
             if (extensionMethods == null && entity.SemanticModel != null)
             {
-                var compilation = entity.SemanticModel.Compilation;
-                var discovery = new ExtensionMethodDiscovery(compilation);
+                var entityCompilation = entity.SemanticModel.Compilation;
+                var discovery = new ExtensionMethodDiscovery(entityCompilation);
                 extensionMethods = discovery.DiscoverExtensionMethods();
                 
                 // Report any diagnostics from extension method discovery
@@ -494,6 +540,114 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         }));
         
         return $"{cleanName}Table";
+    }
+
+    /// <summary>
+    /// Determines whether a diagnostic represents a resolved compound promotion pair
+    /// and should be suppressed. Only filters FDDB102 and DISC004 diagnostics.
+    /// Fail-open: if entity names cannot be parsed, the diagnostic passes through unchanged.
+    /// </summary>
+    private static bool IsResolvedByCompoundPromotion(
+        Diagnostic diagnostic,
+        HashSet<(string, string)> resolvedPairs)
+    {
+        // Only filter FDDB102 and DISC004
+        if (diagnostic.Id != "FDDB102" && diagnostic.Id != "DISC004")
+            return false;
+
+        // Extract entity names from diagnostic message
+        var entityNames = ExtractEntityNamesFromDiagnostic(diagnostic);
+        if (entityNames == null)
+            return false;
+
+        var orderedPair = OrderPairForFiltering(entityNames.Value.Item1, entityNames.Value.Item2);
+        return resolvedPairs.Contains(orderedPair);
+    }
+
+    /// <summary>
+    /// Extracts entity class names from FDDB102 or DISC004 diagnostic messages.
+    /// Returns null if entity names cannot be parsed (fail-open behavior).
+    /// 
+    /// FDDB102 message format: "Entities '{entityA}' and '{entityB}' have overlapping..."
+    /// DISC004 message format: "Ambiguous overlapping discriminator patterns: '{patternA}' on {entityA} and '{patternB}' on {entityB} have the same..."
+    /// </summary>
+    private static (string, string)? ExtractEntityNamesFromDiagnostic(Diagnostic diagnostic)
+    {
+        var message = diagnostic.GetMessage();
+
+        if (diagnostic.Id == "FDDB102")
+        {
+            // Format: "Entities '{0}' and '{1}' have overlapping auto-derived patterns..."
+            // Extract names between first pair of single quotes and second pair of single quotes
+            var firstQuoteStart = message.IndexOf('\'');
+            if (firstQuoteStart < 0) return null;
+
+            var firstQuoteEnd = message.IndexOf('\'', firstQuoteStart + 1);
+            if (firstQuoteEnd < 0) return null;
+
+            var secondQuoteStart = message.IndexOf('\'', firstQuoteEnd + 1);
+            if (secondQuoteStart < 0) return null;
+
+            var secondQuoteEnd = message.IndexOf('\'', secondQuoteStart + 1);
+            if (secondQuoteEnd < 0) return null;
+
+            var entityA = message.Substring(firstQuoteStart + 1, firstQuoteEnd - firstQuoteStart - 1);
+            var entityB = message.Substring(secondQuoteStart + 1, secondQuoteEnd - secondQuoteStart - 1);
+
+            if (string.IsNullOrEmpty(entityA) || string.IsNullOrEmpty(entityB))
+                return null;
+
+            return (entityA, entityB);
+        }
+        else if (diagnostic.Id == "DISC004")
+        {
+            // Format: "Ambiguous overlapping discriminator patterns: '{patternA}' on {entityA} and '{patternB}' on {entityB} have the same specificity score on property '{prop}'"
+            // Entity names are unquoted, positioned after " on " following each quoted pattern
+
+            // Find first "' on " to locate entityA start
+            const string onMarker = "' on ";
+            var firstOnIndex = message.IndexOf(onMarker, StringComparison.Ordinal);
+            if (firstOnIndex < 0) return null;
+
+            var entityAStart = firstOnIndex + onMarker.Length;
+
+            // entityA ends at " and '"
+            const string andMarker = " and '";
+            var entityAEnd = message.IndexOf(andMarker, entityAStart, StringComparison.Ordinal);
+            if (entityAEnd < 0) return null;
+
+            var entityA = message.Substring(entityAStart, entityAEnd - entityAStart);
+
+            // Find second "' on " after the "and '" section
+            var secondOnIndex = message.IndexOf(onMarker, entityAEnd + andMarker.Length, StringComparison.Ordinal);
+            if (secondOnIndex < 0) return null;
+
+            var entityBStart = secondOnIndex + onMarker.Length;
+
+            // entityB ends at " have the same"
+            const string haveMarker = " have the same";
+            var entityBEnd = message.IndexOf(haveMarker, entityBStart, StringComparison.Ordinal);
+            if (entityBEnd < 0) return null;
+
+            var entityB = message.Substring(entityBStart, entityBEnd - entityBStart);
+
+            if (string.IsNullOrEmpty(entityA) || string.IsNullOrEmpty(entityB))
+                return null;
+
+            return (entityA, entityB);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Orders an entity pair alphabetically for stable lookup in the resolved pairs set.
+    /// </summary>
+    private static (string, string) OrderPairForFiltering(string nameA, string nameB)
+    {
+        return string.Compare(nameA, nameB, StringComparison.Ordinal) <= 0
+            ? (nameA, nameB)
+            : (nameB, nameA);
     }
 
 }

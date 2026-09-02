@@ -54,6 +54,13 @@ internal class ComplexTypeInfo
     public bool BlobStorageLazyLoad { get; set; }
 
     /// <summary>
+    /// Gets or sets the named blob storage provider from the <c>[BlobStorage(Provider = "x")]</c> attribute value.
+    /// When null, the default (unnamed) provider is used during hydration and mapping.
+    /// When set, the named provider registered via <c>WithBlobStorage(name, provider)</c> is resolved at runtime.
+    /// </summary>
+    public string? BlobStorageProviderName { get; set; }
+
+    /// <summary>
     /// Gets or sets the inner type of BlobData&lt;T&gt; for blob storage properties.
     /// </summary>
     public string? BlobDataInnerType { get; set; }

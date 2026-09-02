@@ -113,10 +113,11 @@ internal static class HydratorGenerator
 
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Hydrates a {entity.ClassName} from DynamoDB attributes, loading blob references.");
+        sb.AppendLine($"        /// Per-property blob provider resolution uses options.GetBlobProvider(...) internally.");
         sb.AppendLine($"        /// </summary>");
         sb.AppendLine($"        /// <param name=\"item\">The DynamoDB item attributes.</param>");
-        sb.AppendLine($"        /// <param name=\"blobProvider\">The blob storage provider for loading blob references.</param>");
-        sb.AppendLine($"        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc.</param>");
+        sb.AppendLine($"        /// <param name=\"blobProvider\">The blob storage provider (retained for backwards compatibility; per-property resolution uses options.GetBlobProvider internally).</param>");
+        sb.AppendLine($"        /// <param name=\"options\">Configuration options including named blob provider registry, logger, JSON serializer, etc.</param>");
         sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token.</param>");
         sb.AppendLine($"        /// <returns>The hydrated entity.</returns>");
         sb.AppendLine($"        public async Task<{entity.ClassName}> HydrateAsync(");
@@ -129,11 +130,20 @@ internal static class HydratorGenerator
 
         if (hasBlobStorage)
         {
-            sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+            sb.AppendLine();
+            sb.AppendLine($"            // Ensure options is available for per-property blob provider resolution");
+            sb.AppendLine($"            // The blobProvider parameter is retained for backwards compatibility;");
+            sb.AppendLine($"            // per-property resolution uses options.GetBlobProvider(...) internally.");
+            sb.AppendLine($"            if (options == null && blobProvider == null)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                throw new InvalidOperationException(");
+            sb.AppendLine($"                    \"Either options with configured blob providers or a blobProvider parameter must be supplied for entities with blob storage properties.\");");
+            sb.AppendLine("            }");
         }
 
         sb.AppendLine();
         sb.AppendLine($"            // Delegate to the generated FromDynamoDbAsync method on the entity");
+        sb.AppendLine($"            // Per-property blob provider resolution occurs inside via options.GetBlobProvider(...)");
         sb.AppendLine($"            return await {entity.ClassName}.FromDynamoDbAsync<{entity.ClassName}>(");
         sb.AppendLine($"                item,");
 
@@ -159,10 +169,11 @@ internal static class HydratorGenerator
 
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Hydrates a {entity.ClassName} from multiple DynamoDB items (composite entities).");
+        sb.AppendLine($"        /// Per-property blob provider resolution uses options.GetBlobProvider(...) internally.");
         sb.AppendLine($"        /// </summary>");
         sb.AppendLine($"        /// <param name=\"items\">The list of DynamoDB item attributes.</param>");
-        sb.AppendLine($"        /// <param name=\"blobProvider\">The blob storage provider for loading blob references.</param>");
-        sb.AppendLine($"        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc.</param>");
+        sb.AppendLine($"        /// <param name=\"blobProvider\">The blob storage provider (retained for backwards compatibility; per-property resolution uses options.GetBlobProvider internally).</param>");
+        sb.AppendLine($"        /// <param name=\"options\">Configuration options including named blob provider registry, logger, JSON serializer, etc.</param>");
         sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token.</param>");
         sb.AppendLine($"        /// <returns>The hydrated entity.</returns>");
         sb.AppendLine($"        public async Task<{entity.ClassName}> HydrateAsync(");
@@ -175,7 +186,15 @@ internal static class HydratorGenerator
 
         if (hasBlobStorage)
         {
-            sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+            sb.AppendLine();
+            sb.AppendLine($"            // Ensure options is available for per-property blob provider resolution");
+            sb.AppendLine($"            // The blobProvider parameter is retained for backwards compatibility;");
+            sb.AppendLine($"            // per-property resolution uses options.GetBlobProvider(...) internally.");
+            sb.AppendLine($"            if (options == null && blobProvider == null)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                throw new InvalidOperationException(");
+            sb.AppendLine($"                    \"Either options with configured blob providers or a blobProvider parameter must be supplied for entities with blob storage properties.\");");
+            sb.AppendLine("            }");
         }
 
         sb.AppendLine();
@@ -185,6 +204,7 @@ internal static class HydratorGenerator
         sb.AppendLine("            }");
         sb.AppendLine();
         sb.AppendLine($"            // Delegate to the generated FromDynamoDbAsync method on the entity");
+        sb.AppendLine($"            // Per-property blob provider resolution occurs inside via options.GetBlobProvider(...)");
         sb.AppendLine($"            return await {entity.ClassName}.FromDynamoDbAsync<{entity.ClassName}>(");
         sb.AppendLine($"                items,");
 
@@ -207,30 +227,43 @@ internal static class HydratorGenerator
     {
         var hasBlobStorage = entity.Properties.Any(p => p.ComplexType?.IsBlobStorage == true);
 
+        // Generate a single SerializeAsync with keyInputMode parameter (defaults to KeyInputMode.Default)
         sb.AppendLine();
         sb.AppendLine($"        /// <summary>");
         sb.AppendLine($"        /// Serializes a {entity.ClassName} to DynamoDB attributes, storing blob references.");
+        sb.AppendLine($"        /// Per-property blob provider resolution uses options.GetBlobProvider(...) internally.");
         sb.AppendLine($"        /// </summary>");
         sb.AppendLine($"        /// <param name=\"entity\">The entity to serialize.</param>");
-        sb.AppendLine($"        /// <param name=\"blobProvider\">The blob storage provider for storing blob references.</param>");
-        sb.AppendLine($"        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc.</param>");
+        sb.AppendLine($"        /// <param name=\"blobProvider\">The blob storage provider (retained for backwards compatibility; per-property resolution uses options.GetBlobProvider internally).</param>");
+        sb.AppendLine($"        /// <param name=\"options\">Configuration options including named blob provider registry, logger, JSON serializer, etc.</param>");
+        sb.AppendLine($"        /// <param name=\"keyInputMode\">The key input mode controlling how key prefixes are applied during serialization.</param>");
         sb.AppendLine($"        /// <param name=\"cancellationToken\">Cancellation token.</param>");
         sb.AppendLine($"        /// <returns>The DynamoDB attributes.</returns>");
         sb.AppendLine($"        public async Task<Dictionary<string, AttributeValue>> SerializeAsync(");
         sb.AppendLine($"            {entity.ClassName} entity,");
         sb.AppendLine($"            IBlobStorageProvider? blobProvider,");
         sb.AppendLine($"            FluentDynamoDbOptions? options = null,");
+        sb.AppendLine($"            KeyInputMode keyInputMode = KeyInputMode.Default,");
         sb.AppendLine($"            CancellationToken cancellationToken = default)");
         sb.AppendLine("        {");
         sb.AppendLine($"            ArgumentNullException.ThrowIfNull(entity);");
 
         if (hasBlobStorage)
         {
-            sb.AppendLine($"            ArgumentNullException.ThrowIfNull(blobProvider);");
+            sb.AppendLine();
+            sb.AppendLine($"            // Ensure options is available for per-property blob provider resolution");
+            sb.AppendLine($"            // The blobProvider parameter is retained for backwards compatibility;");
+            sb.AppendLine($"            // per-property resolution uses options.GetBlobProvider(...) internally.");
+            sb.AppendLine($"            if (options == null && blobProvider == null)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                throw new InvalidOperationException(");
+            sb.AppendLine($"                    \"Either options with configured blob providers or a blobProvider parameter must be supplied for entities with blob storage properties.\");");
+            sb.AppendLine("            }");
         }
 
         sb.AppendLine();
         sb.AppendLine($"            // Delegate to the generated ToDynamoDbAsync method on the entity");
+        sb.AppendLine($"            // Per-property blob provider resolution occurs inside via options.GetBlobProvider(...)");
         sb.AppendLine($"            return await {entity.ClassName}.ToDynamoDbAsync(");
         sb.AppendLine($"                entity,");
 

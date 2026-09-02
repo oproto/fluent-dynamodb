@@ -708,13 +708,15 @@ namespace Oproto.FluentDynamoDb.Attributes
         public Type? EntityType { get; set; }
         public RelatedEntityAttribute(string sortKeyPattern) => SortKeyPattern = sortKeyPattern;
     }
-}";
+}
+";
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] {
                 CSharpSyntaxTree.ParseText(source),
-                CSharpSyntaxTree.ParseText(attributeSource)
+                CSharpSyntaxTree.ParseText(attributeSource),
+                CSharpSyntaxTree.ParseText("[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]")
             },
             DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

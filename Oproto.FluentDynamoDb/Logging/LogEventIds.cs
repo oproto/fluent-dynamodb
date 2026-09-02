@@ -60,6 +60,16 @@ public static class LogEventIds
     /// </summary>
     public const int DynamoDbMapDeserializationFailed = 1032;
     
+    /// <summary>
+    /// Event ID for when a constant key attribute value does not match the expected constant during deserialization.
+    /// </summary>
+    public const int ConstantKeyValidationMismatch = 1040;
+    
+    /// <summary>
+    /// Event ID for when a constant key attribute is missing from the incoming DynamoDB item during deserialization.
+    /// </summary>
+    public const int ConstantKeyAttributeMissing = 1041;
+    
     // ========================================
     // Type Conversions (2000-2999)
     // ========================================

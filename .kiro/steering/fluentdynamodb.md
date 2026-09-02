@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2026-01-03
+# Updated 2026-08-17
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -17,9 +17,13 @@ var table = new MyTable(new AmazonDynamoDBClient(), "TableName", new FluentDynam
 // Options
 var options = new FluentDynamoDbOptions()
     .WithLogger(logger)
-    .WithBlobStorage(new S3BlobProvider(...))
+    .WithBlobStorage(new S3BlobProvider(...))                    // Default provider
+    .WithBlobStorage("images", new S3BlobProvider(...))          // Named provider for [BlobStorage(Provider = "images")]
     .WithEncryption(new AwsEncryptionSdkFieldEncryptor(...))
     .UseConsistentRead(true);
+
+// Per-property blob provider: use [BlobStorage(Provider = "name")] to route
+// individual properties to specific named providers registered above.
 ```
 
 ## Entity Definition
@@ -46,6 +50,30 @@ public partial class Order
     [SortKey(Prefix = "ORDER")]
     [DynamoDbAttribute("sk")]
     public string OrderId { get; set; } = string.Empty;
+}
+
+// Constant key — expression-body syntax (fixed value, no parameter needed)
+[DynamoDbTable("Customers")]
+public partial class Customer
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string CustomerId { get; set; } = string.Empty;
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk => "PROFILE";  // Constant key: Keys.Sk returns "PROFILE", Get(pk) omits SK param
+}
+
+// Constant key — read-only auto-property syntax
+[DynamoDbTable("Config")]
+public partial class AppConfig
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; } = "APP_CONFIG";  // Constant key: parameterless Get()/Delete()/Update()
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; } = "SETTINGS";
 }
 
 // GSI/LSI
@@ -227,7 +255,6 @@ The source generator creates a nested `Keys` class with builder methods:
 // Generated methods:
 Order.Keys.Pk("12345")           // Returns "ORDER#12345"
 Order.Keys.Sk("abc")             // Returns "META#abc" (if SK has prefix)
-Order.Keys.Key("12345", "abc")   // Returns ("ORDER#12345", "META#abc")
 
 // Extraction helpers (for composite keys):
 Order.Keys.ExtractPkComponents("ORDER#12345")  // Returns "12345"
@@ -290,15 +317,99 @@ public partial class Event
 }
 
 // Generated methods:
-Event.Keys.BuildPk(2024, 12, 25)              // Returns "2024#12#25"
+Event.Keys.Pk(2024, 12, 25)                   // Returns "2024#12#25"
 Event.Keys.ExtractPkComponents("2024#12#25")  // Returns (Year: 2024, Month: 12, Day: 25)
 
+// Typed async convenience methods (simplest approach):
+var evt = await table.Events.GetAsync(2024, 12, 25, "sk");
+await table.Events.DeleteAsync(2024, 12, 25, "sk");
+
+// Typed builder overloads (when you need options like consistent read):
+var evt2 = await table.Events.Get(2024, 12, 25, "sk").UsingConsistentRead().GetItemAsync();
+
 // When reading, extracted properties are auto-populated:
-var evt = await table.Events.Get(Event.Keys.BuildPk(2024, 12, 25)).GetItemAsync();
-Console.WriteLine(evt.Year);   // 2024
-Console.WriteLine(evt.Month);  // 12
-Console.WriteLine(evt.Day);    // 25
+var evt3 = await table.Events.GetAsync(2024, 12, 25, "sk");
+Console.WriteLine(evt3.Year);   // 2024
+Console.WriteLine(evt3.Month);  // 12
+Console.WriteLine(evt3.Day);    // 25
 ```
+
+#### Computed Keys with Format String
+
+Use `Format` instead of `Separator` when your key needs fixed literal segments between values:
+
+```csharp
+[DynamoDbTable("invoices")]
+public partial class InvoiceLine
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    // Format string: literal text with {N} placeholders for source property values
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Sk", 0)]
+    public string InvoiceId { get; set; } = string.Empty;
+
+    [Extracted("Sk", 1)]
+    public int LineNumber { get; set; }
+}
+
+// Generated methods:
+InvoiceLine.Keys.Sk("INV-001", 1)              // Returns "INVOICE#INV-001#LINE#1"
+InvoiceLine.Keys.ExtractSkComponents("INVOICE#INV-001#LINE#1")  // Returns (InvoiceId: "INV-001", LineNumber: 1)
+```
+
+#### Separator vs Format
+
+| Approach | Attribute | Output for `("A", "B")` | Use When |
+|----------|-----------|--------------------------|----------|
+| Separator | `[Computed("X", "Y", Separator = "#")]` | `A#B` | Simple concatenation, no literal prefixes |
+| Format | `[Computed("X", "Y", Format = "PFX#{0}#SUF#{1}")]` | `PFX#A#SUF#B` | Need fixed literal segments in the key |
+
+#### Format Specifiers (`{N:format}`)
+
+Placeholders support .NET format specifiers for type-specific formatting:
+
+```csharp
+[DynamoDbTable("TimeSeries")]
+public partial class TimeEntry
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    [Computed("Date", Format = "ENTRY#{0:yyyy-MM-dd}")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("Sequence", Format = "SEQ#{0:D4}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Pk", 0)]
+    public DateTime Date { get; set; }
+
+    [Extracted("Sk", 0)]
+    public int Sequence { get; set; }
+}
+
+// Generated methods:
+TimeEntry.Keys.Pk(new DateTime(2024, 12, 25))  // Returns "ENTRY#2024-12-25"
+TimeEntry.Keys.Sk(7)                            // Returns "SEQ#0007"
+```
+
+Common format specifiers:
+
+| Type | Specifier | Input | Output |
+|------|-----------|-------|--------|
+| DateTime | `{0:yyyy-MM-dd}` | `2024-12-25` | `2024-12-25` |
+| DateTime | `{0:HH:mm:ss}` | `14:30:00` | `14:30:00` |
+| int | `{0:D4}` | `7` | `0007` |
+| int | `{0:D8}` | `42` | `00000042` |
+| decimal | `{0:F2}` | `3.5` | `3.50` |
 
 ### Key Handling Summary
 
@@ -315,7 +426,7 @@ Console.WriteLine(evt.Day);    // 25
 ```csharp
 // Building keys for operations - ALWAYS use Keys.Pk() for prefixed keys
 var pk = Order.Keys.Pk(orderId);                    // "ORDER#12345"
-var (pk, sk) = Order.Keys.Key(orderId, lineId);     // ("ORDER#12345", "LINE#abc")
+var sk = Order.Keys.Sk(lineId);                     // "LINE#abc"
 
 // CRUD operations with prefixed keys
 var order = await table.Orders.Get(Order.Keys.Pk(orderId)).GetItemAsync();
@@ -345,6 +456,10 @@ var user = await table.Users.Get(userId).GetItemAsync();              // Entity 
 // Convenience methods
 var user = await table.GetAsync(userId);
 var user = await table.Users.GetAsync(userId);
+
+// Typed async convenience (computed key entities)
+var evt = await table.Events.GetAsync(2024, 12, 25, "sk");           // Typed params, one-shot
+var evt = await table.GetAsync(2024, 12, 25, "sk");                  // Table-level typed
 
 // Options
 var user = await table.Users.Get(userId).UsingConsistentRead().WithProjection("name, email").GetItemAsync();
@@ -484,6 +599,11 @@ await table.Delete(userId).DeleteAsync();
 await table.Users.Delete(userId).DeleteAsync();
 await table.Users.DeleteAsync(userId);  // Convenience
 
+// Typed async convenience (computed key entities)
+await table.Events.DeleteAsync(2024, 12, 25, "sk");                              // Typed params, one-shot
+await table.Events.DeleteAsync(2024, 12, 25, "sk", KeyCondition.MustExist);      // With key condition
+await table.DeleteAsync(2024, 12, 25, "sk");                                      // Table-level typed
+
 // With condition
 await table.Users.Delete(userId).Where(x => x.Status == "inactive").DeleteAsync();
 
@@ -619,6 +739,55 @@ var customersByEmail = await table.EmailIndex.Query<Customer>(x => x.Email == "u
 | Same index, different type (GSI vs LSI) | FDDB055 diagnostic error |
 | Index on non-default entity | Index property generated normally |
 
+## Compound Key Discrimination (Multi-Entity Tables)
+
+When two entities on the same table have the same discriminator pattern on one key (e.g., both use `CAP#*` on SK), the source generator automatically promotes to compound discrimination using the other key's pattern.
+
+```csharp
+// Both entities share SK prefix "CAP" — generator auto-promotes to compound check
+[DynamoDbTable("capabilities", IsDefault = true)]
+public partial class PlatformCapability
+{
+    [PartitionKey(Prefix = "PLATFORM")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+
+[DynamoDbTable("capabilities")]
+public partial class TenantCapability
+{
+    [PartitionKey(Prefix = "TENANT")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "CAP")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+}
+// Generated MatchesEntity checks BOTH sk StartsWith("CAP#") AND pk StartsWith("PLATFORM#"/"TENANT#")
+// No FDDB102/DISC004 warning — resolved automatically via FDDB104
+```
+
+### Compound Discrimination Behavior
+
+| Scenario | Result |
+|----------|--------|
+| Both entities have different PK prefixes | Both get positive compound constraint (each checks its own PK pattern) |
+| One entity has PK prefix, other has bare PK | Prefixed entity gets positive check, bare entity gets exclusion guard |
+| Both entities have same/null PK patterns | Not resolvable — FDDB102/DISC004 emitted as before |
+| Cross-key has Complex pattern (multi-wildcard) | Treated as null — cannot be used for compound promotion |
+
+### Diagnostics
+
+| Code | Severity | Meaning |
+|------|----------|---------|
+| FDDB104 | Info | Compound promotion resolved a same-score overlap |
+| FDDB102 | Warning | Same-score overlap NOT resolved (patterns cannot disambiguate) |
+
 ## Projection Queries
 
 Projections work seamlessly with QueryRequestBuilder through the `IReadOnlyEntity` interface - just use `ToListAsync()` like any other entity.
@@ -711,6 +880,10 @@ await DynamoDbTransactions.WriteAsync(client, transactWriteRequest);
 | Put | `.PutAsync()` | `PutAsync()` |
 | Update | `.UpdateAsync()` | - |
 | Delete | `.DeleteAsync()` | `DeleteAsync()` |
+| Get (typed, computed key) | `.Get(typed...).GetItemAsync()` | `GetAsync(typed...)` |
+| Delete (typed, computed key) | `.Delete(typed...).DeleteAsync()` | `DeleteAsync(typed..., keyCondition)` |
+| Get (FluentResults) | `.GetItemAsyncResult()` | `GetAsyncResult()` |
+| Delete (FluentResults) | `.DeleteAsyncResult()` | `DeleteAsyncResult()` |
 | Query/Scan | `.ToListAsync()` | - |
 | Batch/Transaction | `.ExecuteAsync()` | `.ExecuteAndMapAsync<T1,T2>()` |
 | PartiQL | `.ToListAsync()`, `.ExecuteAsync()` | - |

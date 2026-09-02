@@ -82,29 +82,33 @@ public class PublicApiSurfaceTests
     }
 
     [Fact]
-    public void IKmsKeyResolver_HasResolveKeyIdMethod()
+    public void IKmsKeyResolver_HasResolveKeyIdAsyncMethod()
     {
         // Verify the interface has the expected method signature
         var interfaceType = typeof(IKmsKeyResolver);
-        var method = interfaceType.GetMethod("ResolveKeyId");
+        var method = interfaceType.GetMethod("ResolveKeyIdAsync");
         
         method.Should().NotBeNull();
-        method!.ReturnType.Should().Be(typeof(string));
+        method!.ReturnType.Should().Be(typeof(Task<string>));
         
         var parameters = method.GetParameters();
-        parameters.Should().HaveCount(1);
+        parameters.Should().HaveCount(3);
         parameters[0].ParameterType.Should().Be(typeof(string));
         parameters[0].Name.Should().Be("contextId");
+        parameters[1].ParameterType.Should().Be(typeof(string));
+        parameters[1].Name.Should().Be("keyAlias");
+        parameters[2].ParameterType.Should().Be(typeof(CancellationToken));
+        parameters[2].Name.Should().Be("cancellationToken");
     }
 
     [Fact]
-    public void IKmsKeyResolver_CustomImplementation_CanBeUsed()
+    public async Task IKmsKeyResolver_CustomImplementation_CanBeUsed()
     {
         // Arrange - Create a custom implementation
         var customResolver = new TestKmsKeyResolver("custom-key-arn");
         
         // Act
-        var keyArn = customResolver.ResolveKeyId("test-context");
+        var keyArn = await customResolver.ResolveKeyIdAsync("test-context");
         
         // Assert
         keyArn.Should().Be("custom-key-arn");
@@ -421,17 +425,17 @@ public class PublicApiSurfaceTests
     }
 
     [Fact]
-    public void DefaultKmsKeyResolver_CanBeCreatedWithDefaultKey()
+    public async Task DefaultKmsKeyResolver_CanBeCreatedWithDefaultKey()
     {
         // Standard creation pattern
         var resolver = new DefaultKmsKeyResolver("arn:aws:kms:us-east-1:123456789012:key/test-key");
         
         resolver.Should().NotBeNull();
-        resolver.ResolveKeyId(null).Should().Be("arn:aws:kms:us-east-1:123456789012:key/test-key");
+        (await resolver.ResolveKeyIdAsync(null)).Should().Be("arn:aws:kms:us-east-1:123456789012:key/test-key");
     }
 
     [Fact]
-    public void DefaultKmsKeyResolver_CanBeCreatedWithContextKeyMap()
+    public async Task DefaultKmsKeyResolver_CanBeCreatedWithContextKeyMap()
     {
         // Standard creation pattern with context map
         var contextKeyMap = new Dictionary<string, string>
@@ -444,8 +448,8 @@ public class PublicApiSurfaceTests
             contextKeyMap);
         
         resolver.Should().NotBeNull();
-        resolver.ResolveKeyId("tenant-a").Should().Be("arn:aws:kms:us-east-1:123456789012:key/tenant-a-key");
-        resolver.ResolveKeyId("unknown").Should().Be("arn:aws:kms:us-east-1:123456789012:key/default-key");
+        (await resolver.ResolveKeyIdAsync("tenant-a")).Should().Be("arn:aws:kms:us-east-1:123456789012:key/tenant-a-key");
+        (await resolver.ResolveKeyIdAsync("unknown")).Should().Be("arn:aws:kms:us-east-1:123456789012:key/default-key");
     }
 
     #endregion
@@ -464,9 +468,10 @@ public class PublicApiSurfaceTests
             _keyArn = keyArn;
         }
 
-        public string ResolveKeyId(string? contextId)
+        public Task<string> ResolveKeyIdAsync(string? contextId, string? keyAlias = null, CancellationToken cancellationToken = default)
         {
-            return _keyArn;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_keyArn);
         }
     }
 

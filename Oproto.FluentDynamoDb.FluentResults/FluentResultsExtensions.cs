@@ -2,7 +2,6 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using FluentResults;
 using Oproto.FluentDynamoDb.Entities;
-using Oproto.FluentDynamoDb.Providers.BlobStorage;
 using Oproto.FluentDynamoDb.Requests;
 using Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -44,38 +43,6 @@ public static class FluentResultsExtensions
     }
 
     /// <summary>
-    /// Executes a GetItem operation with blob reference support and maps the result to a strongly-typed entity, returning a Result&lt;T?&gt;.
-    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The GetItemRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A Result containing the mapped entity (or null if not found) or error details.</returns>
-    public static async Task<Result<T?>> GetItemAsyncResult<T>(
-        this GetItemRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        try
-        {
-            var entity = await EntityExecuteAsyncExtensions.GetItemAsync<T>(builder, blobProvider, cancellationToken).ConfigureAwait(false);
-            return Result.Ok(entity);
-        }
-        catch (OperationCanceledException)
-        {
-            // Re-throw cancellation exceptions as they should not be wrapped
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail<T?>(DynamoDbErrors.FromException(ex));
-        }
-    }
-
-    /// <summary>
     /// Executes a Query operation and maps each DynamoDB item to a separate entity instance (1:1 mapping), returning a Result&lt;T&gt;.
     /// Each DynamoDB item becomes a separate T instance in the returned list.
     /// </summary>
@@ -91,38 +58,6 @@ public static class FluentResultsExtensions
         try
         {
             var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, cancellationToken).ConfigureAwait(false);
-            return Result.Ok(response);
-        }
-        catch (OperationCanceledException)
-        {
-            // Re-throw cancellation exceptions as they should not be wrapped
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail(DynamoDbErrors.FromException(ex));
-        }
-    }
-
-    /// <summary>
-    /// Executes a Query operation and maps each DynamoDB item to a separate entity instance (1:1 mapping) with blob reference support, returning a Result&lt;T&gt;.
-    /// Each DynamoDB item becomes a separate T instance in the returned list.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The QueryRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A Result containing the list of mapped entities or error details.</returns>
-    public static async Task<Result<List<T>>> ToListAsyncResult<T>(
-        this QueryRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        try
-        {
-            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, blobProvider, cancellationToken).ConfigureAwait(false);
             return Result.Ok(response);
         }
         catch (OperationCanceledException)
@@ -225,39 +160,6 @@ public static class FluentResultsExtensions
     }
 
     /// <summary>
-    /// Executes a Scan operation and maps each DynamoDB item to a separate entity instance (1:1 mapping) with blob reference support, returning a Result&lt;T&gt;.
-    /// Each DynamoDB item becomes a separate T instance in the returned list.
-    /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The ScanRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A Result containing the list of mapped entities or error details.</returns>
-    public static async Task<Result<List<T>>> ToListAsyncResult<T>(
-        this ScanRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        try
-        {
-            var response = await EntityExecuteAsyncExtensions.ToListAsync<T>(builder, blobProvider, cancellationToken).ConfigureAwait(false);
-            return Result.Ok(response);
-        }
-        catch (OperationCanceledException)
-        {
-            // Re-throw cancellation exceptions as they should not be wrapped
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail(DynamoDbErrors.FromException(ex));
-        }
-    }
-
-    /// <summary>
     /// Executes a Scan operation and combines multiple DynamoDB items into composite entities (N:1 mapping), returning a Result&lt;T&gt;.
     /// Multiple DynamoDB items with the same partition key are combined into single T instances.
     /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
@@ -304,38 +206,6 @@ public static class FluentResultsExtensions
         try
         {
             await EntityExecuteAsyncExtensions.PutAsync(builder, cancellationToken).ConfigureAwait(false);
-            return Result.Ok();
-        }
-        catch (OperationCanceledException)
-        {
-            // Re-throw cancellation exceptions as they should not be wrapped
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail(DynamoDbErrors.FromException(ex));
-        }
-    }
-
-    /// <summary>
-    /// Executes a PutItem operation with blob reference support and stores the entity in DynamoDB, returning a Result.
-    /// This method uses the Primary API which populates DynamoDbOperationContext.Current with operation metadata.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// </summary>
-    /// <typeparam name="T">The entity type.</typeparam>
-    /// <param name="builder">The PutItemRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for storing blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A Result indicating success or containing error details.</returns>
-    public static async Task<Result> PutAsyncResult<T>(
-        this PutItemRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        try
-        {
-            await EntityExecuteAsyncExtensions.PutAsync(builder, blobProvider, cancellationToken).ConfigureAwait(false);
             return Result.Ok();
         }
         catch (OperationCanceledException)

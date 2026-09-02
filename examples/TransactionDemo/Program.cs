@@ -317,8 +317,10 @@ static async Task DemonstrateRequireWriteTransactionAsync(TransactionDemoTable t
     
     var financialTxn = new FinancialTransaction
     {
-        Pk = FinancialTransaction.Keys.Pk(accountId),
-        Sk = FinancialTransaction.Keys.Sk($"{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}"),
+        // Auto key mode applies "ACCOUNT#" prefix during serialization
+        Pk = accountId,
+        // Auto key mode applies "FIN#" prefix during serialization
+        Sk = $"{timestamp:yyyy-MM-ddTHH:mm:ss.fffZ}#{txnId}",
         AccountId = accountId,
         TransactionId = txnId,
         Amount = 500.00m,
@@ -410,7 +412,7 @@ static async Task ViewCurrentItemsAsync(TransactionDemoTable table)
     var allAccounts = await table.Accounts.Scan().ToListAsync();
     
     // Filter to only account profiles (not transaction records)
-    var accounts = allAccounts.Where(x => x.Sk == Account.ProfileSk).ToList();
+    var accounts = allAccounts.Where(x => x.Sk == "PROFILE").ToList();
     
     if (accounts.Count == 0)
     {
@@ -522,6 +524,11 @@ static async Task DeleteAllItemsAsync(TransactionDemoTable table)
         var pk = item["pk"].S;
         var sk = item["sk"].S;
         
-        await table.Accounts.Delete(pk, sk).DeleteAsync();
+        // Use raw builder since this deletes all item types (accounts + transactions)
+        // and the constant-key accessor only handles Account's fixed "PROFILE" SK
+        await table.Delete<Account>()
+            .WithKey("pk", pk)
+            .WithKey("sk", sk)
+            .DeleteAsync();
     }
 }

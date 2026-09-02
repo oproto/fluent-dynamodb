@@ -56,9 +56,8 @@ namespace TestNamespace
         entityCode.Should().Contain("public const string Id = \"pk\";", "should map Id property to pk attribute in nested Fields class");
         entityCode.Should().Contain("public const string Name = \"name\";", "should map Name property to name attribute in nested Fields class");
 
-        // Check nested keys class
+        // Check nested keys class exists (bare keys have no Pk/Sk methods since there is no prefix or computed key)
         entityCode.ShouldContainClass("Keys");
-        entityCode.ShouldContainMethod("Pk");
     }
 
     [Fact]
@@ -545,10 +544,12 @@ namespace TestNamespace
     /// </summary>
     private static GeneratorTestResult GenerateCode(string source)
     {
+        var schemaVersionSource = "[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]";
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] {
-                CSharpSyntaxTree.ParseText(source)
+                CSharpSyntaxTree.ParseText(source),
+                CSharpSyntaxTree.ParseText(schemaVersionSource)
             },
             DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

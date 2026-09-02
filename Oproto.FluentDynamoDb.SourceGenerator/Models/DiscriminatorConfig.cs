@@ -26,6 +26,13 @@ internal class DiscriminatorConfig
     public DiscriminatorStrategy Strategy { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this discriminator was auto-derived from the key format
+    /// rather than explicitly specified by the developer.
+    /// Used by FDDB102 (only warn about auto-derived pairs) and FDDB103 (redundancy detection).
+    /// </summary>
+    public bool IsAutoDerived { get; set; }
+
+    /// <summary>
     /// Gets a value indicating whether this discriminator configuration is valid.
     /// </summary>
     public bool IsValid => !string.IsNullOrEmpty(PropertyName) && 
@@ -38,6 +45,15 @@ internal class DiscriminatorConfig
     /// Populated by PatternOverlapAnalyzer during the overlap analysis pass.
     /// </summary>
     public List<ExclusionPattern> OverlappingPatterns { get; set; } = new();
+
+    /// <summary>
+    /// Optional secondary constraint (AND'd with primary check).
+    /// Populated by CompoundPromotionPass when a same-score overlap on the primary
+    /// discriminator property is resolvable via cross-key disambiguation.
+    /// When non-null, the generated MatchesEntity method verifies BOTH the primary
+    /// discriminator AND this compound constraint.
+    /// </summary>
+    public CompoundConstraint? CompoundConstraint { get; set; }
 }
 
 /// <summary>

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Oproto.FluentDynamoDb.Hydration;
@@ -30,6 +31,12 @@ public sealed class FluentDynamoDbOptions
     /// Null if blob storage is not configured.
     /// </summary>
     public IBlobStorageProvider? BlobStorageProvider { get; private init; }
+    
+    /// <summary>
+    /// Gets the registry of named blob storage providers.
+    /// </summary>
+    internal ImmutableDictionary<string, IBlobStorageProvider> NamedBlobProviders { get; private init; }
+        = ImmutableDictionary<string, IBlobStorageProvider>.Empty;
     
     /// <summary>
     /// Gets the blob storage strategy for coordinating blob and DynamoDB operations.
@@ -86,6 +93,12 @@ public sealed class FluentDynamoDbOptions
     public ReturnValue? DefaultReturnValues { get; private init; }
 
     /// <summary>
+    /// Gets the default key input mode used when operations specify KeyInputMode.Default.
+    /// Default value: KeyInputMode.Auto
+    /// </summary>
+    public KeyInputMode DefaultKeyInputMode { get; private init; } = KeyInputMode.Auto;
+
+    /// <summary>
     /// Creates a new options instance with the specified logger.
     /// </summary>
     /// <param name="logger">The logger to use. If null, uses NoOpLogger.Instance.</param>
@@ -122,7 +135,60 @@ public sealed class FluentDynamoDbOptions
         var strategy = BlobStorageStrategy ?? new BestEffortCleanupStrategy(provider, Logger);
         return CloneWith(blobStorageProvider: provider, blobStorageStrategy: strategy);
     }
+
+    /// <summary>
+    /// Creates a new options instance with the specified named blob storage provider registered.
+    /// </summary>
+    /// <param name="name">The provider name. Must not be null, empty, or whitespace.</param>
+    /// <param name="provider">The blob storage provider instance. Must not be null.</param>
+    /// <returns>A new FluentDynamoDbOptions instance with the named provider registered.</returns>
+    /// <exception cref="ArgumentException">Thrown when name is null, empty, or whitespace.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when provider is null.</exception>
+    public FluentDynamoDbOptions WithBlobStorage(string name, IBlobStorageProvider provider)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(provider);
+
+        return CloneWith(namedBlobProviders: NamedBlobProviders.SetItem(name, provider));
+    }
     
+    /// <summary>
+    /// Gets the blob storage provider for the given name.
+    /// </summary>
+    /// <param name="name">
+    /// The provider name, or <c>null</c>/<c>""</c> to get the default provider
+    /// registered via <see cref="WithBlobStorage(IBlobStorageProvider?)"/>.
+    /// </param>
+    /// <returns>The resolved <see cref="IBlobStorageProvider"/>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the requested provider is not registered. The exception message includes
+    /// the requested name and, when other providers are registered, lists all available provider names.
+    /// </exception>
+    public IBlobStorageProvider GetBlobProvider(string? name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return BlobStorageProvider
+                ?? throw new InvalidOperationException(
+                    "No default blob storage provider has been configured. " +
+                    "Call .WithBlobStorage(provider) on FluentDynamoDbOptions to register one.");
+        }
+
+        if (NamedBlobProviders.TryGetValue(name, out var provider))
+        {
+            return provider;
+        }
+
+        var message = NamedBlobProviders.IsEmpty
+            ? $"Named blob storage provider '{name}' is not registered and no named providers have been configured. " +
+              $"Call .WithBlobStorage(\"{name}\", provider) on FluentDynamoDbOptions to register it."
+            : $"Named blob storage provider '{name}' is not registered. " +
+              $"Available providers: {string.Join(", ", NamedBlobProviders.Keys.OrderBy(k => k))}. " +
+              $"Call .WithBlobStorage(\"{name}\", provider) on FluentDynamoDbOptions to register it.";
+
+        throw new InvalidOperationException(message);
+    }
+
     /// <summary>
     /// Creates a new options instance with the specified blob storage strategy.
     /// </summary>
@@ -261,6 +327,22 @@ public sealed class FluentDynamoDbOptions
         => CloneWith(defaultReturnValues: value);
 
     /// <summary>
+    /// Creates a new options instance with the specified default key input mode.
+    /// </summary>
+    /// <param name="mode">The key input mode to use as the default. Cannot be KeyInputMode.Default.</param>
+    /// <returns>A new FluentDynamoDbOptions instance with the specified key input mode.</returns>
+    /// <exception cref="ArgumentException">Thrown when KeyInputMode.Default is specified.</exception>
+    public FluentDynamoDbOptions UseKeyInputMode(KeyInputMode mode)
+    {
+        if (mode == KeyInputMode.Default)
+            throw new ArgumentException(
+                "KeyInputMode.Default is only valid as a per-call parameter value. " +
+                "Specify Auto, Value, or Raw for the global default.",
+                nameof(mode));
+        return CloneWith(defaultKeyInputMode: mode);
+    }
+
+    /// <summary>
     /// Creates a clone of this options instance with the specified overrides.
     /// </summary>
     private FluentDynamoDbOptions CloneWith(
@@ -275,6 +357,8 @@ public sealed class FluentDynamoDbOptions
         ReturnConsumedCapacity? defaultReturnConsumedCapacity = null,
         ReturnItemCollectionMetrics? defaultReturnItemCollectionMetrics = null,
         ReturnValue? defaultReturnValues = null,
+        KeyInputMode? defaultKeyInputMode = null,
+        ImmutableDictionary<string, IBlobStorageProvider>? namedBlobProviders = null,
         bool setJsonSerializer = false,
         bool setBlobStorageProvider = false,
         bool setBlobStorageStrategy = false)
@@ -291,7 +375,9 @@ public sealed class FluentDynamoDbOptions
             DefaultConsistentRead = defaultConsistentRead ?? DefaultConsistentRead,
             DefaultReturnConsumedCapacity = defaultReturnConsumedCapacity ?? DefaultReturnConsumedCapacity,
             DefaultReturnItemCollectionMetrics = defaultReturnItemCollectionMetrics ?? DefaultReturnItemCollectionMetrics,
-            DefaultReturnValues = defaultReturnValues ?? DefaultReturnValues
+            DefaultReturnValues = defaultReturnValues ?? DefaultReturnValues,
+            DefaultKeyInputMode = defaultKeyInputMode ?? DefaultKeyInputMode,
+            NamedBlobProviders = namedBlobProviders ?? NamedBlobProviders
         };
     }
 }

@@ -92,7 +92,10 @@ public class KeysGeneratorTests
         // Assert - Structural checks
         result.ShouldContainMethod("Pk", "should generate partition key builder method");
         result.ShouldContainMethod("Sk", "should generate sort key builder method");
-        result.ShouldContainMethod("Key", "should generate composite key builder method");
+
+        // Assert - Key() composite method is NOT generated (removed per unified API)
+        result.Should().NotContain("public static (string PartitionKey, string SortKey) Key(",
+            "should not generate Key() composite method — use Pk() and Sk() independently");
 
         // Assert - Class and key format checks (DynamoDB-specific)
         result.Should().Contain("public static partial class TestEntityKeys",
@@ -101,14 +104,13 @@ public class KeysGeneratorTests
             "should use the specified prefix 'tenant' with separator '#' for partition key format");
         result.Should().Contain("var keyValue = \"txn#\" + transactionId.ToString();",
             "should use the specified prefix 'txn' with separator '#' for sort key format and convert Guid to string");
-        result.Should().Contain("return (Pk(tenantId), Sk(transactionId));",
-            "should return tuple calling both Pk and Sk methods for composite key");
     }
 
     [Fact]
     public void GenerateKeysClass_WithGsi_GeneratesGsiKeyBuilders()
     {
-        // Arrange
+        // Arrange - GSI properties need a prefix to generate key builder methods
+        // (bare keys without prefix/computed produce no method per unified API)
         var entity = new EntityModel
         {
             ClassName = "TestEntity",
@@ -121,19 +123,21 @@ public class KeysGeneratorTests
                     PropertyName = "Id",
                     AttributeName = "pk",
                     PropertyType = "string",
-                    IsPartitionKey = true
+                    IsPartitionKey = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "item", Separator = "#" }
                 },
                 new PropertyModel
                 {
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
+                    KeyFormat = new KeyFormatModel { Prefix = "STATUS", Separator = "#" },
                     GsiPartitionKeys = new[]
                     {
                         new GsiPartitionKeyModel
                         {
                             IndexName = "StatusIndex",
-}
+                        }
                     }
                 },
                 new PropertyModel
@@ -141,12 +145,13 @@ public class KeysGeneratorTests
                     PropertyName = "CreatedDate",
                     AttributeName = "created_date",
                     PropertyType = "System.DateTime",
+                    KeyFormat = new KeyFormatModel { Prefix = "DATE", Separator = "#" },
                     GsiSortKeys = new[]
                         {
                             new GsiSortKeyModel
                         {
                             IndexName = "StatusIndex",
-}
+                        }
                     }
                 }
             },
@@ -169,7 +174,10 @@ public class KeysGeneratorTests
 
         // Assert - Structural checks
         result.ShouldContainMethod("Pk", "should generate partition key builder method for main table");
-        result.ShouldContainMethod("Key", "should generate composite key builder for GSI");
+
+        // Assert - Key() composite method is NOT generated for GSI (removed per unified API)
+        result.Should().NotContain("public static (string PartitionKey, string SortKey) Key(",
+            "should not generate Key() composite method for GSI — use Pk() and Sk() independently");
         
         // Assert - Class and documentation checks (DynamoDB-specific)
         result.Should().Contain("public static partial class TestEntityKeys",
@@ -184,7 +192,8 @@ public class KeysGeneratorTests
     [Fact]
     public void GenerateKeysClass_WithNullableTypes_GeneratesNullChecks()
     {
-        // Arrange
+        // Arrange - must include a prefix so that the key builder method is generated
+        // (bare keys without prefix/computed produce no method per unified API)
         var entity = new EntityModel
         {
             ClassName = "TestEntity",
@@ -198,7 +207,8 @@ public class KeysGeneratorTests
                     AttributeName = "pk",
                     PropertyType = "string?",
                     IsPartitionKey = true,
-                    IsNullable = true
+                    IsNullable = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "item", Separator = "#" }
                 }
             }
         };
@@ -222,7 +232,8 @@ public class KeysGeneratorTests
     [Fact]
     public void GenerateKeysClass_WithGuidType_GeneratesToStringConversion()
     {
-        // Arrange
+        // Arrange - must include a prefix so that the key builder method is generated
+        // (bare keys without prefix/computed produce no method per unified API)
         var entity = new EntityModel
         {
             ClassName = "TestEntity",
@@ -235,7 +246,8 @@ public class KeysGeneratorTests
                     PropertyName = "Id",
                     AttributeName = "pk",
                     PropertyType = "System.Guid",
-                    IsPartitionKey = true
+                    IsPartitionKey = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "item", Separator = "#" }
                 }
             }
         };
@@ -257,7 +269,8 @@ public class KeysGeneratorTests
     [Fact]
     public void GenerateKeysClass_WithDateTimeType_GeneratesFormattedString()
     {
-        // Arrange
+        // Arrange - must include a prefix so that the key builder method is generated
+        // (bare keys without prefix/computed produce no method per unified API)
         var entity = new EntityModel
         {
             ClassName = "TestEntity",
@@ -270,7 +283,8 @@ public class KeysGeneratorTests
                     PropertyName = "CreatedDate",
                     AttributeName = "pk",
                     PropertyType = "System.DateTime",
-                    IsPartitionKey = true
+                    IsPartitionKey = true,
+                    KeyFormat = new KeyFormatModel { Prefix = "date", Separator = "#" }
                 }
             }
         };
@@ -412,12 +426,13 @@ public class KeysGeneratorTests
                     PropertyName = "Status",
                     AttributeName = "status",
                     PropertyType = "string",
+                    KeyFormat = new KeyFormatModel { Prefix = "STATUS", Separator = "#" },
                     GsiPartitionKeys = new[]
                     {
                         new GsiPartitionKeyModel
                         {
                             IndexName = "StatusIndex",
-}
+                        }
                     }
                 }
             },
@@ -454,11 +469,11 @@ public class KeysGeneratorTests
         nestedResult.Should().Contain("public static string Sk(System.Guid transactionId)",
             "nested class should have identical Sk method signature");
 
-        // Assert - Main table Key method signature
-        topLevelResult.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, System.Guid transactionId)",
-            "top-level class should have Key method returning tuple");
-        nestedResult.Should().Contain("public static (string PartitionKey, string SortKey) Key(string tenantId, System.Guid transactionId)",
-            "nested class should have identical Key method signature");
+        // Assert - Key() composite method is NOT generated (removed per unified API)
+        topLevelResult.Should().NotContain("public static (string PartitionKey, string SortKey) Key(",
+            "top-level class should not generate Key() composite method — use Pk() and Sk() independently");
+        nestedResult.Should().NotContain("public static (string PartitionKey, string SortKey) Key(",
+            "nested class should not generate Key() composite method — use Pk() and Sk() independently");
 
         // Assert - GSI class name is consistent between both methods
         // Note: Both methods now use the index name without redundant "Keys" suffix

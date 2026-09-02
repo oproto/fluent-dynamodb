@@ -24,6 +24,9 @@ public class TestEntityBase : IDynamoDbEntity
             ["name"] = new AttributeValue { S = (entity as TestEntityBase)?.Name ?? string.Empty }
         };
 
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
+
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null)
         where TSelf : IReadOnlyEntity => (TSelf)(object)new TestEntityBase
         {

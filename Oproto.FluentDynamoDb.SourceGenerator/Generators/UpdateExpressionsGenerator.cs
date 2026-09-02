@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
 using System.Text;
 
@@ -68,10 +69,52 @@ internal static class UpdateExpressionsGenerator
         sb.AppendLine($"    public partial class {entity.ClassName}UpdateExpressions");
         sb.AppendLine("    {");
 
-        // Generate properties
+        // Generate properties with exclusion/inclusion filtering
+        var alreadyGenerated = new HashSet<string>();
+
         foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
         {
+            // EXCLUSION: Skip key properties (Req 1)
+            if (property.IsPartitionKey || property.IsSortKey)
+                continue;
+
+            // EXCLUSION: Skip constant key properties — value cannot change (Req 8.1, 8.2, 8.3)
+            // Independent of existing key exclusion logic (belt-and-suspenders)
+            if (property.IsConstantKey)
+                continue;
+
+            // EXCLUSION: Skip extracted properties whose source is a key (Req 2)
+            if (property.IsExtracted && IsExtractedFromKeyProperty(property, entity))
+                continue;
+
+            // EXCLUSION: Skip source properties of key-based computed fields (Req 3.5)
+            if (IsSourcePropertyOfKeyComputed(property, entity))
+                continue;
+
+            // EXCLUSION: Skip extracted properties of key-based computed fields (Req 3.5)
+            if (IsExtractedPropertyOfKeyComputed(property, entity))
+                continue;
+
             GenerateUpdateExpressionProperty(sb, property, entity);
+            alreadyGenerated.Add(property.PropertyName);
+        }
+
+        // INCLUSION: Add source properties of non-key computed fields (Req 3.2)
+        // These may not have HasAttributeMapping (they're virtual properties)
+        foreach (var computedProp in GetNonKeyComputedProperties(entity))
+        {
+            foreach (var sourcePropName in computedProp.ComputedKey!.SourceProperties)
+            {
+                if (alreadyGenerated.Contains(sourcePropName))
+                    continue;
+
+                var sourceProp = entity.Properties.FirstOrDefault(p => p.PropertyName == sourcePropName);
+                if (sourceProp != null)
+                {
+                    GenerateUpdateExpressionProperty(sb, sourceProp, entity);
+                    alreadyGenerated.Add(sourcePropName);
+                }
+            }
         }
 
         // Close class
@@ -87,8 +130,9 @@ internal static class UpdateExpressionsGenerator
     /// Generates the UpdateModel class for an entity.
     /// </summary>
     /// <param name="entity">The entity model to generate the UpdateModel class for.</param>
+    /// <param name="diagnostics">Optional list to collect diagnostics encountered during generation.</param>
     /// <returns>The generated C# source code.</returns>
-    public static string GenerateUpdateModelClass(EntityModel entity)
+    public static string GenerateUpdateModelClass(EntityModel entity, List<Diagnostic>? diagnostics = null)
     {
         var sb = new StringBuilder();
 
@@ -137,10 +181,74 @@ internal static class UpdateExpressionsGenerator
         sb.AppendLine($"    public partial class {entity.ClassName}UpdateModel");
         sb.AppendLine("    {");
 
-        // Generate properties
+        // Generate properties with exclusion/inclusion filtering
+        var alreadyGenerated = new HashSet<string>();
+
         foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
         {
+            // EXCLUSION: Skip key properties (Req 1)
+            if (property.IsPartitionKey || property.IsSortKey)
+                continue;
+
+            // EXCLUSION: Skip constant key properties — value cannot change (Req 8.1, 8.2, 8.3)
+            // Independent of existing key exclusion logic (belt-and-suspenders)
+            if (property.IsConstantKey)
+                continue;
+
+            // EXCLUSION: Skip extracted properties whose source is a key (Req 2)
+            if (property.IsExtracted)
+            {
+                // Handle [Extracted] referencing non-existent property (Req 2.4)
+                var sourceExists = entity.Properties.Any(p => p.PropertyName == property.ExtractedKey!.SourceProperty);
+                if (!sourceExists)
+                {
+                    // Emit diagnostic and skip this property
+                    if (diagnostics != null)
+                    {
+                        var location = property.PropertyDeclaration?.Identifier.GetLocation()
+                            ?? entity.ClassDeclaration?.Identifier.GetLocation()
+                            ?? Location.None;
+                        diagnostics.Add(Diagnostic.Create(
+                            DiagnosticDescriptors.InvalidExtractedKeySource,
+                            location,
+                            property.PropertyName,
+                            property.ExtractedKey!.SourceProperty));
+                    }
+                    continue;
+                }
+
+                if (IsExtractedFromKeyProperty(property, entity))
+                    continue;
+            }
+
+            // EXCLUSION: Skip source properties of key-based computed fields (Req 3.5)
+            if (IsSourcePropertyOfKeyComputed(property, entity))
+                continue;
+
+            // EXCLUSION: Skip extracted properties of key-based computed fields (Req 3.5)
+            if (IsExtractedPropertyOfKeyComputed(property, entity))
+                continue;
+
             GenerateUpdateModelProperty(sb, property, entity);
+            alreadyGenerated.Add(property.PropertyName);
+        }
+
+        // INCLUSION: Add source properties of non-key computed fields (Req 3.2)
+        // These may not have HasAttributeMapping (they're virtual properties)
+        foreach (var computedProp in GetNonKeyComputedProperties(entity))
+        {
+            foreach (var sourcePropName in computedProp.ComputedKey!.SourceProperties)
+            {
+                if (alreadyGenerated.Contains(sourcePropName))
+                    continue;
+
+                var sourceProp = entity.Properties.FirstOrDefault(p => p.PropertyName == sourcePropName);
+                if (sourceProp != null)
+                {
+                    GenerateUpdateModelProperty(sb, sourceProp, entity);
+                    alreadyGenerated.Add(sourcePropName);
+                }
+            }
         }
 
         // Generate DynamicFields property if enabled
@@ -504,5 +612,61 @@ internal static class UpdateExpressionsGenerator
                    attrName == "DynamoDbTableAttribute" ||
                    attrName == "DynamoDbTable";
         });
+    }
+
+    /// <summary>
+    /// Checks if an extracted property's source is a key property (partition key or sort key).
+    /// </summary>
+    /// <param name="property">The property to check.</param>
+    /// <param name="entity">The entity containing all properties.</param>
+    /// <returns>True if the property is extracted from a key property; otherwise, false.</returns>
+    private static bool IsExtractedFromKeyProperty(PropertyModel property, EntityModel entity)
+    {
+        if (property.ExtractedKey == null) return false;
+        var sourceProperty = entity.Properties
+            .FirstOrDefault(p => p.PropertyName == property.ExtractedKey.SourceProperty);
+        return sourceProperty != null && (sourceProperty.IsPartitionKey || sourceProperty.IsSortKey);
+    }
+
+    /// <summary>
+    /// Checks if a property is a source property of a key-based computed field.
+    /// A property is a source of a key-based computed field if there exists a computed property
+    /// that is a key (PK or SK) and that computed property lists this property's name in its SourceProperties.
+    /// </summary>
+    /// <param name="property">The property to check.</param>
+    /// <param name="entity">The entity containing all properties.</param>
+    /// <returns>True if the property is a source of a key-based computed field; otherwise, false.</returns>
+    private static bool IsSourcePropertyOfKeyComputed(PropertyModel property, EntityModel entity)
+    {
+        return entity.Properties.Any(p =>
+            p.IsComputed &&
+            (p.IsPartitionKey || p.IsSortKey) &&
+            p.ComputedKey!.SourceProperties.Contains(property.PropertyName));
+    }
+
+    /// <summary>
+    /// Checks if a property is an extracted property of a key-based computed field.
+    /// </summary>
+    /// <param name="property">The property to check.</param>
+    /// <param name="entity">The entity containing all properties.</param>
+    /// <returns>True if the property is extracted from a key-based computed field; otherwise, false.</returns>
+    private static bool IsExtractedPropertyOfKeyComputed(PropertyModel property, EntityModel entity)
+    {
+        if (property.ExtractedKey == null) return false;
+        var sourceProp = entity.Properties
+            .FirstOrDefault(p => p.PropertyName == property.ExtractedKey.SourceProperty);
+        return sourceProp != null && sourceProp.IsComputed &&
+               (sourceProp.IsPartitionKey || sourceProp.IsSortKey);
+    }
+
+    /// <summary>
+    /// Gets computed properties that are not key properties (not partition key and not sort key).
+    /// </summary>
+    /// <param name="entity">The entity containing all properties.</param>
+    /// <returns>An enumerable of computed properties that are not keys.</returns>
+    private static IEnumerable<PropertyModel> GetNonKeyComputedProperties(EntityModel entity)
+    {
+        return entity.Properties.Where(p =>
+            p.IsComputed && !p.IsPartitionKey && !p.IsSortKey);
     }
 }

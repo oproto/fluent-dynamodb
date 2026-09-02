@@ -23,7 +23,7 @@ public class NonStringKeyAccessorBugExplorationTests
     /// Entity with [SortKey] [DynamoDbAttribute("SK")] SnsSubscriptionTopic Topic (no prefix, no format).
     /// Expected: SetKey with new AttributeValue { S = sK.ToString() }
     /// </summary>
-    [Fact(Skip = "Deferred: non-string keys with prefixes reverted to string-only accessors. Tracked in future overhaul story.")]
+    [Fact]
     public void EnumSortKey_DefaultSerialization_ShouldUseSetKeyWithStringAttributeValue()
     {
         // Arrange
@@ -50,7 +50,7 @@ public class NonStringKeyAccessorBugExplorationTests
     /// Entity with [SortKey] [DynamoDbAttribute("SK", Format = "D")] SnsSubscriptionTopic Topic.
     /// Expected: SetKey with new AttributeValue { S = sK.ToString("D", System.Globalization.CultureInfo.InvariantCulture) }
     /// </summary>
-    [Fact(Skip = "Deferred: non-string keys with prefixes reverted to string-only accessors. Tracked in future overhaul story.")]
+    [Fact]
     public void EnumSortKey_IntegerSerializationFormat_ShouldUseSetKeyWithFormattedAttributeValue()
     {
         // Arrange
@@ -361,7 +361,7 @@ public class NonStringKeyAccessorBugExplorationTests
     /// Test 14: Both keys non-string — int PK + enum SK, both without prefix.
     /// Verifies both keys go through SetKey.
     /// </summary>
-    [Fact(Skip = "Deferred: non-string keys with prefixes reverted to string-only accessors. Tracked in future overhaul story.")]
+    [Fact]
     public void BothKeysNonString_IntPkAndEnumSk_ShouldUseSetKey()
     {
         // Arrange
@@ -385,6 +385,22 @@ public class NonStringKeyAccessorBugExplorationTests
     }
 
     #region Helper Methods
+
+    private static readonly HashSet<string> KnownNonEnumTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "string", "int", "long", "double", "float", "decimal",
+        "bool", "DateTime", "DateTimeOffset", "DateOnly", "TimeOnly",
+        "Guid", "Ulid", "byte[]", "int?", "long?", "double?",
+        "float?", "decimal?", "bool?", "DateTime?", "DateTimeOffset?",
+        "DateOnly?", "TimeOnly?", "Guid?", "ulong", "uint", "ushort",
+        "byte", "sbyte", "short"
+    };
+
+    private static bool IsEnumType(string propertyType)
+    {
+        var baseType = propertyType.TrimEnd('?');
+        return !KnownNonEnumTypes.Contains(baseType) && !baseType.Contains(".");
+    }
 
     private static EntityModel CreateSingleKeyEntity(
         string pkType,
@@ -456,6 +472,7 @@ public class NonStringKeyAccessorBugExplorationTests
                     AttributeName = pkAttributeName,
                     IsPartitionKey = true,
                     IsNullable = pkIsNullable,
+                    IsEnum = IsEnumType(pkType),
                     KeyFormat = pkPrefix != null ? new KeyFormatModel { Prefix = pkPrefix } : null
                 },
                 new PropertyModel
@@ -465,6 +482,7 @@ public class NonStringKeyAccessorBugExplorationTests
                     AttributeName = skAttributeName,
                     IsSortKey = true,
                     IsNullable = skIsNullable,
+                    IsEnum = IsEnumType(skType),
                     KeyFormat = skPrefix != null ? new KeyFormatModel { Prefix = skPrefix } : null,
                     Format = skFormat,
                     DateTimeKind = skDateTimeKind

@@ -26,3 +26,4 @@ This section covers the essential features of Oproto.FluentDynamoDb.
 11. [Logging Configuration](LoggingConfiguration.md) - Configure logging and diagnostics
 12. [Log Levels and Event IDs](LogLevelsAndEventIds.md) - Understand and filter logs
 13. [Structured Logging](StructuredLogging.md) - Query and analyze structured logs
+14. [Put Key Prefix Behavior](PutKeyPrefixBehavior.md) - Automatic key prefix application during Put operations

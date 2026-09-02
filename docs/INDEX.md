@@ -102,6 +102,11 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 - Usage: [Entity Definition](core-features/EntityDefinition.md#computed-keys-with-format-strings)
 - Examples: [Entity Definition](core-features/EntityDefinition.md#multi-property-computed-keys)
 
+**Computed Field Format Normalization**
+- Internal refactoring: [Computed Field Format Normalization](advanced-topics/ComputedFieldFormatNormalization.md)
+- Format string rules: [Computed Field Format Normalization](advanced-topics/ComputedFieldFormatNormalization.md#format-string-generation-rules)
+- FDDB090 diagnostic: [Computed Field Format Normalization](advanced-topics/ComputedFieldFormatNormalization.md#fddb090-diagnostic)
+
 **Condition Expressions**
 - Basic usage: [Basic Operations](core-features/BasicOperations.md#conditional-operations)
 - Expression formatting: [Expression Formatting](core-features/ExpressionFormatting.md)
@@ -153,12 +158,17 @@ Comprehensive alphabetical index of all topics covered in the Oproto.FluentDynam
 
 **Discriminators**
 - Complete guide: [Discriminators](advanced-topics/Discriminators.md)
+- Auto-derivation from key formats: [Discriminators](advanced-topics/Discriminators.md#auto-derived-discriminators-from-key-formats)
 - Flexible configuration: [Entity Definition](core-features/EntityDefinition.md#flexible-discriminator-configuration)
 - Attribute reference: [Attribute Reference](reference/AttributeReference.md#discriminator-configuration)
 - Pattern matching: [Discriminators](advanced-topics/Discriminators.md#pattern-matching)
 - GSI-specific: [Discriminators](advanced-topics/Discriminators.md#gsi-specific-discriminators)
 - Validation: [Discriminators](advanced-topics/Discriminators.md#discriminator-validation)
 - Migration guide: [Discriminators](advanced-topics/Discriminators.md#migration-from-legacy-discriminator)
+- FDDB100 diagnostic: [Discriminators](advanced-topics/Discriminators.md#fddb100--prefix-conflicts-with-computed-format-error)
+- FDDB101 diagnostic: [Discriminators](advanced-topics/Discriminators.md#fddb101--explicit-discriminator-conflicts-with-key-format-error)
+- FDDB102 diagnostic: [Discriminators](advanced-topics/Discriminators.md#fddb102--overlapping-auto-derived-patterns-warning)
+- FDDB103 diagnostic: [Discriminators](advanced-topics/Discriminators.md#fddb103--redundant-explicit-discriminator-info)
 
 **DynamoDbAttribute**
 - Reference: [Attribute Reference](reference/AttributeReference.md#dynamodbattribute-attribute)

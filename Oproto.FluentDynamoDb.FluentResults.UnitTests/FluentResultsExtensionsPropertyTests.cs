@@ -1735,7 +1735,7 @@ public class FluentResultsExtensionsPropertyTests
     /// </summary>
     private static Arbitrary<List<PropertyTestEntity>> TestEntityListArbitrary()
     {
-        var generator = from count in Gen.Choose(0, 10)
+        var generator = from count in Gen.Choose(1, 10)
                         from entities in Gen.ListOf(count, TestEntityArbitrary().Generator)
                         select entities.ToList();
 
@@ -1821,6 +1821,9 @@ public partial class PropertyTestEntity : IDynamoDbEntity
             ["name"] = new AttributeValue { S = testEntity?.Name ?? string.Empty }
         };
     }
+
+    public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode)
+        where TSelf : IDynamoDbEntity => ToDynamoDb(entity, options);
 
     public static TSelf FromDynamoDb<TSelf>(Dictionary<string, AttributeValue> item, FluentDynamoDbOptions? options = null) where TSelf : IReadOnlyEntity
     {

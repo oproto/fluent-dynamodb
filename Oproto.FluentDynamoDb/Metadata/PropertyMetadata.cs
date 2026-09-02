@@ -107,6 +107,26 @@ public class PropertyMetadata
     /// If null, the default precision of 6 is used.
     /// </remarks>
     public int? GeoHashPrecision { get; set; }
+
+    /// <summary>
+    /// If this property is a computed field, contains the computed field metadata.
+    /// Null if the property is not computed.
+    /// </summary>
+    public ComputedFieldMetadata? ComputedField { get; set; }
+
+    /// <summary>
+    /// If this property is a source property of one or more non-key computed fields,
+    /// contains the names of all target computed properties.
+    /// Null if the property is not a source of any computed field.
+    /// </summary>
+    public string[]? ComputedFieldTargets { get; set; }
+
+    /// <summary>
+    /// If this property is an extracted property targeting a computed field,
+    /// contains the computed field name and the positional index.
+    /// Null if the property is not extracted.
+    /// </summary>
+    public ExtractedFieldMetadata? ExtractedField { get; set; }
 }
 
 /// <summary>

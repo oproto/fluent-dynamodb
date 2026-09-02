@@ -39,6 +39,9 @@
         <!-- Assertions - Using AwesomeAssertions (fork of FluentAssertions) -->
         <PackageReference Include="AwesomeAssertions" />
         
+        <!-- Mocking -->
+        <PackageReference Include="NSubstitute" />
+        
         <!-- Property-based testing -->
         <PackageReference Include="FsCheck" />
         <PackageReference Include="FsCheck.Xunit" />

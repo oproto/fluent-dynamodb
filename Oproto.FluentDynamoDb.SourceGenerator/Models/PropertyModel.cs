@@ -184,4 +184,45 @@ internal class PropertyModel
     /// Gets a value indicating whether this property has coordinate storage configured.
     /// </summary>
     public bool HasCoordinateStorage => !string.IsNullOrEmpty(LatitudeAttributeName) && !string.IsNullOrEmpty(LongitudeAttributeName);
+
+    /// <summary>
+    /// Gets or sets the normalized key format string for this key property.
+    /// Populated by EntityAnalyzer for partition keys and sort keys.
+    /// For computed keys: uses the format computed by ComputeFormatString.
+    /// For non-computed keys with prefix: "{Prefix}{Separator}{0}".
+    /// For non-computed keys without prefix: "{0}".
+    /// Null for non-key properties.
+    /// </summary>
+    public string? NormalizedKeyFormat { get; set; }
+
+    /// <summary>
+    /// Gets or sets the discriminator pattern derived from NormalizedKeyFormat.
+    /// Computed by replacing each {N} placeholder with *.
+    /// Null when NormalizedKeyFormat is "{0}" (no discrimination capability)
+    /// or when the property is not a key property.
+    /// </summary>
+    public string? DerivedDiscriminatorPattern { get; set; }
+
+    /// <summary>
+    /// Gets or sets the compile-time constant value for this key property.
+    /// Non-null when the property is detected as a Constant_Key via expression-body
+    /// returning a string literal/const, or read-only auto-property with string literal/const initializer.
+    /// Null for all non-constant key properties.
+    /// </summary>
+    public string? ConstantKeyValue { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether this property is a constant key.
+    /// </summary>
+    public bool IsConstantKey => ConstantKeyValue != null;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this key property is syntactically read-only
+    /// but its value could not be resolved as a compile-time constant.
+    /// Set to <c>true</c> when a key property uses expression-body or get-only auto-property syntax
+    /// AND <see cref="ConstantKeyValue"/> remains null after constant detection.
+    /// Downstream generators use this flag to skip property assignment, preventing uncompilable code
+    /// (e.g., assigning to a property with no setter).
+    /// </summary>
+    public bool IsReadOnlyKeyProperty { get; set; }
 }

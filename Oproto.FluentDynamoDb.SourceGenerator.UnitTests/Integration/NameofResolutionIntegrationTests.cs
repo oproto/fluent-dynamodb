@@ -58,11 +58,11 @@ namespace TestNamespace
         entityCode.Should().Contain("string.Format(\"USER#{0}\", typedEntity.UserId)",
             "Generated code should reference UserId in string.Format when nameof(UserId) is used");
 
-        // Verify the Keys.BuildPk method is generated with the correct parameter
-        entityCode.Should().Contain("BuildPk",
-            "Generated code should include a BuildPk method for the computed key");
+        // Verify the Keys.Pk method is generated with the correct parameter (unified API)
+        entityCode.Should().Contain("public static string Pk(string userId)",
+            "Generated code should include a Pk method for the computed key");
         entityCode.Should().Contain("string.Format(\"USER#{0}\", userId)",
-            "BuildPk should use string.Format with the userId parameter");
+            "Pk should use string.Format with the userId parameter");
     }
 
     [Fact]
@@ -116,9 +116,9 @@ namespace TestNamespace
         entityCode.Should().Contain("typedEntity.OrderNum",
             "Generated code should reference OrderNum property");
 
-        // Verify the Keys.BuildPk method is generated with correct parameters
-        entityCode.Should().Contain("BuildPk(string tenantId, string eventId, string orderNum)",
-            "BuildPk should accept all three source properties as parameters");
+        // Verify the Keys.Pk method is generated with correct parameters (unified API)
+        entityCode.Should().Contain("Pk(string tenantId, string eventId, string orderNum)",
+            "Pk should accept all three source properties as parameters");
     }
 
     [Fact]
@@ -145,11 +145,9 @@ namespace TestNamespace
         [DynamoDbAttribute(""eventId"")]
         public string EventId { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedTenant"")]
         [Extracted(nameof(Pk), 0)]
         public string ExtractedTenant { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedEvent"")]
         [Extracted(nameof(Pk), 1)]
         public string ExtractedEvent { get; set; } = string.Empty;
     }
@@ -209,8 +207,8 @@ namespace TestNamespace
         // The const resolves to "UserId", so generated code should reference the UserId property
         entityCode.Should().Contain("string.Format(\"USER#{0}\", typedEntity.UserId)",
             "Generated code should resolve const string to actual property reference");
-        entityCode.Should().Contain("BuildPk",
-            "BuildPk method should be generated");
+        entityCode.Should().Contain("public static string Pk(string userId)",
+            "Pk method should be generated for the computed key (unified API)");
     }
 
     [Fact]
@@ -240,11 +238,9 @@ namespace TestNamespace
         [DynamoDbAttribute(""eventId"")]
         public string EventId { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedTenant"")]
         [Extracted(""Pk"", TenantIndex)]
         public string ExtractedTenant { get; set; } = string.Empty;
 
-        [DynamoDbAttribute(""extractedEvent"")]
         [Extracted(""Pk"", EventIndex)]
         public string ExtractedEvent { get; set; } = string.Empty;
     }
@@ -313,9 +309,9 @@ namespace TestNamespace
         entityCode.Should().Contain("typedEntity.EventId",
             "Generated code should reference EventId (from string literal)");
 
-        // BuildPk should accept both parameters
-        entityCode.Should().Contain("BuildPk(string tenantId, string eventId)",
-            "BuildPk should accept both source properties");
+        // Pk should accept both parameters (unified API)
+        entityCode.Should().Contain("Pk(string tenantId, string eventId)",
+            "Pk should accept both source properties");
     }
 
     [Fact]
@@ -346,7 +342,10 @@ namespace TestNamespace
         // Act - run the generator and get the full output compilation
         var inputCompilation = CSharpCompilation.Create(
             "TestAssembly",
-            new[] { CSharpSyntaxTree.ParseText(source) },
+            new[] {
+                CSharpSyntaxTree.ParseText(source),
+                CSharpSyntaxTree.ParseText("[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]")
+            },
             DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
@@ -372,7 +371,10 @@ namespace TestNamespace
     {
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
-            new[] { CSharpSyntaxTree.ParseText(source) },
+            new[] {
+                CSharpSyntaxTree.ParseText(source),
+                CSharpSyntaxTree.ParseText("[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]")
+            },
             DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 

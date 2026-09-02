@@ -4,8 +4,6 @@ using Oproto.FluentDynamoDb.Context;
 using Oproto.FluentDynamoDb.Entities;
 using Oproto.FluentDynamoDb.Hydration;
 using Oproto.FluentDynamoDb.Mapping;
-using Oproto.FluentDynamoDb.Providers.BlobStorage;
-using Oproto.FluentDynamoDb.Providers.Encryption;
 
 namespace Oproto.FluentDynamoDb.Requests.Extensions;
 
@@ -67,76 +65,6 @@ public static class EntityExecuteAsyncExtensions
             }
 
             return T.FromDynamoDb<T>(response.Item, options);
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to execute GetItem operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
-        }
-    }
-
-    /// <summary>
-    /// Executes a GetItem operation and returns a strongly-typed entity with blob reference support (Primary API).
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// It also populates builder.Response with response metadata for direct access.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The GetItemRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>The mapped entity or null if not found.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<T?> GetItemAsync<T>(
-        this GetItemRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
-            // Call AWS SDK directly instead of builder's ExecuteAsync
-            var request = builder.ToGetItemRequest();
-            var response = await builder.GetDynamoDbClient().GetItemAsync(request, cancellationToken).ConfigureAwait(false);
-
-            // Populate builder.Response with response metadata for direct access
-            builder.Response = new GetItemOperationResponse
-            {
-                ConsumedCapacity = response.ConsumedCapacity,
-                ResponseMetadata = response.ResponseMetadata
-            };
-
-            // Populate context with GetItemResponse metadata
-            DynamoDbOperationContext.Current = new OperationContextData
-            {
-                OperationType = "GetItem",
-                TableName = request.TableName,
-                ConsumedCapacity = response.ConsumedCapacity,
-                RawItem = response.Item,
-                ResponseMetadata = response.ResponseMetadata
-            };
-            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
-
-            // Return POCO (nullable)
-            if (response.Item == null || !T.MatchesEntity(response.Item))
-                return null;
-
-            // Check if a hydrator is registered for this entity type (AOT-safe)
-            var hydrator = builder.GetOptions().HydratorRegistry.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                // Entity has blob references - use registered hydrator (no reflection)
-                return await hydrator.HydrateAsync(response.Item, blobProvider, builder.GetOptions(), cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                // Entity doesn't have blob references - use synchronous method
-                return T.FromDynamoDb<T>(response.Item, builder.GetOptions());
-            }
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -216,86 +144,6 @@ public static class EntityExecuteAsyncExtensions
                 .ToList();
 
             return entityItems;
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to execute Query operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
-        }
-    }
-
-    /// <summary>
-    /// Executes a Query operation and maps each DynamoDB item to a separate entity instance (1:1 mapping) with blob reference support.
-    /// Each DynamoDB item becomes a separate T instance in the returned list.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// It also populates builder.Response with response metadata for direct access.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The QueryRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A list of mapped entities, one per DynamoDB item.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<List<T>> ToListAsync<T>(
-        this QueryRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
-            // Call AWS SDK directly instead of ExecuteAsync()
-            var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
-            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
-
-            // Populate builder.Response with response metadata for direct access
-            builder.Response = new QueryOperationResponse
-            {
-                LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null,
-                ScannedCount = response.ScannedCount,
-                ResultCount = response.Count,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ResponseMetadata = response.ResponseMetadata
-            };
-
-            // Populate context with QueryResponse metadata
-            DynamoDbOperationContext.Current = new OperationContextData
-            {
-                OperationType = "Query",
-                TableName = request.TableName,
-                IndexName = request.IndexName,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ItemCount = response.Count,
-                ScannedCount = response.ScannedCount,
-                LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = items,
-                ResponseMetadata = response.ResponseMetadata
-            };
-            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
-
-            // Filter matching items
-            var matchingItems = items.Where(T.MatchesEntity).ToList();
-
-            // Check if a hydrator is registered for this entity type (AOT-safe)
-            var options = builder.GetOptions();
-            var hydrator = options.HydratorRegistry.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                // Entity has blob references - use registered hydrator (no reflection)
-                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, options, cancellationToken));
-                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
-            }
-            else
-            {
-                // Entity doesn't have blob references - use synchronous method
-                return matchingItems.Select(item => T.FromDynamoDb<T>(item, options)).ToList();
-            }
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -399,108 +247,6 @@ public static class EntityExecuteAsyncExtensions
     }
 
     /// <summary>
-    /// Executes a Query operation and combines multiple DynamoDB items into composite entities (N:1 mapping) with blob reference support.
-    /// Multiple DynamoDB items with the same partition key are combined into single T instances.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
-    /// handle pagination. All items for each composite entity must be returned in a single response (up to 1MB).
-    /// If your composite entities span more items than can fit in a single response, consider:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
-    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
-    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, IBlobStorageProvider, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
-    /// </list>
-    /// <para>
-    /// Each page of results is processed independently - composite entities are assembled only from items
-    /// within the same response page.
-    /// </para>
-    /// </remarks>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The QueryRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A list of composite entities, where each entity may be constructed from multiple DynamoDB items.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<List<T>> ToCompositeEntityListAsync<T>(
-        this QueryRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
-            // Call AWS SDK directly instead of ExecuteAsync()
-            var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
-            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
-
-            // Populate context with QueryResponse metadata
-            DynamoDbOperationContext.Current = new OperationContextData
-            {
-                OperationType = "Query",
-                TableName = request.TableName,
-                IndexName = request.IndexName,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ItemCount = response.Count,
-                ScannedCount = response.ScannedCount,
-                LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = items,
-                ResponseMetadata = response.ResponseMetadata
-            };
-            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
-
-            // Filter items that match the entity type
-            var matchingItems = items.Where(T.MatchesEntity).ToList();
-
-            // Group items by partition key for multi-item entities
-            var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
-
-            // Check if a hydrator is registered for this entity type (AOT-safe)
-            var options = builder.GetOptions();
-            var hydrator = options.HydratorRegistry.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                // Entity has blob references - use registered hydrator (no reflection)
-                var tasks = groups.Select(async group =>
-                {
-                    if (group.Count() == 1)
-                    {
-                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken).ConfigureAwait(false);
-                    }
-                });
-
-                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
-            }
-            else
-            {
-                // Entity doesn't have blob references - use synchronous methods
-                return groups.Select(group => group.Count() == 1
-                    ? T.FromDynamoDb<T>(group.First(), options)
-                    : T.FromDynamoDb<T>(group.ToList(), options))
-                    .ToList();
-            }
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to execute Query operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
-        }
-    }
-
-    /// <summary>
     /// Executes a Query operation and returns a single composite entity (N:1 mapping).
     /// Multiple DynamoDB items with the same partition key are combined into a single T instance.
     /// Primary entity is identified by sort key patterns, related entities populate properties using [RelatedEntity] attributes.
@@ -577,83 +323,6 @@ public static class EntityExecuteAsyncExtensions
     }
 
     /// <summary>
-    /// Executes a Query operation and returns a single composite entity (N:1 mapping) with blob reference support.
-    /// Multiple DynamoDB items with the same partition key are combined into a single T instance.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <strong>Pagination Limitation:</strong> This method executes a single DynamoDB Query operation and does not
-    /// handle pagination. All items for the composite entity must be returned in a single response (up to 1MB).
-    /// If your composite entity spans more items than can fit in a single response, the related entity collections
-    /// will be incomplete.
-    /// </para>
-    /// <para>
-    /// For composite entities that may exceed the 1MB response limit, consider:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><description>Using manual pagination with <see cref="QueryRequestBuilder{T}.WithExclusiveStartKey"/> and checking <c>builder.Response.LastEvaluatedKey</c></description></item>
-    /// <item><description>Designing smaller composite entities with fewer related items</description></item>
-    /// <item><description>Using <see cref="ToListAsync{T}(QueryRequestBuilder{T}, IBlobStorageProvider, CancellationToken)"/> for individual item retrieval with manual assembly</description></item>
-    /// </list>
-    /// </remarks>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The QueryRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A single composite entity constructed from multiple DynamoDB items, or null if no matching items found.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<T?> ToCompositeEntityAsync<T>(
-        this QueryRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
-            // Call AWS SDK directly instead of ExecuteAsync()
-            var request = builder.ToQueryRequest();
-            var response = await builder.GetDynamoDbClient().QueryAsync(request, cancellationToken).ConfigureAwait(false);
-            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
-
-            // Populate context with QueryResponse metadata
-            DynamoDbOperationContext.Current = new OperationContextData
-            {
-                OperationType = "Query",
-                TableName = request.TableName,
-                IndexName = request.IndexName,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ItemCount = response.Count,
-                ScannedCount = response.ScannedCount,
-                LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = items,
-                ResponseMetadata = response.ResponseMetadata
-            };
-
-            // For composite entities, pass all items to FromDynamoDb
-            // The multi-item FromDynamoDb method handles identifying the primary entity
-            // and related entities based on sort key patterns
-            if (items.Count == 0)
-                return null;
-
-            // Always use async composite assembly path — this ensures both encrypted and
-            // non-encrypted parent entities go through the same full composite assembly logic
-            var options = builder.GetOptions();
-            return await T.FromDynamoDbAsync<T>(items, blobProvider, options?.FieldEncryptor, options, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to execute Query operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
-        }
-    }
-
-    /// <summary>
     /// Configures the PutItem operation to use a strongly-typed entity.
     /// The entity is automatically converted to DynamoDB AttributeValue format.
     /// For entities with encrypted or blob storage properties, serialization is deferred
@@ -674,57 +343,6 @@ public static class EntityExecuteAsyncExtensions
         // - NotSupportedException fallback for entities without registered hydrators
         // - Direct synchronous serialization for standard entities
         return builder.WithItem(item);
-    }
-
-    /// <summary>
-    /// Configures the PutItem operation to use a strongly-typed entity with blob reference support.
-    /// The entity is automatically converted to DynamoDB AttributeValue format.
-    /// Blob properties are stored externally and only references are saved in DynamoDB.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The PutItemRequestBuilder instance.</param>
-    /// <param name="item">The entity instance to put.</param>
-    /// <param name="blobProvider">The blob storage provider for storing blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task that resolves to the builder instance for method chaining.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when entity conversion fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<PutItemRequestBuilder<T>> WithItemAsync<T>(
-        this PutItemRequestBuilder<T> builder,
-        T item,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
-            Dictionary<string, AttributeValue> attributeDict;
-
-            // Check if a hydrator is registered for this entity type (AOT-safe)
-            var options = builder.GetOptions();
-            var hydrator = options.HydratorRegistry.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                // Entity has blob references - use registered hydrator's serialize method (no reflection)
-                attributeDict = await hydrator.SerializeAsync(item, blobProvider, options, cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                // Entity doesn't have blob references - use synchronous method
-                attributeDict = T.ToDynamoDb(item, options);
-            }
-
-            return builder.WithItem(attributeDict);
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to convert {typeof(T).Name} entity to DynamoDB format. Error: {ex.Message}", ex);
-        }
     }
 
     /// <summary>
@@ -798,87 +416,6 @@ public static class EntityExecuteAsyncExtensions
                 .ToList();
 
             return entityItems;
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to execute Scan operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
-        }
-    }
-
-    /// <summary>
-    /// Executes a Scan operation and maps each DynamoDB item to a separate entity instance (1:1 mapping) with blob reference support.
-    /// Each DynamoDB item becomes a separate T instance in the returned list.
-    /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// It also populates builder.Response with response metadata for direct access.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The ScanRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A list of mapped entities, one per DynamoDB item.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<List<T>> ToListAsync<T>(
-        this ScanRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
-            // Call AWS SDK directly instead of ExecuteAsync()
-            var request = builder.ToScanRequest();
-            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken).ConfigureAwait(false);
-            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
-
-            // Populate builder.Response with response metadata for direct access
-            builder.Response = new ScanOperationResponse
-            {
-                LastEvaluatedKey = response.LastEvaluatedKey?.Count > 0 ? response.LastEvaluatedKey : null,
-                ScannedCount = response.ScannedCount,
-                ResultCount = response.Count,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ResponseMetadata = response.ResponseMetadata
-            };
-
-            // Populate context with ScanResponse metadata
-            DynamoDbOperationContext.Current = new OperationContextData
-            {
-                OperationType = "Scan",
-                TableName = request.TableName,
-                IndexName = request.IndexName,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ItemCount = response.Count,
-                ScannedCount = response.ScannedCount,
-                LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = items,
-                ResponseMetadata = response.ResponseMetadata
-            };
-            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
-
-            // Filter matching items
-            var matchingItems = items.Where(T.MatchesEntity).ToList();
-
-            // Check if a hydrator is registered for this entity type (AOT-safe)
-            var options = builder.GetOptions();
-            var hydrator = options.HydratorRegistry.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                // Entity has blob references - use registered hydrator (no reflection)
-                var tasks = matchingItems.Select(item => hydrator.HydrateAsync(item, blobProvider, options, cancellationToken));
-                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
-            }
-            else
-            {
-                // Entity doesn't have blob references - use synchronous method
-                return matchingItems.Select(item => T.FromDynamoDb<T>(item, options)).ToList();
-            }
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
         {
@@ -965,92 +502,6 @@ public static class EntityExecuteAsyncExtensions
     }
 
     /// <summary>
-    /// Executes a Scan operation and combines multiple DynamoDB items into composite entities (N:1 mapping) with blob reference support.
-    /// Multiple DynamoDB items with the same partition key are combined into single T instances.
-    /// Warning: Scan operations can be expensive on large tables. Use Query operations when possible.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// This method populates DynamoDbOperationContext.Current with operation metadata.
-    /// </summary>
-    /// <typeparam name="T">The entity type that implements IDynamoDbEntity.</typeparam>
-    /// <param name="builder">The ScanRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for retrieving blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A list of composite entities, where each entity may be constructed from multiple DynamoDB items.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when entity mapping fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task<List<T>> ToCompositeEntityListAsync<T>(
-        this ScanRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
-            // Call AWS SDK directly instead of ExecuteAsync()
-            var request = builder.ToScanRequest();
-            var response = await builder.GetDynamoDbClient().ScanAsync(request, cancellationToken).ConfigureAwait(false);
-            var items = response.Items ?? new List<Dictionary<string, AttributeValue>>();
-
-            // Populate context with ScanResponse metadata
-            DynamoDbOperationContext.Current = new OperationContextData
-            {
-                OperationType = "Scan",
-                TableName = request.TableName,
-                IndexName = request.IndexName,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ItemCount = response.Count,
-                ScannedCount = response.ScannedCount,
-                LastEvaluatedKey = response.LastEvaluatedKey,
-                RawItems = items,
-                ResponseMetadata = response.ResponseMetadata
-            };
-
-            // Filter items that match the entity type
-            var matchingItems = items.Where(T.MatchesEntity).ToList();
-
-            // Group items by partition key for multi-item entities
-            var groups = matchingItems.GroupBy(T.GetPartitionKey).ToList();
-
-            // Check if a hydrator is registered for this entity type (AOT-safe)
-            var options = builder.GetOptions();
-            var hydrator = options.HydratorRegistry.GetHydrator<T>();
-            if (hydrator != null)
-            {
-                // Entity has blob references - use registered hydrator (no reflection)
-                var tasks = groups.Select(async group =>
-                {
-                    if (group.Count() == 1)
-                    {
-                        return await hydrator.HydrateAsync(group.First(), blobProvider, options, cancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        return await hydrator.HydrateAsync(group.ToList(), blobProvider, options, cancellationToken).ConfigureAwait(false);
-                    }
-                });
-
-                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
-            }
-            else
-            {
-                // Entity doesn't have blob references - use synchronous methods
-                return groups.Select(group => group.Count() == 1
-                    ? T.FromDynamoDb<T>(group.First(), options)
-                    : T.FromDynamoDb<T>(group.ToList(), options))
-                    .ToList();
-            }
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to execute Scan operation and map to {typeof(T).Name}. Error: {ex.Message}", ex);
-        }
-    }
-
-    /// <summary>
     /// Executes a PutItem operation and stores the entity in DynamoDB (Primary API).
     /// This method populates DynamoDbOperationContext.Current with operation metadata including PreOperationValues.
     /// PutItem creates a new item or completely replaces an existing item with the same primary key.
@@ -1076,66 +527,11 @@ public static class EntityExecuteAsyncExtensions
                 {
                     var entity = builder.GetDeferredEntity()!;
                     var blobProvider = options.BlobStorageProvider;
-                    var item = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken).ConfigureAwait(false);
+                    var item = await hydrator.SerializeAsync(entity, blobProvider, options, cancellationToken: cancellationToken).ConfigureAwait(false);
                     builder.SetResolvedItem(item);
                 }
             }
 
-            // Call AWS SDK directly instead of builder's ExecuteAsync
-            var request = builder.ToPutItemRequest();
-            var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken).ConfigureAwait(false);
-
-            // Populate builder.Response with response metadata for direct access
-            builder.Response = new PutItemOperationResponse
-            {
-                ConsumedCapacity = response.ConsumedCapacity,
-                ResponseMetadata = response.ResponseMetadata,
-                ItemCollectionMetrics = response.ItemCollectionMetrics
-            };
-
-            // Populate context with PutItemResponse metadata
-            DynamoDbOperationContext.Current = new OperationContextData
-            {
-                OperationType = "PutItem",
-                TableName = request.TableName,
-                ConsumedCapacity = response.ConsumedCapacity,
-                ItemCollectionMetrics = response.ItemCollectionMetrics,
-                PreOperationValues = response.Attributes, // If ReturnValues was set to ALL_OLD
-                ResponseMetadata = response.ResponseMetadata
-            };
-            DynamoDbOperationContextDiagnostics.RaiseContextAssigned(DynamoDbOperationContext.Current);
-        }
-        catch (Exception ex) when (!(ex is OperationCanceledException))
-        {
-            throw new DynamoDbMappingException(
-                $"Failed to execute PutItem operation. Error: {ex.Message}", ex);
-        }
-    }
-
-    /// <summary>
-    /// Executes a PutItem operation with blob reference support and stores the entity in DynamoDB (Primary API).
-    /// This method populates DynamoDbOperationContext.Current with operation metadata including PreOperationValues.
-    /// It also populates builder.Response with response metadata for direct access.
-    /// Use this overload when the entity has properties marked with [BlobReference] attribute.
-    /// </summary>
-    /// <typeparam name="T">The entity type.</typeparam>
-    /// <param name="builder">The PutItemRequestBuilder instance.</param>
-    /// <param name="blobProvider">The blob storage provider for storing blob references.</param>
-    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="DynamoDbMappingException">Thrown when the operation fails.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when blobProvider is null.</exception>
-    public static async Task PutAsync<T>(
-        this PutItemRequestBuilder<T> builder,
-        IBlobStorageProvider blobProvider,
-        CancellationToken cancellationToken = default)
-        where T : class, IDynamoDbEntity
-    {
-        if (blobProvider == null)
-            throw new ArgumentNullException(nameof(blobProvider), "Blob provider is required for entities with blob reference properties");
-
-        try
-        {
             // Call AWS SDK directly instead of builder's ExecuteAsync
             var request = builder.ToPutItemRequest();
             var response = await builder.GetDynamoDbClient().PutItemAsync(request, cancellationToken).ConfigureAwait(false);

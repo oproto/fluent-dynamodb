@@ -8,6 +8,10 @@ namespace TransactionDemo.Entities;
 /// This entity stores individual transaction records for accounts, using
 /// a hierarchical sort key design that enables efficient querying of
 /// transaction history.
+/// 
+/// The discriminator pattern "TXN#*" is explicitly configured to ensure TransactionRecord
+/// entities are correctly distinguished from Account and FinancialTransaction entities
+/// in this single-table design.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,9 +33,7 @@ namespace TransactionDemo.Entities;
 /// <item><description>Uniqueness via the transaction ID suffix</description></item>
 /// </list>
 /// </remarks>
-[DynamoDbTable("transaction-demo",
-    DiscriminatorProperty = "sk",
-    DiscriminatorPattern = "TXN#*")]
+[DynamoDbTable("transaction-demo")]
 [GenerateEntityProperty(Name = "Transactions")]
 public partial class TransactionRecord
 {

@@ -1,4 +1,5 @@
 using Oproto.FluentDynamoDb.Attributes;
+using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace S3BlobDemo.Entities;
 
@@ -84,4 +85,24 @@ public partial class MediaItem
     /// </summary>
     [DynamoDbAttribute("description")]
     public string? Description { get; set; }
+
+    // Named provider "images" — routes to the images bucket/provider registered via
+    // FluentDynamoDbOptions.WithBlobStorage("images", provider). Omitting the Provider
+    // parameter on [BlobStorage] uses the default provider instead.
+    /// <summary>
+    /// Gets or sets the thumbnail image stored via the "images" named blob provider.
+    /// </summary>
+    [BlobStorage(Provider = "images")]
+    [DynamoDbAttribute("thumbnailRef")]
+    public BlobData<byte[]>? Thumbnail { get; set; }
+
+    // Named provider "documents" — routes to the documents bucket/provider registered via
+    // FluentDynamoDbOptions.WithBlobStorage("documents", provider). Specifying Provider = "name"
+    // routes to the named provider rather than the default.
+    /// <summary>
+    /// Gets or sets the attachment document stored via the "documents" named blob provider.
+    /// </summary>
+    [BlobStorage(Provider = "documents")]
+    [DynamoDbAttribute("attachmentRef")]
+    public BlobData<byte[]>? Attachment { get; set; }
 }

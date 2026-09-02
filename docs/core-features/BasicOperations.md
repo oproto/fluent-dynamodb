@@ -186,21 +186,6 @@ await table.Delete<User>()
     .DeleteAsync();
 ```
 
-### Composite Key Patterns
-
-For entities with both partition and sort keys, use the `Key()` method to get both at once:
-
-```csharp
-// Get both keys as a tuple
-var (pk, sk) = User.Keys.Key("user123", "MAIN");
-
-// Use in operations
-await table.Get<User>()
-    .WithKey(User.Fields.UserId, pk)
-    .WithKey(User.Fields.ProfileType, sk)
-    .GetItemAsync();
-```
-
 ### GSI Key Builders
 
 Key builders are also generated for Global Secondary Indexes:

@@ -59,8 +59,10 @@ namespace TestNamespace
         code.ShouldContainClass("TestEntityUpdateExpressions");
         code.Should().Contain("namespace TestNamespace", "should preserve entity namespace");
         
-        // Verify properties with correct types
-        code.Should().Contain("UpdateExpressionProperty<string> Id", "should generate UpdateExpressionProperty<string> for string property");
+        // Key property should be excluded (Req 1.1)
+        code.Should().NotContain("UpdateExpressionProperty<string> Id", "should exclude partition key property from UpdateExpressions");
+        
+        // Non-key properties should be included
         code.Should().Contain("UpdateExpressionProperty<string> Name", "should generate UpdateExpressionProperty<string> for Name property");
         code.Should().Contain("UpdateExpressionProperty<int> Count", "should generate UpdateExpressionProperty<int> for int property");
         
@@ -114,8 +116,10 @@ namespace TestNamespace
         code.ShouldContainClass("TestEntityUpdateModel");
         code.Should().Contain("namespace TestNamespace", "should preserve entity namespace");
         
-        // Verify properties with nullable types
-        code.Should().Contain("string? Id", "should generate nullable string for string property");
+        // Key property should be excluded (Req 1.1)
+        code.Should().NotContain("string? Id", "should exclude partition key property from UpdateModel");
+        
+        // Non-key properties should be included as nullable
         code.Should().Contain("string? Name", "should generate nullable string for Name property");
         code.Should().Contain("int? Count", "should generate nullable int for int property");
         
@@ -301,13 +305,15 @@ namespace TestNamespace
         updateExpressionsFile.Should().NotBeNull();
         var expressionsCode = updateExpressionsFile!.SourceText.ToString();
         
-        // Verify warning documentation for key properties
-        expressionsCode.Should().Contain("This property is a partition key and cannot be updated", 
-            "should warn about partition key in UpdateExpressions");
-        expressionsCode.Should().Contain("This property is a sort key and cannot be updated", 
-            "should warn about sort key in UpdateExpressions");
-        expressionsCode.Should().Contain("InvalidUpdateOperationException", 
-            "should mention exception type in documentation");
+        // Key properties should be excluded entirely from UpdateExpressions (Req 1.1, 1.2)
+        expressionsCode.Should().NotContain("UpdateExpressionProperty<string> PartitionKey", 
+            "should exclude partition key from UpdateExpressions");
+        expressionsCode.Should().NotContain("UpdateExpressionProperty<string> SortKey", 
+            "should exclude sort key from UpdateExpressions");
+        
+        // Non-key properties should still be present
+        expressionsCode.Should().Contain("UpdateExpressionProperty<string> Data",
+            "should include non-key property Data in UpdateExpressions");
         
         var updateModelFile = result.GeneratedSources
             .FirstOrDefault(s => s.FileName.Contains("KeyEntityUpdateModel.g.cs"));
@@ -315,11 +321,15 @@ namespace TestNamespace
         updateModelFile.Should().NotBeNull();
         var modelCode = updateModelFile!.SourceText.ToString();
         
-        // Verify warning documentation in UpdateModel as well
-        modelCode.Should().Contain("This property is a partition key and cannot be updated", 
-            "should warn about partition key in UpdateModel");
-        modelCode.Should().Contain("This property is a sort key and cannot be updated", 
-            "should warn about sort key in UpdateModel");
+        // Key properties should be excluded entirely from UpdateModel (Req 1.1, 1.2)
+        modelCode.Should().NotContain("string? PartitionKey", 
+            "should exclude partition key from UpdateModel");
+        modelCode.Should().NotContain("string? SortKey", 
+            "should exclude sort key from UpdateModel");
+        
+        // Non-key properties should still be present
+        modelCode.Should().Contain("string? Data",
+            "should include non-key property Data in UpdateModel");
     }
 
     [Fact]
@@ -623,7 +633,8 @@ namespace TestNamespace
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] {
-                CSharpSyntaxTree.ParseText(source)
+                CSharpSyntaxTree.ParseText(source),
+                CSharpSyntaxTree.ParseText("[assembly: Oproto.FluentDynamoDb.Attributes.FluentDynamoDbSchemaVersion(1, 0)]")
             },
             TestHelpers.DynamicCompilationHelper.GetFluentDynamoDbReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

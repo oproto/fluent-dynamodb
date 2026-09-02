@@ -2,7 +2,6 @@ using Amazon.DynamoDBv2;
 using NSubstitute;
 using Oproto.FluentDynamoDb.ApiConsistencyTests.Entities;
 using Oproto.FluentDynamoDb.FluentResults;
-using Oproto.FluentDynamoDb.Providers.BlobStorage;
 
 namespace Oproto.FluentDynamoDb.ApiConsistencyTests.FluentResults;
 
@@ -68,25 +67,6 @@ public class GetApiSurfaceFluentResults
     }
     
     [Fact(Skip = "API Surface Validation")]
-    public async Task GetItemAsyncResult_WithBlobProvider_ShouldCompile()
-    {
-        var client = Substitute.For<IAmazonDynamoDB>();
-        BasicPkTable table = new BasicPkTable(client, "basicPk", options: null);
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-
-        // === GetItemAsyncResult with blob provider overload ===
-        var result = await table.Get("1234").GetItemAsyncResult(blobProvider);
-        
-        // Entity accessor with blob provider
-        result = await table.BasicPkEntitys.Get("1234").GetItemAsyncResult(blobProvider);
-        
-        // With options and blob provider
-        result = await table.BasicPkEntitys.Get("1234")
-            .UsingConsistentRead()
-            .GetItemAsyncResult(blobProvider);
-    }
-    
-    [Fact(Skip = "API Surface Validation")]
     public async Task GetItemAsyncResult_WithCancellationToken_ShouldCompile()
     {
         var client = Substitute.For<IAmazonDynamoDB>();
@@ -95,9 +75,5 @@ public class GetApiSurfaceFluentResults
 
         // === GetItemAsyncResult with cancellation token ===
         var result = await table.BasicPkEntitys.Get("1234").GetItemAsyncResult(cancellationToken);
-        
-        // With blob provider and cancellation token
-        var blobProvider = Substitute.For<IBlobStorageProvider>();
-        result = await table.BasicPkEntitys.Get("1234").GetItemAsyncResult(blobProvider, cancellationToken);
     }
 }

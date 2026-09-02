@@ -1,5 +1,6 @@
 using Oproto.FluentDynamoDb.SourceGenerator.Analysis;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.Utilities;
 using System.Text;
 
 namespace Oproto.FluentDynamoDb.SourceGenerator.Generators;
@@ -195,6 +196,7 @@ internal static class MapperGenerator
 
     private static void GenerateToDynamoDbMethod(StringBuilder sb, EntityModel entity)
     {
+        // Generate the existing overload that now delegates to the new one with KeyInputMode.Default
         sb.AppendLine();
         sb.AppendLine("        /// <summary>");
         sb.AppendLine("        /// High-performance conversion from entity to DynamoDB AttributeValue dictionary.");
@@ -207,6 +209,28 @@ internal static class MapperGenerator
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
+        sb.AppendLine("            return ToDynamoDb(entity, options, KeyInputMode.Default);");
+        sb.AppendLine("        }");
+
+        // Generate the new overload with KeyInputMode parameter
+        GenerateToDynamoDbMethodWithKeyInputMode(sb, entity);
+    }
+
+    private static void GenerateToDynamoDbMethodWithKeyInputMode(StringBuilder sb, EntityModel entity)
+    {
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// High-performance conversion from entity to DynamoDB AttributeValue dictionary.");
+        sb.AppendLine("        /// Applies key prefix logic based on the resolved KeyInputMode.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        /// <typeparam name=\"TSelf\">The entity type implementing IDynamoDbEntity.</typeparam>");
+        sb.AppendLine("        /// <param name=\"entity\">The entity instance to convert.</param>");
+        sb.AppendLine("        /// <param name=\"options\">Optional configuration options including logger, JSON serializer, etc. If null, default behavior is used.</param>");
+        sb.AppendLine("        /// <param name=\"keyInputMode\">The KeyInputMode controlling prefix application behavior.</param>");
+        sb.AppendLine("        /// <returns>A dictionary of DynamoDB AttributeValues representing the entity.</returns>");
+        sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
         
         // Generate entry logging
         sb.Append(LoggingCodeGenerator.GenerateToDynamoDbEntryLogging(entity.ClassName));
@@ -214,6 +238,10 @@ internal static class MapperGenerator
         
         sb.AppendLine($"            if (entity is not {entity.ClassName} typedEntity)");
         sb.AppendLine($"                throw new ArgumentException($\"Expected {entity.ClassName}, got {{entity.GetType().Name}}\", nameof(entity));");
+        sb.AppendLine();
+
+        // Resolve the KeyInputMode at the top
+        sb.AppendLine("            var resolvedMode = Oproto.FluentDynamoDb.Utility.KeyInputModeResolver.Resolve(keyInputMode, options ?? new FluentDynamoDbOptions());");
         sb.AppendLine();
 
         // Wrap entire mapping operation in try-catch
@@ -233,7 +261,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Compute composite keys before mapping");
             foreach (var computedProperty in computedProperties)
             {
-                GenerateComputedKeyLogic(sb, computedProperty);
+                GenerateComputedKeyLogic(sb, computedProperty, entity.Properties);
             }
             sb.AppendLine();
         }
@@ -243,6 +271,9 @@ internal static class MapperGenerator
         {
             GeneratePropertyToAttributeValue(sb, property, entity);
         }
+
+        // Generate key prefix application for eligible key properties
+        GenerateKeyPrefixApplication(sb, entity);
 
         // Generate dynamic fields inclusion if enabled
         if (entity.EnableDynamicFields)
@@ -267,6 +298,39 @@ internal static class MapperGenerator
         sb.AppendLine("                throw;");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
+    }
+
+    /// <summary>
+    /// Generates key prefix application logic for eligible key properties.
+    /// Applies KeyPrefixHelper.ApplyKeyPrefix for non-computed key properties that have a prefix configured.
+    /// Also handles GSI/LSI properties that carry a [PartitionKey]/[SortKey] attribute with a prefix.
+    /// </summary>
+    private static void GenerateKeyPrefixApplication(StringBuilder sb, EntityModel entity)
+    {
+        var keyPropertiesWithPrefix = entity.Properties.Where(p =>
+            (p.IsPartitionKey || p.IsSortKey) &&
+            !p.IsComputed &&
+            !p.IsConstantKey &&
+            p.KeyFormat != null &&
+            !string.IsNullOrEmpty(p.KeyFormat.Prefix)).ToArray();
+
+        if (keyPropertiesWithPrefix.Length == 0)
+            return;
+
+        sb.AppendLine();
+        sb.AppendLine("                // Apply key prefix logic for eligible key properties");
+        foreach (var property in keyPropertiesWithPrefix)
+        {
+            var attributeName = property.AttributeName;
+            var escapedPropertyName = EscapePropertyName(property.PropertyName);
+            var prefix = property.KeyFormat!.Prefix!;
+            var separator = property.KeyFormat.Separator;
+            var valueExpr = KeysGenerator.GetValueExpression($"typedEntity.{escapedPropertyName}", property.PropertyType);
+
+            // Null check before prefix application
+            sb.AppendLine($"                ArgumentNullException.ThrowIfNull(typedEntity.{escapedPropertyName}, nameof(typedEntity.{escapedPropertyName}));");
+            sb.AppendLine($"                item[\"{attributeName}\"] = new AttributeValue {{ S = Oproto.FluentDynamoDb.Utility.KeyPrefixHelper.ApplyKeyPrefix({valueExpr}, \"{prefix}\", \"{separator}\", resolvedMode) }};");
+        }
     }
 
     private static void GenerateDynamicFieldsInclusion(StringBuilder sb)
@@ -307,6 +371,37 @@ internal static class MapperGenerator
         sb.AppendLine("        /// </summary>");
         sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options = null) where TSelf : IDynamoDbEntity");
+        sb.AppendLine("        {");
+        
+        if (hasBlobStorage && hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage and encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use ToDynamoDbAsync with an IBlobStorageProvider and IFieldEncryptor instead.\");");
+        }
+        else if (hasEncryptedProperties)
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has encrypted properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use ToDynamoDbAsync with an IFieldEncryptor instead.\");");
+        }
+        else
+        {
+            sb.AppendLine($"            throw new NotSupportedException(");
+            sb.AppendLine($"                \"{entity.ClassName} has blob storage properties and requires async methods. \" +");
+            sb.AppendLine($"                \"Use ToDynamoDbAsync with an IBlobStorageProvider instead.\");");
+        }
+        
+        sb.AppendLine("        }");
+
+        // Generate the new overload with KeyInputMode parameter (also a stub for async-only entities)
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Stub method for interface compliance. This entity requires async methods.");
+        sb.AppendLine("        /// Use ToDynamoDbAsync instead.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"        public static Dictionary<string, AttributeValue> ToDynamoDb<TSelf>(TSelf entity, FluentDynamoDbOptions? options, KeyInputMode keyInputMode) where TSelf : IDynamoDbEntity");
         sb.AppendLine("        {");
         
         if (hasBlobStorage && hasEncryptedProperties)
@@ -491,7 +586,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Compute composite keys before mapping");
             foreach (var computedProperty in computedProperties)
             {
-                GenerateComputedKeyLogic(sb, computedProperty);
+                GenerateComputedKeyLogic(sb, computedProperty, entity.Properties);
             }
             sb.AppendLine();
         }
@@ -532,6 +627,21 @@ internal static class MapperGenerator
         var attributeName = property.AttributeName;
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
+
+        // Handle constant key properties — emit value directly without reading from entity instance
+        if (property.IsConstantKey)
+        {
+            sb.AppendLine($"            item[\"{attributeName}\"] = new AttributeValue {{ S = \"{EscapeString(property.ConstantKeyValue!)}\" }};");
+            return;
+        }
+
+        // Handle read-only key properties with non-const references — skip serialization
+        if (property.IsReadOnlyKeyProperty)
+        {
+            // Skip serialization — read-only key property with non-compile-time-constant value.
+            // The property value may not be deterministic, so don't include it in the item.
+            return;
+        }
 
         // Handle encrypted properties - these require async methods
         if (property.Security?.IsEncrypted == true)
@@ -641,6 +751,21 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
 
+        // Handle constant key properties — emit value directly without reading from entity instance
+        if (property.IsConstantKey)
+        {
+            sb.AppendLine($"            item[\"{attributeName}\"] = new AttributeValue {{ S = \"{EscapeString(property.ConstantKeyValue!)}\" }};");
+            return;
+        }
+
+        // Handle read-only key properties with non-const references — skip serialization
+        if (property.IsReadOnlyKeyProperty)
+        {
+            // Skip serialization — read-only key property with non-compile-time-constant value.
+            // The property value may not be deterministic, so don't include it in the item.
+            return;
+        }
+
         // Handle encrypted properties (must be before other handlers)
         if (property.Security?.IsEncrypted == true)
         {
@@ -746,6 +871,7 @@ internal static class MapperGenerator
         var isJsonBlob = property.ComplexType?.IsJsonBlob == true;
         var isEncrypted = property.Security?.IsEncrypted == true;
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         // Generate suggested key based on entity keys
         var partitionKeyProperty = entity.Properties.FirstOrDefault(p => p.IsPartitionKey);
@@ -756,6 +882,12 @@ internal static class MapperGenerator
         {
             sb.AppendLine($"            // Combined with [Encrypted] - data will be encrypted before blob storage");
         }
+
+        // Resolve per-property blob provider via options.GetBlobProvider(...)
+        var blobProviderName = property.ComplexType?.BlobStorageProviderName;
+        var providerNameLiteral = blobProviderName != null ? $"\"{blobProviderName}\"" : "null";
+        sb.AppendLine($"            var blobProvider_{propertyName} = options.GetBlobProvider({providerNameLiteral});");
+
         sb.AppendLine($"            if (typedEntity.{escapedPropertyName} != null)");
         sb.AppendLine("            {");
         
@@ -783,7 +915,7 @@ internal static class MapperGenerator
         
         sb.AppendLine("                    try");
         sb.AppendLine("                    {");
-        sb.AppendLine($"                        var pendingValue = typedEntity.{escapedPropertyName}.GetPendingValue();");
+        sb.AppendLine($"                        var pendingValue = BlobDataOperations.GetBlobPendingValue(typedEntity.{escapedPropertyName});");
         sb.AppendLine("                        if (pendingValue != null)");
         sb.AppendLine("                        {");
         
@@ -843,6 +975,13 @@ internal static class MapperGenerator
             sb.AppendLine("                            {");
             sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
             sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds},");
+            
+            // Add KeyAlias if specified and non-empty/non-whitespace
+            if (!string.IsNullOrWhiteSpace(keyAlias))
+            {
+                sb.AppendLine($"                                KeyAlias = \"{keyAlias}\",");
+            }
+            
             if (partitionKeyProperty != null)
             {
                 sb.AppendLine($"                                EntityId = typedEntity.{partitionKeyProperty.PropertyName}?.ToString()");
@@ -867,8 +1006,8 @@ internal static class MapperGenerator
             sb.AppendLine("                            using var stream = new MemoryStream(bytes);");
         }
         
-        sb.AppendLine("                            var reference = await blobProvider.StoreAsync(stream, suggestedKey, cancellationToken).ConfigureAwait(false);");
-        sb.AppendLine($"                            typedEntity.{escapedPropertyName}.SetReferenceKey(reference);");
+        sb.AppendLine($"                            var reference = await blobProvider_{propertyName}.StoreAsync(stream, suggestedKey, cancellationToken).ConfigureAwait(false);");
+        sb.AppendLine($"                            BlobDataOperations.SetBlobReferenceKey(typedEntity.{escapedPropertyName}, reference);");
         sb.AppendLine($"                            item[\"{attributeName}\"] = new AttributeValue {{ S = reference }};");
         sb.AppendLine("                        }");
         sb.AppendLine("                    }");
@@ -1948,7 +2087,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Extract component properties from composite keys");
             foreach (var extractedProperty in extractedProperties)
             {
-                GenerateExtractedKeyLogic(sb, extractedProperty);
+                GenerateExtractedKeyLogic(sb, extractedProperty, entity);
             }
         }
 
@@ -2061,7 +2200,7 @@ internal static class MapperGenerator
             sb.AppendLine("                // Extract component properties from composite keys");
             foreach (var extractedProperty in extractedPropertiesAsync)
             {
-                GenerateExtractedKeyLogic(sb, extractedProperty);
+                GenerateExtractedKeyLogic(sb, extractedProperty, entity);
             }
         }
 
@@ -2379,6 +2518,7 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         sb.AppendLine($"{indentation}// Decrypt {propertyName}");
         sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
@@ -2398,7 +2538,18 @@ internal static class MapperGenerator
         sb.AppendLine($"{indentation}                var encryptionContext = new FieldEncryptionContext");
         sb.AppendLine($"{indentation}                {{");
         sb.AppendLine($"{indentation}                    ContextId = DynamoDbOperationContext.EncryptionContextId,");
-        sb.AppendLine($"{indentation}                    CacheTtlSeconds = {cacheTtlSeconds}");
+        
+        // Add KeyAlias if specified and non-empty/non-whitespace
+        if (!string.IsNullOrWhiteSpace(keyAlias))
+        {
+            sb.AppendLine($"{indentation}                    CacheTtlSeconds = {cacheTtlSeconds},");
+            sb.AppendLine($"{indentation}                    KeyAlias = \"{keyAlias}\"");
+        }
+        else
+        {
+            sb.AppendLine($"{indentation}                    CacheTtlSeconds = {cacheTtlSeconds}");
+        }
+        
         sb.AppendLine($"{indentation}                }};");
         sb.AppendLine();
         sb.AppendLine($"{indentation}                var {propertyName}Plaintext = await fieldEncryptor.DecryptAsync(");
@@ -2717,6 +2868,39 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var varName = propertyName.ToLowerInvariant() + "Value";
+
+        // Handle constant key properties — validate incoming value, skip property assignment
+        if (property.IsConstantKey)
+        {
+            var attrVarName = propertyName.ToLowerInvariant() + "Attr";
+            sb.AppendLine($"{indentation}if ({itemVariableName}.TryGetValue(\"{attributeName}\", out var {attrVarName}))");
+            sb.AppendLine($"{indentation}{{");
+            sb.AppendLine($"{indentation}    if (!string.Equals({attrVarName}.S, \"{EscapeString(property.ConstantKeyValue!)}\", StringComparison.Ordinal))");
+            sb.AppendLine($"{indentation}    {{");
+            sb.AppendLine($"{indentation}        options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.ConstantKeyValidationMismatch,");
+            sb.AppendLine($"{indentation}            \"Expected constant key '{{AttributeName}}' = \\\"{{ExpectedValue}}\\\" but got \\\"{{ActualValue}}\\\"\",");
+            sb.AppendLine($"{indentation}            \"{attributeName}\", \"{EscapeString(property.ConstantKeyValue!)}\", {attrVarName}.S);");
+            sb.AppendLine($"{indentation}    }}");
+            sb.AppendLine($"{indentation}}}");
+            sb.AppendLine($"{indentation}else");
+            sb.AppendLine($"{indentation}{{");
+            sb.AppendLine($"{indentation}    options?.Logger?.LogWarning(Oproto.FluentDynamoDb.Logging.LogEventIds.ConstantKeyAttributeMissing,");
+            sb.AppendLine($"{indentation}        \"Expected constant key attribute '{{AttributeName}}' was missing from item\",");
+            sb.AppendLine($"{indentation}        \"{attributeName}\");");
+            sb.AppendLine($"{indentation}}}");
+            // No property assignment — expression-body has no setter,
+            // read-only auto-property is set by initializer
+            return;
+        }
+
+        // Handle read-only key properties with non-const references — skip assignment entirely
+        if (property.IsReadOnlyKeyProperty)
+        {
+            // No property assignment — read-only key property with non-compile-time-constant value.
+            // FDDB126 diagnostic prevents this entity from compiling, but this guard ensures
+            // no uncompilable assignment is generated if the diagnostic severity is ever downgraded.
+            return;
+        }
 
         // Handle GeoLocation properties (requires geospatial package)
         if (IsGeoLocationType(property.PropertyType) && entity.HasGeospatialPackage)
@@ -3290,12 +3474,18 @@ internal static class MapperGenerator
         var lazyLoad = property.ComplexType?.BlobStorageLazyLoad ?? false;
         var isEncrypted = property.Security?.IsEncrypted == true;
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
+
+        // Resolve per-property blob provider via options.GetBlobProvider(...)
+        var blobProviderName = property.ComplexType?.BlobStorageProviderName;
+        var providerNameLiteral = blobProviderName != null ? $"\"{blobProviderName}\"" : "null";
 
         sb.AppendLine($"            // BlobStorage property {propertyName} with BlobData<{innerType}> wrapper");
         if (isEncrypted)
         {
             sb.AppendLine($"            // Combined with [Encrypted] - data will be decrypted after blob retrieval");
         }
+        sb.AppendLine($"            var blobProvider_{propertyName} = options.GetBlobProvider({providerNameLiteral});");
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
         sb.AppendLine("            {");
         sb.AppendLine("                try");
@@ -3331,9 +3521,21 @@ internal static class MapperGenerator
             sb.AppendLine("                            var encryptionContext = new FieldEncryptionContext");
             sb.AppendLine("                            {");
             sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
-            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+            
+            // Add KeyAlias if specified and non-empty/non-whitespace
+            if (!string.IsNullOrWhiteSpace(keyAlias))
+            {
+                sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds},");
+                sb.AppendLine($"                                KeyAlias = \"{keyAlias}\"");
+            }
+            else
+            {
+                sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+            }
+            
             sb.AppendLine("                            };");
             sb.AppendLine();
+
             sb.AppendLine($"                            var decryptedBytes = await fieldEncryptor.DecryptAsync(");
             sb.AppendLine("                                encryptedBytes,");
             sb.AppendLine($"                                \"{propertyName}\",");
@@ -3433,9 +3635,9 @@ internal static class MapperGenerator
 
         sb.AppendLine();
         sb.AppendLine($"                        // Create BlobData<{innerType}> from reference key");
-        sb.AppendLine($"                        entity.{escapedPropertyName} = BlobData<{innerType}>.FromReferenceKey(");
+        sb.AppendLine($"                        entity.{escapedPropertyName} = BlobDataOperations.CreateFromReferenceKey<{innerType}>(");
         sb.AppendLine("                            referenceKey,");
-        sb.AppendLine("                            blobProvider,");
+        sb.AppendLine($"                            blobProvider_{propertyName},");
         sb.AppendLine("                            deserializer);");
         sb.AppendLine();
 
@@ -4217,8 +4419,9 @@ internal static class MapperGenerator
         sb.AppendLine("                return false;");
         sb.AppendLine();
 
-        // When there are overlapping patterns, restructure to emit positive match + exclusion guards + return true
-        if (disc.OverlappingPatterns.Count > 0)
+        // When there are overlapping patterns or compound constraints, restructure to emit
+        // positive match + exclusion guards + compound constraint + return true
+        if (disc.OverlappingPatterns.Count > 0 || disc.CompoundConstraint != null)
         {
             GenerateDiscriminatorCheckWithExclusions(sb, disc);
         }
@@ -4309,6 +4512,15 @@ internal static class MapperGenerator
             var score = ComputeExclusionScore(exclusion);
             sb.AppendLine($"            // Exclusion: more-specific pattern from {exclusion.EntityName} (score: {score})");
 
+            // Positional IndexOf exclusions: when OffsetIndex > 0, use IndexOf regardless of strategy
+            if (exclusion.OffsetIndex > 0)
+            {
+                sb.AppendLine($"            if (discriminatorValue.S.IndexOf(\"{exclusion.LiteralText}\", {exclusion.OffsetIndex}) >= 0)");
+                sb.AppendLine("                return false;");
+                sb.AppendLine();
+                continue;
+            }
+
             switch (exclusion.Strategy)
             {
                 case DiscriminatorStrategy.StartsWith:
@@ -4343,8 +4555,142 @@ internal static class MapperGenerator
             sb.AppendLine();
         }
 
-        // Step 3: Return true — passed all checks
+        // Step 3: Compound constraint check (if applicable)
+        if (disc.CompoundConstraint != null && !disc.CompoundConstraint.IsExclusion)
+        {
+            GeneratePositiveCompoundConstraintCheck(sb, disc.CompoundConstraint);
+        }
+        else if (disc.CompoundConstraint != null && disc.CompoundConstraint.IsExclusion)
+        {
+            GenerateExclusionCompoundConstraintCheck(sb, disc.CompoundConstraint);
+        }
+
+        // Step 4: Return true — passed all checks
         sb.AppendLine("            return true;");
+    }
+
+    /// <summary>
+    /// Generates code for a positive compound constraint check.
+    /// This verifies that the cross-key attribute exists with a non-null string value
+    /// and matches the compound constraint pattern using the appropriate strategy.
+    /// </summary>
+    private static void GeneratePositiveCompoundConstraintCheck(StringBuilder sb, CompoundConstraint constraint)
+    {
+        sb.AppendLine($"            // Compound constraint: {constraint.PropertyName}");
+        sb.AppendLine($"            if (!item.TryGetValue(\"{constraint.PropertyName}\", out var compoundValue) || compoundValue.S == null)");
+        sb.AppendLine("                return false;");
+
+        if (constraint.OffsetIndex > 0)
+        {
+            // OffsetIndex > 0 — positional check (internal-segment compound constraint)
+            sb.AppendLine($"            if (compoundValue.S.IndexOf(\"{EscapeString(constraint.LiteralText)}\", {constraint.OffsetIndex}) < 0)");
+            sb.AppendLine("                return false;");
+        }
+        else
+        {
+            switch (constraint.Strategy)
+            {
+                case DiscriminatorStrategy.StartsWith:
+                    sb.AppendLine($"            if (!compoundValue.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.ExactMatch:
+                    sb.AppendLine($"            if (compoundValue.S != \"{EscapeString(constraint.LiteralText)}\")");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.EndsWith:
+                    sb.AppendLine($"            if (!compoundValue.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.Contains:
+                    sb.AppendLine($"            if (!compoundValue.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+            }
+        }
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Generates code for an exclusion guard compound constraint check.
+    /// This returns false if the cross-key value MATCHES the exclusion pattern.
+    /// If the cross-key attribute is missing or null, the exclusion does NOT fire
+    /// (passes through to return true), because the exclusion only applies when
+    /// the cross-key attribute is present with a matching value.
+    /// Also handles AdditionalExclusions for multi-entity overlap scenarios.
+    /// </summary>
+    private static void GenerateExclusionCompoundConstraintCheck(StringBuilder sb, CompoundConstraint constraint)
+    {
+        // Generate the primary exclusion check
+        GenerateSingleExclusionCheck(sb, constraint, "compoundValue");
+
+        // Generate additional exclusion checks if present
+        if (constraint.AdditionalExclusions != null)
+        {
+            var varIndex = 2;
+            foreach (var additionalExclusion in constraint.AdditionalExclusions)
+            {
+                var varName = $"compoundValue{varIndex}";
+                GenerateSingleExclusionCheck(sb, additionalExclusion, varName);
+                varIndex++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Generates a single exclusion guard check using the specified variable name.
+    /// The generated code returns false if the cross-key attribute exists, is non-null,
+    /// and matches the exclusion pattern.
+    /// </summary>
+    private static void GenerateSingleExclusionCheck(StringBuilder sb, CompoundConstraint constraint, string varName)
+    {
+        var sourceComment = !string.IsNullOrEmpty(constraint.ExclusionSourceEntity)
+            ? $" from {constraint.ExclusionSourceEntity}"
+            : string.Empty;
+        sb.AppendLine($"            // Compound exclusion: {constraint.PropertyName} pattern{sourceComment}");
+
+        // OffsetIndex > 0 with Strategy == None: positional exclusion check using IndexOf
+        if (constraint.Strategy == DiscriminatorStrategy.None && constraint.OffsetIndex > 0)
+        {
+            sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+            sb.AppendLine($"                && {varName}.S.IndexOf(\"{EscapeString(constraint.LiteralText)}\", {constraint.OffsetIndex}) >= 0)");
+            sb.AppendLine("                return false;");
+        }
+        else
+        {
+            switch (constraint.Strategy)
+            {
+                case DiscriminatorStrategy.StartsWith:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S.StartsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.ExactMatch:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S == \"{EscapeString(constraint.LiteralText)}\")");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.EndsWith:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S.EndsWith(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+
+                case DiscriminatorStrategy.Contains:
+                    sb.AppendLine($"            if (item.TryGetValue(\"{constraint.PropertyName}\", out var {varName}) && {varName}.S != null");
+                    sb.AppendLine($"                && {varName}.S.Contains(\"{EscapeString(constraint.LiteralText)}\"))");
+                    sb.AppendLine("                return false;");
+                    break;
+            }
+        }
+
+        sb.AppendLine();
     }
 
     /// <summary>
@@ -4397,10 +4743,21 @@ internal static class MapperGenerator
             // First segment: use StartsWith if it's the actual prefix (pattern doesn't start with *)
             if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
             {
-                conditions.Add($"discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+                var prefixSegment = nonEmptySegments[0];
+                conditions.Add($"discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
                 for (int i = 1; i < nonEmptySegments.Count; i++)
                 {
-                    conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    if (prefixSegment.Contains(nonEmptySegments[i]))
+                    {
+                        // Bare separator: positional check with one-plus wildcard semantics
+                        // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures last wildcard is at least 1 char
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
+                    }
+                    else
+                    {
+                        // Meaningful segment: standard Contains
+                        conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    }
                 }
             }
             else
@@ -4421,10 +4778,21 @@ internal static class MapperGenerator
 
             if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
             {
-                conditions.Add($"!discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+                var prefixSegment = nonEmptySegments[0];
+                conditions.Add($"!discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
                 for (int i = 1; i < nonEmptySegments.Count; i++)
                 {
-                    conditions.Add($"!discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    if (prefixSegment.Contains(nonEmptySegments[i]))
+                    {
+                        // Bare separator: negated positional check with one-plus wildcard semantics
+                        // Offset +1 ensures first wildcard is at least 1 char; >= Length-1 rejects terminal separator
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < 0 || discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= discriminatorValue.S.Length - 1");
+                    }
+                    else
+                    {
+                        // Meaningful segment: standard Contains (negated)
+                        conditions.Add($"!discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                    }
                 }
             }
             else
@@ -4461,10 +4829,21 @@ internal static class MapperGenerator
 
         if (!pattern.StartsWith("*") && nonEmptySegments.Count > 0)
         {
-            conditions.Add($"discriminatorValue.S.StartsWith(\"{nonEmptySegments[0]}\")");
+            var prefixSegment = nonEmptySegments[0];
+            conditions.Add($"discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
             for (int i = 1; i < nonEmptySegments.Count; i++)
             {
-                conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                if (prefixSegment.Contains(nonEmptySegments[i]))
+                {
+                    // Bare separator: positional check with one-plus wildcard semantics
+                    // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures last wildcard is at least 1 char
+                    conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
+                }
+                else
+                {
+                    // Meaningful segment: standard Contains
+                    conditions.Add($"discriminatorValue.S.Contains(\"{nonEmptySegments[i]}\")");
+                }
             }
         }
         else
@@ -4561,7 +4940,7 @@ internal static class MapperGenerator
         // Generate property metadata
         foreach (var property in entity.Properties.Where(p => p.HasAttributeMapping))
         {
-            GeneratePropertyMetadata(sb, property);
+            GeneratePropertyMetadata(sb, property, entity);
         }
 
         sb.AppendLine("                },");
@@ -4653,7 +5032,7 @@ internal static class MapperGenerator
         sb.AppendLine("        }");
     }
 
-    private static void GeneratePropertyMetadata(StringBuilder sb, PropertyModel property)
+    private static void GeneratePropertyMetadata(StringBuilder sb, PropertyModel property, EntityModel entity)
     {
         sb.AppendLine("                    new PropertyMetadata");
         sb.AppendLine("                    {");
@@ -4720,6 +5099,70 @@ internal static class MapperGenerator
         if (property.DateTimeKind.HasValue)
         {
             sb.AppendLine($"                        DateTimeKind = DateTimeKind.{property.DateTimeKind.Value}");
+        }
+
+        // Add ComputedField metadata for non-key computed properties
+        if (property.IsComputed && !property.IsPartitionKey && !property.IsSortKey)
+        {
+            var computedKey = property.ComputedKey!;
+            var sourcePropsArray = string.Join(", ", computedKey.SourceProperties.Select(s => $"\"{EscapeString(s)}\""));
+
+            // Determine the effective key format for format string computation
+            var effectiveKeyFormat = property.KeyFormat;
+            if (effectiveKeyFormat == null || string.IsNullOrEmpty(effectiveKeyFormat.Prefix))
+            {
+                // Check if this computed property is a GSI key with prefix from index configuration
+                var matchingIndex = entity.Indexes.FirstOrDefault(idx =>
+                    idx.PartitionKeyProperty == property.PropertyName && !string.IsNullOrEmpty(idx.PartitionKeyFormat));
+                if (matchingIndex != null)
+                {
+                    // Parse the prefix from the index format string
+                    var indexFormat = matchingIndex.PartitionKeyFormat!;
+                    var firstPlaceholder = indexFormat.IndexOf("{0}");
+                    if (firstPlaceholder > 0)
+                    {
+                        var prefix = indexFormat.Substring(0, firstPlaceholder).TrimEnd('#', '_', '-', ':', '|');
+                        if (!string.IsNullOrEmpty(prefix))
+                        {
+                            var separator = indexFormat.Substring(prefix.Length, firstPlaceholder - prefix.Length);
+                            effectiveKeyFormat = new KeyFormatModel { Prefix = prefix, Separator = separator };
+                        }
+                    }
+                }
+            }
+
+            var formatString = ComputeFormatString(computedKey, effectiveKeyFormat,
+                computedKey.SourceProperties
+                    .Select(name => entity.Properties.FirstOrDefault(p => p.PropertyName == name))
+                    .ToArray()!);
+
+            sb.AppendLine("                        ComputedField = new ComputedFieldMetadata");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            SourceProperties = new[] {{ {sourcePropsArray} }},");
+            sb.AppendLine($"                            Format = \"{EscapeString(formatString)}\"");
+            sb.AppendLine("                        },");
+        }
+
+        // Add ExtractedField metadata for extracted properties
+        if (property.ExtractedKey != null)
+        {
+            sb.AppendLine("                        ExtractedField = new ExtractedFieldMetadata");
+            sb.AppendLine("                        {");
+            sb.AppendLine($"                            SourceProperty = \"{EscapeString(property.ExtractedKey.SourceProperty)}\",");
+            sb.AppendLine($"                            Index = {property.ExtractedKey.Index}");
+            sb.AppendLine("                        },");
+        }
+
+        // Add ComputedFieldTargets for source properties of non-key computed fields
+        var targetComputedFields = entity.Properties
+            .Where(p => p.IsComputed && !p.IsPartitionKey && !p.IsSortKey &&
+                        p.ComputedKey!.SourceProperties.Contains(property.PropertyName))
+            .Select(p => p.PropertyName)
+            .ToArray();
+        if (targetComputedFields.Length > 0)
+        {
+            var targets = string.Join(", ", targetComputedFields.Select(t => $"\"{EscapeString(t)}\""));
+            sb.AppendLine($"                        ComputedFieldTargets = new[] {{ {targets} }},");
         }
 
         sb.AppendLine("                    },");
@@ -5360,7 +5803,7 @@ internal static class MapperGenerator
         return "#";
     }
 
-    private static void GenerateComputedKeyLogic(StringBuilder sb, PropertyModel computedProperty)
+    private static void GenerateComputedKeyLogic(StringBuilder sb, PropertyModel computedProperty, PropertyModel[] entityProperties)
     {
         var computedKey = computedProperty.ComputedKey!;
         var propertyName = computedProperty.PropertyName;
@@ -5370,34 +5813,64 @@ internal static class MapperGenerator
         {
             // Use custom format string
             var formatArgs = string.Join(", ", computedKey.SourceProperties.Select(sp => $"typedEntity.{EscapePropertyName(sp)}"));
-            sb.AppendLine($"            typedEntity.{escapedPropertyName} = string.Format(\"{computedKey.Format}\", {formatArgs});");
+
+            if (FormatSpecifierHelper.HasAnyFormatSpecifier(computedKey.Format))
+            {
+                // Format specifiers present — use InvariantCulture for locale-safe formatting
+                sb.AppendLine($"            typedEntity.{escapedPropertyName} = string.Format(System.Globalization.CultureInfo.InvariantCulture, \"{computedKey.Format}\", {formatArgs});");
+            }
+            else
+            {
+                // No format specifiers — keep existing behavior for backwards compatibility
+                sb.AppendLine($"            typedEntity.{escapedPropertyName} = string.Format(\"{computedKey.Format}\", {formatArgs});");
+            }
         }
         else
         {
-            // Use separator-based concatenation
-            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", computedKey.SourceProperties.Select(sp => $"typedEntity.{EscapePropertyName(sp)}"));
+            // Use separator-based concatenation with proper type conversion via GetValueExpression
+            var sourceValues = string.Join($" + \"{computedKey.Separator}\" + ", computedKey.SourceProperties.Select(sp =>
+            {
+                var sourceProperty = entityProperties.FirstOrDefault(p => p.PropertyName == sp);
+                var expr = $"typedEntity.{EscapePropertyName(sp)}";
+                if (sourceProperty != null)
+                {
+                    return KeysGenerator.GetValueExpression(expr, sourceProperty.PropertyType);
+                }
+                return expr;
+            }));
             sb.AppendLine($"            typedEntity.{escapedPropertyName} = {sourceValues};");
         }
     }
 
-    private static void GenerateExtractedKeyLogic(StringBuilder sb, PropertyModel extractedProperty)
+    private static void GenerateExtractedKeyLogic(StringBuilder sb, PropertyModel extractedProperty, EntityModel entity)
     {
         var extractedKey = extractedProperty.ExtractedKey!;
         var propertyName = extractedProperty.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
-        var sourceProperty = extractedKey.SourceProperty;
-        var escapedSourceProperty = EscapePropertyName(sourceProperty);
+        var sourcePropertyName = extractedKey.SourceProperty;
+        var escapedSourceProperty = EscapePropertyName(sourcePropertyName);
         var index = extractedKey.Index;
         var separator = extractedKey.Separator;
 
-        var partsVariable = $"{sourceProperty.ToLowerInvariant()}Parts";
-        var valueExpression = $"{partsVariable}[{index}]";
+        // Look up the source property to check for custom format strings
+        var sourcePropertyModel = entity.Properties.FirstOrDefault(p => p.PropertyName == sourcePropertyName);
+
+        // Map placeholder index to actual split index when the source property uses a custom format
+        var actualIndex = index;
+        if (sourcePropertyModel?.ComputedKey?.HasCustomFormat == true)
+        {
+            actualIndex = FormatPlaceholderMapper.GetSplitIndex(
+                sourcePropertyModel.ComputedKey.Format!, separator[0], index);
+        }
+
+        var partsVariable = $"{sourcePropertyName.ToLowerInvariant()}Parts";
+        var valueExpression = $"{partsVariable}[{actualIndex}]";
         var conversionExpression = GetExtractedPropertyConversionExpression(extractedProperty, valueExpression);
 
         sb.AppendLine($"            if (!string.IsNullOrEmpty(entity.{escapedSourceProperty}))");
         sb.AppendLine("            {");
         sb.AppendLine($"                var {partsVariable} = entity.{escapedSourceProperty}.Split('{separator}');");
-        sb.AppendLine($"                if ({partsVariable}.Length > {index})");
+        sb.AppendLine($"                if ({partsVariable}.Length > {actualIndex})");
         sb.AppendLine("                {");
         sb.AppendLine($"                    entity.{escapedPropertyName} = {conversionExpression};");
         sb.AppendLine("                }");
@@ -5446,6 +5919,7 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         sb.AppendLine($"            // Encrypt {propertyName}");
         sb.AppendLine("            if (fieldEncryptor != null)");
@@ -5470,6 +5944,12 @@ internal static class MapperGenerator
         sb.AppendLine("                    {");
         sb.AppendLine("                        ContextId = DynamoDbOperationContext.EncryptionContextId,");
         sb.AppendLine($"                        CacheTtlSeconds = {cacheTtlSeconds},");
+        
+        // Add KeyAlias if specified and non-empty/non-whitespace
+        if (!string.IsNullOrWhiteSpace(keyAlias))
+        {
+            sb.AppendLine($"                        KeyAlias = \"{keyAlias}\",");
+        }
         
         // Add EntityId for external blob storage path
         var partitionKeyProperty = entity.PartitionKeyProperty;
@@ -5514,6 +5994,7 @@ internal static class MapperGenerator
         var propertyName = property.PropertyName;
         var escapedPropertyName = EscapePropertyName(propertyName);
         var cacheTtlSeconds = property.Security?.EncryptionConfig?.CacheTtlSeconds ?? 300;
+        var keyAlias = property.Security?.EncryptionConfig?.KeyAlias;
 
         sb.AppendLine($"            // Decrypt {propertyName}");
         sb.AppendLine($"            if (item.TryGetValue(\"{attributeName}\", out var {propertyName.ToLowerInvariant()}Value))");
@@ -5537,7 +6018,18 @@ internal static class MapperGenerator
         sb.AppendLine("                            var encryptionContext = new FieldEncryptionContext");
         sb.AppendLine("                            {");
         sb.AppendLine("                                ContextId = DynamoDbOperationContext.EncryptionContextId,");
-        sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+        
+        // Add KeyAlias if specified and non-empty/non-whitespace
+        if (!string.IsNullOrWhiteSpace(keyAlias))
+        {
+            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds},");
+            sb.AppendLine($"                                KeyAlias = \"{keyAlias}\"");
+        }
+        else
+        {
+            sb.AppendLine($"                                CacheTtlSeconds = {cacheTtlSeconds}");
+        }
+        
         sb.AppendLine("                            };");
         sb.AppendLine();
 
@@ -5769,6 +6261,70 @@ internal static class MapperGenerator
         }
 
         return propertyName;
+    }
+
+    /// <summary>
+    /// Computes the format string for a computed field based on its configuration.
+    /// Called at compile time during metadata emission.
+    /// </summary>
+    /// <param name="computedKey">The computed key model containing separator and format information.</param>
+    /// <param name="keyFormat">Optional key format model containing prefix information.</param>
+    /// <param name="sourceProperties">Optional array of source property models for Format injection.
+    /// When provided, each source property's DynamoDbAttribute.Format is injected into placeholders
+    /// that do not already have an explicit format specifier.</param>
+    /// <returns>A .NET composite format string for use with string.Format().</returns>
+    internal static string ComputeFormatString(ComputedKeyModel computedKey, KeyFormatModel? keyFormat, PropertyModel[]? sourceProperties = null)
+    {
+        // 1. If explicit Format is specified, use it directly (highest priority)
+        if (computedKey.HasCustomFormat)
+            return computedKey.Format!;
+
+        // 2. Build format from Separator (+ optional key Prefix)
+        var sourceCount = computedKey.SourceProperties.Length;
+
+        // Generate placeholders with source property Format injection
+        var placeholders = new string[sourceCount];
+        for (int i = 0; i < sourceCount; i++)
+        {
+            var sourceProperty = sourceProperties != null && sourceProperties.Length > i ? sourceProperties[i] : null;
+            var sourceFormat = sourceProperty?.Format;
+
+            // Inject source property's DynamoDbAttribute.Format if available and non-empty
+            if (!string.IsNullOrEmpty(sourceFormat))
+            {
+                placeholders[i] = $"{{{i}:{sourceFormat}}}";
+            }
+            else
+            {
+                placeholders[i] = $"{{{i}}}";
+            }
+        }
+
+        var formatString = string.Join(computedKey.Separator, placeholders);
+
+        // Prepend key prefix if configured
+        if (keyFormat != null && !string.IsNullOrEmpty(keyFormat.Prefix))
+        {
+            return $"{keyFormat.Prefix}{keyFormat.Separator}{formatString}";
+        }
+
+        return formatString;
+    }
+
+    /// <summary>
+    /// Escapes a string for use in generated C# string literals.
+    /// </summary>
+    internal static string EscapeString(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return value;
+
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
     }
 
     /// <summary>

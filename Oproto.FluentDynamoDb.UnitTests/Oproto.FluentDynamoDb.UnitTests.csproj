@@ -19,6 +19,7 @@
         <PackageReference Include="AwesomeAssertions" />
         <PackageReference Include="FsCheck" />
         <PackageReference Include="FsCheck.Xunit" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="xunit" />
@@ -37,11 +38,11 @@
       <ProjectReference Include="..\Oproto.FluentDynamoDb.Geospatial\Oproto.FluentDynamoDb.Geospatial.csproj" />
     </ItemGroup>
 
-    <!-- Include source generator as analyzer for compile-time generation -->
+    <!-- Include source generator as analyzer for compile-time generation AND as direct reference for testing -->
     <ItemGroup>
         <ProjectReference Include="..\Oproto.FluentDynamoDb.SourceGenerator\Oproto.FluentDynamoDb.SourceGenerator.csproj"
                           OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false" />
+                          ReferenceOutputAssembly="true" />
     </ItemGroup>
 
 </Project>

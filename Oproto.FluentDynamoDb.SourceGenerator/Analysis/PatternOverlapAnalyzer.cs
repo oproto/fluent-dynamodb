@@ -118,19 +118,35 @@ internal static class PatternOverlapAnalyzer
 
                 if (scoreA == scoreB)
                 {
-                    // DISC004: Ambiguous overlap — same specificity score
                     var patternA = GetDisplayPattern(configA);
                     var patternB = GetDisplayPattern(configB);
 
-                    var diagnostic = Diagnostic.Create(
-                        DiagnosticDescriptors.AmbiguousOverlappingDiscriminatorPatterns,
-                        Location.None,
-                        patternA,
-                        entityA.ClassName,
-                        patternB,
-                        entityB.ClassName,
-                        configA.PropertyName);
-                    diagnostics.Add(diagnostic);
+                    if (configA.IsAutoDerived && configB.IsAutoDerived)
+                    {
+                        // FDDB102: Warning — both overlapping patterns are auto-derived
+                        var fddb102Diagnostic = Diagnostic.Create(
+                            DiagnosticDescriptors.OverlappingAutoDerivedPatterns,
+                            entityA.TypeDeclaration?.GetLocation(),
+                            entityA.ClassName,
+                            entityB.ClassName,
+                            patternA,
+                            patternB,
+                            configA.PropertyName);
+                        diagnostics.Add(fddb102Diagnostic);
+                    }
+                    else
+                    {
+                        // DISC004: Ambiguous overlap — same specificity score
+                        var diagnostic = Diagnostic.Create(
+                            DiagnosticDescriptors.AmbiguousOverlappingDiscriminatorPatterns,
+                            Location.None,
+                            patternA,
+                            entityA.ClassName,
+                            patternB,
+                            entityB.ClassName,
+                            configA.PropertyName);
+                        diagnostics.Add(diagnostic);
+                    }
                 }
                 else
                 {
@@ -158,6 +174,21 @@ internal static class PatternOverlapAnalyzer
                     // Check if the exclusion is tautological (same as the entity's own positive match)
                     if (IsTautologicalExclusion(lessSpecific.Discriminator!, exclusion))
                     {
+                        // FDDB102: Warn when both overlapping patterns are auto-derived
+                        // Only emit for tautological exclusions (unresolvable overlaps)
+                        if (configA.IsAutoDerived && configB.IsAutoDerived)
+                        {
+                            var fddb102Diagnostic = Diagnostic.Create(
+                                DiagnosticDescriptors.OverlappingAutoDerivedPatterns,
+                                lessSpecific.TypeDeclaration?.GetLocation(),
+                                lessSpecific.ClassName,
+                                moreSpecific.ClassName,
+                                GetDisplayPattern(lessSpecific.Discriminator!),
+                                GetDisplayPattern(moreSpecificConfig),
+                                configA.PropertyName);
+                            diagnostics.Add(fddb102Diagnostic);
+                        }
+
                         // DISC006: Tautological exclusion guard detected — do NOT add to OverlappingPatterns
                         var strategyName = exclusion.Strategy.ToString();
                         var diagnostic = Diagnostic.Create(
@@ -174,6 +205,7 @@ internal static class PatternOverlapAnalyzer
                     else
                     {
                         // Valid exclusion — add to OverlappingPatterns and emit DISC005
+                        // Do NOT emit FDDB102 for non-tautological exclusions (resolved overlaps)
                         lessSpecific.Discriminator!.OverlappingPatterns.Add(exclusion);
 
                         // DISC005: Informational — overlap resolved
@@ -209,9 +241,38 @@ internal static class PatternOverlapAnalyzer
             DiscriminatorStrategy.StartsWith => exactValue.StartsWith(literalText, StringComparison.Ordinal),
             DiscriminatorStrategy.EndsWith => exactValue.EndsWith(literalText, StringComparison.Ordinal),
             DiscriminatorStrategy.Contains => exactValue.IndexOf(literalText, StringComparison.Ordinal) >= 0,
-            DiscriminatorStrategy.Complex => true, // Conservative: assume overlap
+            DiscriminatorStrategy.Complex => ExactValueMatchesComplexPattern(exactValue, patternConfig.Pattern),
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Checks whether an exact value could structurally match a Complex pattern by examining
+    /// the pattern's leading prefix (text before the first wildcard). Returns false when the
+    /// exact value cannot possibly match; returns true conservatively otherwise.
+    /// </summary>
+    private static bool ExactValueMatchesComplexPattern(string exactValue, string pattern)
+    {
+        var segments = pattern.Split('*');
+
+        // The leading prefix is the first segment (text before the first '*')
+        // If the pattern starts with '*', this segment is empty — no leading prefix available
+        var leadingPrefix = segments[0];
+
+        if (leadingPrefix.Length == 0)
+        {
+            // Pattern starts with '*' — no leading prefix to rule out overlap; conservative: assume overlap
+            return true;
+        }
+
+        // If the exact value does not start with the leading prefix, it cannot match
+        if (!exactValue.StartsWith(leadingPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Exact value starts with the leading prefix — conservative: assume overlap
+        return true;
     }
 
     /// <summary>
@@ -418,14 +479,39 @@ internal static class PatternOverlapAnalyzer
 
             if (internalSegments.Count > 0)
             {
-                // Use the last internal segment as the distinguishing literal
-                var lastSegment = internalSegments[internalSegments.Count - 1];
+                var prefixSegment = segments.FirstOrDefault(s => s.Length > 0) ?? string.Empty;
+
+                // Try segments from last to first, looking for a meaningful (non-bare) segment.
+                // A segment is "bare" when it is already contained within the prefix segment,
+                // meaning a Contains check for it would be tautological after StartsWith(prefix).
+                for (int i = internalSegments.Count - 1; i >= 0; i--)
+                {
+                    var candidate = internalSegments[i];
+                    if (!prefixSegment.Contains(candidate))
+                    {
+                        // Meaningful segment found — use it with standard Contains (OffsetIndex = 0)
+                        return new ExclusionPattern
+                        {
+                            EntityName = moreSpecificEntity.ClassName,
+                            Pattern = config.Pattern,
+                            Strategy = DiscriminatorStrategy.Contains,
+                            LiteralText = candidate
+                        };
+                    }
+                }
+
+                // ALL internal segments are bare separators — use positional approach.
+                // Set OffsetIndex to prefix length so the generator emits IndexOf(literal, offset)
+                // instead of Contains(literal), which would be tautological.
+                // Use Strategy = None to signal this is a positional check, not a plain Contains.
+                var bareSeparator = internalSegments[0];
                 return new ExclusionPattern
                 {
                     EntityName = moreSpecificEntity.ClassName,
                     Pattern = config.Pattern,
-                    Strategy = DiscriminatorStrategy.Contains,
-                    LiteralText = lastSegment
+                    Strategy = DiscriminatorStrategy.None,
+                    LiteralText = bareSeparator,
+                    OffsetIndex = prefixSegment.Length
                 };
             }
 
@@ -488,8 +574,31 @@ internal static class PatternOverlapAnalyzer
                 return false;
         }
 
-        return exclusion.Strategy == positiveStrategy
-               && string.Equals(exclusion.LiteralText, positiveLiteral, StringComparison.Ordinal);
+        // Identity check: same strategy AND same literal text
+        if (exclusion.Strategy == positiveStrategy
+            && string.Equals(exclusion.LiteralText, positiveLiteral, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // Semantic subsumption check: if the exclusion is a Contains check and the positive
+        // strategy is StartsWith (or Complex normalized to StartsWith), then the exclusion is
+        // tautological if the positive prefix already contains the exclusion literal.
+        // For example: Contains("#") is always true when StartsWith("CAP#") has already passed.
+        // However, if the exclusion has OffsetIndex > 0, it uses IndexOf with a positional offset
+        // and is NOT tautological — it correctly discriminates by checking for the literal
+        // beyond the prefix boundary.
+        if (exclusion.Strategy == DiscriminatorStrategy.Contains
+            && exclusion.OffsetIndex == 0
+            && positiveStrategy == DiscriminatorStrategy.StartsWith
+            && !string.IsNullOrEmpty(exclusion.LiteralText)
+            && !string.IsNullOrEmpty(positiveLiteral)
+            && positiveLiteral.Contains(exclusion.LiteralText))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
