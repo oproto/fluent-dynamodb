@@ -7,176 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-02
+
 ### Added
 
 - **Compound Key Discrimination (FDDB104)** — The source generator now automatically resolves same-score discriminator overlaps between entities on the same table by inspecting cross-key `DerivedDiscriminatorPattern` values. When two entities share an identical discriminator pattern on one key (e.g., both have `CAP#*` on the sort key), the generator checks whether their partition key patterns differ. If they do, it promotes both entities to a compound discriminator check (primary key match AND sort key match) in the generated `MatchesEntity` method, suppresses the previously-emitted FDDB102/DISC004 diagnostics, and emits a new FDDB104 info diagnostic confirming the resolution. This eliminates false overlap warnings in single-table designs where entities are distinguished by the combination of PK and SK prefixes.
 
 - **Internal-Segment Compound Discrimination** — Extended compound key discrimination to resolve same-prefix entity pairs where one entity's original Complex pattern contains a distinguishing internal segment. For example, `TENANT#*#ROLE#*` and `TENANT#*` both reduce to the same prefix `TENANT#*`, but the `#ROLE#` segment in the Complex pattern can now be used as a positional `IndexOf`-based compound constraint to disambiguate the pair. The Complex entity receives a positive constraint (`IndexOf("#ROLE#", 7) >= 0`) and the simpler entity receives a negated exclusion guard. This also handles dual-Complex pairs with different internal segments (e.g., `TENANT#*#ROLE#*` vs `TENANT#*#DEPT#*`) and bare-separator patterns (e.g., `CAP#*#*` vs `CAP#*`). All internal-segment constraints use positional `IndexOf(literal, offset)` instead of `Contains(literal)` to prevent false matches from coincidental substring presence in wildcard values within the prefix portion.
-
-### Changed
-
-- **InvoiceManager Example: Multi-Level Menu Navigation** — Refactored the InvoiceManager example from a flat menu (requiring re-entry of customer and invoice IDs for every operation) to a hierarchical three-level menu: Main → Customer → Invoice. Selected context is displayed in the menu header and carried through sub-operations. Also added Delete Line Item and Update Line Item operations that demonstrate the typed convenience method overloads (`GetAsync`, `DeleteAsync`, `Update` with computed SK components).
-
-### Removed
-
-- **BREAKING: `BuildPk()`/`BuildSk()` Methods from Generated Keys Class** — The `BuildPk(...)` and `BuildSk(...)` methods are removed from the source-generated `Keys` class. Computed key construction now happens via the unified `Pk(...)` and `Sk(...)` methods, which handle both prefix-based and computed key construction.
-
-- **BREAKING: `Key()` Composite Method from Generated Keys Class** — The `Key()` method that returned a tuple of `(pk, sk)` is removed. Use `Pk(...)` and `Sk(...)` independently.
-
-- **BREAKING: Passthrough `Pk(string)`/`Sk(string)` Methods for Bare Keys** — Single-parameter passthrough methods that simply returned the input unchanged (no prefix, no computed format) are no longer generated. These methods added no value and confused the API surface.
-
-### Changed
-
-- **BREAKING: Computed Key Construction via Unified `Pk(...)`/`Sk(...)` Methods** — Computed keys with multiple source properties are now constructed through the same `Pk(...)` and `Sk(...)` methods that handle prefix keys. The method signature accepts typed parameters matching the source property types and applies the format string internally.
-
-- **BREAKING: Typed Get/Delete/Update Overloads Delegate to `Keys.Pk(...)`/`Keys.Sk(...)`** — Generated typed convenience overloads for Get, Delete, and Update operations now delegate to `Keys.Pk(...)` / `Keys.Sk(...)` instead of `Keys.BuildPk(...)` / `Keys.BuildSk(...)`. No change is required for consumers using the typed overloads directly — they continue to accept the same typed parameters.
-
-  **Migration Guide:**
-
-  | Before | After |
-  |--------|-------|
-  | `Entity.Keys.BuildPk(a, b)` | `Entity.Keys.Pk(a, b)` |
-  | `Entity.Keys.BuildSk(a, b)` | `Entity.Keys.Sk(a, b)` |
-  | `Entity.Keys.Key(pk, sk)` | Use `Pk(...)` and `Sk(...)` separately |
-
-  **Examples:**
-  ```csharp
-  // Before
-  var pk = Event.Keys.BuildPk(2024, 12, 25);
-  var sk = Invoice.Keys.BuildSk("INV-001");
-  var (pk, sk) = Customer.Keys.Key("cust-123");
-
-  // After
-  var pk = Event.Keys.Pk(2024, 12, 25);
-  var sk = Invoice.Keys.Sk("INV-001");
-  var pk = Customer.Keys.Pk("cust-123");
-  var sk = Customer.Keys.Sk;  // constant key — no change needed
-  ```
-
-### Documentation
-
-- **SonarQube S6966 False Positive in Transaction Composition** - Documented a known SonarQube/SonarCloud false positive where rule S6966 ("Awaitable method should be used") fires on each `.Add()` call inside `DynamoDbTransactions.Write` because the analyzer sees that `PutItemRequestBuilder<T>` has a `PutAsync()` method and suggests awaiting it. This is incorrect — the builder is being composed into a transaction, not executed independently. Added troubleshooting entry with explanation and suppression guidance.
-
-### Added
-
-- **FDDB125 Diagnostic for Computed Keys with Redundant Prefix** - New compile-time warning diagnostic `FDDB125` emitted when a computed key property (`[Computed(...)]`) also has a `Prefix` configured via `[PartitionKey(Prefix = "...")]` or `[SortKey(Prefix = "...")]`. Prefixes are silently ignored at runtime on computed keys because the computed format string controls the full key shape. The diagnostic surfaces this misconfiguration at compile time so developers can remove the redundant prefix or restructure the key definition.
-
-### Fixed
-
-- **`Extract{Property}Components()` and `FromDynamoDb` Hydration Use Correct Split Index for Format-String Computed Keys** — `Extract{Property}Components()` and `FromDynamoDb` hydration now use the correct split index for entities with `[Computed(..., Format = "...")]` format strings containing constant literal segments — previously used the placeholder index `{N}` directly as the `parts[]` array index, which returned constant segments instead of variable values. (`extract-components-naive-split-indexing`)
-
-- **Wildcard `*` in Complex Key Patterns Enforces "One or More Characters" Semantics** — Wildcard `*` in complex key patterns now enforces "one or more characters" semantics — values with trailing separators (e.g., `"ORDER#123#"`) or empty wildcard portions (e.g., `"ORDER##LINE1"`) are correctly rejected by `IndexOf` positional checks in `GenerateComplexPatternCheck` and `GenerateComplexExclusionCheck`. The fix increments the search offset from `prefixLength` to `prefixLength + 1` and adds an upper bound check (`< Length - 1`) ensuring every wildcard position contains at least one character. (`wildcard-one-plus-semantics`)
-
-- **Complex Pattern Exclusion Produces Tautological Contains Check for Bare Separators** — Fixed `PatternOverlapAnalyzer.CreateExclusionPattern()` generating a `Contains("#")` exclusion guard when a Complex-strategy pattern like `"CAP#*#*"` overlaps with a simpler `"CAP#*"` StartsWith pattern. The `Contains("#")` check is always true for any value that already passes `StartsWith("CAP#")`, causing the less-specific entity's `MatchesEntity` to return `false` for all items — making the entity completely invisible to queries, scans, and gets. The fix detects bare separator segments (segments whose content is already guaranteed present in the prefix) and replaces them with positional `IndexOf(separator, prefixLength)` checks that verify the separator appears beyond the shared prefix boundary. Also fixed the secondary issue where more-specific Complex patterns (e.g., `"CAP#*#*"`) degrade to non-discriminating `StartsWith` + `Contains` checks that accept items from less-specific entities. Existing `Contains` logic for meaningful internal segments (e.g., `"#LINE#"` in `"INVOICE#*#LINE#*"`) is preserved unchanged.
-
-- **Read-Only Key Properties With Non-Const References Generate Uncompilable Code (FDDB126)** - Fixed the source generator silently producing uncompilable `entity.Sk = attrValue.S;` assignments in `FromDynamoDb()` when a key property uses expression-body (`=>`) or read-only auto-property (`{ get; }`) syntax referencing a non-compile-time-constant value (e.g., `static readonly` field, property access, or method call). `SemanticModel.GetConstantValue()` returns null for these runtime-only values, causing `DetectConstantKeyValue` to fall through to normal code generation — but the property has no setter, producing CS0200 at compile time. The fix introduces diagnostic FDDB126 (Error) to explicitly inform the user, adds `PropertyModel.IsReadOnlyKeyProperty` flag, and guards `MapperGenerator` against generating assignments or serialization for these properties. String literals and `const` field references continue to work unchanged.
-
-- **Non-String Key Types With Prefix Generate Non-Compilable Code** - Fixed the source generator's `MapperGenerator.GenerateKeyPrefixApplication` emitting code that passes non-string key property values (enum, DateTime, Guid, numeric types) directly to `KeyPrefixHelper.ApplyKeyPrefix(string, ...)` without first converting them to a string. This produced uncompilable generated code for any entity using a non-string key type with a configured prefix. The fix reuses `KeysGenerator.GetValueExpression` (changed from `private` to `internal`) to produce the correct type-to-string conversion expression. Also fixed `GenerateComputedKeyLogic` separator-based concatenation to use `GetValueExpression` for consistency with `Keys.Build*()` output.
-
-- **DYNDB023 False Positives for Enum, Extracted, and Unmapped Properties** - Fixed the `DYNDB023` performance diagnostic incorrectly firing on properties that are not complex nested DynamoDB types. Enum properties, `[Extracted]` properties (source-only, never serialized), and properties without a `[DynamoDbAttribute]` (unmapped) now skip performance validation. Also removed a duplicate `ValidatePropertyPerformance` call in the outer validation loop that could produce duplicate diagnostics.
-
-- **Typed Overload Not Generated for Single-Source Computed Keys** - Fixed `ComputedOverloadEligibility.QualifiesForTypedOverload` requiring `SourceProperties.Length >= 2`, which incorrectly rejected computed keys with a single non-string source property (e.g., `DateTime`). A single `DateTime` source produces a typed overload `(string pk, DateTime value)` that is clearly non-ambiguous with the standard `(string pk, string sk)` overload. Removed the count gate and rely on the existing `WouldBeAmbiguous` method to suppress truly conflicting overloads (single `string` source). Also updated `OverloadParameterResolver.GetTypedOverloadParameters` to resolve source property types for single-source computed keys.
-
-- **BlobData\<T\> Internal Methods Inaccessible from Generated Code in External Assemblies** - Fixed the source generator emitting calls to `internal` BlobData\<T\> methods (`FromReferenceKey`, `GetPendingValue`, `SetReferenceKey`) that caused CS1061/CS0117 compile errors in external consuming assemblies (NuGet consumers). Introduced a public `BlobDataOperations` helper class (hidden from IntelliSense) and updated the generator to emit calls to the public helpers instead. Removed the `InternalsVisibleTo("S3BlobDemo")` workaround that was masking the issue.
-
-- **Compound Discrimination Prefix Subsumption, ExactMatch vs Complex, and Spurious FDDB102** — Fixed three related bugs in the source generator's discriminator analysis that caused incorrect `MatchesEntity` code generation and spurious warnings when entities share a table with overlapping SK patterns and PK patterns with prefix-subset relationships. (1) `CompoundPromotionPass` now detects when one entity's `StartsWith` literal text is a prefix of another's after dual positive constraint assignment, and adds an exclusion guard to the shorter-prefix entity — preventing `MatchesEntity` from claiming items belonging to the longer-prefix entity. (2) `PatternOverlapAnalyzer.ExactValueMatchesPattern` no longer returns `true` unconditionally for Complex patterns — it now checks the leading prefix segment and returns `false` when the exact value cannot structurally match (e.g., `"SETTINGS"` vs `"CAP#*#*"`). (3) `PatternOverlapAnalyzer.Analyze` now defers FDDB102 emission for different-score auto-derived pairs until after the tautological exclusion check — non-tautological exclusions no longer produce spurious FDDB102 warnings. (`compound-discrimination-prefix-subsumption`)
-
-- **FDDB110 Warning Emitted Spuriously in Transitive Projects** - Fixed the source generator unconditionally running schema version detection on every compilation where it was loaded, even when no DynamoDB entities or projections were present. Projects that only transitively reference `Oproto.FluentDynamoDb` (e.g., test projects, API projects) no longer receive the spurious FDDB110 warning. The generator now short-circuits before schema version detection when there is nothing to generate.
-
-- **Update Method Parameter Ordering Breaks Backwards Compatibility** - Fixed the generated `Update()` method signatures placing `KeyInputMode mode` before `KeyCondition keyCondition` in the parameter list for entities qualifying for KeyInputMode (string keys with prefixes). This was a source-breaking change — existing code passing `KeyCondition` positionally as the 3rd argument (e.g., `table.Entities.Update(pk, sk, KeyCondition.MustExist)`) failed with CS1503. The parameter order is now `KeyCondition` first, `KeyInputMode` second, consistent with the generated `DeleteAsync` convenience methods. Affected all four generated Update variants (entity accessor PK-only, entity accessor composite key, table-level PK-only, table-level composite key).
-
-### Changed
-
-- **BREAKING: `IKmsKeyResolver` Interface — Async with Key Alias Support** - The `IKmsKeyResolver` interface has been converted from synchronous to asynchronous. The `ResolveKeyId(string? contextId)` method is removed and replaced by `ResolveKeyIdAsync(string? contextId, string? keyAlias = null, CancellationToken cancellationToken = default)` returning `Task<string>`. This enables non-blocking key resolution from external sources (databases, vaults, APIs) and adds per-property key differentiation via the new `keyAlias` parameter. All existing implementations must be updated.
-
-  **Migration — custom `IKmsKeyResolver` implementations:**
-  ```csharp
-  // Before
-  public class MyKeyResolver : IKmsKeyResolver
-  {
-      public string ResolveKeyId(string? contextId)
-      {
-          return LookupKey(contextId);
-      }
-  }
-
-  // After
-  public class MyKeyResolver : IKmsKeyResolver
-  {
-      public async Task<string> ResolveKeyIdAsync(
-          string? contextId,
-          string? keyAlias = null,
-          CancellationToken cancellationToken = default)
-      {
-          return await LookupKeyAsync(contextId, keyAlias, cancellationToken);
-      }
-  }
-  ```
-
-  **Migration — `DefaultKmsKeyResolver` construction:**
-  ```csharp
-  // Before
-  var resolver = new DefaultKmsKeyResolver("arn:aws:kms:...:key/default",
-      new Dictionary<string, string> { ["tenant-1"] = "arn:aws:kms:...:key/t1" });
-
-  // After (existing usage works unchanged, new aliasKeyMap parameter is optional)
-  var resolver = new DefaultKmsKeyResolver("arn:aws:kms:...:key/default",
-      contextKeyMap: new Dictionary<string, string> { ["tenant-1"] = "arn:aws:kms:...:key/t1" },
-      aliasKeyMap: new Dictionary<string, string> { ["pii"] = "arn:aws:kms:...:key/pii" });
-  ```
-
-- **ComputedFieldMetadata Format Normalization** - `ComputedFieldMetadata` now uses a single `Format` property (pre-compiled .NET composite format string) instead of `Separator`, `Prefix`, and `PrefixSeparator` for runtime computed field recomputation. The source generator translates all computed field configurations into a format string at compile time, and all runtime paths (Put, Keys, Update) now use `string.Format(format, values)` exclusively. This is a non-breaking change for consumers — the user-facing `ComputedAttribute` API is unchanged.
-
-- **Example Projects Modernized** - Updated all 11 example projects to demonstrate recently added features. Changes are non-breaking — existing DynamoDB data shapes and runtime behavior are preserved.
-  - Removed explicit `DiscriminatorProperty`/`DiscriminatorPattern`/`DiscriminatorValue` from multi-entity table entities (InvoiceManager, TransactionDemo) — discriminators are now auto-derived from key prefixes by the source generator
-  - Adopted auto key mode for Put operations — entity properties are now set to raw values (e.g., `customerId` instead of `Customer.Keys.Pk(customerId)`) with prefixes applied automatically during serialization
-  - Added `[Encrypted(KeyAlias = "pii")]` and `[Encrypted(KeyAlias = "financial")]` per-property key aliases to EncryptionDemo with `aliasKeyMap` configuration on `DefaultKmsKeyResolver`
-  - Added named blob provider properties (`[BlobStorage(Provider = "images")]`, `[BlobStorage(Provider = "documents")]`) to S3BlobDemo with multi-provider registration via `WithBlobStorage(name, provider)`
-  - Added `KeyInputModeSamples.cs` to OperationSamples demonstrating `KeyInputMode.Raw` and `KeyInputMode.Auto` behavior
-  - Added `ScheduledEvent` entity with computed partition key and `TypedOverloadSamples.cs` demonstrating typed Get/Delete/Update convenience overloads
-  - Added `CatalogItem` entity with non-key computed field on GSI and `ComputedFieldUpdateSamples.cs` demonstrating source-property-based update recomputation
-  - Added `[assembly: FluentDynamoDbSchemaVersion(1, 0)]` to all 10 example projects via `AssemblyInfo.cs`
-
-### Fixed
-
-- **Multi-Computed-Field-Target Data Loss** - Fixed `PropertyMetadata.ComputedFieldTarget` (typed `string?`) silently discarding all but the first computed field target when a source property contributes to multiple non-key computed fields. The `MapperGenerator` used `FirstOrDefault` to find a single matching computed field, losing additional targets. Renamed and retyped to `ComputedFieldTargets` (`string[]?`), updated the source generator to use `Where` to collect all matches, and updated `IsComputedSourceProperty` to check `ComputedFieldTargets?.Length > 0`. Single-target sources now emit a single-element array; non-sources remain null. No changes required to `ValidateAndProcessComputedFields` (already iterates all computed fields independently).
-
-- **Discriminator Regex Not Matching `{N:format}` Placeholders** - Fixed `EntityAnalyzer.DeriveDiscriminatorPattern` using a regex that only matched simple `{N}` placeholders, causing format specifier placeholders like `{0:yyyy-MM-dd}` to be left as literal text in the derived discriminator pattern. The regex is now `\{\d+(?::[^}]*)?\}` which correctly matches both `{0}` and `{0:yyyy-MM-dd}` (including specifiers with embedded colons like `{0:HH:mm:ss}`).
-
-  ```csharp
-  // Before: {0:yyyy-MM-dd}#{1} produced "{0:yyyy-MM-dd}#*" (broken)
-  // After:  {0:yyyy-MM-dd}#{1} produces "*#*" (correct)
-  [Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
-  ```
-
-- **False FDDB090 Diagnostics with Format Specifiers** - Fixed `EntityAnalyzer.ValidateComputedKeyFormat` incorrectly counting placeholders when format specifiers were present. The validator now extracts the numeric index portion before the first colon (e.g., `0` from `0:yyyy-MM-dd`) instead of attempting to parse the entire placeholder text as an integer. This eliminates false FDDB090 "placeholder count mismatch" diagnostics for valid format strings.
-
-  ```csharp
-  // Before: {0:yyyy-MM-dd}#{1} with 2 source properties falsely emitted FDDB090
-  // After:  correctly identifies 2 distinct placeholder indices — no diagnostic
-  [Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
-  ```
-
-- **Keys Builder Pre-Stringification Ignoring Format Specifiers** - Fixed `KeysGenerator` unconditionally pre-stringifying all source property values via `GetValueExpression()` before passing them to `string.Format`. This prevented `IFormattable` implementations (DateOnly, DateTime, int, enums) from applying format specifiers. The generator now passes typed values cast to `object` for placeholder indices that have format specifiers, preserving pre-stringification only for indices without specifiers.
-
-  ```csharp
-  // Before: DateOnly value was .ToString()'d, {0:yyyy-MM-dd} had no effect
-  // After:  DateOnly is passed typed, string.Format applies "yyyy-MM-dd" via IFormattable
-  var pk = Event.Keys.BuildPk(new DateOnly(2024, 3, 15), "electronics");
-  // Produces: "2024-03-15#electronics"
-  ```
-
-- **Update Recomputation Pre-Stringification Ignoring Format Specifiers** - Fixed `UpdateExpressionTranslator` unconditionally calling `.ToString()` on source property values before passing them to `string.Format` during computed field recomputation. When the format string contains format specifiers, values are now passed as typed objects (boxed to object) so that `string.Format(CultureInfo.InvariantCulture, ...)` can invoke `IFormattable.ToString(format, provider)`.
-
-  ```csharp
-  // Before: Update recomputation ignored {0:D4}, produced "42#Name" instead of "0042#Name"
-  // After:  typed int value flows to string.Format, producing correct "0042#Name"
-  await table.Events.Update(pk)
-      .Set(x => new EventUpdateModel { Priority = 42 })
-      .UpdateAsync();
-  ```
-
-### Added
 
 - **Constant Key Detection** - The source generator now detects key properties (`[PartitionKey]`/`[SortKey]`) that return a fixed compile-time string value via expression-body (`=>`) or read-only auto-property syntax. Detected constant keys propagate through the entire generation pipeline:
   - **Auto-discriminator derivation**: Constant keys automatically derive an `ExactMatch` discriminator pattern — no manual `DiscriminatorProperty`/`DiscriminatorValue` needed
@@ -250,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       });
   ```
 
-- **Named Blob Providers** - Support for registering multiple blob storage providers by name, enabling entities with properties stored across different blob backends (e.g., images in one S3 bucket, documents in another)
+- **Named Blob Providers** - Support for registering multiple blob storage providers by name, enabling entities with properties stored across different blob backends (e.g., images in one S3 bucket, documents in another).
   - `FluentDynamoDbOptions.WithBlobStorage(string name, IBlobStorageProvider provider)` registers a named provider in the immutable options instance (follows existing copy-on-write pattern)
   - `FluentDynamoDbOptions.GetBlobProvider(string? name)` resolves a provider by name, or the default provider when null/empty — throws `InvalidOperationException` with diagnostic messages listing available providers on misconfiguration
   - `[BlobStorage(Provider = "name")]` attribute property specifies which named provider a property uses; omitting `Provider` continues to use the default provider
@@ -284,35 +121,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Computed Field Update Model Redesign** - The source generator now excludes non-updatable properties (partition keys, sort keys, extracted properties of keys, and source properties of key-based computed fields) from generated update model classes, converting runtime errors into compile-time errors. Non-key computed fields and their source properties are included in the update model, enabling a source-property-based update path where setting all source properties triggers automatic recomputation of the concatenated computed field value. Three new runtime diagnostics enforce correctness: FDDB071 (source properties must be assigned constant/local values), FDDB072 (all source properties must be specified), and FDDB073 (cannot mix direct and source-based assignment). Each computed field is validated independently, and backwards compatibility is preserved for all existing non-key non-computed property updates.
 
-- **Typed Parameter Convenience Overloads for Computed Keys** - The source generator now produces additional Get, Delete, Update, and ConditionCheck overloads for entities with computed keys that have two or more source properties. These overloads accept individual source property components as typed parameters (e.g., `table.Events.Get(2024, 12, 25, "EVT#christmas")`) and internally delegate to `Entity.Keys.BuildPk(...)` / `Entity.Keys.BuildSk(...)`, eliminating the need to manually compose key strings before every CRUD operation. Parameter types match the declared source property types (int, DateTime, Guid, enums, etc.) for full compile-time type safety. Table-level overloads are also generated where applicable.
-- **KeyInputMode Parameter on Generated Accessor Methods** - Generated Get, Delete, Update, ConditionCheck, GetAsync, and DeleteAsync accessor methods now include an optional `KeyInputMode mode = KeyInputMode.Default` parameter when the entity has a string key with a configured prefix and no typed convenience overload. This allows per-call control of prefix application behavior without changing the global default. The parameter propagates to table-level methods and FluentResults variants.
-- **KeyInputMode Enum** - New `KeyInputMode` enum (`Default`, `Auto`, `Value`, `Raw`) that controls how key values are interpreted before being sent to DynamoDB operations. `Auto` mode intelligently detects whether a prefix is already applied; `Value` mode always prepends; `Raw` mode passes through unchanged.
-- **FluentDynamoDbOptions.DefaultKeyInputMode** - New `DefaultKeyInputMode` property (defaults to `KeyInputMode.Auto`) and `UseKeyInputMode(mode)` fluent configuration method for setting the global default key interpretation strategy.
-- **KeyInputModeResolver** - Internal utility that resolves `KeyInputMode.Default` to the actual configured mode from options.
-- **KeyPrefixHelper** - Internal utility that applies prefix transformations based on the resolved mode, using ordinal case-sensitive comparison for Auto mode detection.
-- **Automatic Key Prefix Application During Put Serialization** - The source generator now emits `ToDynamoDb` code that automatically applies configured key prefixes to partition key and sort key values during Put serialization, using `KeyPrefixHelper.ApplyKeyPrefix` with the resolved `KeyInputMode`. This eliminates the most common source of bugs for new users who previously had to manually call `Entity.Keys.Pk(value)` before Put operations. A new `ToDynamoDb` overload accepting `KeyInputMode` is generated alongside the existing overload (which delegates with `KeyInputMode.Default` for backward compatibility). Computed keys are excluded from prefix application. `PutItemRequestBuilder` exposes a new `WithKeyMode(KeyInputMode)` builder method for per-operation overrides, and `IAsyncEntityHydrator<TEntity>` gains a new `SerializeAsync` overload accepting `KeyInputMode` for entities with encrypted or blob properties.
-- **FDDB090 Diagnostic for Format Placeholder Count Mismatch** - New compile-time error diagnostic `FDDB090` emitted when an explicit `Format` on `[Computed]` has a placeholder count that doesn't match the number of source properties. Message: "Computed property '{name}' has format '{format}' with {N} placeholders but {M} source properties". Catches configuration errors at build time instead of producing incorrect values at runtime.
+- **Typed Parameter Convenience Overloads for Computed Keys** - The source generator now produces additional Get, Delete, Update, and ConditionCheck overloads for entities with computed keys that have two or more source properties. These overloads accept individual source property components as typed parameters (e.g., `table.Events.Get(2024, 12, 25, "EVT#christmas")`) and internally delegate to `Entity.Keys.Pk(...)` / `Entity.Keys.Sk(...)`, eliminating the need to manually compose key strings before every CRUD operation. Parameter types match the declared source property types (int, DateTime, Guid, enums, etc.) for full compile-time type safety. Table-level overloads are also generated where applicable.
+
+- **KeyInputMode Enum and Automatic Key Prefix Application** - New `KeyInputMode` enum (`Default`, `Auto`, `Value`, `Raw`) that controls how key values are interpreted before being sent to DynamoDB operations. `Auto` mode intelligently detects whether a prefix is already applied; `Value` mode always prepends; `Raw` mode passes through unchanged.
+  - `FluentDynamoDbOptions.DefaultKeyInputMode` property (defaults to `KeyInputMode.Auto`) and `UseKeyInputMode(mode)` fluent configuration method for setting the global default key interpretation strategy
+  - `KeyInputMode mode = KeyInputMode.Default` optional parameter on generated Get, Delete, Update, ConditionCheck, GetAsync, and DeleteAsync accessor methods when the entity has a string key with a configured prefix
+  - The source generator now emits `ToDynamoDb` code that automatically applies configured key prefixes to partition key and sort key values during Put serialization, using `KeyPrefixHelper.ApplyKeyPrefix` with the resolved `KeyInputMode` — this eliminates the most common source of bugs for new users who previously had to manually call `Entity.Keys.Pk(value)` before Put operations
+  - `PutItemRequestBuilder` exposes a new `WithKeyMode(KeyInputMode)` builder method for per-operation overrides
+  - `IAsyncEntityHydrator<TEntity>` gains a new `SerializeAsync` overload accepting `KeyInputMode` for entities with encrypted or blob properties
+
 - **Auto-Derivation of Discriminator Patterns from Key Formats** - The source generator now automatically derives discriminator patterns from key format strings at compile time. When a key property has a prefix (e.g., `[SortKey(Prefix = "ORDER")]`), the normalized format `"ORDER#{0}"` is transformed into the discriminator pattern `"ORDER#*"` by replacing placeholders with wildcards. This eliminates the need to manually specify `DiscriminatorPattern` in most single-table designs. Sort key patterns are preferred over partition key patterns for entity discrimination. Existing explicit discriminators are never overridden — backwards compatibility is fully preserved.
-- **FDDB100, FDDB101, FDDB102, FDDB103 Diagnostics** - Four new compile-time diagnostics for key format and discriminator consistency:
-  - `FDDB100` (Error): Key prefix conflicts with explicit computed format — emitted when a `[Computed]` attribute's `Format` does not start with the expected `"{Prefix}{Separator}"` prefix
-  - `FDDB101` (Error): Explicit discriminator pattern conflicts with derived pattern — emitted when a manually specified `DiscriminatorPattern` differs from what the key format derives
-  - `FDDB102` (Warning): Overlapping auto-derived discriminator patterns — advisory warning when two auto-derived patterns overlap with different specificity, suggesting more specific key formats
-  - `FDDB103` (Info): Redundant explicit discriminator — informational diagnostic when an explicit `DiscriminatorPattern` exactly matches the auto-derived pattern and can be safely removed
-- **`NormalizedKeyFormat` and `DerivedDiscriminatorPattern` on PropertyModel** - Two new properties on `PropertyModel` populated during entity analysis. `NormalizedKeyFormat` holds the full format string for key value assembly (e.g., `"ORDER#{0}"` for prefixed keys, `"TENANT#{0}#{1}"` for computed keys). `DerivedDiscriminatorPattern` holds the wildcard pattern derived by replacing `{N}` placeholders with `*` (null when the format is trivial `"{0}"`). These properties enable downstream discriminator selection and conflict detection.
-- **`IsAutoDerived` Flag on DiscriminatorConfig** - New boolean property distinguishing auto-derived discriminators from explicitly specified ones. Used by FDDB102 (only warns about auto-derived pairs) and FDDB103 (detects redundancy). Does not affect code generation — the `MatchesEntity` method produces identical logic regardless of derivation source.
-- **Centralized Diagnostics Reference with helpLinkUri** - Added `docs/diagnostics/` directory with structured documentation for all 103 diagnostic codes across five prefix groups (DYNDB, FDDB, PROJ, DISC, SEC). Each `DiagnosticDescriptor` now includes a `helpLinkUri` pointing to `https://fluentdynamodb.dev/diagnostics/{CODE}`, making diagnostic codes clickable in IDE error lists. Per-code pages include severity, message format, description, triggering example, and fix.
-- **`FluentDynamoDbSchemaVersionAttribute` Assembly-Level Attribute** - New `[assembly: FluentDynamoDbSchemaVersion(major, minor)]` attribute that declares which source generator schema version a consumer assembly targets. Schema versions are independent of the NuGet package version — multiple package versions may support the same schema version. Consumers upgrade generated code shapes at their own pace by bumping their declared version. The current schema version is 1.0. Usage:
-  ```csharp
-  [assembly: FluentDynamoDbSchemaVersion(1, 0)]
-  ```
-  Seven new diagnostics enforce the versioning contract:
-  - `FDDB110` (Warning): Assembly does not declare a schema version — defaults to 1.0
-  - `FDDB111` (Error): Declared version is older than the minimum supported — generation halted
-  - `FDDB112` (Error): Declared version is newer than the current — package update required
-  - `FDDB113` (Info): Declared version is supported but not current — upgrade available
-  - `FDDB114` (Error): Major version must be at least 1
-  - `FDDB115` (Error): Minor version must be at least 0
-  - `FDDB116` (Error): Multiple schema version attributes detected — generation halted
+
+- **Computed Field Format Specifier Support** - Computed key format string placeholders now support .NET format specifiers (e.g., `{0:yyyy-MM-dd}`, `{0:D4}`). All code paths (Keys builder, Put mapper, Update recomputation) correctly pass typed values to `string.Format` when format specifiers are present, and use `CultureInfo.InvariantCulture` to ensure deterministic, locale-independent output.
 
 - **Source Property `DynamoDbAttribute.Format` Fallback in Computed Fields** - The source generator now automatically injects a source property's `DynamoDbAttribute.Format` value into computed format string placeholders that lack an explicit format specifier. This eliminates the need to repeat format information in the computed format string when the source property already declares its format.
 
@@ -330,15 +150,120 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   public string Sk { get; set; } = string.Empty;
   ```
 
-- **`CultureInfo.InvariantCulture` Usage for Format Specifier Paths** - All code paths that apply format specifiers in computed fields (Keys builder, Put mapper, Update recomputation) now use `CultureInfo.InvariantCulture` when format specifiers are present. This ensures deterministic, locale-independent output for formatted computed key values regardless of the host machine's culture settings. Paths without format specifiers are unchanged for backwards compatibility.
-
+- **`FluentDynamoDbSchemaVersionAttribute` Assembly-Level Attribute** - New `[assembly: FluentDynamoDbSchemaVersion(major, minor)]` attribute that declares which source generator schema version a consumer assembly targets. Schema versions are independent of the NuGet package version — multiple package versions may support the same schema version. Consumers upgrade generated code shapes at their own pace by bumping their declared version. The current schema version is 1.0. Usage:
   ```csharp
-  // Format specifiers always produce the same output regardless of machine locale:
-  [Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
-  // Always produces "2024-03-15#electronics", never "15.03.2024#electronics" or "03/15/2024#electronics"
+  [assembly: FluentDynamoDbSchemaVersion(1, 0)]
+  ```
+  Seven new diagnostics enforce the versioning contract:
+  - `FDDB110` (Warning): Assembly does not declare a schema version — defaults to 1.0
+  - `FDDB111` (Error): Declared version is older than the minimum supported — generation halted
+  - `FDDB112` (Error): Declared version is newer than the current — package update required
+  - `FDDB113` (Info): Declared version is supported but not current — upgrade available
+  - `FDDB114` (Error): Major version must be at least 1
+  - `FDDB115` (Error): Minor version must be at least 0
+  - `FDDB116` (Error): Multiple schema version attributes detected — generation halted
+
+- **Centralized Diagnostics Reference with helpLinkUri** - Added `docs/diagnostics/` directory with structured documentation for all diagnostic codes across five prefix groups (DYNDB, FDDB, PROJ, DISC, SEC). Each `DiagnosticDescriptor` now includes a `helpLinkUri` pointing to `https://fluentdynamodb.dev/diagnostics/{CODE}`, making diagnostic codes clickable in IDE error lists. Per-code pages include severity, message format, description, triggering example, and fix.
+
+- **New Compile-Time Diagnostics** - Added 13 new diagnostics for improved developer experience:
+  - `FDDB090` (Error): Format placeholder count mismatch in `[Computed]` format string
+  - `FDDB100` (Error): Key prefix conflicts with explicit computed format
+  - `FDDB101` (Error): Explicit discriminator pattern conflicts with derived pattern
+  - `FDDB102` (Warning): Overlapping auto-derived discriminator patterns
+  - `FDDB103` (Info): Redundant explicit discriminator
+  - `FDDB104` (Info): Compound promotion resolved a same-score overlap
+  - `FDDB120` (Error): Constant key + computed conflict
+  - `FDDB121` (Error): Constant key + prefix conflict
+  - `FDDB122` (Error): Extracted from constant key
+  - `FDDB123` (Error): Empty constant key value
+  - `FDDB125` (Warning): Computed key with redundant prefix
+  - `FDDB126` (Error): Read-only key property with non-const reference
+
+### Changed
+
+- **BREAKING: `IKmsKeyResolver` Interface — Async with Key Alias Support** - The `IKmsKeyResolver` interface has been converted from synchronous to asynchronous. The `ResolveKeyId(string? contextId)` method is removed and replaced by `ResolveKeyIdAsync(string? contextId, string? keyAlias = null, CancellationToken cancellationToken = default)` returning `Task<string>`. This enables non-blocking key resolution from external sources (databases, vaults, APIs) and adds per-property key differentiation via the new `keyAlias` parameter. All existing implementations must be updated.
+
+  **Migration — custom `IKmsKeyResolver` implementations:**
+  ```csharp
+  // Before
+  public class MyKeyResolver : IKmsKeyResolver
+  {
+      public string ResolveKeyId(string? contextId)
+      {
+          return LookupKey(contextId);
+      }
+  }
+
+  // After
+  public class MyKeyResolver : IKmsKeyResolver
+  {
+      public async Task<string> ResolveKeyIdAsync(
+          string? contextId,
+          string? keyAlias = null,
+          CancellationToken cancellationToken = default)
+      {
+          return await LookupKeyAsync(contextId, keyAlias, cancellationToken);
+      }
+  }
   ```
 
+  **Migration — `DefaultKmsKeyResolver` construction:**
+  ```csharp
+  // Before
+  var resolver = new DefaultKmsKeyResolver("arn:aws:kms:...:key/default",
+      new Dictionary<string, string> { ["tenant-1"] = "arn:aws:kms:...:key/t1" });
+
+  // After (existing usage works unchanged, new aliasKeyMap parameter is optional)
+  var resolver = new DefaultKmsKeyResolver("arn:aws:kms:...:key/default",
+      contextKeyMap: new Dictionary<string, string> { ["tenant-1"] = "arn:aws:kms:...:key/t1" },
+      aliasKeyMap: new Dictionary<string, string> { ["pii"] = "arn:aws:kms:...:key/pii" });
+  ```
+
+- **BREAKING: Computed Key Construction via Unified `Pk(...)`/`Sk(...)` Methods** — Computed keys with multiple source properties are now constructed through the same `Pk(...)` and `Sk(...)` methods that handle prefix keys. The method signature accepts typed parameters matching the source property types and applies the format string internally.
+
+- **BREAKING: Typed Get/Delete/Update Overloads Delegate to `Keys.Pk(...)`/`Keys.Sk(...)`** — Generated typed convenience overloads for Get, Delete, and Update operations now delegate to `Keys.Pk(...)` / `Keys.Sk(...)` instead of `Keys.BuildPk(...)` / `Keys.BuildSk(...)`. No change is required for consumers using the typed overloads directly — they continue to accept the same typed parameters.
+
+  **Migration Guide:**
+
+  | Before | After |
+  |--------|-------|
+  | `Entity.Keys.BuildPk(a, b)` | `Entity.Keys.Pk(a, b)` |
+  | `Entity.Keys.BuildSk(a, b)` | `Entity.Keys.Sk(a, b)` |
+  | `Entity.Keys.Key(pk, sk)` | Use `Pk(...)` and `Sk(...)` separately |
+
+  **Examples:**
+  ```csharp
+  // Before
+  var pk = Event.Keys.BuildPk(2024, 12, 25);
+  var sk = Invoice.Keys.BuildSk("INV-001");
+  var (pk, sk) = Customer.Keys.Key("cust-123");
+
+  // After
+  var pk = Event.Keys.Pk(2024, 12, 25);
+  var sk = Invoice.Keys.Sk("INV-001");
+  var pk = Customer.Keys.Pk("cust-123");
+  var sk = Customer.Keys.Sk;  // constant key — no change needed
+  ```
+
+- **ComputedFieldMetadata Format Normalization** - `ComputedFieldMetadata` now uses a single `Format` property (pre-compiled .NET composite format string) instead of `Separator`, `Prefix`, and `PrefixSeparator` for runtime computed field recomputation. The source generator translates all computed field configurations into a format string at compile time, and all runtime paths (Put, Keys, Update) now use `string.Format(format, values)` exclusively. This is a non-breaking change for consumers — the user-facing `ComputedAttribute` API is unchanged.
+
+- **Example Projects Modernized** - Updated all 11 example projects to demonstrate recently added features. Changes are non-breaking — existing DynamoDB data shapes and runtime behavior are preserved.
+  - Removed explicit `DiscriminatorProperty`/`DiscriminatorPattern`/`DiscriminatorValue` from multi-entity table entities — discriminators are now auto-derived from key prefixes by the source generator
+  - Adopted auto key mode for Put operations — entity properties are now set to raw values with prefixes applied automatically during serialization
+  - Added `[Encrypted(KeyAlias = "...")]` per-property key aliases to EncryptionDemo
+  - Added named blob provider properties to S3BlobDemo with multi-provider registration
+  - Added `KeyInputModeSamples.cs`, `TypedOverloadSamples.cs`, and `ComputedFieldUpdateSamples.cs` to OperationSamples
+  - Added `[assembly: FluentDynamoDbSchemaVersion(1, 0)]` to all example projects
+
+- **InvoiceManager Example: Multi-Level Menu Navigation** — Refactored the InvoiceManager example from a flat menu to a hierarchical three-level menu: Main → Customer → Invoice. Also added Delete Line Item and Update Line Item operations demonstrating typed convenience method overloads.
+
 ### Removed
+
+- **BREAKING: `BuildPk()`/`BuildSk()` Methods from Generated Keys Class** — The `BuildPk(...)` and `BuildSk(...)` methods are removed from the source-generated `Keys` class. Computed key construction now happens via the unified `Pk(...)` and `Sk(...)` methods, which handle both prefix-based and computed key construction.
+
+- **BREAKING: `Key()` Composite Method from Generated Keys Class** — The `Key()` method that returned a tuple of `(pk, sk)` is removed. Use `Pk(...)` and `Sk(...)` independently.
+
+- **BREAKING: Passthrough `Pk(string)`/`Sk(string)` Methods for Bare Keys** — Single-parameter passthrough methods that simply returned the input unchanged (no prefix, no computed format) are no longer generated. These methods added no value and confused the API surface.
 
 - **IBlobStorageProvider Parameter Overloads from EntityExecuteAsyncExtensions** — Removed all legacy terminal method overloads that accept an explicit `IBlobStorageProvider` parameter. These overloads predated the options-based configuration and carried known bugs (broken `PutAsync` for encrypted entities, null-safety mismatches, parallel hydration instead of sequential). The following methods were removed:
   - `GetItemAsync<T>(GetItemRequestBuilder<T>, IBlobStorageProvider, CancellationToken)`
@@ -374,6 +299,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 - **Separator, Prefix, PrefixSeparator from ComputedFieldMetadata** - Removed `Separator` (string), `Prefix` (string?), and `PrefixSeparator` (string?) properties from `ComputedFieldMetadata`. These are replaced by the single `Format` property. This is an internal breaking change with no impact on the user-facing `ComputedAttribute` API — existing entity configurations using `Separator`, `Prefix`, and `Format` continue to work identically.
+
+### Fixed
+
+- **`Extract{Property}Components()` and `FromDynamoDb` Hydration Use Correct Split Index for Format-String Computed Keys** — `Extract{Property}Components()` and `FromDynamoDb` hydration now use the correct split index for entities with `[Computed(..., Format = "...")]` format strings containing constant literal segments — previously used the placeholder index `{N}` directly as the `parts[]` array index, which returned constant segments instead of variable values.
+
+- **Wildcard `*` in Complex Key Patterns Enforces "One or More Characters" Semantics** — Wildcard `*` in complex key patterns now enforces "one or more characters" semantics — values with trailing separators (e.g., `"ORDER#123#"`) or empty wildcard portions (e.g., `"ORDER##LINE1"`) are correctly rejected by `IndexOf` positional checks in `GenerateComplexPatternCheck` and `GenerateComplexExclusionCheck`.
+
+- **Complex Pattern Exclusion Produces Tautological Contains Check for Bare Separators** — Fixed `PatternOverlapAnalyzer.CreateExclusionPattern()` generating a `Contains("#")` exclusion guard when a Complex-strategy pattern like `"CAP#*#*"` overlaps with a simpler `"CAP#*"` StartsWith pattern. The `Contains("#")` check is always true for any value that already passes `StartsWith("CAP#")`, causing the less-specific entity's `MatchesEntity` to return `false` for all items. The fix replaces bare separator segments with positional `IndexOf(separator, prefixLength)` checks.
+
+- **Read-Only Key Properties With Non-Const References Generate Uncompilable Code (FDDB126)** - Fixed the source generator silently producing uncompilable `entity.Sk = attrValue.S;` assignments in `FromDynamoDb()` when a key property uses expression-body (`=>`) or read-only auto-property (`{ get; }`) syntax referencing a non-compile-time-constant value. The fix introduces diagnostic FDDB126 (Error), adds `PropertyModel.IsReadOnlyKeyProperty` flag, and guards `MapperGenerator` against generating assignments or serialization for these properties.
+
+- **Non-String Key Types With Prefix Generate Non-Compilable Code** - Fixed the source generator's `MapperGenerator.GenerateKeyPrefixApplication` emitting code that passes non-string key property values (enum, DateTime, Guid, numeric types) directly to `KeyPrefixHelper.ApplyKeyPrefix(string, ...)` without first converting them to a string.
+
+- **DYNDB023 False Positives for Enum, Extracted, and Unmapped Properties** - Fixed the `DYNDB023` performance diagnostic incorrectly firing on properties that are not complex nested DynamoDB types. Enum properties, `[Extracted]` properties, and properties without a `[DynamoDbAttribute]` now skip performance validation.
+
+- **Typed Overload Not Generated for Single-Source Computed Keys** - Fixed `ComputedOverloadEligibility.QualifiesForTypedOverload` requiring `SourceProperties.Length >= 2`, which incorrectly rejected computed keys with a single non-string source property (e.g., `DateTime`).
+
+- **BlobData\<T\> Internal Methods Inaccessible from Generated Code in External Assemblies** - Fixed the source generator emitting calls to `internal` BlobData\<T\> methods that caused CS1061/CS0117 compile errors in external consuming assemblies (NuGet consumers). Introduced a public `BlobDataOperations` helper class (hidden from IntelliSense) and updated the generator to emit calls to the public helpers instead.
+
+- **Compound Discrimination Prefix Subsumption, ExactMatch vs Complex, and Spurious FDDB102** — Fixed three related bugs in the source generator's discriminator analysis: (1) `CompoundPromotionPass` now detects prefix subsumption and adds exclusion guards. (2) `PatternOverlapAnalyzer.ExactValueMatchesPattern` no longer returns `true` unconditionally for Complex patterns. (3) `PatternOverlapAnalyzer.Analyze` now defers FDDB102 emission for different-score auto-derived pairs until after the tautological exclusion check.
+
+- **FDDB110 Warning Emitted Spuriously in Transitive Projects** - Fixed the source generator unconditionally running schema version detection on every compilation where it was loaded, even when no DynamoDB entities or projections were present. Projects that only transitively reference `Oproto.FluentDynamoDb` no longer receive the spurious FDDB110 warning.
+
+- **Update Method Parameter Ordering Breaks Backwards Compatibility** - Fixed the generated `Update()` method signatures placing `KeyInputMode mode` before `KeyCondition keyCondition` in the parameter list. The parameter order is now `KeyCondition` first, `KeyInputMode` second, consistent with the generated `DeleteAsync` convenience methods.
+
+- **Multi-Computed-Field-Target Data Loss** - Fixed `PropertyMetadata.ComputedFieldTarget` silently discarding all but the first computed field target when a source property contributes to multiple non-key computed fields. Renamed and retyped to `ComputedFieldTargets` (`string[]?`).
+
+- **Discriminator Regex Not Matching `{N:format}` Placeholders** - Fixed `EntityAnalyzer.DeriveDiscriminatorPattern` using a regex that only matched simple `{N}` placeholders, causing format specifier placeholders like `{0:yyyy-MM-dd}` to be left as literal text in the derived discriminator pattern.
+
+- **False FDDB090 Diagnostics with Format Specifiers** - Fixed `EntityAnalyzer.ValidateComputedKeyFormat` incorrectly counting placeholders when format specifiers were present. The validator now extracts the numeric index portion before the first colon.
+
+- **Keys Builder Pre-Stringification Ignoring Format Specifiers** - Fixed `KeysGenerator` unconditionally pre-stringifying all source property values via `GetValueExpression()` before passing them to `string.Format`, preventing `IFormattable` implementations from applying format specifiers.
+
+- **Update Recomputation Pre-Stringification Ignoring Format Specifiers** - Fixed `UpdateExpressionTranslator` unconditionally calling `.ToString()` on source property values before passing them to `string.Format` during computed field recomputation.
+
+### Documentation
+
+- **SonarQube S6966 False Positive in Transaction Composition** - Documented a known SonarQube/SonarCloud false positive where rule S6966 ("Awaitable method should be used") fires on each `.Add()` call inside `DynamoDbTransactions.Write`. Added troubleshooting entry with explanation and suppression guidance.
 
 ## [1.0.7] - 2026-06-23
 
