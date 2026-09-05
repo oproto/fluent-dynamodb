@@ -69,7 +69,7 @@ internal static class OverloadParameterResolver
             if (pkParams == null) return null;
             parameters.AddRange(pkParams);
         }
-        else if (pk != null)
+        else if (pk != null && !pk.IsConstantKey)
         {
             parameters.Add(new ParameterInfo("pK", "string", false));
         }
@@ -80,7 +80,7 @@ internal static class OverloadParameterResolver
             if (skParams == null) return null;
             parameters.AddRange(skParams);
         }
-        else if (sk != null)
+        else if (sk != null && !sk.IsConstantKey)
         {
             parameters.Add(new ParameterInfo("sK", "string", false));
         }
@@ -97,9 +97,9 @@ internal static class OverloadParameterResolver
     internal static List<ParameterInfo> GetStandardOverloadParameters(EntityModel entity)
     {
         var parameters = new List<ParameterInfo>();
-        if (entity.PartitionKeyProperty != null)
+        if (entity.PartitionKeyProperty != null && !entity.PartitionKeyProperty.IsConstantKey)
             parameters.Add(new ParameterInfo("pK", "string", false));
-        if (entity.SortKeyProperty != null)
+        if (entity.SortKeyProperty != null && !entity.SortKeyProperty.IsConstantKey)
             parameters.Add(new ParameterInfo("sK", "string", false));
         return parameters;
     }
