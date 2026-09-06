@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-06
+
+### Fixed
+
+- **Typed Convenience Overloads for Constant Sort Keys** — The source generator now correctly omits constant key parameters from typed convenience overloads when an entity has a `[Computed]` partition key and a constant sort key (expression-body or read-only auto-property). Previously, the typed overloads for `Get`, `Delete`, `Update`, and `ConditionCheck` incorrectly included the constant SK as a `string sK` parameter and delegated to 2-argument raw methods that don't exist, producing CS7036 and CS1503 compilation errors. The fix adds `IsConstantKey` guards in `OverloadParameterResolver` (parameter list construction) and `TableGenerator` (delegation argument construction). Also added missing constant-key handling to the `ConditionCheck` raw method generation, which was the only CRUD operation that lacked it.
+
 ## [1.1.0] - 2026-09-02
 
 ### Added

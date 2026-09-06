@@ -1155,7 +1155,7 @@ internal static class TableGenerator
             delegationArgs.Add("pK");
         }
         
-        if (sortKey != null)
+        if (sortKey != null && !sortKey.IsConstantKey)
         {
             if (skComputed)
             {
@@ -1356,7 +1356,7 @@ internal static class TableGenerator
             delegationArgs.Add("pK");
         }
         
-        if (sortKey != null)
+        if (sortKey != null && !sortKey.IsConstantKey)
         {
             if (skComputed)
             {
@@ -1566,7 +1566,7 @@ internal static class TableGenerator
             delegationArgs.Add("pK");
         }
         
-        if (sortKey != null)
+        if (sortKey != null && !sortKey.IsConstantKey)
         {
             if (skComputed)
             {
@@ -1653,7 +1653,7 @@ internal static class TableGenerator
             delegationArgs.Add("pK");
         }
         
-        if (sortKey != null)
+        if (sortKey != null && !sortKey.IsConstantKey)
         {
             if (skComputed)
             {
@@ -2393,57 +2393,68 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
-            sb.AppendLine($"        /// <summary>");
-            sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
-            sb.AppendLine($"        /// Condition checks verify conditions without modifying data and are used within transactions.");
-            sb.AppendLine($"        /// </summary>");
-            sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
-            sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
-            if (qualifiesForKeyInputMode)
-                sb.AppendLine($"        /// <param name=\"mode\">Controls how key value prefixes are applied. Defaults to the configured default mode.</param>");
-            sb.AppendLine($"        /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
-            sb.AppendLine($"        /// <example>");
-            sb.AppendLine($"        /// <code>");
-            sb.AppendLine($"        /// // Use in a transaction");
-            sb.AppendLine($"        /// await DynamoDbTransactions.Write");
-            sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.ConditionCheck({pkParamName}Value, {skParamName}Value)");
-            sb.AppendLine($"        ///         .Where(\"attribute_exists(#status)\")");
-            sb.AppendLine($"        ///         .WithAttribute(\"#status\", \"status\"))");
-            sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.Update({pkParamName}Value, {skParamName}Value).Set(...))");
-            sb.AppendLine($"        ///     .ExecuteAsync();");
-            sb.AppendLine($"        /// </code>");
-            sb.AppendLine($"        /// </example>");
+            // Constant key simplification
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
             
-            if (qualifiesForKeyInputMode)
+            if (constantSk || constantPk)
             {
-                sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyInputMode mode = KeyInputMode.Default)");
-                sb.AppendLine($"        {{");
-                sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
-                var pkEffective = GenerateKeyPrefixApplication(partitionKey, pkParamName, "effectivePk");
-                var skEffective = GenerateKeyPrefixApplication(sortKey, skParamName, "effectiveSk");
-                if (pkEffective != null) sb.AppendLine($"            {pkEffective}");
-                if (skEffective != null) sb.AppendLine($"            {skEffective}");
-                var effectivePkName = pkEffective != null ? "effectivePk" : pkParamName;
-                var effectiveSkName = skEffective != null ? "effectiveSk" : skParamName;
-                if (useSetKey)
-                    sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, effectivePkName, sortKey, effectiveSkName)};");
-                else
-                    sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {effectivePkName}, \"{skAttributeName}\", {effectiveSkName});");
-                sb.AppendLine($"        }}");
+                GenerateConstantKeyConditionCheckMethod(sb, entity, modifier, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode);
             }
             else
             {
-                sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-                if (NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey))
+                sb.AppendLine($"        /// <summary>");
+                sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
+                sb.AppendLine($"        /// Condition checks verify conditions without modifying data and are used within transactions.");
+                sb.AppendLine($"        /// </summary>");
+                sb.AppendLine($"        /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"        /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+                if (qualifiesForKeyInputMode)
+                    sb.AppendLine($"        /// <param name=\"mode\">Controls how key value prefixes are applied. Defaults to the configured default mode.</param>");
+                sb.AppendLine($"        /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+                sb.AppendLine($"        /// <example>");
+                sb.AppendLine($"        /// <code>");
+                sb.AppendLine($"        /// // Use in a transaction");
+                sb.AppendLine($"        /// await DynamoDbTransactions.Write");
+                sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.ConditionCheck({pkParamName}Value, {skParamName}Value)");
+                sb.AppendLine($"        ///         .Where(\"attribute_exists(#status)\")");
+                sb.AppendLine($"        ///         .WithAttribute(\"#status\", \"status\"))");
+                sb.AppendLine($"        ///     .Add(table.{GetEntityPropertyName(entity)}.Update({pkParamName}Value, {skParamName}Value).Set(...))");
+                sb.AppendLine($"        ///     .ExecuteAsync();");
+                sb.AppendLine($"        /// </code>");
+                sb.AppendLine($"        /// </example>");
+                
+                if (qualifiesForKeyInputMode)
                 {
-                    sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+                    sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyInputMode mode = KeyInputMode.Default)");
+                    sb.AppendLine($"        {{");
+                    sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
+                    var pkEffective = GenerateKeyPrefixApplication(partitionKey, pkParamName, "effectivePk");
+                    var skEffective = GenerateKeyPrefixApplication(sortKey, skParamName, "effectiveSk");
+                    if (pkEffective != null) sb.AppendLine($"            {pkEffective}");
+                    if (skEffective != null) sb.AppendLine($"            {skEffective}");
+                    var effectivePkName = pkEffective != null ? "effectivePk" : pkParamName;
+                    var effectiveSkName = skEffective != null ? "effectiveSk" : skParamName;
+                    if (useSetKey)
+                        sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, effectivePkName, sortKey, effectiveSkName)};");
+                    else
+                        sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {effectivePkName}, \"{skAttributeName}\", {effectiveSkName});");
+                    sb.AppendLine($"        }}");
                 }
                 else
                 {
-                    sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+                    sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+                    if (NeedsSetKeyApproach(partitionKey) || NeedsSetKeyApproach(sortKey))
+                    {
+                        sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>(){GenerateSetKeyComposite(partitionKey, pkParamName, sortKey, skParamName)};");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {pkParamName}, \"{skAttributeName}\", {skParamName});");
+                    }
                 }
+                sb.AppendLine();
             }
-            sb.AppendLine();
         }
         
         // Generate typed convenience overload if eligible
@@ -3292,27 +3303,38 @@ internal static class TableGenerator
             var pkParamName = useSetKey ? "pK" : ToCamelCase(pkAttributeName);
             var skParamName = useSetKey ? "sK" : ToCamelCase(skAttributeName);
             
-            sb.AppendLine($"    /// <summary>");
-            sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
-            sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
-            sb.AppendLine($"    /// </summary>");
-            sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
-            sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
-            if (qualifiesForKeyInputMode)
-                sb.AppendLine($"    /// <param name=\"mode\">Controls how key value prefixes are applied. Defaults to the configured default mode.</param>");
-            sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+            // Constant key simplification
+            var constantSk = sortKey.IsConstantKey;
+            var constantPk = partitionKey.IsConstantKey;
             
-            if (qualifiesForKeyInputMode)
+            if (constantSk || constantPk)
             {
-                sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyInputMode mode = KeyInputMode.Default) =>");
-                sb.AppendLine($"        {entityPropertyName}.ConditionCheck({pkParamName}, {skParamName}, mode);");
+                GenerateTableLevelConstantKeyConditionCheckMethod(sb, entity, entityPropertyName, partitionKey, sortKey, pkAttributeName, skAttributeName, pkPropertyType, skPropertyType, constantPk, constantSk, qualifiesForKeyInputMode);
             }
             else
             {
-                sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
-                sb.AppendLine($"        {entityPropertyName}.ConditionCheck({pkParamName}, {skParamName});");
+                sb.AppendLine($"    /// <summary>");
+                sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} by its {pkAttributeName} (partition key) and {skAttributeName} (sort key).");
+                sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
+                sb.AppendLine($"    /// </summary>");
+                sb.AppendLine($"    /// <param name=\"{pkParamName}\">The {pkAttributeName} value.</param>");
+                sb.AppendLine($"    /// <param name=\"{skParamName}\">The {skAttributeName} value.</param>");
+                if (qualifiesForKeyInputMode)
+                    sb.AppendLine($"    /// <param name=\"mode\">Controls how key value prefixes are applied. Defaults to the configured default mode.</param>");
+                sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the composite key.</returns>");
+                
+                if (qualifiesForKeyInputMode)
+                {
+                    sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}, KeyInputMode mode = KeyInputMode.Default) =>");
+                    sb.AppendLine($"        {entityPropertyName}.ConditionCheck({pkParamName}, {skParamName}, mode);");
+                }
+                else
+                {
+                    sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({pkPropertyType} {pkParamName}, {skPropertyType} {skParamName}) =>");
+                    sb.AppendLine($"        {entityPropertyName}.ConditionCheck({pkParamName}, {skParamName});");
+                }
+                sb.AppendLine();
             }
-            sb.AppendLine();
         }
         
         // Generate typed overload at table level if eligible
@@ -5825,6 +5847,151 @@ internal static class TableGenerator
         {
             sb.AppendLine($"    public {updateBuilderClassName} Update({paramType} {paramName}, KeyCondition keyCondition = KeyCondition.None) =>");
             sb.AppendLine($"        {entityPropertyName}.Update({paramName}, keyCondition);");
+        }
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates a simplified ConditionCheck method for entities with constant keys (accessor level).
+    /// </summary>
+    private static void GenerateConstantKeyConditionCheckMethod(StringBuilder sb, EntityModel entity, string modifier,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode)
+    {
+        var escapedPkConstant = constantPk ? MapperGenerator.EscapeString(partitionKey.ConstantKeyValue!) : null;
+        var escapedSkConstant = constantSk ? MapperGenerator.EscapeString(sortKey.ConstantKeyValue!) : null;
+        
+        if (constantPk && constantSk)
+        {
+            // Both keys constant — parameterless method
+            sb.AppendLine($"        /// <summary>");
+            sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"        /// Condition checks verify conditions without modifying data and are used within transactions.");
+            sb.AppendLine($"        /// </summary>");
+            sb.AppendLine($"        /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the constant keys.</returns>");
+            sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck() =>");
+            sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedPkConstant}\").WithKey(\"{skAttributeName}\", \"{escapedSkConstant}\");");
+            sb.AppendLine();
+        }
+        else if (constantSk && !constantPk)
+        {
+            // Constant SK, variable PK
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            GenerateConstantKeyConditionCheckMethodSingleParam(sb, entity, modifier, partitionKey, pkAttributeName, skAttributeName, pkPropertyType, paramName, escapedSkConstant!, true, qualifiesForKeyInputMode);
+        }
+        else if (constantPk && !constantSk)
+        {
+            // Constant PK, variable SK
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            GenerateConstantKeyConditionCheckMethodSingleParam(sb, entity, modifier, sortKey, pkAttributeName, skAttributeName, skPropertyType, paramName, escapedPkConstant!, false, qualifiesForKeyInputMode);
+        }
+    }
+    
+    private static void GenerateConstantKeyConditionCheckMethodSingleParam(StringBuilder sb, EntityModel entity, string modifier,
+        PropertyModel variableKey, string pkAttributeName, string skAttributeName, string variableKeyType,
+        string paramName, string escapedConstantValue, bool constantIsSk, bool qualifiesForKeyInputMode)
+    {
+        var variableAttrName = constantIsSk ? pkAttributeName : skAttributeName;
+        var constantAttrName = constantIsSk ? skAttributeName : pkAttributeName;
+        var variableKeyDesc = constantIsSk ? "partition key" : "sort key";
+        var constantKeyDesc = constantIsSk ? "sort key" : "partition key";
+        
+        sb.AppendLine($"        /// <summary>");
+        sb.AppendLine($"        /// Creates a condition check operation for a {entity.ClassName} by its {variableAttrName} ({variableKeyDesc}). The {constantKeyDesc} is constant.");
+        sb.AppendLine($"        /// Condition checks verify conditions without modifying data and are used within transactions.");
+        sb.AppendLine($"        /// </summary>");
+        sb.AppendLine($"        /// <param name=\"{paramName}\">The {variableAttrName} value.</param>");
+        if (qualifiesForKeyInputMode)
+            sb.AppendLine($"        /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+        sb.AppendLine($"        /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        
+        if (qualifiesForKeyInputMode)
+        {
+            sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({variableKeyType} {paramName}, KeyInputMode mode = KeyInputMode.Default)");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var resolvedMode = KeyInputModeResolver.Resolve(mode, _table.Options);");
+            var effective = GenerateKeyPrefixApplication(variableKey, paramName, "effectiveKey");
+            if (effective != null)
+            {
+                sb.AppendLine($"            {effective}");
+                if (constantIsSk)
+                    sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", effectiveKey).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+                else
+                    sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", effectiveKey);");
+            }
+            else
+            {
+                if (constantIsSk)
+                    sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName}).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+                else
+                    sb.AppendLine($"            return _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", {paramName});");
+            }
+            sb.AppendLine($"        }}");
+        }
+        else
+        {
+            sb.AppendLine($"        {modifier} ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({variableKeyType} {paramName}) =>");
+            if (constantIsSk)
+                sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", {paramName}).WithKey(\"{skAttributeName}\", \"{escapedConstantValue}\");");
+            else
+                sb.AppendLine($"            _table.ConditionCheck<{entity.ClassName}>().WithKey(\"{pkAttributeName}\", \"{escapedConstantValue}\").WithKey(\"{skAttributeName}\", {paramName});");
+        }
+        sb.AppendLine();
+    }
+    
+    /// <summary>
+    /// Generates table-level simplified ConditionCheck method for entities with constant keys.
+    /// Delegates to the accessor's simplified method.
+    /// </summary>
+    private static void GenerateTableLevelConstantKeyConditionCheckMethod(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        PropertyModel partitionKey, PropertyModel sortKey, string pkAttributeName, string skAttributeName,
+        string pkPropertyType, string skPropertyType, bool constantPk, bool constantSk,
+        bool qualifiesForKeyInputMode)
+    {
+        if (constantPk && constantSk)
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} using its constant key values.");
+            sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the constant keys.</returns>");
+            sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck() =>");
+            sb.AppendLine($"        {entityPropertyName}.ConditionCheck();");
+            sb.AppendLine();
+        }
+        else if (constantSk && !constantPk)
+        {
+            var paramName = NeedsSetKeyApproach(partitionKey) ? "pK" : ToCamelCase(pkAttributeName);
+            GenerateTableLevelConstantKeySingleParamConditionCheck(sb, entity, entityPropertyName, pkPropertyType, paramName, pkAttributeName, qualifiesForKeyInputMode);
+        }
+        else if (constantPk && !constantSk)
+        {
+            var paramName = NeedsSetKeyApproach(sortKey) ? "sK" : ToCamelCase(skAttributeName);
+            GenerateTableLevelConstantKeySingleParamConditionCheck(sb, entity, entityPropertyName, skPropertyType, paramName, skAttributeName, qualifiesForKeyInputMode);
+        }
+    }
+    
+    private static void GenerateTableLevelConstantKeySingleParamConditionCheck(StringBuilder sb, EntityModel entity, string entityPropertyName,
+        string paramType, string paramName, string attrName, bool qualifiesForKeyInputMode)
+    {
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates a condition check operation for a {entity.ClassName} by its {attrName}.");
+        sb.AppendLine($"    /// Condition checks verify conditions without modifying data and are used within transactions.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <param name=\"{paramName}\">The {attrName} value.</param>");
+        if (qualifiesForKeyInputMode)
+            sb.AppendLine($"    /// <param name=\"mode\">Controls how the key value prefix is applied. Defaults to the configured default mode.</param>");
+        sb.AppendLine($"    /// <returns>A ConditionCheckBuilder&lt;{entity.ClassName}&gt; configured with the key.</returns>");
+        if (qualifiesForKeyInputMode)
+        {
+            sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({paramType} {paramName}, KeyInputMode mode = KeyInputMode.Default) =>");
+            sb.AppendLine($"        {entityPropertyName}.ConditionCheck({paramName}, mode);");
+        }
+        else
+        {
+            sb.AppendLine($"    public ConditionCheckBuilder<{entity.ClassName}> ConditionCheck({paramType} {paramName}) =>");
+            sb.AppendLine($"        {entityPropertyName}.ConditionCheck({paramName});");
         }
         sb.AppendLine();
     }
