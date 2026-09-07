@@ -4747,11 +4747,27 @@ internal static class MapperGenerator
                 conditions.Add($"discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
                 for (int i = 1; i < nonEmptySegments.Count; i++)
                 {
+                    bool isLastSegment = (i == nonEmptySegments.Count - 1);
+                    bool patternEndsWithLiteral = !pattern.EndsWith("*");
+                    bool isTrailingBareSeparator = isLastSegment && patternEndsWithLiteral;
+
                     if (prefixSegment.Contains(nonEmptySegments[i]))
                     {
-                        // Bare separator: positional check with one-plus wildcard semantics
-                        // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures last wildcard is at least 1 char
-                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
+                        if (isTrailingBareSeparator)
+                        {
+                            // Trailing bare separator: the pattern ends with this literal (e.g., "EMPLOYEE#*#").
+                            // The separator IS the expected terminal character, so we only check that it exists
+                            // after the prefix — no < Length-1 constraint, which would incorrectly reject values
+                            // where the separator is the last character.
+                            conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0");
+                        }
+                        else
+                        {
+                            // Non-trailing bare separator: positional check with one-plus wildcard semantics.
+                            // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures the
+                            // following wildcard also matches at least 1 char.
+                            conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
+                        }
                     }
                     else
                     {
@@ -4782,11 +4798,27 @@ internal static class MapperGenerator
                 conditions.Add($"!discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
                 for (int i = 1; i < nonEmptySegments.Count; i++)
                 {
+                    bool isLastSegment = (i == nonEmptySegments.Count - 1);
+                    bool patternEndsWithLiteral = !pattern.EndsWith("*");
+                    bool isTrailingBareSeparator = isLastSegment && patternEndsWithLiteral;
+
                     if (prefixSegment.Contains(nonEmptySegments[i]))
                     {
-                        // Bare separator: negated positional check with one-plus wildcard semantics
-                        // Offset +1 ensures first wildcard is at least 1 char; >= Length-1 rejects terminal separator
-                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < 0 || discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= discriminatorValue.S.Length - 1");
+                        if (isTrailingBareSeparator)
+                        {
+                            // Trailing bare separator: the pattern ends with this literal (e.g., "EMPLOYEE#*#").
+                            // The separator IS the expected terminal character, so we only check that it is NOT
+                            // found — no >= Length-1 branch, which would incorrectly reject values where the
+                            // separator is the last character.
+                            conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < 0");
+                        }
+                        else
+                        {
+                            // Non-trailing bare separator: negated positional check with one-plus wildcard semantics.
+                            // Offset +1 ensures first wildcard is at least 1 char; >= Length-1 rejects terminal
+                            // separator to ensure the following wildcard also matches at least 1 char.
+                            conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < 0 || discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= discriminatorValue.S.Length - 1");
+                        }
                     }
                     else
                     {
@@ -4833,11 +4865,27 @@ internal static class MapperGenerator
             conditions.Add($"discriminatorValue.S.StartsWith(\"{prefixSegment}\")");
             for (int i = 1; i < nonEmptySegments.Count; i++)
             {
+                bool isLastSegment = (i == nonEmptySegments.Count - 1);
+                bool patternEndsWithLiteral = !pattern.EndsWith("*");
+                bool isTrailingBareSeparator = isLastSegment && patternEndsWithLiteral;
+
                 if (prefixSegment.Contains(nonEmptySegments[i]))
                 {
-                    // Bare separator: positional check with one-plus wildcard semantics
-                    // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures last wildcard is at least 1 char
-                    conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
+                    if (isTrailingBareSeparator)
+                    {
+                        // Trailing bare separator: the pattern ends with this literal (e.g., "EMPLOYEE#*#").
+                        // The separator IS the expected terminal character, so we only check that it exists
+                        // after the prefix — no < Length-1 constraint, which would incorrectly reject values
+                        // where the separator is the last character.
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0");
+                    }
+                    else
+                    {
+                        // Non-trailing bare separator: positional check with one-plus wildcard semantics.
+                        // Offset +1 ensures first wildcard is at least 1 char; < Length-1 ensures the
+                        // following wildcard also matches at least 1 char.
+                        conditions.Add($"discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) >= 0 && discriminatorValue.S.IndexOf(\"{nonEmptySegments[i]}\", {prefixSegment.Length + 1}) < discriminatorValue.S.Length - 1");
+                    }
                 }
                 else
                 {
