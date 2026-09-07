@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Trailing Bare-Separator `MatchesEntity` Rejection** — The source generator's `GenerateComplexPatternCheck` and `GenerateComplexExclusionCheck` methods now correctly handle discriminator patterns that end with a trailing literal after the last wildcard (e.g., `"EMPLOYEE#*#"` derived from `[Computed("EmployeeId", Format = "EMPLOYEE#{0}#")]`). Previously, all bare-separator segments unconditionally emitted a `< discriminatorValue.S.Length - 1` constraint (return/exclusion modes) or `>= discriminatorValue.S.Length - 1` constraint (negated mode), which incorrectly rejected values where the separator character was the terminal character — for example, `"EMPLOYEE#abc123#"` (length 16, IndexOf returns 15, `15 < 15` → false). The fix detects trailing bare-separator segments (last non-empty segment when the pattern doesn't end with `*`) and omits the length constraint for those, while preserving it for non-trailing bare-separator segments that still need to enforce one-plus wildcard semantics for subsequent wildcards.
+
 ## [1.1.1] - 2026-09-06
 
 ### Fixed
