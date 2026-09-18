@@ -1,0 +1,141 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Both tests FAILED on unfixed code as expected, confirming the bug exists:\n\nTest 1 (sync path - MultiItemEntity_SyncPath_ShouldContainExtractionLogic):\n  Expected extractionCommentCount >= 2, but found 1.\n  The extraction comment \"// Extract component properties from composite keys\" appears only once (in the single-item path).\n  The multi-item sync path (GenerateMultiItemFromDynamoDb) does NOT call GenerateExtractedKeyLogic.\n\nTest 2 (async path - MultiItemEntity_AsyncPath_ShouldContainExtractionLogic):\n  Expected extractionCount >= 2, but found 1.\n  \"DateTime.Parse(orderidParts[1])\" appears only once (in the single-item path).\n  The multi-item async path (GenerateMultiItemFromDynamoDbAsync) does NOT call GenerateExtractedKeyLogic.\n\nCounterexample: An EntityModel with IsMultiItemEntity=true, an [Extracted] DateTime property (CreationDateTime extracted from OrderId computed key), and a [RelatedEntity] relationship — the generated code omits extraction logic in both multi-item deserialization paths, causing CreationDateTime to silently retain DateTime.MinValue.",
+      "lastRunTimestamp": 1789738868721
+    },
+    "3.3 Verify bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1789739231458
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738710517
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738729341
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738884111
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738710648
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738890453
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739073630
+      }
+    ],
+    "3.1 Add `GenerateExtractedKeyLogic` call to `GenerateMultiItemFromDynamoDb` (sync path)": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738710683
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739080494
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739125481
+      }
+    ],
+    "3.2 Add `GenerateExtractedKeyLogic` call to `GenerateMultiItemFromDynamoDbAsync` (async path)": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738710710
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739129087
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739177713
+      }
+    ],
+    "3.3 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738710739
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739184816
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739241516
+      }
+    ],
+    "3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738710793
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739244556
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739273724
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789738710822
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739277230
+      },
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739489011
+      }
+    ],
+    "3. Fix extracted property population in multi-item deserialization paths": [
+      {
+        "executionId": "f305193e-2f8a-4ea2-ada2-a88b62a83df5",
+        "chatSessionId": "sess_8a4997a8-832c-4be5-8821-c4c8597427db",
+        "timestamp": 1789739273756
+      }
+    ]
+  }
+}

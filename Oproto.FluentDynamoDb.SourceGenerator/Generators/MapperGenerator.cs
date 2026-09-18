@@ -2385,6 +2385,18 @@ internal static class MapperGenerator
             GenerateAsyncPrimaryEntityIdentification(sb, entity, nonCollectionProperties);
         }
 
+        // Generate extracted key logic for multi-item async path
+        var extractedPropertiesMulti = entity.Properties.Where(p => p.IsExtracted).ToArray();
+        if (extractedPropertiesMulti.Length > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("                // Extract component properties from composite keys");
+            foreach (var extractedProperty in extractedPropertiesMulti)
+            {
+                GenerateExtractedKeyLogic(sb, extractedProperty, entity);
+            }
+        }
+
         // Populate collection properties from items (same as sync)
         var collectionProperties = entity.Properties.Where(p => p.IsCollection && p.HasAttributeMapping).ToArray();
         foreach (var collectionProperty in collectionProperties)
@@ -4142,6 +4154,18 @@ internal static class MapperGenerator
         if (nonCollectionProperties.Length > 0)
         {
             GeneratePrimaryEntityIdentification(sb, entity, nonCollectionProperties);
+        }
+
+        // Generate extracted key logic for multi-item sync path
+        var extractedProperties = entity.Properties.Where(p => p.IsExtracted).ToArray();
+        if (extractedProperties.Length > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("            // Extract component properties from composite keys");
+            foreach (var extractedProperty in extractedProperties)
+            {
+                GenerateExtractedKeyLogic(sb, extractedProperty, entity);
+            }
         }
 
         // Then, populate collection properties by grouping items
