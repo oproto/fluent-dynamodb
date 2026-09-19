@@ -57,6 +57,58 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-09-18]
+
+### AOT-Safe Pattern Matching in Generated Code
+
+**Category:** Clarification
+
+### File: docs/advanced-topics/CompositeEntities.md
+
+**Change:** Updated "Pattern Matching Rules" section and added new "How Pattern Matching Works" subsection documenting that generated code uses AOT-safe `string.Split` + segment comparison instead of `System.Text.RegularExpressions.Regex.IsMatch`. Added generated code example, supported delimiters list, and known limitation about adjacent wildcard-literal patterns.
+
+**Before:**
+```
+1. **Exact match**: No wildcard, matches SK exactly
+2. **Prefix match**: Ends with `*`, matches SK starting with the prefix
+3. **Case sensitive**: Patterns are case-sensitive
+4. **Order matters**: Items are returned in sort key order
+```
+
+**After:**
+```
+1. **Exact match**: No wildcard, matches SK exactly (or starts with pattern followed by `#`)
+2. **Wildcard match**: `*` matches any single segment between delimiters
+3. **Case sensitive**: Patterns are case-sensitive
+4. **Order matters**: Items are returned in sort key order
+
+[New subsection: "How Pattern Matching Works" with generated code example, delimiter inference explanation, and known limitation]
+```
+
+**Reason:** Generated code changed from `Regex.IsMatch` to `string.Split` + segment comparison for Native AOT compatibility. Documentation updated to reflect the actual matching mechanism and document a known limitation with adjacent wildcard-literal patterns (e.g., `"PREFIX#*SUFFIX"`).
+
+---
+
+### File: docs/reference/AttributeReference.md
+
+**Change:** Updated `[RelatedEntity]` Behavior section to clarify that pattern matching is AOT-safe using `string.Split`, note delimiter inference, and list supported custom delimiters.
+
+**Before:**
+```
+- The source generator creates the mapping logic automatically
+```
+
+**After:**
+```
+- The source generator creates AOT-safe mapping logic automatically using `string.Split` + segment comparison (no regex)
+- The delimiter is inferred from the character before the first `*` in the pattern (defaults to `#`)
+- Custom delimiters (`_`, `:`, `|`) are supported and auto-detected
+```
+
+**Reason:** Same AOT-safe pattern matching change. Reference documentation updated for consistency with the CompositeEntities guide.
+
+---
+
 ## [2026-08-17]
 
 ### New Feature: Compound Key Discrimination (FDDB104)

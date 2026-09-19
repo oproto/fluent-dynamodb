@@ -46,20 +46,20 @@ public class CompositeEntityPreservationPropertyTests
         var hasPrimaryEntityIdentification = entityCode.Contains("primaryItem")
             || entityCode.Contains("Primary entity");
 
-        var hasRegexPatternMatching = entityCode.Contains("Regex.IsMatch");
+        var hasPatternMatching = entityCode.Contains(".Split(");
 
         var hasRelatedEntityMapping = entityCode.Contains("Populate related entity properties")
             || entityCode.Contains($"Map related entity: {config.RelatedCollectionName}");
 
         var hasFullCompositeLogic = hasPrimaryEntityIdentification
-            && hasRegexPatternMatching
+            && hasPatternMatching
             && hasRelatedEntityMapping;
 
         return hasFullCompositeLogic.ToProperty()
             .Label($"Non-encrypted entity '{config.EntityName}' sync FromDynamoDb(IList) " +
                    $"must have full composite assembly: " +
                    $"primaryIdent={hasPrimaryEntityIdentification}, " +
-                   $"regex={hasRegexPatternMatching}, " +
+                   $"patternMatching={hasPatternMatching}, " +
                    $"relatedMapping={hasRelatedEntityMapping}");
     }
 
@@ -166,7 +166,7 @@ public class CompositeEntityPreservationPropertyTests
         var hasSingleItemDelegation = methodBody.Contains("items[0]");
         // Also confirm it does NOT have composite assembly logic (no relationships = no need)
         var hasCompositeAssembly = methodBody.Contains("primaryItem")
-            || methodBody.Contains("Regex.IsMatch")
+            || methodBody.Contains(".Split(")
             || methodBody.Contains("Populate related entity");
         
         var isCorrectDelegation = hasSingleItemDelegation && !hasCompositeAssembly;

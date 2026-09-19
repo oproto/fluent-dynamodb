@@ -57,7 +57,7 @@ public class CompositeEntityAsyncMultiItemBugExplorationTests
         // The sync FromDynamoDb(IList<...>) contains this logic. The async version should too.
         var hasCompositeAssemblyLogic = entityCode.Contains("primaryItem")
             || entityCode.Contains("Primary entity")
-            || entityCode.Contains("Regex.IsMatch")
+            || entityCode.Contains(".Split(")
             || entityCode.Contains("related entity")
             || (entityCode.Contains("foreach") && entityCode.Contains("items") && entityCode.Contains(config.RelatedEntityPattern));
 
@@ -194,7 +194,7 @@ namespace TestNamespace
         // This means ALL items after index 0 are discarded — related entities are lost.
         var hasAsyncCompositeLogic = methodBody.Contains("primaryItem")
             || methodBody.Contains("Primary entity")
-            || methodBody.Contains("Regex.IsMatch")
+            || methodBody.Contains(".Split(")
             || methodBody.Contains("ORDER#")
             || (methodBody.Contains("foreach") && methodBody.Contains("items") && !methodBody.Contains("items[0]"));
 

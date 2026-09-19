@@ -1,0 +1,260 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Falsifiable, after 1 test (0 shrinks) — Generated code for entity 'TestTransaction' with [RelatedEntity(\"TYPE_*_SUB_*\")] contains System.Text.RegularExpressions.Regex.IsMatch (containsRegexIsMatch=True, containsRegexNamespace=True). All 6 tests failed confirming the bug: (1) FsCheck property test found Regex.IsMatch in generated code for wildcard patterns, (2) Single wildcard \"AUDIT#*\" — generated code contains Regex.IsMatch at pos ~12246, (3) Multi-wildcard \"INVOICE#*#LINE#*\" — Regex.IsMatch at pos ~12374, (4) Custom delimiter \"TYPE_*_SUB_*\" — Regex.IsMatch at pos ~12217, (5) Multiple related entities \"ORDER#*#LINE#*\" + \"ORDER#*#NOTE#*\" — Regex.IsMatch at pos ~12340, (6) Full namespace \"System.Text.RegularExpressions\" found at pos ~12253 in if statement.",
+      "lastRunTimestamp": 1789743235431
+    },
+    "3.10 Verify bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1789744526334
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015295
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743022625
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743259700
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015335
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743263244
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743450815
+      }
+    ],
+    "3.1 Create `EmitWildcardPatternMatch` helper method in `MapperGenerator.cs`": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015386
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743457743
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743569675
+      }
+    ],
+    "3.2 Update emission site 1: `GenerateAsyncPrimaryEntityIdentification` (~line 2452)": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015462
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743576046
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743650698
+      }
+    ],
+    "3.3 Update emission site 2: `GenerateRelatedEntityCollectionMappingAsync` (~line 2674)": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015516
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743656560
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743812206
+      }
+    ],
+    "3.4 Update emission site 3: `GenerateRelatedEntitySingleMappingAsync` (~line 2788)": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015554
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743815540
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743895013
+      }
+    ],
+    "3.5 Update emission site 4: `GeneratePrimaryEntityPatternMatching` (~line 4277)": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015610
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743898374
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743978907
+      }
+    ],
+    "3.6 Update emission site 5: `GenerateSortKeyPatternMatching` (~line 5829)": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015654
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743982317
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744076051
+      }
+    ],
+    "3.7 Retain `ConvertWildcardPatternToRegex` as internal": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015689
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744084025
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744212327
+      }
+    ],
+    "3.8 Update existing tests that check generated code for `Regex.IsMatch` string presence": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015723
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744216841
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744410603
+      }
+    ],
+    "3.9 Build and verify all projects compile": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015774
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744413893
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744473476
+      }
+    ],
+    "3.10 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015823
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744477341
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744537349
+      }
+    ],
+    "3.11 Verify preservation tests still pass": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015868
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744540973
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744647079
+      }
+    ],
+    "4. Checkpoint — Ensure all tests pass": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789743015905
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744651120
+      },
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789746857124
+      }
+    ],
+    "3. Replace Regex.IsMatch emission with AOT-safe string operations": [
+      {
+        "executionId": "09cc36c7-d0ba-4f77-899c-02f6b856d76a",
+        "chatSessionId": "sess_f0e36af0-10cb-4a02-9b48-9c13d3de19cd",
+        "timestamp": 1789744647144
+      }
+    ]
+  }
+}
