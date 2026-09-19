@@ -2447,11 +2447,10 @@ internal static class MapperGenerator
 
                 foreach (var pattern in relatedPatterns)
                 {
-                    var regexPattern = ConvertWildcardPatternToRegex(pattern);
                     sb.AppendLine($"                        // Exclude items matching related pattern: {pattern}");
-                    sb.AppendLine($"                        if (System.Text.RegularExpressions.Regex.IsMatch(sortKey, @\"{regexPattern}\"))");
-                    sb.AppendLine("                        {");
-                    sb.AppendLine("                            isPrimaryEntity = false;");
+                    EmitWildcardPatternMatch(sb, "                        ", "sortKey", pattern);
+                    sb.AppendLine("                                isPrimaryEntity = false;");
+                    sb.AppendLine("                            }");
                     sb.AppendLine("                        }");
                 }
 
@@ -2670,8 +2669,21 @@ internal static class MapperGenerator
         var sortKeyPattern = relationship.SortKeyPattern;
         if (sortKeyPattern.Contains("*"))
         {
-            var regexPattern = ConvertWildcardPatternToRegex(sortKeyPattern);
-            sb.AppendLine($"                        if (System.Text.RegularExpressions.Regex.IsMatch(sortKey, @\"{regexPattern}\"))");
+            // AOT-safe: emit string.Split + segment comparison instead of Regex.IsMatch
+            var delimiter = InferDelimiterFromPattern(sortKeyPattern);
+            var patternSegments = sortKeyPattern.Split(new[] { delimiter }, StringSplitOptions.None);
+            var conditions = new List<string>();
+            conditions.Add($"_seg.Length == {patternSegments.Length}");
+            for (int i = 0; i < patternSegments.Length; i++)
+            {
+                if (patternSegments[i] != "*")
+                    conditions.Add($"_seg[{i}] == \"{patternSegments[i]}\"");
+            }
+            var charLiteral = delimiter == "\\" ? "'\\\\'" :
+                              delimiter == "'" ? "'\\''" :
+                              $"'{delimiter}'";
+            sb.AppendLine($"                        var _seg = sortKey.Split({charLiteral});");
+            sb.AppendLine($"                        if ({string.Join(" && ", conditions)})");
         }
         else
         {
@@ -2784,8 +2796,21 @@ internal static class MapperGenerator
         var sortKeyPattern = relationship.SortKeyPattern;
         if (sortKeyPattern.Contains("*"))
         {
-            var regexPattern = ConvertWildcardPatternToRegex(sortKeyPattern);
-            sb.AppendLine($"                        if (System.Text.RegularExpressions.Regex.IsMatch(sortKey, @\"{regexPattern}\"))");
+            // AOT-safe: emit string.Split + segment comparison instead of Regex.IsMatch
+            var delimiter = InferDelimiterFromPattern(sortKeyPattern);
+            var patternSegments = sortKeyPattern.Split(new[] { delimiter }, StringSplitOptions.None);
+            var conditions = new List<string>();
+            conditions.Add($"_seg.Length == {patternSegments.Length}");
+            for (int i = 0; i < patternSegments.Length; i++)
+            {
+                if (patternSegments[i] != "*")
+                    conditions.Add($"_seg[{i}] == \"{patternSegments[i]}\"");
+            }
+            var charLiteral = delimiter == "\\" ? "'\\\\'" :
+                              delimiter == "'" ? "'\\''" :
+                              $"'{delimiter}'";
+            sb.AppendLine($"                        var _seg = sortKey.Split({charLiteral});");
+            sb.AppendLine($"                        if ({string.Join(" && ", conditions)})");
         }
         else
         {
@@ -4272,11 +4297,10 @@ internal static class MapperGenerator
             // Check each related entity pattern
             foreach (var pattern in relatedPatterns)
             {
-                var regexPattern = ConvertWildcardPatternToRegex(pattern);
                 sb.AppendLine($"                    // Exclude items matching related pattern: {pattern}");
-                sb.AppendLine($"                    if (System.Text.RegularExpressions.Regex.IsMatch(sortKey, @\"{regexPattern}\"))");
-                sb.AppendLine("                    {");
-                sb.AppendLine("                        isPrimaryEntity = false;");
+                EmitWildcardPatternMatch(sb, "                    ", "sortKey", pattern);
+                sb.AppendLine("                            isPrimaryEntity = false;");
+                sb.AppendLine("                        }");
                 sb.AppendLine("                    }");
             }
             
@@ -5822,11 +5846,22 @@ internal static class MapperGenerator
     {
         if (sortKeyPattern.Contains("*"))
         {
-            // Wildcard pattern matching - convert pattern to regex
+            // AOT-safe: emit string.Split + segment comparison instead of Regex.IsMatch
             // Pattern like "INVOICE#*#LINE#*" should match "INVOICE#INV-001#LINE#1"
-            // Each * matches any characters (including empty) up to the next delimiter or end
-            var regexPattern = ConvertWildcardPatternToRegex(sortKeyPattern);
-            sb.AppendLine($"                    if (System.Text.RegularExpressions.Regex.IsMatch(sortKey, @\"{regexPattern}\"))");
+            var delimiter = InferDelimiterFromPattern(sortKeyPattern);
+            var patternSegments = sortKeyPattern.Split(new[] { delimiter }, StringSplitOptions.None);
+            var conditions = new List<string>();
+            conditions.Add($"_seg.Length == {patternSegments.Length}");
+            for (int i = 0; i < patternSegments.Length; i++)
+            {
+                if (patternSegments[i] != "*")
+                    conditions.Add($"_seg[{i}] == \"{patternSegments[i]}\"");
+            }
+            var charLiteral = delimiter == "\\" ? "'\\\\'" :
+                              delimiter == "'" ? "'\\''" :
+                              $"'{delimiter}'";
+            sb.AppendLine($"                    var _seg = sortKey.Split({charLiteral});");
+            sb.AppendLine($"                    if ({string.Join(" && ", conditions)})");
         }
         else
         {
@@ -5836,10 +5871,65 @@ internal static class MapperGenerator
     }
 
     /// <summary>
+    /// Emits AOT-safe wildcard pattern matching code using string.Split + segment comparison.
+    /// Replaces Regex.IsMatch emission with plain string operations that are fully AOT-compatible.
+    /// 
+    /// Opens a block scope { } and an if block. The caller is responsible for:
+    /// 1. Emitting the inner logic (what happens when the pattern matches)
+    /// 2. Closing the if block with AppendLine($"{indent}    }}")
+    /// 3. Closing the block scope with AppendLine($"{indent}}}")
+    /// 
+    /// Example output for pattern "INVOICE#*#LINE#*" with indent "                    ":
+    /// <code>
+    ///                     {
+    ///                         var _seg = sortKey.Split('#');
+    ///                         if (_seg.Length == 4 &amp;&amp; _seg[0] == "INVOICE" &amp;&amp; _seg[2] == "LINE")
+    ///                         {
+    /// </code>
+    /// </summary>
+    /// <param name="sb">The StringBuilder to append generated code to.</param>
+    /// <param name="indent">The indentation string for the current code level.</param>
+    /// <param name="sortKeyVariable">The variable name holding the sort key value (e.g., "sortKey").</param>
+    /// <param name="wildcardPattern">The wildcard pattern to match (e.g., "INVOICE#*#LINE#*").</param>
+    private static void EmitWildcardPatternMatch(StringBuilder sb, string indent, string sortKeyVariable, string wildcardPattern)
+    {
+        var delimiter = InferDelimiterFromPattern(wildcardPattern);
+        var segments = wildcardPattern.Split(new[] { delimiter }, StringSplitOptions.None);
+
+        // Build the condition: check segment count + all literal segments
+        var conditions = new List<string>();
+        conditions.Add($"_seg.Length == {segments.Length}");
+
+        for (int i = 0; i < segments.Length; i++)
+        {
+            if (segments[i] != "*")
+            {
+                conditions.Add($"_seg[{i}] == \"{segments[i]}\"");
+            }
+        }
+
+        // Escape the delimiter for the char literal in generated code
+        var charLiteral = delimiter == "\\" ? "'\\\\'" :
+                          delimiter == "'" ? "'\\''" :
+                          $"'{delimiter}'";
+
+        // Emit block-scoped code for collision-free variable reuse
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    var _seg = {sortKeyVariable}.Split({charLiteral});");
+        sb.AppendLine($"{indent}    if ({string.Join(" && ", conditions)})");
+        sb.AppendLine($"{indent}    {{");
+    }
+
+    /// <summary>
     /// Converts a wildcard pattern (using * as wildcard) to a regex pattern.
     /// For example: "INVOICE#*#LINE#*" becomes "^INVOICE#[^#]*#LINE#[^#]*$"
     /// The delimiter is inferred from the pattern (defaults to # if not found).
     /// </summary>
+    /// <remarks>
+    /// No longer used in code generation — emission sites now use <see cref="EmitWildcardPatternMatch"/>
+    /// which emits AOT-safe string.Split + segment comparison. Retained for test backward compatibility.
+    /// </remarks>
+    [System.Obsolete("No longer used in code generation. Retained for test backward compatibility.")]
     internal static string ConvertWildcardPatternToRegex(string wildcardPattern)
     {
         // Infer the delimiter from the pattern by looking at the character before the first *
@@ -5873,6 +5963,32 @@ internal static class MapperGenerator
         
         // Default to # if we can't infer
         return "#";
+    }
+
+    /// <summary>
+    /// Matches a sort key against a wildcard pattern using string.Split and segment comparison.
+    /// This is the runtime-equivalent logic that EmitWildcardPatternMatch will later emit as
+    /// generated code. It uses only plain string operations (Split, Length, equality) — no regex.
+    /// 
+    /// The pattern is split by its inferred delimiter. Each segment is either a literal (must match
+    /// exactly) or a wildcard "*" (matches any single segment). The sort key must have exactly the
+    /// same number of segments as the pattern, and all literal segments must match.
+    /// </summary>
+    internal static bool MatchesWildcardPattern(string sortKey, string pattern)
+    {
+        var delimiter = InferDelimiterFromPattern(pattern);
+        var patternSegments = pattern.Split(new[] { delimiter }, StringSplitOptions.None);
+        var sortKeySegments = sortKey.Split(new[] { delimiter }, StringSplitOptions.None);
+
+        if (patternSegments.Length != sortKeySegments.Length) return false;
+
+        for (int i = 0; i < patternSegments.Length; i++)
+        {
+            if (patternSegments[i] != "*" && patternSegments[i] != sortKeySegments[i])
+                return false;
+        }
+
+        return true;
     }
 
     private static void GenerateComputedKeyLogic(StringBuilder sb, PropertyModel computedProperty, PropertyModel[] entityProperties)

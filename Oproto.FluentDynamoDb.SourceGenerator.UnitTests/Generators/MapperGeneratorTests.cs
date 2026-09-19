@@ -189,10 +189,12 @@ public class MapperGeneratorTests
             "should document AuditEntries relationship mapping");
         result.Should().Contain("// Map related entity: Summary",
             "should document Summary relationship mapping");
-        result.Should().Contain("Regex.IsMatch(sortKey, @\"^audit\\#[^\\#]*$\")",
-            "should check sort key pattern for AuditEntries relationship using regex");
-        result.Should().Contain("Regex.IsMatch(sortKey, @\"^summary$\")",
-            "should check sort key pattern for Summary relationship using regex");
+        result.Should().Contain("sortKey.Split('#')",
+            "should use AOT-safe string.Split for AuditEntries wildcard pattern matching");
+        result.Should().Contain("_seg[0] == \"audit\"",
+            "should check literal segment for AuditEntries pattern");
+        result.Should().Contain("sortKey == \"summary\" || sortKey.StartsWith(\"summary#\")",
+            "should use exact-match string comparison for Summary relationship (no wildcards)");
     }
 
     [Fact]

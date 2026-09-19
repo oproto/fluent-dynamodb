@@ -304,10 +304,30 @@ public List<Address>? Addresses { get; set; }
 
 ### Pattern Matching Rules
 
-1. **Exact match**: No wildcard, matches SK exactly
-2. **Prefix match**: Ends with `*`, matches SK starting with the prefix
+1. **Exact match**: No wildcard, matches SK exactly (or starts with pattern followed by `#`)
+2. **Wildcard match**: `*` matches any single segment between delimiters — the pattern is split by its delimiter and each segment is compared individually
 3. **Case sensitive**: Patterns are case-sensitive
 4. **Order matters**: Items are returned in sort key order
+
+### How Pattern Matching Works
+
+The source generator emits AOT-safe pattern matching code at compile time. Wildcard patterns are split by their delimiter (inferred from the character before the first `*`, defaulting to `#`), and the generated code checks the sort key segment-by-segment.
+
+For example, `[RelatedEntity("INVOICE#*#LINE#*")]` generates:
+
+```csharp
+var _seg = sortKey.Split('#');
+if (_seg.Length == 4 && _seg[0] == "INVOICE" && _seg[2] == "LINE")
+{
+    // map related entity
+}
+```
+
+This approach uses only plain string operations (`Split`, `Length`, equality) with zero dependency on `System.Text.RegularExpressions`, making it fully compatible with Native AOT deployment.
+
+**Supported delimiters**: The delimiter is automatically inferred from the pattern. Standard delimiters (`#`, `_`, `:`, `|`) are all supported.
+
+**Known limitation**: Wildcard patterns where `*` is directly adjacent to a literal without a delimiter between them (e.g., `"PREFIX#*SUFFIX"`) are not supported — the delimiter inference treats the character before `*` as the sole delimiter, so `*` always represents an entire segment between delimiters. This is not an issue for standard DynamoDB key patterns which use delimiter-separated segments.
 
 ### Multiple Related Entities
 

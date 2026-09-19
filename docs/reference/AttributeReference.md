@@ -1047,7 +1047,9 @@ var order = await table.Query
 - Wildcard patterns (`*`) match multiple items and populate collections
 - Exact patterns match single items and populate single properties
 - If no matching items are found, collections are empty and single properties are null
-- The source generator creates the mapping logic automatically
+- The source generator creates AOT-safe mapping logic automatically using `string.Split` + segment comparison (no regex)
+- The delimiter is inferred from the character before the first `*` in the pattern (defaults to `#`)
+- Custom delimiters (`_`, `:`, `|`) are supported and auto-detected
 
 ### See Also
 
