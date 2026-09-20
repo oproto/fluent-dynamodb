@@ -1,5 +1,5 @@
 # FluentDynamoDb API Reference
-# Updated 2026-08-17
+# Updated 2026-08-18
 Compact reference for Oproto.FluentDynamoDb API patterns.
 
 ## Setup & DI
@@ -182,9 +182,10 @@ public partial class Invoice
     public string InvoiceNumber { get; set; } = string.Empty;
 
     // Related entity collection - automatically populated by ToCompositeEntityAsync
-    // Pattern "INVOICE#*#LINE#*" matches sort keys like "INVOICE#INV-001#LINE#1"
-    [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+    // Named placeholder pattern: {PropertyName} tokens resolved at compile time
+    [RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
     public List<InvoiceLine> Lines { get; set; } = new();
+    // Also supported: wildcard-only pattern "INVOICE#*#LINE#*"
 }
 
 // Child entity with hierarchical sort key
@@ -212,7 +213,7 @@ public partial class InvoiceLine
 
 | Property | Description |
 |----------|-------------|
-| Pattern (positional) | Sort key pattern with `*` wildcards (e.g., `"INVOICE#*#LINE#*"`) |
+| Pattern (positional) | Sort key pattern with `*` wildcards and optional `{PropertyName}` placeholders (e.g., `"{OrderId}#LINE#*"` or `"INVOICE#*#LINE#*"`) |
 | `EntityType` | The type to map matching items to (required for collections) |
 
 ### Querying Composite Entities
@@ -336,7 +337,9 @@ Console.WriteLine(evt3.Day);    // 25
 
 #### Computed Keys with Format String
 
-Use `Format` instead of `Separator` when your key needs fixed literal segments between values:
+Use `Format` instead of `Separator` when your key needs fixed literal segments between values.
+
+**Named placeholders (preferred)** — use `{PropertyName}` directly in the format string. Source properties are inferred automatically:
 
 ```csharp
 [DynamoDbTable("invoices")]
@@ -346,10 +349,10 @@ public partial class InvoiceLine
     [DynamoDbAttribute("pk")]
     public string Pk { get; set; } = string.Empty;
 
-    // Format string: literal text with {N} placeholders for source property values
+    // Named placeholders: property names inline, source properties inferred
     [SortKey]
     [DynamoDbAttribute("sk")]
-    [Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+    [Computed("INVOICE#{InvoiceId}#LINE#{LineNumber}")]
     public string Sk { get; set; } = string.Empty;
 
     [Extracted("Sk", 0)]
@@ -359,9 +362,17 @@ public partial class InvoiceLine
     public int LineNumber { get; set; }
 }
 
-// Generated methods:
+// Generated methods (identical output regardless of named vs positional syntax):
 InvoiceLine.Keys.Sk("INV-001", 1)              // Returns "INVOICE#INV-001#LINE#1"
 InvoiceLine.Keys.ExtractSkComponents("INVOICE#INV-001#LINE#1")  // Returns (InvoiceId: "INV-001", LineNumber: 1)
+```
+
+**Positional placeholders (also supported)** — list source properties explicitly with `{N}` indices:
+
+```csharp
+// Equivalent to the named syntax above — produces identical generated code
+[Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+public string Sk { get; set; } = string.Empty;
 ```
 
 #### Separator vs Format
@@ -369,11 +380,12 @@ InvoiceLine.Keys.ExtractSkComponents("INVOICE#INV-001#LINE#1")  // Returns (Invo
 | Approach | Attribute | Output for `("A", "B")` | Use When |
 |----------|-----------|--------------------------|----------|
 | Separator | `[Computed("X", "Y", Separator = "#")]` | `A#B` | Simple concatenation, no literal prefixes |
-| Format | `[Computed("X", "Y", Format = "PFX#{0}#SUF#{1}")]` | `PFX#A#SUF#B` | Need fixed literal segments in the key |
+| Named Format | `[Computed("PFX#{X}#SUF#{Y}")]` | `PFX#A#SUF#B` | Fixed literal segments (preferred) |
+| Positional Format | `[Computed("X", "Y", Format = "PFX#{0}#SUF#{1}")]` | `PFX#A#SUF#B` | Fixed literal segments (also supported) |
 
-#### Format Specifiers (`{N:format}`)
+#### Format Specifiers
 
-Placeholders support .NET format specifiers for type-specific formatting:
+Placeholders support .NET format specifiers for type-specific formatting. Named `{PropertyName:format}` and positional `{N:format}` syntax both work:
 
 ```csharp
 [DynamoDbTable("TimeSeries")]
@@ -381,12 +393,12 @@ public partial class TimeEntry
 {
     [PartitionKey]
     [DynamoDbAttribute("pk")]
-    [Computed("Date", Format = "ENTRY#{0:yyyy-MM-dd}")]
+    [Computed("ENTRY#{Date:yyyy-MM-dd}")]                  // Named (preferred)
     public string Pk { get; set; } = string.Empty;
 
     [SortKey]
     [DynamoDbAttribute("sk")]
-    [Computed("Sequence", Format = "SEQ#{0:D4}")]
+    [Computed("Sequence", Format = "SEQ#{0:D4}")]          // Positional (also supported)
     public string Sk { get; set; } = string.Empty;
 
     [Extracted("Pk", 0)]
@@ -405,11 +417,11 @@ Common format specifiers:
 
 | Type | Specifier | Input | Output |
 |------|-----------|-------|--------|
-| DateTime | `{0:yyyy-MM-dd}` | `2024-12-25` | `2024-12-25` |
-| DateTime | `{0:HH:mm:ss}` | `14:30:00` | `14:30:00` |
-| int | `{0:D4}` | `7` | `0007` |
-| int | `{0:D8}` | `42` | `00000042` |
-| decimal | `{0:F2}` | `3.5` | `3.50` |
+| DateTime | `{Date:yyyy-MM-dd}` or `{0:yyyy-MM-dd}` | `2024-12-25` | `2024-12-25` |
+| DateTime | `{Time:HH:mm:ss}` or `{0:HH:mm:ss}` | `14:30:00` | `14:30:00` |
+| int | `{Seq:D4}` or `{0:D4}` | `7` | `0007` |
+| int | `{Seq:D8}` or `{0:D8}` | `42` | `00000042` |
+| decimal | `{Amount:F2}` or `{0:F2}` | `3.5` | `3.50` |
 
 ### Key Handling Summary
 

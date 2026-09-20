@@ -300,6 +300,99 @@ foreach (var item in items)
 
 For read-heavy workloads, you can accept both formats during deserialization and gradually migrate data as items are updated.
 
+## Format Strings in Computed Keys
+
+Computed keys combine multiple source properties into a single DynamoDB attribute. You can use .NET format specifiers inside the `[Computed]` attribute's format string to control how each source value is rendered in the resulting key.
+
+### Named Placeholders (Recommended)
+
+Named placeholders reference source properties by name directly in the format string, making the key definition self-documenting:
+
+```csharp
+[DynamoDbTable("Events")]
+public partial class Event
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    [Computed("ENTRY#{Date:yyyy-MM-dd}")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("SEQ#{Sequence:D4}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted(nameof(Pk), 0)]
+    public DateOnly Date { get; set; }
+
+    [Extracted(nameof(Sk), 0)]
+    public int Sequence { get; set; }
+}
+
+// Date = 2024-03-15, Sequence = 7
+// Pk: "ENTRY#2024-03-15"
+// Sk: "SEQ#0007"
+```
+
+Named placeholders support the same format specifiers as positional placeholders. The source generator resolves property names at compile time, providing immediate feedback on typos.
+
+For multi-property keys, named placeholders eliminate the need to correlate positional indices with property names:
+
+```csharp
+// Named — each placeholder is self-documenting
+[Computed("INVOICE#{InvoiceNumber}#LINE#{LineNumber}")]
+public string Sk { get; set; } = string.Empty;
+```
+
+### Positional Placeholders (Also Supported)
+
+Positional placeholders use zero-based indices with source properties listed separately in the constructor:
+
+```csharp
+[DynamoDbTable("Events")]
+public partial class Event
+{
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    [Computed(nameof(Date), Format = "ENTRY#{0:yyyy-MM-dd}")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed(nameof(Sequence), Format = "SEQ#{0:D4}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted(nameof(Pk), 0)]
+    public DateOnly Date { get; set; }
+
+    [Extracted(nameof(Sk), 0)]
+    public int Sequence { get; set; }
+}
+```
+
+Both named and positional syntax produce identical output. Existing code using positional placeholders continues to work without changes.
+
+### Named vs Positional Comparison
+
+| Syntax | Example | Pros |
+|--------|---------|------|
+| Named (Recommended) | `[Computed("INVOICE#{InvoiceNumber}#LINE#{LineNumber}")]` | Self-documenting, no index bookkeeping |
+| Positional | `[Computed("InvoiceNumber", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]` | Familiar to users of `string.Format` |
+
+### Common Format Specifiers in Computed Keys
+
+| Type | Specifier | Input | Output |
+|------|-----------|-------|--------|
+| DateOnly / DateTime | `{Date:yyyy-MM-dd}` | `2024-03-15` | `2024-03-15` |
+| DateTime | `{Time:HH:mm:ss}` | `14:30:00` | `14:30:00` |
+| int | `{Seq:D4}` | `7` | `0007` |
+| int | `{Id:D8}` | `42` | `00000042` |
+| decimal | `{Amount:F2}` | `3.5` | `3.50` |
+
+> **See Also:** [Computed Field Format Specifiers](ComputedFieldFormatSpecifiers.md) for detailed coverage of format specifier behavior, precedence rules, and source property format fallback.
+
+---
+
 ## Advanced Scenarios
 
 ### Custom Format Providers
@@ -327,6 +420,7 @@ The source generator validates format strings at compile time where possible, bu
 
 ## See Also
 
+- [Computed Field Format Specifiers](ComputedFieldFormatSpecifiers.md) - Detailed coverage of format specifiers in computed keys
 - [DateTime Kind Guide](datetime-kind-guide.md) - Timezone handling for DateTime properties
 - [DynamoDbAttribute API Reference](../reference/dynamodb-attribute.md) - Complete attribute documentation
 - [.NET Format Strings](https://learn.microsoft.com/en-us/dotnet/standard/base-types/formatting-types) - Official .NET formatting documentation

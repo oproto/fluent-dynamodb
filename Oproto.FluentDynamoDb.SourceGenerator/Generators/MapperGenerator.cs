@@ -6091,6 +6091,8 @@ internal static class MapperGenerator
             "bool" or "System.Boolean" => $"bool.Parse({valueExpression})",
             "DateTime" or "System.DateTime" => $"DateTime.Parse({valueExpression})",
             "DateTimeOffset" or "System.DateTimeOffset" => $"DateTimeOffset.Parse({valueExpression})",
+            "DateOnly" or "System.DateOnly" => $"DateOnly.Parse({valueExpression})",
+            "TimeOnly" or "System.TimeOnly" => $"TimeOnly.Parse({valueExpression})",
             "Guid" or "System.Guid" => $"Guid.Parse({valueExpression})",
             "Ulid" or "System.Ulid" => $"Ulid.Parse({valueExpression})",
             // Any non-primitive type in an extracted property context must be an enum —

@@ -1,0 +1,484 @@
+{
+  "pbtResults": {
+    "5.2 Write property-based test: P1 Named-to-Positional Equivalence": {
+      "status": "passed",
+      "lastRunTimestamp": 1789841389154
+    },
+    "5.5 Write property-based tests: P4–P7 Diagnostic properties": {
+      "status": "passed",
+      "lastRunTimestamp": 1789841420747
+    },
+    "5.3 Write property-based test: P2 Backward Compatibility": {
+      "status": "passed",
+      "lastRunTimestamp": 1789841532863
+    },
+    "5.4 Write property-based test: P3 Wildcard Preservation": {
+      "status": "passed",
+      "lastRunTimestamp": 1789841537091
+    }
+  },
+  "executionHistory": {
+    "1.1 Add FDDB091–FDDB096 diagnostic descriptors to `DiagnosticDescriptors.cs`": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773682
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839781022
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839883029
+      }
+    ],
+    "1.2 Create `NamedPlaceholderNormalizer` utility class": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773721
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839886296
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840024037
+      }
+    ],
+    "1.3 Write unit tests for `NamedPlaceholderNormalizer`": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773784
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840027667
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840822991
+      }
+    ],
+    "2. Checkpoint — Ensure normalizer foundation builds and tests pass": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773818
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841195371
+      }
+    ],
+    "3.1 Modify `EntityAnalyzer.ExtractComputedKeyAttributes()` to call normalizer": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773851
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840028506
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840823782
+      }
+    ],
+    "3.2 Modify `EntityAnalyzer.ExtractRelationships()` to call normalizer for `[RelatedEntity]` sort key patterns": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773887
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840029433
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840824713
+      }
+    ],
+    "3.3 Verify `[Extracted]` attribute handling is excluded from normalization": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773932
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840030252
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840825651
+      }
+    ],
+    "3.4 Write diagnostic emission unit tests for FDDB091–FDDB096": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839773968
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840832802
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841189190
+      }
+    ],
+    "3.5 Write `[Extracted]` attribute exclusion unit tests": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774001
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840833586
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841190255
+      }
+    ],
+    "4. Checkpoint — Ensure EntityAnalyzer integration builds and tests pass": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774039
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841196142
+      }
+    ],
+    "5.1 Write end-to-end code generation integration tests": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774100
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840834348
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841190940
+      }
+    ],
+    "5.2 Write property-based test: P1 Named-to-Positional Equivalence": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774136
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841199964
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841551533
+      }
+    ],
+    "5.3 Write property-based test: P2 Backward Compatibility": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774168
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841200691
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841552467
+      }
+    ],
+    "5.4 Write property-based test: P3 Wildcard Preservation": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774201
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841201508
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841553401
+      }
+    ],
+    "5.5 Write property-based tests: P4–P7 Diagnostic properties": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774242
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841202312
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841554502
+      }
+    ],
+    "6. Checkpoint — Ensure all implementation tests pass": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774285
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841561690
+      }
+    ],
+    "7.1 Update `docs/core-features/EntityDefinition.md` with named placeholder syntax": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774318
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841566283
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841711865
+      }
+    ],
+    "7.2 Update `docs/core-features/ComputedFieldFormatSpecifiers.md` with named placeholder format specifier examples": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774351
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841567269
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841712694
+      }
+    ],
+    "7.3 Update `docs/advanced-topics/CompositeEntities.md` with named placeholder RelatedEntity example": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774385
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841568339
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841713652
+      }
+    ],
+    "7.4 Update `docs/reference/AttributeReference.md` with Computed and RelatedEntity named placeholder docs": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774422
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841569322
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841714730
+      }
+    ],
+    "7.5 Update `docs/core-features/format-strings-guide.md` with named syntax as preferred": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774463
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841570406
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841715825
+      }
+    ],
+    "7.6 Create diagnostic reference pages `docs/diagnostics/FDDB/FDDB091.md` through `FDDB096.md`": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774501
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841721992
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841851783
+      }
+    ],
+    "7.7 Update `.kiro/steering/fluentdynamodb.md` with named placeholder examples": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774548
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841722880
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841852666
+      }
+    ],
+    "8.1 Update `docs/DOCUMENTATION_CHANGELOG.md` with all documentation changes": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774586
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841858719
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789842026468
+      }
+    ],
+    "8.2 Update `CHANGELOG.md` with feature entry under `[Unreleased]`": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774620
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841859649
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789842027366
+      }
+    ],
+    "9. Final checkpoint — Ensure everything builds, all tests pass, documentation is complete": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789839774658
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789842031196
+      },
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789843556139
+      }
+    ],
+    "1. Add diagnostic descriptors and NamedPlaceholderNormalizer foundation": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789840823032
+      }
+    ],
+    "3. Integrate normalization into EntityAnalyzer": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841190291
+      }
+    ],
+    "5. Integration tests and property-based tests": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841554546
+      }
+    ],
+    "7. Documentation updates": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789841852713
+      }
+    ],
+    "8. Changelog and documentation changelog updates": [
+      {
+        "executionId": "4ac86a14-04e9-4ac8-bdb8-754ffd6a4592",
+        "chatSessionId": "sess_31032cd1-2ee0-42a2-9719-cf1d533899a0",
+        "timestamp": 1789842027404
+      }
+    ]
+  }
+}

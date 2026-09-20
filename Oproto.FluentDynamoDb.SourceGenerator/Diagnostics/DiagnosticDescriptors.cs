@@ -1222,6 +1222,86 @@ internal static class DiagnosticDescriptors
         description: "The format string must contain exactly one placeholder ({0}, {1}, etc.) for each source property.",
         helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB090"));
 
+    // Named Property Placeholder Diagnostics (FDDB091-FDDB096)
+
+    /// <summary>
+    /// Error when a [Computed] attribute has multiple positional arguments containing '{', or a named-placeholder Format combined with explicit source properties.
+    /// </summary>
+    public static readonly DiagnosticDescriptor AmbiguousNamedPlaceholderUsage = new(
+        "FDDB091",
+        "Ambiguous named placeholder usage",
+        "[Computed] on property '{0}' has multiple positional arguments containing '{{'. Use a single format string with {{PropertyName}} placeholders, or use property names without braces as separate positional arguments with a Format parameter.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Named placeholders in format strings cannot be combined with multiple positional source property arguments. Use either a single format string with {PropertyName} tokens, or separate property names with a Format parameter using positional {N} placeholders.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB091"));
+
+    /// <summary>
+    /// Error when a named placeholder references a property name that does not exist on the entity.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnresolvedNamedPlaceholder = new(
+        "FDDB092",
+        "Unresolved named placeholder",
+        "Named placeholder '{{{1}}}' in [Computed] on property '{0}' does not match any property on entity '{2}'. Available properties: {3}",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each {PropertyName} token in a named-placeholder format string must match a declared property on the entity (case-sensitive). Check for typos or missing properties.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB092"));
+
+    /// <summary>
+    /// Error when a format string mixes named placeholders (e.g., {Name}) with positional placeholders (e.g., {0}).
+    /// </summary>
+    public static readonly DiagnosticDescriptor MixedNamedAndPositionalPlaceholders = new(
+        "FDDB093",
+        "Mixed named and positional placeholders",
+        "Format string on property '{0}' mixes named placeholders (e.g., {{{1}}}) with positional placeholders (e.g., {{{2}}}). Use all named or all positional placeholders.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A format string must use either all named placeholders ({PropertyName}) or all positional placeholders ({N}). Mixing the two styles in the same format string is not allowed.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB093"));
+
+    /// <summary>
+    /// Error when a format string has an unclosed brace (malformed placeholder).
+    /// </summary>
+    public static readonly DiagnosticDescriptor MalformedPlaceholder = new(
+        "FDDB094",
+        "Malformed placeholder",
+        "Format string on property '{0}' has an unclosed brace at character offset {1}: '{2}'",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Every opening brace '{' in a format string must have a matching closing brace '}'. Check for unclosed placeholders.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB094"));
+
+    /// <summary>
+    /// Error when a format string contains an empty placeholder '{}'.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EmptyPlaceholder = new(
+        "FDDB095",
+        "Empty placeholder",
+        "Format string on property '{0}' has an empty placeholder '{{}}' at character offset {1}",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Placeholders must contain either a property name ({PropertyName}) or a positional index ({N}). Empty placeholders ({}) are not allowed.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB095"));
+
+    /// <summary>
+    /// Warning when a placeholder like {0} matches both a declared property name and a positional index; resolved as property name.
+    /// </summary>
+    public static readonly DiagnosticDescriptor AmbiguousPlaceholderNameIndex = new(
+        "FDDB096",
+        "Ambiguous placeholder name/index",
+        "Placeholder '{{{1}}}' on property '{0}' matches both a property name and a positional index. It was resolved as a property name. Consider renaming the property to avoid ambiguity.",
+        "DynamoDb",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A placeholder token matches both a property name on the entity and a valid positional index. It is resolved as a property name reference. Consider renaming the property to avoid ambiguity.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB096"));
+
     // Index Attribute Redesign Diagnostics (DYNDB120-DYNDB127)
 
     /// <summary>

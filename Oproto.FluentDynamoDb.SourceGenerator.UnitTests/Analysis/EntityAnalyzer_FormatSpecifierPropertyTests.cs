@@ -129,8 +129,8 @@ public class EntityAnalyzer_FormatSpecifierPropertyTests
     /// **Feature: computed-field-format-specifiers, Property 5: Invalid Placeholder Index Detection**
     ///
     /// *For any* placeholder text where the portion before the first colon is an alphabetic string
-    /// (e.g., {abc:format}, {name:D4}), the EntityAnalyzer SHALL emit diagnostic DYNDB036
-    /// indicating an invalid placeholder format.
+    /// (e.g., {abc:format}, {name:D4}), the EntityAnalyzer SHALL emit diagnostic FDDB091
+    /// because named-placeholder Format is combined with explicit source properties.
     ///
     /// **Validates: Requirements 2.5, 7.2**
     /// </summary>
@@ -151,11 +151,11 @@ public class EntityAnalyzer_FormatSpecifierPropertyTests
                 var source = GenerateEntitySource(formatString, sourcePropertyCount: 1);
                 var result = GenerateCode(source);
 
-                var hasDiagnostic = result.Diagnostics.Any(d => d.Id == "DYNDB036");
+                var hasDiagnostic = result.Diagnostics.Any(d => d.Id == "FDDB091");
 
                 return hasDiagnostic.ToProperty()
                     .Label($"Format='{formatString}', InvalidIndex='{invalidIndex}', " +
-                           $"ExpectedDiagnostic=DYNDB036, Found={hasDiagnostic}");
+                           $"ExpectedDiagnostic=FDDB091, Found={hasDiagnostic}");
             });
     }
 
@@ -198,7 +198,9 @@ public class EntityAnalyzer_FormatSpecifierPropertyTests
     ///
     /// *For any* placeholder with a mixed alphanumeric or special character index portion
     /// (e.g., {1.2:format}, {a0:format}, {0x1:format}), the EntityAnalyzer SHALL emit
-    /// diagnostic DYNDB036 indicating an invalid placeholder format.
+    /// either diagnostic FDDB091 (when the index is a valid C# identifier, detected as a
+    /// named placeholder combined with explicit source properties) or DYNDB036 (when the
+    /// index is not a valid identifier and is validated as an invalid positional index).
     ///
     /// **Validates: Requirements 2.5, 7.2**
     /// </summary>
@@ -219,11 +221,11 @@ public class EntityAnalyzer_FormatSpecifierPropertyTests
                 var source = GenerateEntitySource(formatString, sourcePropertyCount: 1);
                 var result = GenerateCode(source);
 
-                var hasDiagnostic = result.Diagnostics.Any(d => d.Id == "DYNDB036");
+                var hasDiagnostic = result.Diagnostics.Any(d => d.Id == "FDDB091" || d.Id == "DYNDB036");
 
                 return hasDiagnostic.ToProperty()
                     .Label($"Format='{formatString}', SpecialIndex='{specialIndex}', " +
-                           $"ExpectedDiagnostic=DYNDB036, Found={hasDiagnostic}");
+                           $"ExpectedDiagnostic=FDDB091|DYNDB036, Found={hasDiagnostic}");
             });
     }
 

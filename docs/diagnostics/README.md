@@ -1,6 +1,6 @@
 # Diagnostics Reference
 
-This reference documents all **118** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
+This reference documents all **124** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
 
 ## Numbering Conventions
 
@@ -8,7 +8,7 @@ This reference documents all **118** diagnostic codes emitted by the Oproto.Flue
 |--------|-----------|--------|
 | DISC | 001–006 | Discriminator configuration and pattern matching |
 | DYNDB | 001–036, 101–115, 120–127, 1001–1004 | Core DynamoDB entity validation and mapping |
-| FDDB | 001–006, 0020–0021, 050–055, 060–062, 070–072, 080, 090, 100–104, 110–116, 120–126 | Table/index generation and configuration |
+| FDDB | 001–006, 0020–0021, 050–055, 060–062, 070–072, 080, 090–096, 100–104, 110–116, 120–126 | Table/index generation and configuration |
 | PROJ | 001–006, 101–102 | Projection model validation |
 | SEC | 001–002 | Security and package dependency checks |
 
@@ -139,6 +139,12 @@ Codes `FDDB0020` and `FDDB0021` use four-digit numbering while other FDDB codes 
 | [FDDB072](FDDB/FDDB072.md) | Warning | KeysOnly with UseProjection |
 | [FDDB080](FDDB/FDDB080.md) | Error | Unresolvable source property in computed key |
 | [FDDB090](FDDB/FDDB090.md) | Error | Format placeholder count mismatch |
+| [FDDB091](FDDB/FDDB091.md) | Error | Ambiguous named placeholder usage |
+| [FDDB092](FDDB/FDDB092.md) | Error | Unresolved named placeholder |
+| [FDDB093](FDDB/FDDB093.md) | Error | Mixed named and positional placeholders |
+| [FDDB094](FDDB/FDDB094.md) | Error | Malformed placeholder |
+| [FDDB095](FDDB/FDDB095.md) | Error | Empty placeholder |
+| [FDDB096](FDDB/FDDB096.md) | Warning | Ambiguous placeholder name/index |
 | [FDDB100](FDDB/FDDB100.md) | Error | Key prefix conflicts with explicit computed format |
 | [FDDB101](FDDB/FDDB101.md) | Error | Explicit discriminator pattern conflicts with key format |
 | [FDDB102](FDDB/FDDB102.md) | Warning | Overlapping auto-derived discriminator patterns |

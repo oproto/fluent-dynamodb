@@ -7,7 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Named Property Placeholders for Computed Keys** — The `[Computed]` attribute now supports `{PropertyName}` and `{PropertyName:format}` tokens directly in format strings, eliminating the need to separately list source property names and correlate them with positional `{N}` indices. The source generator detects named placeholders at compile time, resolves them against the entity's declared properties, and normalizes them to positional form before the downstream pipeline runs — producing identical generated code to the equivalent hand-written positional syntax.
+
+  **Named placeholder syntax (preferred):**
+  ```csharp
+  [DynamoDbTable("invoices")]
+  public partial class InvoiceLine
+  {
+      [PartitionKey(Prefix = "CUSTOMER")]
+      [DynamoDbAttribute("pk")]
+      public string Pk { get; set; } = string.Empty;
+
+      [SortKey]
+      [DynamoDbAttribute("sk")]
+      [Computed("INVOICE#{InvoiceId}#LINE#{LineNumber}")]
+      public string Sk { get; set; } = string.Empty;
+
+      [Extracted("Sk", 0)]
+      public string InvoiceId { get; set; } = string.Empty;
+
+      [Extracted("Sk", 1)]
+      public int LineNumber { get; set; }
+  }
+  ```
+
+  **Equivalent positional syntax (still supported):**
+  ```csharp
+  [Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+  public string Sk { get; set; } = string.Empty;
+  ```
+
+  Both produce identical generated `Keys.Sk("INV-001", 1)` → `"INVOICE#INV-001#LINE#1"`.
+
+  Named placeholders also work in `[RelatedEntity]` sort key patterns, making patterns self-documenting:
+
+  ```csharp
+  // Named placeholder syntax (preferred):
+  [RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+  public List<InvoiceLine> Lines { get; set; } = new();
+
+  // Equivalent wildcard-only syntax (still supported):
+  [RelatedEntity("*#LINE#*", EntityType = typeof(InvoiceLine))]
+  public List<InvoiceLine> Lines { get; set; } = new();
+  ```
+
+  Named placeholders support .NET format specifiers using `{PropertyName:format}` syntax, with the same formatting control as positional placeholders:
+
+  ```csharp
+  // Named with format specifier:
+  [Computed("ENTRY#{Date:yyyy-MM-dd}")]
+  public string Pk { get; set; } = string.Empty;
+
+  // Equivalent positional:
+  [Computed("Date", Format = "ENTRY#{0:yyyy-MM-dd}")]
+  public string Pk { get; set; } = string.Empty;
+
+  // Integer padding:
+  [Computed("SEQ#{Sequence:D4}")]
+  public string Sk { get; set; } = string.Empty;
+  ```
+
+  Existing positional `{N}` syntax in `[Computed]` format strings and `[RelatedEntity]` patterns continues to work without changes. Named placeholders are syntactic sugar — normalization occurs early in the source generator pipeline, and all downstream code generation receives positional format strings unchanged.
+
+- **New Compile-Time Diagnostics** — Added 6 new diagnostics for named property placeholder validation:
+  - `FDDB091` (Error): Ambiguous named placeholder usage — multiple positional arguments containing `{`, or named-placeholder `Format` combined with explicit source properties
+  - `FDDB092` (Error): Unresolved named placeholder — `{Name}` references a property that does not exist on the entity; message includes available property names
+  - `FDDB093` (Error): Mixed named and positional placeholders — both `{Name}` and `{N}` in same format string
+  - `FDDB094` (Error): Malformed placeholder — unclosed brace `{Name` without closing `}`; message includes character offset
+  - `FDDB095` (Error): Empty placeholder — `{}` in format string; message includes character offset
+  - `FDDB096` (Warning): Ambiguous placeholder name/index — `{0}` where entity has property named `"0"`; resolved as property name
+
+- **Named-Placeholder Runtime Smoke Tests** — Added 12 integration tests in `NamedPlaceholderRuntimeSmokeTests` that exercise the full source generator pipeline (generate → compile → load → invoke) for entities using the named-placeholder `[Computed("{PropertyName}")]` syntax. The test suite covers FromDynamoDb round-trips with extracted properties, ExtractComponents key decomposition, MatchesEntity discrimination for composite and multi-entity scenarios, three-plus property computed keys, GSI computed keys, and backward compatibility for positional and separator syntax. Each test compiles an entity definition through the source generator, loads the assembly dynamically, and invokes the generated methods at runtime — closing a coverage gap where existing integration tests verified generated code structure but not runtime behavior.
+
+
 ### Fixed
+
+- **`DateOnly` and `TimeOnly` Extraction from Computed Keys Fails at Runtime** — The source generator's `GetExtractedPropertyConversionExpression` method in `MapperGenerator` now correctly emits `DateOnly.Parse(...)` and `TimeOnly.Parse(...)` for `[Extracted]` properties of those types. Previously, `DateOnly` and `TimeOnly` were missing from the type switch in the extraction path, causing them to fall through to the default `Enum.Parse<DateOnly>(...)` / `Enum.Parse<TimeOnly>(...)` branch. This produced generated code that compiled successfully but threw `System.ArgumentException` at runtime when `FromDynamoDb` attempted to deserialize a computed key containing a formatted date or time segment. The primary `GetDynamoDbConversionExpression` (for `[DynamoDbAttribute]` properties) already handled these types correctly — only the `[Extracted]` property path was affected.
+
+- **Named Placeholders Cannot Reference `[Extracted]`-Only Properties** — The source generator's `CollectEntityPropertyNames` method in `EntityAnalyzer` now includes properties decorated with `[Extracted]` (without `[DynamoDbAttribute]`) when building the set of available property names for named-placeholder resolution. Previously, only properties with `[DynamoDbAttribute]` were collected, causing `{PropertyName}` references in `[Computed]` format strings to emit FDDB092 ("unresolved named placeholder") when the target property had only `[Extracted]` and no `[DynamoDbAttribute]`. This affected entities where extracted properties intentionally omit `[DynamoDbAttribute]` because their values are derived from the computed key rather than stored as separate DynamoDB attributes.
 
 - **Trailing Bare-Separator `MatchesEntity` Rejection** — The source generator's `GenerateComplexPatternCheck` and `GenerateComplexExclusionCheck` methods now correctly handle discriminator patterns that end with a trailing literal after the last wildcard (e.g., `"EMPLOYEE#*#"` derived from `[Computed("EmployeeId", Format = "EMPLOYEE#{0}#")]`). Previously, all bare-separator segments unconditionally emitted a `< discriminatorValue.S.Length - 1` constraint (return/exclusion modes) or `>= discriminatorValue.S.Length - 1` constraint (negated mode), which incorrectly rejected values where the separator character was the terminal character — for example, `"EMPLOYEE#abc123#"` (length 16, IndexOf returns 15, `15 < 15` → false). The fix detects trailing bare-separator segments (last non-empty segment when the pattern doesn't end with `*`) and omits the length constraint for those, while preserving it for non-trailing bare-separator segments that still need to enforce one-plus wildcard semantics for subsequent wildcards.
 

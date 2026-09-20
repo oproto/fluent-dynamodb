@@ -833,16 +833,106 @@ public partial class User
 }
 ```
 
+### Named Property Placeholders
+
+Instead of listing source property names separately and referencing them by positional index (`{0}`, `{1}`), you can embed `{PropertyName}` tokens directly in the format string. The source generator resolves each token against the entity's declared properties at compile time and rewrites them to positional form before code generation.
+
+#### Named Placeholder Syntax
+
+Provide a single format string argument containing `{PropertyName}` tokens:
+
+```csharp
+// Named placeholders (recommended) — self-documenting, no index bookkeeping
+[Computed("INVOICE#{InvoiceNumber}#LINE#{LineNumber}")]
+[DynamoDbAttribute("sk")]
+public string Sk { get; set; } = string.Empty;
+
+// Equivalent positional syntax — same generated output
+[Computed("InvoiceNumber", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+[DynamoDbAttribute("sk")]
+public string Sk { get; set; } = string.Empty;
+```
+
+Both declarations produce identical generated code. The named syntax is syntactic sugar — the source generator normalizes it to positional form before the downstream pipeline runs.
+
+#### Detection Rule
+
+The source generator treats a single `params` argument containing `{` as a named-placeholder format string rather than a property name. This is unambiguous because valid C# property names cannot contain brace characters.
+
+| Constructor Arguments | Behavior |
+|-----------------------|----------|
+| Single argument with `{` | Named-placeholder format string |
+| Multiple arguments, none with `{` | Existing positional property name list |
+| Multiple arguments, any with `{` | Error — FDDB091 emitted |
+
+Named placeholders can also be used in the `Format` named parameter when no positional arguments are provided:
+
+```csharp
+// Named placeholders in Format parameter
+[Computed(Format = "PREFIX#{Category}#SUFFIX#{Brand}")]
+[DynamoDbAttribute("pk")]
+public string Pk { get; set; } = string.Empty;
+```
+
+#### Format Specifiers with Named Placeholders
+
+Named placeholders support .NET format specifiers using `{PropertyName:format}` syntax:
+
+```csharp
+// Named with format specifier
+[Computed("ENTRY#{Date:yyyy-MM-dd}")]
+[DynamoDbAttribute("pk")]
+public string Pk { get; set; } = string.Empty;
+
+// Equivalent positional form
+[Computed("Date", Format = "ENTRY#{0:yyyy-MM-dd}")]
+[DynamoDbAttribute("pk")]
+public string Pk { get; set; } = string.Empty;
+
+// Multiple placeholders with mixed specifiers
+[Computed("SEQ#{Sequence:D4}#DATE#{Date:yyyy-MM-dd}")]
+[DynamoDbAttribute("sk")]
+public string Sk { get; set; } = string.Empty;
+```
+
+Format specifiers are preserved character-for-character, including those containing embedded colons (e.g., `{StartTime:HH:mm:ss}`).
+
+#### Duplicate Property References
+
+When the same property name appears multiple times, it receives the same positional index and is included only once in the inferred source properties:
+
+```csharp
+// InvoiceNumber appears twice — same index assigned both times
+[Computed("INVOICE#{InvoiceNumber}#LINE#{LineNumber}#REF#{InvoiceNumber}")]
+[DynamoDbAttribute("sk")]
+public string Sk { get; set; } = string.Empty;
+// Normalizes to: Format = "INVOICE#{0}#LINE#{1}#REF#{0}"
+// SourceProperties = ["InvoiceNumber", "LineNumber"]
+```
+
+#### Diagnostics
+
+| Code | Severity | Condition |
+|------|----------|-----------|
+| FDDB091 | Error | Multiple positional arguments containing `{`, or named-placeholder `Format` combined with explicit source properties |
+| FDDB092 | Error | `{Name}` where `Name` does not match any declared property on the entity |
+| FDDB093 | Error | Both `{Name}` and `{N}` tokens in the same format string |
+| FDDB094 | Error | Unclosed brace `{Name` without `}` |
+| FDDB095 | Error | Empty placeholder `{}` |
+| FDDB096 | Warning | `{0}` matches both a property name and a positional index — resolved as property name |
+
 ### Behavior
 
 - Computed properties are calculated **before** saving to DynamoDB
 - The source generator creates code to automatically populate computed properties
-- Format strings use standard .NET string formatting (`{0}`, `{1}`, etc.)
+- Format strings use standard .NET string formatting (`{0}`, `{1}`, etc.) or named property placeholders (`{PropertyName}`)
 - If no format is specified, properties are joined with the separator
+- Existing positional `{N}` syntax continues to work without changes — named placeholders are an alternative, not a replacement
 
 ### See Also
 
 - [Extracted Attribute](#extracted)
+- [Format Specifiers Guide](../core-features/ComputedFieldFormatSpecifiers.md)
 - [Entity Definition Guide](../core-features/EntityDefinition.md)
 
 
@@ -1032,6 +1122,36 @@ var order = await table.Query
 // order.Summary is populated if an item with sk="SUMMARY" exists
 ```
 
+### Named Placeholders in Sort Key Patterns
+
+Sort key patterns support `{PropertyName}` tokens to reference entity properties by name. When named placeholders are used, the source generator resolves each token against the entity's declared properties at compile time and infers the source properties from the pattern — no separate `SourceProperties` parameter is needed.
+
+```csharp
+// Named placeholder in sort key pattern (recommended)
+[RelatedEntity("{OrderId}#LINE#*")]
+public List<OrderLine> Lines { get; set; } = new();
+
+// Equivalent wildcard-only pattern (existing syntax)
+[RelatedEntity("*#LINE#*")]
+public List<OrderLine> Lines { get; set; } = new();
+```
+
+Named placeholders coexist with `*` wildcards. The source generator resolves `{PropertyName}` tokens to property references while preserving `*` wildcards at their original positions:
+
+```csharp
+// Mix of named placeholder and wildcard
+[RelatedEntity("{InvoiceId}#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+// {InvoiceId} is resolved to the InvoiceId property
+// * remains as a wildcard match-any segment
+```
+
+Named placeholders in `[RelatedEntity]` patterns follow the same resolution rules as `[Computed]` format strings:
+- Property names are resolved using ordinal case-sensitive matching against declared properties with `[DynamoDbAttribute]`
+- Unresolved property names emit diagnostic error FDDB092
+- Mixing named (`{Name}`) and positional (`{N}`) placeholders in the same pattern emits diagnostic error FDDB093
+- Format specifiers are supported (e.g., `{Sequence:D4}`)
+
 ### Sort Key Patterns
 
 | Pattern | Description | Example Matches |
@@ -1040,6 +1160,7 @@ var order = await table.Query
 | `"SUMMARY"` | Exact match | `SUMMARY` only |
 | `"AUDIT#*"` | Prefix match | `AUDIT#2024-01-15`, `AUDIT#log1` |
 | `"*"` | Match all | Any sort key value |
+| `"{OrderId}#LINE#*"` | Named placeholder with wildcard | Resolves `OrderId` property, matches any line |
 
 ### Behavior
 

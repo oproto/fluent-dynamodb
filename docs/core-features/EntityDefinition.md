@@ -698,6 +698,115 @@ public string PartitionKey { get; set; } = string.Empty;
 // Generated: CompositeEntityKeys.Pk("tenant1", "user1") returns "tenant1|user1"
 ```
 
+### Named Property Placeholders
+
+Instead of using positional `{0}`, `{1}` indices and listing source property names separately, you can reference properties by name directly in the format string using `{PropertyName}` syntax. This makes format strings self-documenting and eliminates the need to correlate indices with property names.
+
+#### Basic Named Placeholder Syntax
+
+```csharp
+[DynamoDbTable("invoices")]
+public partial class InvoiceLine
+{
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public int LineNumber { get; set; }
+
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    // Named placeholders — property names embedded directly in the format string
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("INVOICE#{InvoiceNumber}#LINE#{LineNumber}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Sk", 0)]
+    public string ExtractedInvoiceNumber { get; set; } = string.Empty;
+
+    [Extracted("Sk", 1)]
+    public int ExtractedLineNumber { get; set; }
+}
+```
+
+The source generator resolves `{InvoiceNumber}` and `{LineNumber}` against the entity's declared properties at compile time and rewrites them to positional `{N}` form internally. All downstream code generation produces identical output.
+
+#### Named vs Positional — Side-by-Side Comparison
+
+The following two declarations produce exactly the same generated code and key output:
+
+```csharp
+// Named placeholders (recommended) — self-documenting, no index bookkeeping
+[Computed("INVOICE#{InvoiceNumber}#LINE#{LineNumber}")]
+public string Sk { get; set; } = string.Empty;
+
+// Positional placeholders (also supported) — equivalent behavior
+[Computed("InvoiceNumber", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+public string Sk { get; set; } = string.Empty;
+```
+
+Both generate:
+```csharp
+// InvoiceLineKeys.Sk("INV-001", 1) returns "INVOICE#INV-001#LINE#1"
+public static string Sk(string invoiceNumber, int lineNumber)
+{
+    return $"INVOICE#{invoiceNumber}#LINE#{lineNumber}";
+}
+```
+
+#### Named Placeholders with the Format Parameter
+
+You can also use named placeholders in the `Format` named parameter:
+
+```csharp
+[Computed(Format = "ENTRY#{Date:yyyy-MM-dd}")]
+public string Pk { get; set; } = string.Empty;
+```
+
+This is equivalent to:
+
+```csharp
+[Computed("Date", Format = "ENTRY#{0:yyyy-MM-dd}")]
+public string Pk { get; set; } = string.Empty;
+```
+
+Format specifiers work the same way as with positional placeholders — everything after the colon is preserved as the .NET format specifier.
+
+#### Named Placeholder with Multiple Properties and Format Specifiers
+
+```csharp
+[DynamoDbTable("timeseries")]
+public partial class TimeEntry
+{
+    public DateTime Date { get; set; }
+    public int Sequence { get; set; }
+
+    [PartitionKey]
+    [DynamoDbAttribute("pk")]
+    [Computed("ENTRY#{Date:yyyy-MM-dd}")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("SEQ#{Sequence:D4}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Pk", 0)]
+    public DateTime ExtractedDate { get; set; }
+
+    [Extracted("Sk", 0)]
+    public int ExtractedSequence { get; set; }
+}
+```
+
+Generated key methods:
+```csharp
+TimeEntry.Keys.Pk(new DateTime(2024, 12, 25))  // Returns "ENTRY#2024-12-25"
+TimeEntry.Keys.Sk(7)                            // Returns "SEQ#0007"
+```
+
+> **Backward Compatibility:** Existing positional `{0}`, `{1}` syntax in `[Computed]` format strings continues to work without changes. Named placeholders are an alternative syntax — positional placeholders are not deprecated.
+
 ## Extracted Keys
 
 Use the `[Extracted]` attribute to extract components from composite keys:
