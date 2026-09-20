@@ -57,6 +57,214 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-09-19]
+
+### New Feature Documentation: Named Property Placeholders
+
+**Category:** New Feature Documentation
+
+**Summary:** Named property placeholders allow developers to write `{PropertyName}` and `{PropertyName:format}` tokens directly in `[Computed]` format strings and `[RelatedEntity]` sort key patterns, replacing the positional `{0}`, `{1}` syntax that requires separately listed source property names. The source generator normalizes named placeholders to positional form at compile time, preserving full backward compatibility. Six new diagnostics (FDDB091–FDDB096) provide compile-time feedback for common mistakes.
+
+---
+
+### File: docs/core-features/EntityDefinition.md
+
+**Change:** Added "Named Property Placeholders" section under the Computed Keys documentation. Includes a complete entity class example using named placeholder syntax, a side-by-side comparison of named vs positional producing the same key output, and a note that existing positional syntax remains supported and is not deprecated.
+
+**Before:**
+```csharp
+// Only positional syntax documented
+[Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+public string Sk { get; set; } = string.Empty;
+```
+
+**After:**
+```csharp
+// Named placeholders (preferred) — self-documenting
+[Computed("INVOICE#{InvoiceId}#LINE#{LineNumber}")]
+public string Sk { get; set; } = string.Empty;
+
+// Positional (also supported) — equivalent output
+[Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+public string Sk { get; set; } = string.Empty;
+```
+
+**Reason:** New named property placeholder feature implemented. Documentation added to show the preferred `{PropertyName}` syntax alongside the existing positional syntax, with a note on backward compatibility.
+
+---
+
+### File: docs/core-features/ComputedFieldFormatSpecifiers.md
+
+**Change:** Updated to present named placeholder syntax as the recommended approach throughout. Added `{Date:yyyy-MM-dd}` and `{Sequence:D4}` examples using named syntax paired with their positional equivalents. Added "Named Placeholders (Recommended)" subsections in Basic Usage and each format specifier example. Updated the Quick Reference table to include named placeholder column.
+
+**Before:**
+```csharp
+// Only positional syntax shown
+[Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
+public string Sk { get; set; } = string.Empty;
+```
+
+**After:**
+```csharp
+// Named placeholders (recommended)
+[Computed("{EventDate:yyyy-MM-dd}#{Category}")]
+public string Sk { get; set; } = string.Empty;
+
+// Positional (also supported)
+[Computed("EventDate", "Category", Format = "{0:yyyy-MM-dd}#{1}")]
+public string Sk { get; set; } = string.Empty;
+```
+
+**Reason:** Named placeholders support .NET format specifiers using `{PropertyName:format}` syntax. Documentation updated to show named syntax first (recommended) with positional equivalents for each example, demonstrating feature parity.
+
+---
+
+### File: docs/advanced-topics/CompositeEntities.md
+
+**Change:** Added "Named Placeholder Patterns" subsection alongside existing wildcard-only pattern documentation. Shows `[RelatedEntity("{OrderId}#LINE#*")]` example and a multi-property example with `{InvoiceNumber}`. Added note that existing wildcard-only patterns continue to work unchanged.
+
+**Before:**
+```csharp
+// Only wildcard patterns documented
+[RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+```
+
+**After:**
+```csharp
+// Named placeholder — references the OrderId property by name
+[RelatedEntity("{OrderId}#LINE#*")]
+public List<OrderLine> Lines { get; set; } = new();
+
+// Wildcard-only (also supported)
+[RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+```
+
+**Reason:** Named placeholders in `[RelatedEntity]` sort key patterns make patterns self-documenting. `{PropertyName}` tokens are resolved against entity properties at compile time while `*` wildcards are preserved. Documentation added alongside existing wildcard-only examples.
+
+---
+
+### File: docs/reference/AttributeReference.md
+
+**Change:** Updated `[Computed]` attribute section with: named placeholder format string syntax documentation, detection rule (single `params` arg containing `{`), format specifier support with named placeholders, FDDB091–FDDB096 diagnostic references, and backward compatibility note. Updated `[RelatedEntity]` attribute section with: "Named Placeholders in Sort Key Patterns" subsection documenting `{PropertyName}` token resolution, source property inference from patterns, and updated pattern examples table.
+
+**Before:**
+```csharp
+// [Computed] section — only positional syntax
+[Computed("InvoiceNumber", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+
+// [RelatedEntity] section — only wildcard patterns
+[RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+```
+
+**After:**
+```csharp
+// [Computed] section — named placeholders (recommended) + positional (also supported)
+[Computed("INVOICE#{InvoiceNumber}#LINE#{LineNumber}")]
+// Detection rule: single params arg containing '{' → named-placeholder format string
+
+// [RelatedEntity] section — named placeholders + wildcard patterns
+[RelatedEntity("{OrderId}#LINE#*")]
+// {PropertyName} tokens resolved at compile time; SourceProperties inferred from pattern
+```
+
+**Reason:** Reference documentation updated to reflect the full named placeholder API surface for both `[Computed]` and `[RelatedEntity]` attributes, including detection rules, format specifier support, diagnostic codes, and backward compatibility.
+
+---
+
+### File: docs/core-features/format-strings-guide.md
+
+**Change:** Added "Format Strings in Computed Keys" section with "Named Placeholders (Recommended)" listed before "Positional Placeholders (Also Supported)". Includes complete entity examples for both syntaxes, format specifier examples with named placeholders, and a "Named vs Positional Comparison" table labeling named as recommended.
+
+**Before:**
+```
+// No computed key format string section existed in this guide
+```
+
+**After:**
+```csharp
+// Named Placeholders (Recommended)
+[Computed("ENTRY#{Date:yyyy-MM-dd}")]
+public string Pk { get; set; } = string.Empty;
+
+// Positional Placeholders (Also Supported)
+[Computed("Date", Format = "ENTRY#{0:yyyy-MM-dd}")]
+public string Pk { get; set; } = string.Empty;
+```
+
+**Reason:** The format strings guide is the primary reference for formatting in the library. Added computed key format string section with named syntax presented as recommended, giving users a clear entry point for the preferred approach.
+
+---
+
+### Files: docs/diagnostics/FDDB/FDDB091.md, FDDB092.md, FDDB093.md, FDDB094.md, FDDB095.md, FDDB096.md
+
+**Description:** Created six new diagnostic reference pages for named placeholder diagnostics. Each page follows the existing FDDB diagnostic format with Code & Severity table, Message section, Description, Example triggering the diagnostic, and Fix section with corrected code.
+
+| Code | Severity | Title |
+|------|----------|-------|
+| FDDB091 | Error | Ambiguous named placeholder usage — multiple positional args with `{`, or named Format with explicit source properties |
+| FDDB092 | Error | Unresolved named placeholder — `{Name}` not matching any declared property |
+| FDDB093 | Error | Mixed named and positional placeholders in same format string |
+| FDDB094 | Error | Malformed placeholder — unclosed brace `{Name` without `}` |
+| FDDB095 | Error | Empty placeholder — `{}` in format string |
+| FDDB096 | Warning | Ambiguous placeholder name/index — `{0}` matching both property name and positional index |
+
+**Before:**
+```csharp
+// No diagnostic — ambiguous or invalid named placeholder syntax silently ignored
+[Computed("{InvoiceNumber}", "{LineNumber}")]  // Multiple args with '{'
+[Computed("INVOICE#{InvoiceNubmer}")]          // Typo in property name
+[Computed("{Year}#{0}")]                       // Mixed named and positional
+```
+
+**After:**
+```
+Error FDDB091: Multiple positional arguments containing '{' — use single format string
+Error FDDB092: Named placeholder '{InvoiceNubmer}' does not match any property
+Error FDDB093: Format string mixes named and positional placeholders
+Error FDDB094: Unclosed brace at character offset N
+Error FDDB095: Empty placeholder '{}' at character offset N
+Warning FDDB096: Placeholder '{0}' matches both property name and positional index
+```
+
+**Reason:** Six new compile-time diagnostics provide actionable feedback for common named placeholder mistakes. Each diagnostic page documents the exact compiler message, common causes, example triggering code, and the corrected form.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Change:** Updated "Computed Keys with Format String" section to show named placeholder syntax first (labeled "preferred") with positional syntax retained below (labeled "also supported"). Updated "Separator vs Format" table to include named format row. Updated `[RelatedEntity]` composite entity example to use `{InvoiceNumber}` named placeholder with wildcard-only pattern noted as alternative.
+
+**Before:**
+```csharp
+// Computed Keys with Format String — positional only
+[Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+public string Sk { get; set; } = string.Empty;
+
+// RelatedEntity — wildcard only
+[RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+```
+
+**After:**
+```csharp
+// Named placeholders (preferred) — source properties inferred automatically
+[Computed("INVOICE#{InvoiceId}#LINE#{LineNumber}")]
+public string Sk { get; set; } = string.Empty;
+
+// Positional placeholders (also supported)
+[Computed("InvoiceId", "LineNumber", Format = "INVOICE#{0}#LINE#{1}")]
+public string Sk { get; set; } = string.Empty;
+
+// RelatedEntity — named placeholder with wildcard
+[RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+// Also supported: wildcard-only pattern "INVOICE#*#LINE#*"
+```
+
+**Reason:** Steering file updated so AI assistants in consuming projects see the preferred named placeholder syntax first. Named placeholders are self-documenting and eliminate positional index bookkeeping while producing identical generated output.
+
+---
+
 ## [2026-09-18]
 
 ### AOT-Safe Pattern Matching in Generated Code

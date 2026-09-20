@@ -302,6 +302,47 @@ public List<OrderItem>? Items { get; set; }
 public List<Address>? Addresses { get; set; }
 ```
 
+### Named Placeholder Patterns
+
+You can use `{PropertyName}` tokens in sort key patterns to reference entity properties by name. Named placeholders are resolved at compile time and make patterns self-documenting:
+
+```csharp
+// Named placeholder — references the OrderId property by name
+// Matches items like "INV-001#LINE#001", "INV-001#LINE#002"
+[RelatedEntity("{OrderId}#LINE#*")]
+public List<OrderLine>? Lines { get; set; }
+
+// Equivalent wildcard-only pattern
+[RelatedEntity("*#LINE#*")]
+public List<OrderLine>? Lines { get; set; }
+```
+
+Named placeholders can be combined with wildcards. The `{PropertyName}` tokens are resolved against entity properties at compile time, while `*` continues to match any segment:
+
+```csharp
+[DynamoDbTable("invoices")]
+public partial class Invoice
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "INVOICE")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    // Named placeholder resolves InvoiceNumber at compile time
+    // Matches: "INVOICE#INV-001#LINE#1", "INVOICE#INV-001#LINE#2"
+    [RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+    public List<InvoiceLine> Lines { get; set; } = new();
+}
+```
+
+> **Note:** Existing wildcard-only patterns (e.g., `"ITEM#*"`, `"INVOICE#*#LINE#*"`) continue to work without changes. Named placeholders are an optional alternative syntax.
+
 ### Pattern Matching Rules
 
 1. **Exact match**: No wildcard, matches SK exactly (or starts with pattern followed by `#`)

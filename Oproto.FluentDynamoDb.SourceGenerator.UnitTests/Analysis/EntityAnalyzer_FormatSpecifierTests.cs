@@ -256,9 +256,10 @@ namespace TestNamespace
         // Act
         var result = GenerateCode(source);
 
-        // Assert - should emit DYNDB036 (InvalidComputedKeyFormat) for invalid placeholder
-        result.Diagnostics.Should().Contain(d => d.Id == "DYNDB036",
-            "placeholder '{abc:format}' has a non-numeric index and should trigger an invalid format diagnostic");
+        // Assert - should emit FDDB091 (AmbiguousNamedPlaceholderUsage) because named-placeholder
+        // Format "{abc:format}" is combined with explicit source property "Name"
+        result.Diagnostics.Should().Contain(d => d.Id == "FDDB091",
+            "named-placeholder Format combined with explicit source properties should trigger FDDB091");
     }
 
     #endregion

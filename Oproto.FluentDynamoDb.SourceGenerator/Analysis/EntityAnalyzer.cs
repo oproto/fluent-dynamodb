@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Oproto.FluentDynamoDb.SourceGenerator.Diagnostics;
 using Oproto.FluentDynamoDb.SourceGenerator.Generators;
 using Oproto.FluentDynamoDb.SourceGenerator.Models;
+using Oproto.FluentDynamoDb.SourceGenerator.Utilities;
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 
@@ -908,10 +909,9 @@ internal class EntityAnalyzer
         var computedModel = new ComputedKeyModel();
 
         // Extract source properties from constructor arguments
+        var sourceProperties = new List<string>();
         if (computedAttr.ArgumentList?.Arguments != null)
         {
-            var sourceProperties = new List<string>();
-
             foreach (var arg in computedAttr.ArgumentList.Arguments)
             {
                 // Skip named arguments, handle positional arguments (source properties)
@@ -953,9 +953,207 @@ internal class EntityAnalyzer
             }
         }
 
-        propertyModel.ComputedKey = computedModel;
+        // Named placeholder normalization: detect {PropertyName} tokens and rewrite to positional {N} form
+        // before the downstream pipeline runs. See design doc "Pipeline Integration Point".
+        bool hasNormalizationErrors = false;
+
+        if (sourceProperties.Count == 1 && sourceProperties[0].Contains('{'))
+        {
+            // Case (a): Single positional argument containing '{' — treat as named-placeholder format string
+            var knownPropertyNames = CollectEntityPropertyNames(propertyDecl, semanticModel);
+            var result = NamedPlaceholderNormalizer.Normalize(sourceProperties[0], knownPropertyNames);
+
+            hasNormalizationErrors = EmitNormalizationDiagnostics(result, computedAttr, propertyModel.PropertyName, propertyDecl);
+
+            if (!hasNormalizationErrors)
+            {
+                computedModel.Format = result.NormalizedFormat;
+                computedModel.SourceProperties = result.SourceProperties;
+            }
+        }
+        else if (sourceProperties.Count > 1 && sourceProperties.Any(sp => sp.Contains('{')))
+        {
+            // Case (b): Multiple positional arguments, at least one containing '{' — ambiguous, emit FDDB091
+            ReportDiagnostic(DiagnosticDescriptors.AmbiguousNamedPlaceholderUsage,
+                computedAttr.GetLocation(),
+                propertyModel.PropertyName);
+            hasNormalizationErrors = true;
+        }
+        else if (computedModel.Format != null && NamedPlaceholderNormalizer.ContainsNamedPlaceholders(computedModel.Format))
+        {
+            // Case (c): Format named parameter contains named placeholders
+            if (sourceProperties.Count > 0)
+            {
+                // Can't combine named-placeholder Format with explicit source properties — emit FDDB091
+                ReportDiagnostic(DiagnosticDescriptors.AmbiguousNamedPlaceholderUsage,
+                    computedAttr.GetLocation(),
+                    propertyModel.PropertyName);
+                hasNormalizationErrors = true;
+            }
+            else
+            {
+                // Normalize the Format value and infer SourceProperties from it
+                var knownPropertyNames = CollectEntityPropertyNames(propertyDecl, semanticModel);
+                var result = NamedPlaceholderNormalizer.Normalize(computedModel.Format, knownPropertyNames);
+
+                hasNormalizationErrors = EmitNormalizationDiagnostics(result, computedAttr, propertyModel.PropertyName, propertyDecl);
+
+                if (!hasNormalizationErrors)
+                {
+                    computedModel.Format = result.NormalizedFormat;
+                    computedModel.SourceProperties = result.SourceProperties;
+                }
+            }
+        }
+        // Case (d): No '{' in property names and no named placeholders in Format — existing behavior, no change
+
+        if (!hasNormalizationErrors)
+        {
+            propertyModel.ComputedKey = computedModel;
+        }
     }
 
+    /// <summary>
+    /// Collects the set of property names declared on the containing entity class that have a [DynamoDbAttribute].
+    /// Used to resolve named placeholders in [Computed] and [RelatedEntity] format strings.
+    /// </summary>
+    private HashSet<string> CollectEntityPropertyNames(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel)
+    {
+        var propertyNames = new HashSet<string>();
+        var containingType = propertyDecl.Parent as TypeDeclarationSyntax;
+        if (containingType == null)
+            return propertyNames;
+
+        foreach (var member in containingType.Members.OfType<PropertyDeclarationSyntax>())
+        {
+            var hasDynamoDbAttribute = GetAttribute(member, semanticModel, "DynamoDbAttributeAttribute") != null
+                                    || GetAttribute(member, semanticModel, "DynamoDbAttribute") != null;
+            var hasExtractedAttribute = GetAttribute(member, semanticModel, "ExtractedAttribute") != null
+                                     || GetAttribute(member, semanticModel, "Extracted") != null;
+            if (hasDynamoDbAttribute || hasExtractedAttribute)
+            {
+                var propSymbol = semanticModel.GetDeclaredSymbol(member) as IPropertySymbol;
+                if (propSymbol != null)
+                {
+                    propertyNames.Add(propSymbol.Name);
+                }
+            }
+        }
+
+        return propertyNames;
+    }
+
+    /// <summary>
+    /// Emits Roslyn diagnostics from a <see cref="NormalizationResult"/>, located on the attribute syntax node.
+    /// Returns true if any error-severity diagnostics were emitted.
+    /// </summary>
+    private bool EmitNormalizationDiagnostics(NormalizationResult result, AttributeSyntax attributeNode, string propertyName, PropertyDeclarationSyntax propertyDecl)
+    {
+        bool hasErrors = false;
+        var entityName = (propertyDecl.Parent as TypeDeclarationSyntax)?.Identifier.ValueText ?? "Unknown";
+        var location = attributeNode.GetLocation();
+
+        foreach (var diag in result.Diagnostics)
+        {
+            switch (diag.Kind)
+            {
+                case NormalizationDiagnosticKind.AmbiguousUsage:
+                    ReportDiagnostic(DiagnosticDescriptors.AmbiguousNamedPlaceholderUsage, location, propertyName);
+                    hasErrors = true;
+                    break;
+
+                case NormalizationDiagnosticKind.UnresolvedProperty:
+                    // FDDB092: message args are propertyName, unresolvedToken, entityName, availableProperties
+                    // The normalizer's message already contains "Available properties: ..." — extract that list.
+                    ReportDiagnostic(DiagnosticDescriptors.UnresolvedNamedPlaceholder, location,
+                        propertyName, diag.Token ?? "", entityName, ExtractAvailablePropertiesFromMessage(diag.Message));
+                    hasErrors = true;
+                    break;
+
+                case NormalizationDiagnosticKind.MixedNamedAndPositional:
+                    // FDDB093: message args are propertyName, namedToken, positionalToken
+                    var tokens = ExtractMixedTokensFromMessage(diag.Message);
+                    ReportDiagnostic(DiagnosticDescriptors.MixedNamedAndPositionalPlaceholders, location,
+                        propertyName, tokens.named, tokens.positional);
+                    hasErrors = true;
+                    break;
+
+                case NormalizationDiagnosticKind.MalformedPlaceholder:
+                    // FDDB094: message args are propertyName, charOffset, malformedText
+                    ReportDiagnostic(DiagnosticDescriptors.MalformedPlaceholder, location,
+                        propertyName, diag.CharOffset?.ToString() ?? "0", diag.Token ?? "");
+                    hasErrors = true;
+                    break;
+
+                case NormalizationDiagnosticKind.EmptyPlaceholder:
+                    // FDDB095: message args are propertyName, charOffset
+                    ReportDiagnostic(DiagnosticDescriptors.EmptyPlaceholder, location,
+                        propertyName, diag.CharOffset?.ToString() ?? "0");
+                    hasErrors = true;
+                    break;
+
+                case NormalizationDiagnosticKind.AmbiguousNameIndex:
+                    // FDDB096: warning — message args are propertyName, token
+                    ReportDiagnostic(DiagnosticDescriptors.AmbiguousPlaceholderNameIndex, location,
+                        propertyName, diag.Token ?? "");
+                    // Warning-level: does NOT set hasErrors
+                    break;
+            }
+        }
+
+        return hasErrors;
+    }
+
+    /// <summary>
+    /// Extracts the "Available properties: ..." portion from a normalization diagnostic message.
+    /// </summary>
+    private static string ExtractAvailablePropertiesFromMessage(string message)
+    {
+        const string prefix = "Available properties: ";
+        int idx = message.IndexOf(prefix, StringComparison.Ordinal);
+        if (idx >= 0)
+            return message.Substring(idx + prefix.Length);
+        return "";
+    }
+
+    /// <summary>
+    /// Extracts the named and positional token examples from a MixedNamedAndPositional diagnostic message.
+    /// </summary>
+    private static (string named, string positional) ExtractMixedTokensFromMessage(string message)
+    {
+        // Message format: "Format string mixes named placeholders (e.g., {Token}) with positional placeholders (e.g., {N}). ..."
+        // We extract from the NormalizationDiagnostic which stores the named token directly.
+        // For the positional token, parse from the message.
+        string named = "";
+        string positional = "";
+
+        // Extract named: between "named placeholders (e.g., {" and "})"
+        int namedStart = message.IndexOf("named placeholders (e.g., {", StringComparison.Ordinal);
+        if (namedStart >= 0)
+        {
+            namedStart += "named placeholders (e.g., {".Length;
+            int namedEnd = message.IndexOf("})", namedStart, StringComparison.Ordinal);
+            if (namedEnd >= 0)
+                named = message.Substring(namedStart, namedEnd - namedStart);
+        }
+
+        // Extract positional: between "positional placeholders (e.g., {" and "})"
+        int posStart = message.IndexOf("positional placeholders (e.g., {", StringComparison.Ordinal);
+        if (posStart >= 0)
+        {
+            posStart += "positional placeholders (e.g., {".Length;
+            int posEnd = message.IndexOf("})", posStart, StringComparison.Ordinal);
+            if (posEnd >= 0)
+                positional = message.Substring(posStart, posEnd - posStart);
+        }
+
+        return (named, positional);
+    }
+
+    // IMPORTANT: [Extracted] attributes are intentionally excluded from named-placeholder normalization.
+    // The sourceProperty argument is stored verbatim — no scanning for {PropertyName} tokens is performed.
+    // Values like "{Pk}" are stored as literal strings, not treated as named placeholders.
+    // This is by design per Requirement 8 (Extracted Attribute Exclusion). Do not add normalization here.
     private void ExtractExtractedKeyAttributes(PropertyDeclarationSyntax propertyDecl, SemanticModel semanticModel, PropertyModel propertyModel)
     {
         var extractedAttr = GetAttribute(propertyDecl, semanticModel, "ExtractedAttribute");
@@ -964,7 +1162,7 @@ internal class EntityAnalyzer
 
         var extractedModel = new ExtractedKeyModel();
 
-        // Extract constructor arguments (source property and index)
+        // Extract constructor arguments (source property and index) — stored verbatim, no placeholder normalization
         if (extractedAttr.ArgumentList?.Arguments != null && extractedAttr.ArgumentList.Arguments.Count >= 2)
         {
             var args = extractedAttr.ArgumentList.Arguments;
@@ -1248,6 +1446,12 @@ internal class EntityAnalyzer
     {
         var relationships = new List<RelationshipModel>();
 
+        // Collect entity property names with [DynamoDbAttribute] for named placeholder resolution
+        var entityPropertyNames = new HashSet<string>(
+            entityModel.Properties
+                .Where(p => p.HasAttributeMapping)
+                .Select(p => p.PropertyName));
+
         foreach (var member in typeDecl.Members.OfType<PropertyDeclarationSyntax>())
         {
             var relatedEntityAttr = GetAttribute(member, semanticModel, "RelatedEntityAttribute");
@@ -1268,7 +1472,77 @@ internal class EntityAnalyzer
             // Extract sort key pattern from constructor argument
             if (relatedEntityAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax patternLiteral)
             {
-                relationshipModel.SortKeyPattern = patternLiteral.Token.ValueText;
+                var sortKeyPattern = patternLiteral.Token.ValueText;
+
+                // Normalize named placeholders ({PropertyName}) in sort key patterns to positional ({N}) form
+                if (NamedPlaceholderNormalizer.ContainsNamedPlaceholders(sortKeyPattern))
+                {
+                    var normalizationResult = NamedPlaceholderNormalizer.Normalize(sortKeyPattern, entityPropertyNames);
+                    var attrLocation = relatedEntityAttr.GetLocation();
+
+                    // Emit diagnostics located on the [RelatedEntity] attribute syntax node
+                    foreach (var diag in normalizationResult.Diagnostics)
+                    {
+                        var descriptor = diag.Kind switch
+                        {
+                            NormalizationDiagnosticKind.AmbiguousUsage => DiagnosticDescriptors.AmbiguousNamedPlaceholderUsage,
+                            NormalizationDiagnosticKind.UnresolvedProperty => DiagnosticDescriptors.UnresolvedNamedPlaceholder,
+                            NormalizationDiagnosticKind.MixedNamedAndPositional => DiagnosticDescriptors.MixedNamedAndPositionalPlaceholders,
+                            NormalizationDiagnosticKind.MalformedPlaceholder => DiagnosticDescriptors.MalformedPlaceholder,
+                            NormalizationDiagnosticKind.EmptyPlaceholder => DiagnosticDescriptors.EmptyPlaceholder,
+                            NormalizationDiagnosticKind.AmbiguousNameIndex => DiagnosticDescriptors.AmbiguousPlaceholderNameIndex,
+                            _ => DiagnosticDescriptors.UnresolvedNamedPlaceholder
+                        };
+
+                        // Map diagnostic kind to appropriate message args for the descriptor templates
+                        object[] messageArgs = diag.Kind switch
+                        {
+                            NormalizationDiagnosticKind.UnresolvedProperty => new object[]
+                            {
+                                relationshipModel.PropertyName,
+                                diag.Token ?? string.Empty,
+                                entityModel.ClassName,
+                                string.Join(", ", entityPropertyNames)
+                            },
+                            NormalizationDiagnosticKind.MixedNamedAndPositional => new object[]
+                            {
+                                relationshipModel.PropertyName,
+                                diag.Token ?? string.Empty,
+                                diag.Message // contains the positional token reference
+                            },
+                            NormalizationDiagnosticKind.MalformedPlaceholder => new object[]
+                            {
+                                relationshipModel.PropertyName,
+                                diag.CharOffset ?? 0,
+                                diag.Token ?? string.Empty
+                            },
+                            NormalizationDiagnosticKind.EmptyPlaceholder => new object[]
+                            {
+                                relationshipModel.PropertyName,
+                                diag.CharOffset ?? 0
+                            },
+                            NormalizationDiagnosticKind.AmbiguousNameIndex => new object[]
+                            {
+                                relationshipModel.PropertyName,
+                                diag.Token ?? string.Empty
+                            },
+                            _ => new object[] { relationshipModel.PropertyName, diag.Message }
+                        };
+
+                        ReportDiagnostic(descriptor, attrLocation, messageArgs);
+                    }
+
+                    if (normalizationResult.HasErrors)
+                    {
+                        // Skip this relationship on error — do not add to list
+                        continue;
+                    }
+
+                    // Replace sort key pattern with normalized positional form
+                    sortKeyPattern = normalizationResult.NormalizedFormat;
+                }
+
+                relationshipModel.SortKeyPattern = sortKeyPattern;
             }
 
             // Extract entity type from named argument
