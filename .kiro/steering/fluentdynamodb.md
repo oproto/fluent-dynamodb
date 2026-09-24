@@ -166,7 +166,7 @@ public partial class OrderSummary
 Composite entities span multiple DynamoDB items sharing the same partition key but different sort keys. Use `[RelatedEntity]` to define parent-child relationships.
 
 ```csharp
-// Parent entity with related child collection
+// Recommended: Bare [RelatedEntity] — pattern inferred from child entity's key structure
 [DynamoDbTable("invoices", IsDefault = true)]
 public partial class Invoice
 {
@@ -181,11 +181,10 @@ public partial class Invoice
     [DynamoDbAttribute("invoiceNumber")]
     public string InvoiceNumber { get; set; } = string.Empty;
 
-    // Related entity collection - automatically populated by ToCompositeEntityAsync
-    // Named placeholder pattern: {PropertyName} tokens resolved at compile time
-    [RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+    // Bare form: child entity type inferred from List<T>, sort key pattern
+    // inferred from InvoiceLine's DerivedDiscriminatorPattern at compile time
+    [RelatedEntity]
     public List<InvoiceLine> Lines { get; set; } = new();
-    // Also supported: wildcard-only pattern "INVOICE#*#LINE#*"
 }
 
 // Child entity with hierarchical sort key
@@ -199,9 +198,13 @@ public partial class InvoiceLine
     // Sort key extends parent: "INVOICE#INV-001#LINE#1"
     [SortKey]
     [DynamoDbAttribute("sk")]
+    [Computed("INVOICE#{InvoiceId}#LINE#{LineNumber}")]
     public string Sk { get; set; } = string.Empty;
 
-    [DynamoDbAttribute("lineNumber")]
+    [Extracted("Sk", 0)]
+    public string InvoiceId { get; set; } = string.Empty;
+
+    [Extracted("Sk", 1)]
     public int LineNumber { get; set; }
 
     [DynamoDbAttribute("amount")]
@@ -209,12 +212,21 @@ public partial class InvoiceLine
 }
 ```
 
+```csharp
+// Fallback: Explicit pattern — use when the child entity's key structure
+// doesn't produce a usable DerivedDiscriminatorPattern, or you need a
+// custom pattern (e.g., named placeholders referencing parent properties)
+[RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+// Also supported: wildcard-only pattern "INVOICE#*#LINE#*"
+```
+
 ### RelatedEntity Attribute
 
 | Property | Description |
 |----------|-------------|
-| Pattern (positional) | Sort key pattern with `*` wildcards and optional `{PropertyName}` placeholders (e.g., `"{OrderId}#LINE#*"` or `"INVOICE#*#LINE#*"`) |
-| `EntityType` | The type to map matching items to (required for collections) |
+| Pattern (positional) | *(Optional, default `null`)* Sort key pattern with `*` wildcards and optional `{PropertyName}` placeholders (e.g., `"{OrderId}#LINE#*"` or `"INVOICE#*#LINE#*"`). When omitted, the pattern is inferred from the child entity's `DerivedDiscriminatorPattern` at compile time. |
+| `EntityType` | The type to map matching items to. When omitted on bare `[RelatedEntity]`, inferred from the property's generic type argument (e.g., `List<T>` → `T`). |
 
 ### Querying Composite Entities
 

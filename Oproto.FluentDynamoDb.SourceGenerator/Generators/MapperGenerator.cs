@@ -2630,6 +2630,10 @@ internal static class MapperGenerator
 
         foreach (var relationship in entity.Relationships)
         {
+            // Skip relationships with unresolved sort key patterns (bare [RelatedEntity] that failed resolution)
+            if (string.IsNullOrEmpty(relationship.SortKeyPattern))
+                continue;
+
             sb.AppendLine();
             sb.AppendLine($"                // Map related entity: {relationship.PropertyName}");
 
@@ -2667,6 +2671,9 @@ internal static class MapperGenerator
 
         // Generate pattern matching (reuse same pattern matching as sync)
         var sortKeyPattern = relationship.SortKeyPattern;
+        if (string.IsNullOrEmpty(sortKeyPattern))
+            return;
+
         if (sortKeyPattern.Contains("*"))
         {
             // AOT-safe: emit string.Split + segment comparison instead of Regex.IsMatch
@@ -2794,6 +2801,9 @@ internal static class MapperGenerator
 
         // Pattern matching
         var sortKeyPattern = relationship.SortKeyPattern;
+        if (string.IsNullOrEmpty(sortKeyPattern))
+            return;
+
         if (sortKeyPattern.Contains("*"))
         {
             // AOT-safe: emit string.Split + segment comparison instead of Regex.IsMatch
@@ -5346,7 +5356,7 @@ internal static class MapperGenerator
         sb.AppendLine("                    new RelationshipMetadata");
         sb.AppendLine("                    {");
         sb.AppendLine($"                        PropertyName = \"{relationship.PropertyName}\",");
-        sb.AppendLine($"                        SortKeyPattern = \"{relationship.SortKeyPattern}\",");
+        sb.AppendLine($"                        SortKeyPattern = \"{relationship.SortKeyPattern ?? string.Empty}\",");
 
         if (!string.IsNullOrEmpty(relationship.EntityType))
         {
@@ -5619,6 +5629,10 @@ internal static class MapperGenerator
 
         foreach (var relationship in entity.Relationships)
         {
+            // Skip relationships with unresolved sort key patterns (bare [RelatedEntity] that failed resolution)
+            if (string.IsNullOrEmpty(relationship.SortKeyPattern))
+                continue;
+
             sb.AppendLine();
             sb.AppendLine($"            // Map related entity: {relationship.PropertyName}");
 
@@ -5842,8 +5856,11 @@ internal static class MapperGenerator
         }
     }
 
-    private static void GenerateSortKeyPatternMatching(StringBuilder sb, string sortKeyPattern)
+    private static void GenerateSortKeyPatternMatching(StringBuilder sb, string? sortKeyPattern)
     {
+        if (string.IsNullOrEmpty(sortKeyPattern))
+            return;
+
         if (sortKeyPattern.Contains("*"))
         {
             // AOT-safe: emit string.Split + segment comparison instead of Regex.IsMatch

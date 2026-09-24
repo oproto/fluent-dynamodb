@@ -12,8 +12,9 @@ internal class RelationshipModel
 
     /// <summary>
     /// Gets or sets the sort key pattern used to identify related entities.
+    /// Null when using bare [RelatedEntity] before pattern resolution.
     /// </summary>
-    public string SortKeyPattern { get; set; } = string.Empty;
+    public string? SortKeyPattern { get; set; }
 
     /// <summary>
     /// Gets or sets the type name of the related entity.
@@ -31,9 +32,22 @@ internal class RelationshipModel
     public string PropertyType { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the sort key pattern was inferred
+    /// from the child entity's DerivedDiscriminatorPattern (true) or explicitly
+    /// provided via [RelatedEntity("pattern")] (false).
+    /// </summary>
+    public bool IsPatternInferred { get; set; }
+
+    /// <summary>
+    /// Gets or sets the fully resolved child entity type name, populated from
+    /// property type extraction or from the explicit EntityType argument.
+    /// </summary>
+    public string? ResolvedEntityType { get; set; }
+
+    /// <summary>
     /// Gets a value indicating whether this relationship uses wildcard matching.
     /// </summary>
-    public bool IsWildcardPattern => SortKeyPattern.Contains('*');
+    public bool IsWildcardPattern => SortKeyPattern?.Contains('*') ?? false;
 
     /// <summary>
     /// Gets a value indicating whether this relationship has a specific entity type.

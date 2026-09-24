@@ -187,6 +187,97 @@ var order = new Order
 
 The `[RelatedEntity]` attribute enables automatic population of related data based on sort key patterns. This is a more declarative approach than manual grouping.
 
+### Bare RelatedEntity (Recommended)
+
+The simplest way to define a related entity relationship is with a bare `[RelatedEntity]` attribute — no pattern string required. The source generator automatically infers the sort key matching pattern from the child entity's key structure, keeping your parent entity definition clean and eliminating pattern duplication.
+
+```csharp
+[DynamoDbTable("invoices", IsDefault = true)]
+public partial class Invoice
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "INVOICE")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    // Recommended: pattern inferred from InvoiceLine's key structure
+    [RelatedEntity]
+    public List<InvoiceLine> Lines { get; set; } = new();
+}
+
+[DynamoDbTable("invoices")]
+public partial class InvoiceLine
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    // Sort key with computed format — the generator reads this structure
+    // to produce the matching pattern "INVOICE#*#LINE#*"
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("INVOICE#{InvoiceId}#LINE#{LineNumber}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Sk", 0)]
+    public string InvoiceId { get; set; } = string.Empty;
+
+    [Extracted("Sk", 1)]
+    public int LineNumber { get; set; }
+
+    [DynamoDbAttribute("amount")]
+    public decimal Amount { get; set; }
+}
+```
+
+**How it works:** The source generator inspects `InvoiceLine`'s sort key definition and derives its `DerivedDiscriminatorPattern` (e.g., `INVOICE#*#LINE#*`). That pattern is then used for sort key matching when assembling the composite entity — identical to what you would write manually with `[RelatedEntity("INVOICE#*#LINE#*")]`.
+
+**Requirements for bare inference:**
+- The child entity must be annotated with `[DynamoDbTable]` on the same table as the parent
+- The child entity's sort key must have a distinguishing structure (a prefix, computed format, or constant value — not a bare `{0}` key)
+- The child entity type is inferred from the property's generic type argument (e.g., `List<InvoiceLine>` → `InvoiceLine`)
+
+### Fallback: Explicit Pattern
+
+If the child entity has a bare sort key with no prefix or computed structure, or if you need a custom matching pattern, provide the pattern string explicitly:
+
+```csharp
+[DynamoDbTable("invoices", IsDefault = true)]
+public partial class Invoice
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "INVOICE")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    // Explicit pattern — required when inference isn't possible
+    [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+    public List<InvoiceLine> Lines { get; set; } = new();
+}
+```
+
+### Pattern Approach Comparison
+
+| Approach | Syntax | Description | When to Use |
+|----------|--------|-------------|-------------|
+| Bare (recommended) | `[RelatedEntity]` | Pattern inferred from child entity's `DerivedDiscriminatorPattern` | Default choice — use when child entity has a prefixed or computed sort key |
+| Explicit pattern | `[RelatedEntity("INVOICE#*#LINE#*")]` | Pattern specified manually as constructor argument | When child entity has a bare sort key or you need a custom matching pattern |
+| Named placeholder | `[RelatedEntity("{InvoiceNumber}#LINE#*")]` | Pattern with property-value references resolved at compile time | When matching requires runtime values from the parent entity |
+
+> **Tip:** Start with bare `[RelatedEntity]` — the source generator will emit a clear compile-time error (FDDB130, FDDB131, or FDDB132) if inference isn't possible, telling you exactly what to fix or suggesting you fall back to an explicit pattern.
+
 ### Single Related Entity
 
 Use `[RelatedEntity]` for one-to-one relationships:

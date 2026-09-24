@@ -109,7 +109,7 @@ public class RelationshipModelTests
 
         // Assert
         relationship.PropertyName.Should().Be(string.Empty);
-        relationship.SortKeyPattern.Should().Be(string.Empty);
+        relationship.SortKeyPattern.Should().BeNull();
         relationship.EntityType.Should().BeNull();
         relationship.IsCollection.Should().BeFalse();
         relationship.PropertyType.Should().Be(string.Empty);

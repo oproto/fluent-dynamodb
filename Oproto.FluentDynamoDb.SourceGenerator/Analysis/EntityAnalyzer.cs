@@ -1553,14 +1553,45 @@ internal class EntityAnalyzer
             {
                 relationshipModel.EntityType = typeOfExpr.Type.ToString();
                 
+                // Set ResolvedEntityType from explicit EntityType regardless of bare vs explicit form
+                var entityTypeInfo = semanticModel.GetTypeInfo(typeOfExpr.Type);
+                if (entityTypeInfo.Type != null)
+                {
+                    relationshipModel.ResolvedEntityType = entityTypeInfo.Type.ToDisplayString();
+                }
+                else
+                {
+                    relationshipModel.ResolvedEntityType = typeOfExpr.Type.ToString();
+                }
+                
                 // Check if the child entity type has its own [RelatedEntity] relationships
-                var childEntityTypeInfo = semanticModel.GetTypeInfo(typeOfExpr.Type);
-                if (childEntityTypeInfo.Type is INamedTypeSymbol childTypeSymbol)
+                if (entityTypeInfo.Type is INamedTypeSymbol childTypeSymbol)
                 {
                     var childRelationships = ExtractChildEntityRelationships(childTypeSymbol, semanticModel);
                     relationshipModel.ChildEntityHasRelationships = childRelationships.Length > 0;
                     relationshipModel.ChildEntityRelationships = childRelationships;
                 }
+            }
+            else
+            {
+                // No explicit EntityType — determine if this is a bare [RelatedEntity]
+                // Bare form: no positional constructor arguments (all arguments are named, or no arguments at all)
+                var hasPositionalArg = relatedEntityAttr.ArgumentList?.Arguments
+                    .Any(arg => arg.NameEquals == null) ?? false;
+                var isBareForm = !hasPositionalArg;
+
+                if (isBareForm)
+                {
+                    // Infer entity type from property type for bare [RelatedEntity]
+                    var inferredType = InferEntityTypeFromProperty(propertySymbol, entityModel.ClassName);
+                    relationshipModel.ResolvedEntityType = inferredType;
+
+                    // If inference failed (e.g., non-generic collection), the diagnostic has been reported.
+                    // The relationship will still be added, but with null ResolvedEntityType.
+                    // The PatternResolutionPass will handle it during deferred resolution.
+                }
+                // For explicit [RelatedEntity("pattern")] without EntityType, don't infer from property type
+                // (Requirement 2.5: existing entity type extraction logic unchanged)
             }
 
             relationships.Add(relationshipModel);
@@ -2150,6 +2181,71 @@ internal class EntityAnalyzer
             i.ConstructedFrom.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>");
     }
 
+    /// <summary>
+    /// Infers the child entity type from the property's declared type for bare [RelatedEntity] attributes.
+    /// Extracts T from List&lt;T&gt;, IList&lt;T&gt;, ICollection&lt;T&gt;, IEnumerable&lt;T&gt;,
+    /// unwraps nullable T?, and falls back to direct type T for non-collection, non-nullable types.
+    /// </summary>
+    /// <param name="propertySymbol">The property symbol to extract the entity type from.</param>
+    /// <param name="entityClassName">The parent entity class name, used for diagnostic reporting.</param>
+    /// <returns>The fully qualified display string of the inferred child entity type, or null if inference fails.</returns>
+    private string? InferEntityTypeFromProperty(IPropertySymbol propertySymbol, string entityClassName)
+    {
+        var type = propertySymbol.Type;
+
+        // Skip string — it implements IEnumerable<char> but is not a collection
+        if (type.SpecialType == SpecialType.System_String)
+            return type.ToDisplayString();
+
+        // Check for generic collection types implementing IEnumerable<T>
+        if (type is INamedTypeSymbol namedType && namedType.IsGenericType && namedType.TypeArguments.Length > 0)
+        {
+            // Direct generic type (List<T>, IList<T>, ICollection<T>, IEnumerable<T>)
+            var hasGenericEnumerable = namedType.AllInterfaces.Any(i =>
+                i.IsGenericType &&
+                i.ConstructedFrom.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>");
+
+            if (hasGenericEnumerable)
+            {
+                return namedType.TypeArguments[0].ToDisplayString();
+            }
+        }
+        else if (type is INamedTypeSymbol nonGenericNamed && !nonGenericNamed.IsGenericType)
+        {
+            // Check if it's a non-generic type that implements non-generic IEnumerable
+            // (e.g., ArrayList, raw IEnumerable) — cannot infer element type
+            var implementsNonGenericEnumerable = nonGenericNamed.AllInterfaces.Any(i =>
+                !i.IsGenericType &&
+                i.ToDisplayString() == "System.Collections.IEnumerable");
+
+            // Also check if the type itself IS IEnumerable (non-generic)
+            if (implementsNonGenericEnumerable || nonGenericNamed.ToDisplayString() == "System.Collections.IEnumerable")
+            {
+                ReportDiagnostic(
+                    DiagnosticDescriptors.BareRelatedEntityNonGenericCollection,
+                    propertySymbol.Locations.FirstOrDefault(),
+                    propertySymbol.Name,
+                    entityClassName,
+                    type.ToDisplayString());
+                return null;
+            }
+        }
+
+        // Check for nullable reference type T? — unwrap the nullable annotation
+        if (type.NullableAnnotation == NullableAnnotation.Annotated)
+        {
+            // For nullable reference types, the underlying type is the OriginalDefinition
+            // but we need to get the type without the nullable annotation
+            if (type is INamedTypeSymbol nullableNamed)
+            {
+                return nullableNamed.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString();
+            }
+        }
+
+        // Non-nullable, non-collection type — use directly
+        return type.ToDisplayString();
+    }
+
     private bool IsSupportedPropertyType(string typeName)
     {
         // Basic type support - this will be expanded in later tasks
@@ -2311,13 +2407,15 @@ internal class EntityAnalyzer
         // Check for complex relationship patterns that may impact scalability
         ValidateRelationshipComplexity(entityModel);
 
-        // Check for conflicting patterns
+        // Check for conflicting patterns (skip null patterns from bare [RelatedEntity] not yet resolved)
         var patterns = entityModel.Relationships.Select(r => r.SortKeyPattern).ToArray();
         for (int i = 0; i < patterns.Length; i++)
         {
+            if (patterns[i] == null) continue;
             for (int j = i + 1; j < patterns.Length; j++)
             {
-                if (PatternsConflict(patterns[i], patterns[j]))
+                if (patterns[j] == null) continue;
+                if (PatternsConflict(patterns[i]!, patterns[j]!))
                 {
                     ReportDiagnostic(DiagnosticDescriptors.ConflictingRelatedEntityPatterns,
                         entityModel.ClassDeclaration?.Identifier.GetLocation(),
@@ -2335,6 +2433,11 @@ internal class EntityAnalyzer
 
     private void ValidateRelationshipModel(RelationshipModel relationship, EntityModel entityModel)
     {
+        // Skip validation for bare [RelatedEntity] with null SortKeyPattern — pattern will be resolved later
+        // by PatternResolutionPass, and re-validation will run after resolution
+        if (relationship.SortKeyPattern == null)
+            return;
+
         // Check for ambiguous patterns
         if (relationship.SortKeyPattern == "*" || string.IsNullOrWhiteSpace(relationship.SortKeyPattern))
         {
@@ -2381,7 +2484,7 @@ internal class EntityAnalyzer
         }
 
         // Check for wildcard patterns that may be inefficient
-        var wildcardPatterns = relationships.Where(r => r.SortKeyPattern.Contains("*")).ToArray();
+        var wildcardPatterns = relationships.Where(r => r.SortKeyPattern?.Contains("*") == true).ToArray();
         if (wildcardPatterns.Length >= 2)
         {
             ReportDiagnostic(DiagnosticDescriptors.ScalabilityWarning,

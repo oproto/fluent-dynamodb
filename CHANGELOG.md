@@ -81,6 +81,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Named-Placeholder Runtime Smoke Tests** — Added 12 integration tests in `NamedPlaceholderRuntimeSmokeTests` that exercise the full source generator pipeline (generate → compile → load → invoke) for entities using the named-placeholder `[Computed("{PropertyName}")]` syntax. The test suite covers FromDynamoDb round-trips with extracted properties, ExtractComponents key decomposition, MatchesEntity discrimination for composite and multi-entity scenarios, three-plus property computed keys, GSI computed keys, and backward compatibility for positional and separator syntax. Each test compiles an entity definition through the source generator, loads the assembly dynamically, and invokes the generated methods at runtime — closing a coverage gap where existing integration tests verified generated code structure but not runtime behavior.
 
+- **Bare `[RelatedEntity]` Inference** — Use `[RelatedEntity]` without a pattern string and the source generator infers the sort key matching pattern from the child entity's `DerivedDiscriminatorPattern`. The child entity type is automatically extracted from the property's generic type argument (e.g., `List<InvoiceLine>` → `InvoiceLine`). Explicit `[RelatedEntity("pattern")]` usage is fully backward compatible and unaffected.
+
+  ```csharp
+  // Before (explicit pattern — still supported)
+  [RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+  public List<InvoiceLine> Lines { get; set; } = new();
+
+  // After (bare inference — recommended)
+  [RelatedEntity]
+  public List<InvoiceLine> Lines { get; set; } = new();
+  ```
+
+  The bare form eliminates manual pattern duplication by making the child entity's key definition the single source of truth. A deferred Pattern Resolution Pass resolves bare patterns after all entities are analyzed, enabling correct resolution regardless of entity declaration order. Three new compile-time diagnostics (FDDB130, FDDB131, FDDB132) provide actionable error messages when inference cannot determine a valid pattern.
+
 
 ### Fixed
 

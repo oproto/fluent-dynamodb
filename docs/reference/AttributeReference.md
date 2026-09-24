@@ -1052,17 +1052,107 @@ Marks a property as a related entity that should be automatically populated base
 
 Enables automatic population of related entities in composite entity patterns. When you query for a parent entity, related entities matching the sort key pattern are automatically loaded into the specified property.
 
-### Parameters
+### Constructors
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `sortKeyPattern` | `string` | Yes | Sort key pattern to match (supports wildcards like `"audit#*"`) |
+| Constructor | Description |
+|-------------|-------------|
+| `RelatedEntityAttribute()` | **Bare form (recommended).** Pattern is inferred from the child entity's `DerivedDiscriminatorPattern` at compile time. |
+| `RelatedEntityAttribute(string sortKeyPattern)` | **Explicit form.** Uses the provided sort key pattern. Throws `ArgumentNullException` if `sortKeyPattern` is `null`. |
 
 ### Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `EntityType` | `Type?` | `null` | Type of the related entity (defaults to property type) |
+| `SortKeyPattern` | `string?` | `null` | Sort key pattern to match related entities. When `null` (bare constructor), the pattern is inferred from the child entity's key metadata. When set (explicit constructor), used as-is. |
+| `EntityType` | `Type?` | `null` | Type of the related entity. When omitted on the bare form, inferred from the property's generic type argument (e.g., `List<T>` → `T`). |
+
+### Bare RelatedEntity (Recommended)
+
+The bare form eliminates manual pattern strings by inferring the sort key matching pattern from the child entity's key definition. The child entity's `DerivedDiscriminatorPattern` — computed from its `[SortKey]` prefix or `[Computed]` format — becomes the single source of truth.
+
+```csharp
+// Parent entity — bare [RelatedEntity] infers pattern from child entity
+[DynamoDbTable("invoices", IsDefault = true)]
+public partial class Invoice
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey(Prefix = "INVOICE")]
+    [DynamoDbAttribute("sk")]
+    public string Sk { get; set; } = string.Empty;
+
+    [DynamoDbAttribute("invoiceNumber")]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    // Bare form — pattern inferred from InvoiceLine's DerivedDiscriminatorPattern
+    [RelatedEntity]
+    public List<InvoiceLine> Lines { get; set; } = new();
+}
+
+// Child entity — its sort key structure drives the inferred pattern
+[DynamoDbTable("invoices")]
+public partial class InvoiceLine
+{
+    [PartitionKey(Prefix = "CUSTOMER")]
+    [DynamoDbAttribute("pk")]
+    public string Pk { get; set; } = string.Empty;
+
+    [SortKey]
+    [DynamoDbAttribute("sk")]
+    [Computed("INVOICE#{InvoiceId}#LINE#{LineNumber}")]
+    public string Sk { get; set; } = string.Empty;
+
+    [Extracted("Sk", 0)]
+    public string InvoiceId { get; set; } = string.Empty;
+
+    [Extracted("Sk", 1)]
+    public int LineNumber { get; set; }
+
+    [DynamoDbAttribute("amount")]
+    public decimal Amount { get; set; }
+}
+
+// The source generator infers SortKeyPattern = "INVOICE#*#LINE#*" from InvoiceLine's
+// DerivedDiscriminatorPattern, producing identical generated code to:
+// [RelatedEntity("INVOICE#*#LINE#*")]
+```
+
+#### Inference Behavior
+
+When the bare `[RelatedEntity]` constructor is used:
+
+1. **Child entity type** is inferred from the property's declared type:
+   - `List<T>`, `IList<T>`, `ICollection<T>`, `IEnumerable<T>` → extracts `T`
+   - `T?` (nullable) → unwraps to `T`
+   - `T` (non-collection, non-nullable) → uses `T` directly
+   - If `EntityType` is explicitly provided, it takes precedence over property type inference
+
+2. **Sort key pattern** is resolved in a deferred Pattern Resolution Pass after all entities are analyzed:
+   - The source generator looks up the child entity in the same table group
+   - Reads the child entity's sort key `DerivedDiscriminatorPattern` (e.g., `INVOICE#*#LINE#*`)
+   - Assigns it as the relationship's `SortKeyPattern`
+
+3. **Code generation** is identical — a resolved bare pattern produces character-for-character the same generated code as an equivalent explicit pattern
+
+### Fallback: Explicit Pattern
+
+The explicit constructor remains fully supported for cases where inference isn't possible or you want precise control:
+
+```csharp
+// Explicit pattern — use when child entity can't be inferred
+[RelatedEntity("ITEM#*")]
+public List<OrderItem> Items { get; set; } = new();
+
+// Explicit pattern with EntityType override
+[RelatedEntity("ITEM#*", EntityType = typeof(OrderItem))]
+public List<OrderItem> Items { get; set; } = new();
+
+// Single related entity with exact match
+[RelatedEntity("SUMMARY")]
+public OrderSummary? Summary { get; set; }
+```
 
 ### Example
 
@@ -1082,20 +1172,20 @@ public partial class Order
     [DynamoDbAttribute("total")]
     public decimal Total { get; set; }
     
-    // Related entities with pattern "ITEM#*"
-    [RelatedEntity("ITEM#*")]
+    // Bare form — pattern inferred from OrderItem's sort key structure
+    [RelatedEntity]
     public List<OrderItem> Items { get; set; } = new();
     
-    // Single related entity with exact match
+    // Single related entity with exact match (explicit pattern required)
     [RelatedEntity("SUMMARY")]
     public OrderSummary? Summary { get; set; }
     
-    // Related audit records
+    // Explicit pattern — still fully supported
     [RelatedEntity("AUDIT#*")]
     public List<AuditRecord> AuditRecords { get; set; } = new();
 }
 
-// Related entity
+// Related entity — sort key prefix provides the pattern for bare inference
 [DynamoDbTable("orders")]
 public partial class OrderItem
 {
@@ -1122,12 +1212,20 @@ var order = await table.Query
 // order.Summary is populated if an item with sk="SUMMARY" exists
 ```
 
+### Pattern Tiers Comparison
+
+| Tier | Syntax | Description | When to Use |
+|------|--------|-------------|-------------|
+| Bare (recommended) | `[RelatedEntity]` | Pattern inferred from child entity's key structure | Default choice — child entity has a prefixed or computed sort key on the same table |
+| Explicit pattern | `[RelatedEntity("ITEM#*")]` | Manual wildcard or exact pattern | Child entity has a trivial sort key, or you need a specific sub-pattern (e.g., exact match `"SUMMARY"`) |
+| Named placeholder | `[RelatedEntity("{InvoiceId}#LINE#*")]` | Pattern with property references | Pattern needs to reference parent entity properties for scoped matching |
+
 ### Named Placeholders in Sort Key Patterns
 
 Sort key patterns support `{PropertyName}` tokens to reference entity properties by name. When named placeholders are used, the source generator resolves each token against the entity's declared properties at compile time and infers the source properties from the pattern — no separate `SourceProperties` parameter is needed.
 
 ```csharp
-// Named placeholder in sort key pattern (recommended)
+// Named placeholder in sort key pattern
 [RelatedEntity("{OrderId}#LINE#*")]
 public List<OrderLine> Lines { get; set; } = new();
 
@@ -1161,6 +1259,19 @@ Named placeholders in `[RelatedEntity]` patterns follow the same resolution rule
 | `"AUDIT#*"` | Prefix match | `AUDIT#2024-01-15`, `AUDIT#log1` |
 | `"*"` | Match all | Any sort key value |
 | `"{OrderId}#LINE#*"` | Named placeholder with wildcard | Resolves `OrderId` property, matches any line |
+
+### Compile-Time Diagnostics
+
+The source generator emits the following diagnostics when bare `[RelatedEntity]` inference encounters issues:
+
+| Code | Severity | Trigger Condition |
+|------|----------|-------------------|
+| FDDB130 | Error | The property's element type (e.g., `T` in `List<T>`) is not a known `[DynamoDbTable]` entity in any table group. Fix: specify `EntityType` explicitly or provide an explicit pattern string. |
+| FDDB131 | Error | The resolved child entity has a bare sort key with no distinguishing structure (`NormalizedKeyFormat` is `"{0}"` — no prefix or computed format). The generator cannot derive a meaningful pattern. Fix: provide an explicit pattern string. |
+| FDDB132 | Error | The resolved child entity is declared on a different DynamoDB table than the parent entity. Related entities must share the same table. Fix: ensure both entities use the same `[DynamoDbTable]` table name. |
+| FDDB133 | Error | The property uses a non-generic collection type (e.g., `ArrayList`, raw `IEnumerable`) from which the element type cannot be inferred. Fix: use a generic collection type such as `List<T>` or specify `EntityType` explicitly. |
+
+When any of these diagnostics is emitted, the affected relationship is excluded from all subsequent code generation — no sort key matching, composite assembly, or `FromDynamoDb` population code is emitted for that relationship.
 
 ### Behavior
 
@@ -1806,7 +1917,7 @@ These attributes work together to define your DynamoDB entity schema:
 
 ### Composite Key Attributes
 5. **[Computed]** and **[Extracted]**: Handle composite keys
-6. **[RelatedEntity]**: Enable composite entity patterns
+6. **[RelatedEntity]**: Enable composite entity patterns (supports bare inference or explicit patterns)
 
 ### Advanced Type Attributes
 7. **[TimeToLive]**: Automatic item expiration
