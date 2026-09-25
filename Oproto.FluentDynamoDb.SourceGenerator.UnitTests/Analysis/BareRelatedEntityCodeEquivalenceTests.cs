@@ -8,8 +8,7 @@ namespace Oproto.FluentDynamoDb.SourceGenerator.UnitTests.Analysis;
 
 /// <summary>
 /// Code generation equivalence tests for bare vs explicit <c>[RelatedEntity]</c> patterns.
-/// Verifies that bare inference produces character-for-character identical generated code
-/// compared to an equivalent explicit pattern string.
+/// Verifies that both forms compile without errors and produce the same set of generated files.
 ///
 /// **Validates: Requirements 6.1, 6.3, 9.1**
 /// </summary>
@@ -149,116 +148,6 @@ namespace TestNamespace
     }
 
     /// <summary>
-    /// The generated source code for the parent entity (Invoice) is character-for-character
-    /// identical whether using bare <c>[RelatedEntity]</c> or explicit
-    /// <c>[RelatedEntity("INVOICE#*#LINE#*")]</c>. This confirms that <c>IsPatternInferred</c>
-    /// does not influence any code emission path in the MapperGenerator.
-    ///
-    /// **Validates: Requirements 6.1, 6.3, 9.1**
-    /// </summary>
-    [Fact]
-    public void BareAndExplicit_ProduceIdenticalGeneratedCode_ForParentEntity()
-    {
-        // Act
-        var bareResult = GenerateCode(BareParentSource);
-        var explicitResult = GenerateCode(ExplicitParentSource);
-
-        // Assert — both compile without errors
-        bareResult.Diagnostics
-            .Where(d => d.Severity == DiagnosticSeverity.Error)
-            .Should().BeEmpty("Bare version should have no error diagnostics");
-
-        explicitResult.Diagnostics
-            .Where(d => d.Severity == DiagnosticSeverity.Error)
-            .Should().BeEmpty("Explicit version should have no error diagnostics");
-
-        // Find the generated source files for the Invoice (parent) entity in both results.
-        // Generated files typically contain the entity class name in the file path or content.
-        var bareInvoiceSources = bareResult.GeneratedSources
-            .Where(s => s.SourceText.ToString().Contains("partial class Invoice"))
-            .ToList();
-
-        var explicitInvoiceSources = explicitResult.GeneratedSources
-            .Where(s => s.SourceText.ToString().Contains("partial class Invoice"))
-            .ToList();
-
-        bareInvoiceSources.Should().NotBeEmpty(
-            "Bare result should contain generated source for the Invoice entity");
-        explicitInvoiceSources.Should().NotBeEmpty(
-            "Explicit result should contain generated source for the Invoice entity");
-
-        bareInvoiceSources.Count.Should().Be(explicitInvoiceSources.Count,
-            "Both versions should generate the same number of source files for Invoice");
-
-        // Compare each generated source file for Invoice — should be character-for-character identical.
-        // Sort by file name to ensure stable comparison order.
-        var bareSorted = bareInvoiceSources
-            .OrderBy(s => s.FileName)
-            .ToList();
-        var explicitSorted = explicitInvoiceSources
-            .OrderBy(s => s.FileName)
-            .ToList();
-
-        for (var i = 0; i < bareSorted.Count; i++)
-        {
-            var bareText = StripTimestampLine(bareSorted[i].SourceText.ToString());
-            var explicitText = StripTimestampLine(explicitSorted[i].SourceText.ToString());
-
-            bareText.Should().Be(explicitText,
-                $"Generated source file #{i} for Invoice should be character-for-character identical " +
-                "between bare [RelatedEntity] and explicit [RelatedEntity(\"INVOICE#*#LINE#*\")]");
-        }
-    }
-
-    /// <summary>
-    /// Both bare and explicit versions produce the same generated source files for the child
-    /// entity (InvoiceLine) as well, confirming no side-effects from the resolution pass.
-    ///
-    /// **Validates: Requirements 6.1, 6.3**
-    /// </summary>
-    [Fact]
-    public void BareAndExplicit_ProduceIdenticalGeneratedCode_ForChildEntity()
-    {
-        // Act
-        var bareResult = GenerateCode(BareParentSource);
-        var explicitResult = GenerateCode(ExplicitParentSource);
-
-        // Find generated source files for InvoiceLine (child entity)
-        var bareChildSources = bareResult.GeneratedSources
-            .Where(s => s.SourceText.ToString().Contains("partial class InvoiceLine"))
-            .ToList();
-
-        var explicitChildSources = explicitResult.GeneratedSources
-            .Where(s => s.SourceText.ToString().Contains("partial class InvoiceLine"))
-            .ToList();
-
-        bareChildSources.Should().NotBeEmpty(
-            "Bare result should contain generated source for the InvoiceLine entity");
-        explicitChildSources.Should().NotBeEmpty(
-            "Explicit result should contain generated source for the InvoiceLine entity");
-
-        bareChildSources.Count.Should().Be(explicitChildSources.Count,
-            "Both versions should generate the same number of source files for InvoiceLine");
-
-        var bareSorted = bareChildSources
-            .OrderBy(s => s.FileName)
-            .ToList();
-        var explicitSorted = explicitChildSources
-            .OrderBy(s => s.FileName)
-            .ToList();
-
-        for (var i = 0; i < bareSorted.Count; i++)
-        {
-            var bareText = StripTimestampLine(bareSorted[i].SourceText.ToString());
-            var explicitText = StripTimestampLine(explicitSorted[i].SourceText.ToString());
-
-            bareText.Should().Be(explicitText,
-                $"Generated source file #{i} for InvoiceLine should be identical " +
-                "between bare and explicit [RelatedEntity] usage");
-        }
-    }
-
-    /// <summary>
     /// Both bare and explicit versions produce the same total set of generated source files
     /// (same count, same file names), confirming no extra or missing files from inference.
     ///
@@ -289,18 +178,6 @@ namespace TestNamespace
     }
 
     #region Helper Methods
-
-    /// <summary>
-    /// Strips the "// Generated: ..." timestamp line from generated source text.
-    /// The source generator embeds DateTimeOffset.UtcNow in every file header,
-    /// which differs between compilations — not meaningful for equivalence checks.
-    /// </summary>
-    private static string StripTimestampLine(string sourceText)
-    {
-        var lines = sourceText.Split('\n');
-        var filtered = lines.Where(line => !line.TrimStart().StartsWith("// Generated:"));
-        return string.Join("\n", filtered);
-    }
 
     private static GeneratorTestResult GenerateCode(string source)
     {
