@@ -1667,4 +1667,66 @@ internal static class DiagnosticDescriptors
         "References to static readonly fields, properties, or method calls cannot be resolved at compile time and will produce uncompilable generated code. " +
         "Use a string literal (e.g., => \"VALUE\") or a const field (e.g., => MyConstants.Value where Value is const) instead.",
         helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB126"));
+
+    // Bare RelatedEntity Inference Diagnostics (FDDB130-FDDB132)
+
+    /// <summary>
+    /// Error when a bare [RelatedEntity] references a type that is not a known [DynamoDbTable] entity.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BareRelatedEntityUnresolvedType = new(
+        "FDDB130",
+        "Bare RelatedEntity unresolved entity type",
+        "[RelatedEntity] on property '{0}' in entity '{1}' references type '{2}' which is not a known [DynamoDbTable] entity. Specify EntityType explicitly or provide an explicit pattern string.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A bare [RelatedEntity] attribute infers the child entity type from the property's generic type argument. " +
+        "The resolved type must be a class annotated with [DynamoDbTable] in the same table group. " +
+        "If the type is not a DynamoDB entity, specify EntityType explicitly or provide an explicit pattern string as the constructor argument.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB130"));
+
+    /// <summary>
+    /// Error when a bare [RelatedEntity] cannot infer a pattern because the child entity has a trivial sort key.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BareRelatedEntityTrivialSortKey = new(
+        "FDDB131",
+        "Bare RelatedEntity trivial sort key pattern",
+        "[RelatedEntity] on property '{0}' in entity '{1}' cannot infer a matching pattern because child entity '{2}' has a bare sort key with no distinguishing structure (NormalizedKeyFormat is '{{0}}'). Provide an explicit pattern string.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A bare [RelatedEntity] attribute infers the sort key matching pattern from the child entity's DerivedDiscriminatorPattern. " +
+        "When the child entity's sort key has no prefix or computed structure (NormalizedKeyFormat is '{0}'), " +
+        "there is no distinguishing pattern to infer. Provide an explicit pattern string as the constructor argument.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB131"));
+
+    /// <summary>
+    /// Error when a bare [RelatedEntity] references a child entity on a different table.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BareRelatedEntityTableMismatch = new(
+        "FDDB132",
+        "Bare RelatedEntity table mismatch",
+        "[RelatedEntity] on property '{0}' in entity '{1}' (table '{2}') references child entity '{3}' which is on table '{4}'. Related entities must share the same DynamoDB table.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A bare [RelatedEntity] attribute resolves the child entity within the same table group. " +
+        "If the child entity is declared on a different DynamoDB table, the relationship cannot be resolved. " +
+        "Related entities used in composite entity assembly must share the same DynamoDB table.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB132"));
+
+    /// <summary>
+    /// Error when a bare [RelatedEntity] is on a non-generic collection property whose element type cannot be inferred.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BareRelatedEntityNonGenericCollection = new(
+        "FDDB133",
+        "Bare RelatedEntity non-generic collection type",
+        "[RelatedEntity] on property '{0}' in entity '{1}' uses a non-generic collection type '{2}'. The element type cannot be inferred. Specify EntityType explicitly or use a generic collection type such as List<T>.",
+        "DynamoDb",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A bare [RelatedEntity] attribute infers the child entity type from the property's generic type argument. " +
+        "Non-generic collection types such as ArrayList or raw IEnumerable do not provide a type argument for inference. " +
+        "Use a generic collection type (e.g., List<T>) or specify EntityType explicitly on the attribute.",
+        helpLinkUri: string.Format(DiagnosticHelpLinks.BaseUrlFormat, "FDDB133"));
 }

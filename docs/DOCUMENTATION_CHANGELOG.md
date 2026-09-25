@@ -57,6 +57,97 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-09-21]
+
+### New Feature Documentation: Bare `[RelatedEntity]` Inference
+
+**Category:** New Feature Documentation
+
+**Summary:** The `[RelatedEntity]` attribute now supports a parameterless form that infers the sort key matching pattern from the child entity's `DerivedDiscriminatorPattern` metadata. The child entity type is automatically extracted from the property's generic type argument (`List<T>` → `T`). Three new compile-time diagnostics (FDDB130, FDDB131, FDDB132) provide actionable errors when inference fails. Existing explicit `[RelatedEntity("pattern")]` usage is fully backward compatible and unaffected.
+
+---
+
+### File: docs/advanced-topics/CompositeEntities.md
+
+**Change:** Added "Bare RelatedEntity (Recommended)" subsection presenting the parameterless `[RelatedEntity]` as the recommended approach for composite entity relationships. Added "Fallback: Explicit Pattern" subsection with the existing explicit pattern example. Added comparison table listing three tiers (bare, explicit pattern, named placeholder) with description and when-to-use guidance.
+
+**Before:**
+```csharp
+// Only explicit pattern syntax documented
+[RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+```
+
+**After:**
+```csharp
+// Bare RelatedEntity (recommended) — pattern inferred from child entity
+[RelatedEntity]
+public List<InvoiceLine> Lines { get; set; } = new();
+
+// Explicit pattern (fallback) — still supported
+[RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+```
+
+**Reason:** New bare `[RelatedEntity]` inference feature eliminates manual pattern duplication by deriving the sort key matching pattern from the child entity's key definition. Documentation added to show the recommended bare syntax alongside the existing explicit pattern as a fallback.
+
+---
+
+### File: docs/reference/AttributeReference.md
+
+**Change:** Updated the `[RelatedEntity]` section to document the parameterless constructor `RelatedEntityAttribute()`, the nullable `SortKeyPattern` property (type `string?`, default `null`), inference behavior (child entity type from property generic type argument, sort key pattern from child entity's `DerivedDiscriminatorPattern`), and compile-time diagnostic codes FDDB130, FDDB131, FDDB132 with their trigger conditions.
+
+**Before:**
+```csharp
+// Only explicit constructor documented
+[RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+```
+
+**After:**
+```csharp
+// Parameterless constructor (recommended) — pattern inferred automatically
+[RelatedEntity]
+public List<InvoiceLine> Lines { get; set; } = new();
+
+// Explicit pattern constructor (still supported)
+[RelatedEntity("INVOICE#*#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+
+// Diagnostics: FDDB130 (unresolved entity type), FDDB131 (trivial sort key),
+// FDDB132 (table mismatch)
+```
+
+**Reason:** Reference documentation updated to reflect the full bare `[RelatedEntity]` API surface including parameterless constructor, nullable `SortKeyPattern`, inference behavior, and new compile-time diagnostics.
+
+---
+
+### File: .kiro/steering/fluentdynamodb.md
+
+**Change:** Updated "Composite Entity Definition" section to show bare `[RelatedEntity]` syntax first with a comment indicating it is recommended, retained the existing explicit-pattern example as fallback. Updated the `RelatedEntity Attribute` properties table to mark `Pattern (positional)` as optional with default `null` (inferred from child entity metadata).
+
+**Before:**
+```csharp
+// Only explicit pattern shown
+[RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+```
+
+**After:**
+```csharp
+// Bare inference (recommended) — pattern inferred from child entity's DerivedDiscriminatorPattern
+[RelatedEntity]
+public List<InvoiceLine> Lines { get; set; } = new();
+
+// Explicit pattern (fallback — still supported)
+[RelatedEntity("{InvoiceNumber}#LINE#*", EntityType = typeof(InvoiceLine))]
+public List<InvoiceLine> Lines { get; set; } = new();
+```
+
+**Reason:** Steering file updated so AI assistants in consuming projects see the recommended bare `[RelatedEntity]` syntax first. The bare form eliminates manual pattern duplication while producing identical generated code to the explicit form.
+
+---
+
 ## [2026-09-19]
 
 ### New Feature Documentation: Named Property Placeholders

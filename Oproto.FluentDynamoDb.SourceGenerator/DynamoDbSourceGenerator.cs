@@ -199,6 +199,25 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
             ValidateTableNamespaceConsistency(tableGroup.Value, context);
         }
 
+        // Pattern Resolution Pass: resolve bare [RelatedEntity] patterns by looking up
+        // child entity metadata within each table group. Must run AFTER all entities are
+        // analyzed and grouped, but BEFORE overlap analysis and code generation.
+        var patternResolutionDiagnostics = PatternResolutionPass.Resolve(entitiesByTable);
+        foreach (var diagnostic in patternResolutionDiagnostics)
+        {
+            context.ReportDiagnostic(diagnostic);
+        }
+
+        // Exclude failed relationships: remove relationships where SortKeyPattern is still
+        // null after resolution. This prevents MapperGenerator from generating code for
+        // unresolvable bare [RelatedEntity] relationships (Requirement 5.4).
+        ExcludeFailedRelationships(entitiesByTable);
+
+        // Re-validate resolved relationships: for entities that had bare [RelatedEntity]
+        // patterns resolved, run validation to catch ambiguous or conflicting patterns
+        // introduced by the inferred values (Requirements 8.1, 8.2, 8.3).
+        RevalidateResolvedRelationships(entitiesByTable, context);
+
         // Overlap analysis pass: detect discriminator pattern overlaps within each table group
         // IMPORTANT: This must run BEFORE entity code generation so that OverlappingPatterns
         // is populated when GenerateDiscriminatorCheck emits exclusion guards.
@@ -648,6 +667,104 @@ public class DynamoDbSourceGenerator : IIncrementalGenerator
         return string.Compare(nameA, nameB, StringComparison.Ordinal) <= 0
             ? (nameA, nameB)
             : (nameB, nameA);
+    }
+
+    /// <summary>
+    /// Removes relationships from entity models where <see cref="RelationshipModel.SortKeyPattern"/>
+    /// is still null after the Pattern Resolution Pass. This prevents MapperGenerator from
+    /// attempting to generate code for unresolvable bare [RelatedEntity] relationships.
+    /// </summary>
+    private static void ExcludeFailedRelationships(Dictionary<string, List<EntityModel>> entitiesByTable)
+    {
+        foreach (var tableGroup in entitiesByTable)
+        {
+            foreach (var entity in tableGroup.Value)
+            {
+                if (entity.Relationships.Length == 0)
+                    continue;
+
+                var validRelationships = entity.Relationships
+                    .Where(r => !string.IsNullOrEmpty(r.SortKeyPattern))
+                    .ToArray();
+
+                if (validRelationships.Length != entity.Relationships.Length)
+                {
+                    entity.Relationships = validRelationships;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Re-validates relationships on entities that had bare [RelatedEntity] patterns resolved
+    /// by the Pattern Resolution Pass. This catches ambiguous or conflicting patterns
+    /// introduced by the inferred values (Requirements 8.1, 8.2, 8.3).
+    /// </summary>
+    private static void RevalidateResolvedRelationships(
+        Dictionary<string, List<EntityModel>> entitiesByTable,
+        SourceProductionContext context)
+    {
+        foreach (var tableGroup in entitiesByTable)
+        {
+            foreach (var entity in tableGroup.Value)
+            {
+                // Only re-validate entities that had at least one bare pattern resolved
+                if (entity.Relationships.Length == 0 ||
+                    !entity.Relationships.Any(r => r.IsPatternInferred))
+                    continue;
+
+                // Check for ambiguous patterns (Requirement 8.2)
+                foreach (var relationship in entity.Relationships)
+                {
+                    if (relationship.SortKeyPattern == "*" ||
+                        string.IsNullOrWhiteSpace(relationship.SortKeyPattern))
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.AmbiguousRelatedEntityPattern,
+                            entity.ClassDeclaration?.Identifier.GetLocation() ?? Location.None,
+                            relationship.SortKeyPattern ?? "(null)",
+                            relationship.PropertyName));
+                    }
+                }
+
+                // Check for conflicting patterns between all relationship pairs (Requirement 8.3)
+                var patterns = entity.Relationships
+                    .Select(r => r.SortKeyPattern)
+                    .ToArray();
+
+                for (int i = 0; i < patterns.Length; i++)
+                {
+                    for (int j = i + 1; j < patterns.Length; j++)
+                    {
+                        if (patterns[i] != null && patterns[j] != null &&
+                            PatternsConflict(patterns[i]!, patterns[j]!))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(
+                                DiagnosticDescriptors.ConflictingRelatedEntityPatterns,
+                                entity.ClassDeclaration?.Identifier.GetLocation() ?? Location.None,
+                                patterns[i],
+                                patterns[j],
+                                entity.ClassName));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Determines whether two sort key patterns conflict.
+    /// Patterns conflict if one is a prefix of another (after removing wildcards).
+    /// </summary>
+    private static bool PatternsConflict(string pattern1, string pattern2)
+    {
+        if (pattern1 == pattern2)
+            return true;
+
+        var prefix1 = pattern1.Replace("*", "");
+        var prefix2 = pattern2.Replace("*", "");
+
+        return prefix1.StartsWith(prefix2) || prefix2.StartsWith(prefix1);
     }
 
 }
