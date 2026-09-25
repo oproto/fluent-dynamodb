@@ -201,8 +201,8 @@ namespace TestNamespace
 
         for (var i = 0; i < bareSorted.Count; i++)
         {
-            var bareText = bareSorted[i].SourceText.ToString();
-            var explicitText = explicitSorted[i].SourceText.ToString();
+            var bareText = StripTimestampLine(bareSorted[i].SourceText.ToString());
+            var explicitText = StripTimestampLine(explicitSorted[i].SourceText.ToString());
 
             bareText.Should().Be(explicitText,
                 $"Generated source file #{i} for Invoice should be character-for-character identical " +
@@ -249,8 +249,8 @@ namespace TestNamespace
 
         for (var i = 0; i < bareSorted.Count; i++)
         {
-            var bareText = bareSorted[i].SourceText.ToString();
-            var explicitText = explicitSorted[i].SourceText.ToString();
+            var bareText = StripTimestampLine(bareSorted[i].SourceText.ToString());
+            var explicitText = StripTimestampLine(explicitSorted[i].SourceText.ToString());
 
             bareText.Should().Be(explicitText,
                 $"Generated source file #{i} for InvoiceLine should be identical " +
@@ -289,6 +289,18 @@ namespace TestNamespace
     }
 
     #region Helper Methods
+
+    /// <summary>
+    /// Strips the "// Generated: ..." timestamp line from generated source text.
+    /// The source generator embeds DateTimeOffset.UtcNow in every file header,
+    /// which differs between compilations — not meaningful for equivalence checks.
+    /// </summary>
+    private static string StripTimestampLine(string sourceText)
+    {
+        var lines = sourceText.Split('\n');
+        var filtered = lines.Where(line => !line.TrimStart().StartsWith("// Generated:"));
+        return string.Join("\n", filtered);
+    }
 
     private static GeneratorTestResult GenerateCode(string source)
     {

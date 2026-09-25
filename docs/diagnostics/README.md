@@ -1,6 +1,6 @@
 # Diagnostics Reference
 
-This reference documents all **127** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
+This reference documents all **128** diagnostic codes emitted by the Oproto.FluentDynamoDb source generator. Each code links to a detailed page with the message format, description, triggering example, and fix.
 
 ## Numbering Conventions
 
@@ -167,6 +167,7 @@ Codes `FDDB0020` and `FDDB0021` use four-digit numbering while other FDDB codes 
 | [FDDB130](FDDB/FDDB130.md) | Error | Bare RelatedEntity unresolved entity type |
 | [FDDB131](FDDB/FDDB131.md) | Error | Bare RelatedEntity trivial sort key pattern |
 | [FDDB132](FDDB/FDDB132.md) | Error | Bare RelatedEntity table mismatch |
+| [FDDB133](FDDB/FDDB133.md) | Error | Bare RelatedEntity non-generic collection type |
 
 ## PROJ — Projection Model Validation
 
