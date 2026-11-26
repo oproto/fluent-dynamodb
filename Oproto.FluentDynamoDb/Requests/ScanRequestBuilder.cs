@@ -343,9 +343,13 @@ public class ScanRequestBuilder<TEntity> :
         {
             _req.ExpressionAttributeValues = _attrV.AttributeValues;
         }
-        else if (_req.ExpressionAttributeValues == null)
+        else if (_req.ExpressionAttributeValues is { Count: 0 })
         {
-            _req.ExpressionAttributeValues = new Dictionary<string, AttributeValue>();
+            // Do NOT emit an empty ExpressionAttributeValues dictionary.
+            // DynamoDB rejects requests with an empty ExpressionAttributeValues map,
+            // so normalize an empty caller-supplied map (WithRequest / raw SDK access) to null.
+            // This mutates the caller's ScanRequest, as ToScanRequest() already does for other properties.
+            _req.ExpressionAttributeValues = null;
         }
         return _req;
     }

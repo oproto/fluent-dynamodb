@@ -549,8 +549,7 @@ public class ScanRequestBuilderTests
         builder.WithValue(":status", (string?)null);
         var req = builder.ToScanRequest();
         req.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().HaveCount(0); // null string values are not added when conditionalUse is true
+        req.ExpressionAttributeValues.Should().BeNull(); // null string values are not added when conditionalUse is true, and an empty map is never emitted
     }
 
     [Fact]
@@ -643,8 +642,7 @@ public class ScanRequestBuilderTests
         builder.WithValue(":status", "active", conditionalUse: false);
         var req = builder.ToScanRequest();
         req.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().NotBeNull();
-        req.ExpressionAttributeValues.Should().HaveCount(0); // conditionalUse: false means nothing is added
+        req.ExpressionAttributeValues.Should().BeNull(); // conditionalUse: false means nothing is added, and an empty map is never emitted
     }
 
     [Fact]
@@ -1024,6 +1022,214 @@ public class ScanRequestBuilderTests
     }
 
     #endregion Context Population Tests
+
+    #region Empty ExpressionAttributeValues Bug Condition Tests (GitHub issue #229)
+
+    [Fact]
+    public void ToScanRequestUnfilteredExpressionAttributeValuesIsNull()
+    {
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("t");
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().BeNull();
+    }
+
+    [Fact]
+    public void ToScanRequestUnfilteredMarshalledBodyOmitsExpressionAttributeValues()
+    {
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("t");
+
+        var body = MarshalToJson(builder.ToScanRequest());
+
+        body.Should().NotContain("ExpressionAttributeValues");
+    }
+
+    [Fact]
+    public void WithValueConditionalUseFalseToScanRequestExpressionAttributeValuesIsNull()
+    {
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("t");
+        builder.WithValue(":x", "v", conditionalUse: false);
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().BeNull();
+    }
+
+    [Fact]
+    public void WithValueNullStringDefaultConditionalToScanRequestExpressionAttributeValuesIsNull()
+    {
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("t");
+        builder.WithValue(":x", (string?)null);
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ToListAsyncUnfilteredSendsRequestWithNullExpressionAttributeValues()
+    {
+        var mockClient = Substitute.For<IAmazonDynamoDB>();
+        ScanRequest? captured = null;
+        mockClient.ScanAsync(Arg.Do<ScanRequest>(r => captured = r), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ScanResponse { Items = new List<Dictionary<string, AttributeValue>>() }));
+
+        var builder = new ScanRequestBuilder<TestEntity>(mockClient);
+        builder.ForTable("t");
+
+        await builder.ToListAsync<TestEntity>();
+
+        captured.Should().NotBeNull();
+        captured!.ExpressionAttributeValues.Should().BeNull();
+    }
+
+    [Fact]
+    public void WithRequestEmptyExpressionAttributeValuesToScanRequestNormalizesToNull()
+    {
+        var callerRequest = new ScanRequest
+        {
+            TableName = "t",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>()
+        };
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.WithRequest(callerRequest);
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().BeNull();
+        MarshalToJson(req).Should().NotContain("ExpressionAttributeValues");
+        ReferenceEquals(req, callerRequest).Should().BeTrue();
+        callerRequest.ExpressionAttributeValues.Should().BeNull();
+    }
+
+    private static string MarshalToJson(ScanRequest request)
+    {
+        var marshalled = new Amazon.DynamoDBv2.Model.Internal.MarshallTransformations.ScanRequestMarshaller().Marshall(request);
+        return System.Text.Encoding.UTF8.GetString(marshalled.Content);
+    }
+
+    #endregion Empty ExpressionAttributeValues Bug Condition Tests (GitHub issue #229)
+
+    #region Empty ExpressionAttributeValues Preservation Tests (GitHub issue #229)
+
+    [Fact]
+    public void FilteredScanKeepsExpressionAttributeValuesAndMarshalledBodyContainsThem()
+    {
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("t")
+               .WithFilter("#status = :status")
+               .WithAttribute("#status", "status")
+               .WithValue(":status", "active");
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().NotBeNull();
+        req.ExpressionAttributeValues.Should().HaveCount(1);
+        req.ExpressionAttributeValues[":status"].S.Should().Be("active");
+        MarshalToJson(req).Should().Contain("ExpressionAttributeValues");
+    }
+
+    [Fact]
+    public void WithRequestNonEmptyExpressionAttributeValuesNoBuilderValuesPreservesSameDictionary()
+    {
+        var callerValues = new Dictionary<string, AttributeValue>
+        {
+            [":cat"] = new AttributeValue { S = "books" },
+            [":min"] = new AttributeValue { N = "5" }
+        };
+        var callerRequest = new ScanRequest { TableName = "t", ExpressionAttributeValues = callerValues };
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.WithRequest(callerRequest);
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().BeSameAs(callerValues);
+        req.ExpressionAttributeValues.Should().HaveCount(2);
+        req.ExpressionAttributeValues[":cat"].S.Should().Be("books");
+        req.ExpressionAttributeValues[":min"].N.Should().Be("5");
+        MarshalToJson(req).Should().Contain("ExpressionAttributeValues");
+    }
+
+    [Fact]
+    public void WithRequestNullExpressionAttributeValuesWithBuilderValueYieldsBuilderValues()
+    {
+        var callerRequest = new ScanRequest { TableName = "t" };
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.WithRequest(callerRequest)
+               .WithFilter("#status = :status")
+               .WithAttribute("#status", "status")
+               .WithValue(":status", "active");
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().NotBeNull();
+        req.ExpressionAttributeValues.Should().HaveCount(1);
+        req.ExpressionAttributeValues[":status"].S.Should().Be("active");
+    }
+
+    [Fact]
+    public void WithRequestEmptyExpressionAttributeValuesWithBuilderValueYieldsExactlyBuilderValues()
+    {
+        var callerRequest = new ScanRequest
+        {
+            TableName = "t",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>()
+        };
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.WithRequest(callerRequest)
+               .WithFilter("#status = :status")
+               .WithAttribute("#status", "status")
+               .WithValue(":status", "active");
+
+        var req = builder.ToScanRequest();
+
+        req.ExpressionAttributeValues.Should().NotBeNull();
+        req.ExpressionAttributeValues.Should().HaveCount(1);
+        req.ExpressionAttributeValues.Should().ContainKey(":status");
+        req.ExpressionAttributeValues[":status"].S.Should().Be("active");
+        MarshalToJson(req).Should().Contain("ExpressionAttributeValues");
+    }
+
+    [Fact]
+    public void UnfilteredScanWithOtherPropertiesStillCarriesThem()
+    {
+        var startKey = new Dictionary<string, AttributeValue>
+        {
+            ["pk"] = new AttributeValue { S = "start-pk" }
+        };
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.ForTable("TestTable")
+               .UsingIndex("gsi1")
+               .Take(10)
+               .WithProjection("#pk, #sk")
+               .WithAttribute("#pk", "pk")
+               .WithAttribute("#sk", "sk")
+               .WithSegment(1, 4)
+               .UsingConsistentRead()
+               .StartAt(startKey);
+
+        var req = builder.ToScanRequest();
+
+        req.TableName.Should().Be("TestTable");
+        req.IndexName.Should().Be("gsi1");
+        req.Limit.Should().Be(10);
+        req.ProjectionExpression.Should().Be("#pk, #sk");
+        req.Select.Should().Be(Select.SPECIFIC_ATTRIBUTES);
+        req.Segment.Should().Be(1);
+        req.TotalSegments.Should().Be(4);
+        req.ConsistentRead.Should().BeTrue();
+        req.ExclusiveStartKey.Should().BeEquivalentTo(startKey);
+        req.ExpressionAttributeNames.Should().HaveCount(2);
+        req.ExpressionAttributeNames["#pk"].Should().Be("pk");
+        req.ExpressionAttributeNames["#sk"].Should().Be("sk");
+    }
+
+    #endregion Empty ExpressionAttributeValues Preservation Tests (GitHub issue #229)
 
     #region Helper Methods
 
