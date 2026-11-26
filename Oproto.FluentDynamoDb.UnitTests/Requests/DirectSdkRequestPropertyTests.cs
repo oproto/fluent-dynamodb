@@ -110,6 +110,13 @@ public class DirectSdkRequestPropertyTests
                 // Arrange
                 var client = Substitute.For<IAmazonDynamoDB>();
                 var builder = new ScanRequestBuilder<TestEntity>(client);
+
+                // Capture the input's ExpressionAttributeValues state BEFORE ToScanRequest(),
+                // because ToScanRequest() mutates the caller's request (empty -> null).
+                var originalValues = request.ExpressionAttributeValues;
+                var wasNull = originalValues == null;
+                var wasEmpty = originalValues is { Count: 0 };
+                var originalEntries = originalValues?.ToDictionary(kv => kv.Key, kv => kv.Value);
                 
                 // Act
                 builder.WithRequest(request);
@@ -121,13 +128,29 @@ public class DirectSdkRequestPropertyTests
                 var limitPreserved = result.Limit == request.Limit;
                 var segmentPreserved = result.Segment == request.Segment;
                 var totalSegmentsPreserved = result.TotalSegments == request.TotalSegments;
+
+                // null stays null, empty becomes null, non-empty is the same reference with the same entries
+                bool valuesPreserved;
+                if (wasNull || wasEmpty)
+                {
+                    valuesPreserved = result.ExpressionAttributeValues == null;
+                }
+                else
+                {
+                    valuesPreserved = ReferenceEquals(result.ExpressionAttributeValues, originalValues)
+                        && result.ExpressionAttributeValues!.Count == originalEntries!.Count
+                        && originalEntries.All(kv =>
+                            result.ExpressionAttributeValues.TryGetValue(kv.Key, out var v) &&
+                            ReferenceEquals(v, kv.Value));
+                }
                 
                 return (tableNamePreserved && filterPreserved && limitPreserved && 
-                        segmentPreserved && totalSegmentsPreserved)
+                        segmentPreserved && totalSegmentsPreserved && valuesPreserved)
                     .ToProperty()
                     .Label($"ScanRequest properties should be preserved. " +
                            $"TableName: {tableNamePreserved}, Filter: {filterPreserved}, " +
-                           $"Limit: {limitPreserved}, Segment: {segmentPreserved}, TotalSegments: {totalSegmentsPreserved}");
+                           $"Limit: {limitPreserved}, Segment: {segmentPreserved}, TotalSegments: {totalSegmentsPreserved}, " +
+                           $"ExpressionAttributeValues: {valuesPreserved} (wasNull: {wasNull}, wasEmpty: {wasEmpty})");
             });
     }
 
@@ -421,13 +444,26 @@ public class DirectSdkRequestPropertyTests
             from totalSegments in Gen.Choose(1, 4)
             from hasFilter in Arb.Default.Bool().Generator
             let filter = hasFilter ? "attribute_exists(#attr)" : null
+            // 0 = null, 1 = empty dictionary, 2 = non-empty dictionary
+            from valuesMode in Gen.Choose(0, 2)
+            from valueCount in Gen.Choose(1, 3)
+            from valueSuffix in Arb.Default.NonEmptyString().Generator
+            let values = valuesMode switch
+            {
+                0 => null,
+                1 => new Dictionary<string, AttributeValue>(),
+                _ => Enumerable.Range(0, valueCount).ToDictionary(
+                    i => $":v{i}",
+                    i => new AttributeValue { S = $"{valueSuffix.Get}{i}" })
+            }
             select new ScanRequest
             {
                 TableName = tableName.Get,
                 FilterExpression = filter,
                 Limit = limit,
                 Segment = segment,
-                TotalSegments = Math.Max(totalSegments, segment + 1) // Ensure totalSegments > segment
+                TotalSegments = Math.Max(totalSegments, segment + 1), // Ensure totalSegments > segment
+                ExpressionAttributeValues = values
             });
     }
 

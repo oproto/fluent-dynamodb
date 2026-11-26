@@ -1,0 +1,175 @@
+{
+  "pbtResults": {
+    "2. Write preservation property tests (BEFORE implementing fix)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795717802507
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717625589
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717629059
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717714012
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717625708
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717715778
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717809767
+      }
+    ],
+    "3.1 Implement the fix": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717625761
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717811910
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717840718
+      }
+    ],
+    "3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717625828
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717843519
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717881877
+      }
+    ],
+    "3.3 Update the existing tests that encode or cover the bug": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717625886
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717882527
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717933580
+      }
+    ],
+    "3.4 Add FluentResults regression test (optional)": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717625940
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717935506
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717972060
+      }
+    ],
+    "3.5 Verify preservation tests still pass": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717626012
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717974024
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795718009221
+      }
+    ],
+    "4. Update CHANGELOG.md": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717626057
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795718011512
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795718029080
+      }
+    ],
+    "5. Checkpoint - Run the full test suite and ensure all tests pass": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795717626092
+      },
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795718031352
+      },
+      {
+        "executionId": "8b5c7784-d87a-40df-a90e-d353d11d8a59",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795718309040
+      },
+      {
+        "executionId": "8b5c7784-d87a-40df-a90e-d353d11d8a59",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795718570768
+      }
+    ],
+    "3. Fix for unfiltered Scan sending empty ExpressionAttributeValues (GitHub issue #229)": [
+      {
+        "executionId": "d6f96757-444e-4085-ae89-4d9be7aaffcf",
+        "chatSessionId": "sess_de51bbfd-260f-45d9-981e-0c653678fd03",
+        "timestamp": 1795718009297
+      }
+    ]
+  }
+}

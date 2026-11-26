@@ -146,6 +146,37 @@ public class FluentResultsExtensionsTests
     }
 
     [Fact]
+    public async Task ToListAsyncResult_Scan_Unfiltered_OmitsExpressionAttributeValues()
+    {
+        // Arrange
+        var builder = new ScanRequestBuilder<TestEntity>(_mockClient).ForTable("test-table");
+        var mockResponse = new ScanResponse
+        {
+            Items = new List<Dictionary<string, AttributeValue>>
+            {
+                new()
+                {
+                    ["pk"] = new AttributeValue { S = "test-pk" },
+                    ["name"] = new AttributeValue { S = "test-name" }
+                }
+            },
+            Count = 1
+        };
+
+        ScanRequest? capturedRequest = null;
+        _mockClient.ScanAsync(Arg.Do<ScanRequest>(r => capturedRequest = r), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(mockResponse));
+
+        // Act
+        var result = await builder.ToListAsyncResult<TestEntity>();
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.ExpressionAttributeValues.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ToListAsyncResult_Scan_Exception_ReturnsFailResult()
     {
         // Arrange
