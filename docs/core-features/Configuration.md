@@ -277,7 +277,7 @@ var updatedUser = User.FromDynamoDb<User>(response.Attributes);
 
 ### Overriding Defaults
 
-Explicit builder method calls always override default options:
+Explicit builder method calls override default options. `UsingConsistentRead(bool)` accepts `false` to opt a single operation out of a consistent-read default:
 
 ```csharp
 // Default is consistent read
@@ -289,7 +289,7 @@ var table = new UsersTable(client, "users", options);
 // This specific query uses eventually consistent read (overrides default)
 var users = await table.Users.Query()
     .Where(x => x.TenantId == tenantId)
-    .UseConsistentRead(false)  // Explicit override
+    .UsingConsistentRead(false)  // Explicit override
     .ToListAsync();
 
 // This query uses the default (consistent read)
@@ -401,7 +401,7 @@ public async Task Test2()
 | `AddGeospatial(IGeospatialProvider)` | Enables geospatial support with a custom provider. |
 | `WithBlobStorage(IBlobStorageProvider?)` | Sets the blob storage provider. |
 | `WithEncryption(IFieldEncryptor?)` | Sets the field encryptor. |
-| `UseConsistentRead(bool)` | Sets the default consistent read setting. |
+| `UseConsistentRead(bool)` | Sets the default consistent read setting. Override per operation with `UsingConsistentRead(bool)` on Get, Query and Scan builders. |
 | `ReturnConsumedCapacity(ReturnConsumedCapacity)` | Sets the default consumed capacity reporting. |
 | `ReturnItemCollectionMetrics(ReturnItemCollectionMetrics)` | Sets the default item collection metrics. |
 | `ReturnValues(ReturnValue)` | Sets the default return values for write operations. |

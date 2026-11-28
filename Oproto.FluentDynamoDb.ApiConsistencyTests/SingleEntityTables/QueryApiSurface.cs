@@ -113,6 +113,9 @@ public class QueryApiSurface
         results = await table.BasicPkSkEntitys.Query(x => x.PartitionKey == "1234")
             .UsingConsistentRead()
             .ToListAsync();
+        results = await table.BasicPkSkEntitys.Query(x => x.PartitionKey == "1234")
+            .UsingConsistentRead(false)
+            .ToListAsync();
         
         // === Projection ===
         results = await table.BasicPkSkEntitys.Query(x => x.PartitionKey == "1234")

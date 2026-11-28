@@ -27,6 +27,7 @@ Query operations efficiently retrieve items using the primary key and optional s
 | `Take(limit)` | 🔧 | Limit items evaluated |
 | `UsingIndex(indexName)` | 🔧 | Query a secondary index |
 | `UsingConsistentRead()` | 🔧 | Enable strongly consistent reads |
+| `UsingConsistentRead(bool)` | 🔧 | Explicitly enable or disable consistent reads (overrides an options-level default) |
 | `WithProjection(expression)` | 🔧 | Specify attributes to retrieve |
 | `StartAt(exclusiveStartKey)` | 🔧 | Set pagination start point |
 | `OrderAscending()` | 🔧 | Sort by sort key ascending |
@@ -53,6 +54,7 @@ Get operations retrieve a single item by its primary key.
 | `WithKey(name, value)` | 📦 | Set single key attribute |
 | `WithKey(lambda, value)` | ⚡ | Set key using lambda expression (preferred) |
 | `UsingConsistentRead()` | 🔧 | Enable strongly consistent reads |
+| `UsingConsistentRead(bool)` | 🔧 | Explicitly enable or disable consistent reads (overrides an options-level default) |
 | `WithProjection(expression)` | 🔧 | Specify attributes to retrieve |
 | `ReturnTotalConsumedCapacity()` | 🔧 | Include capacity info in response |
 | `GetItemAsync()` | 📦 | Execute and return mapped entity |
@@ -147,6 +149,7 @@ Scan operations read every item in a table. Use Query instead whenever possible.
 | `Take(limit)` | 🔧 | Limit items evaluated |
 | `UsingIndex(indexName)` | 🔧 | Scan a secondary index |
 | `UsingConsistentRead()` | 🔧 | Enable strongly consistent reads |
+| `UsingConsistentRead(bool)` | 🔧 | Explicitly enable or disable consistent reads (overrides an options-level default) |
 | `WithProjection(expression)` | 🔧 | Specify attributes to retrieve |
 | `StartAt(exclusiveStartKey)` | 🔧 | Set pagination start point |
 | `WithSegment(segment, total)` | 🔧 | Configure parallel scan segment |

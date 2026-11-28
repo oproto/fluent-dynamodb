@@ -541,7 +541,7 @@ await table.Query()
 await table.Query()
     .Where("pk = :pk")
     .WithValue(":pk", "product-123")
-    .WithConsistentRead(false) // Halves capacity cost
+    .UsingConsistentRead(false) // Halves capacity cost
     .ToListAsync();
 ```
 

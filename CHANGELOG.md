@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`UsingConsistentRead(bool)` Overload on Get, Query and Scan Builders** ([#231](https://github.com/oproto/fluent-dynamodb/issues/231)) — `GetItemRequestBuilder`, `QueryRequestBuilder` and `ScanRequestBuilder` now accept an explicit value, so a single operation can opt out of a `FluentDynamoDbOptions.UseConsistentRead(true)` default with `.UsingConsistentRead(false)`. The parameterless `UsingConsistentRead()` is unchanged and still sets `true`. Previously no builder method could turn consistent read off once an options-level default enabled it.
 - **Named Property Placeholders for Computed Keys** — The `[Computed]` attribute now supports `{PropertyName}` and `{PropertyName:format}` tokens directly in format strings, eliminating the need to separately list source property names and correlate them with positional `{N}` indices. The source generator detects named placeholders at compile time, resolves them against the entity's declared properties, and normalizes them to positional form before the downstream pipeline runs — producing identical generated code to the equivalent hand-written positional syntax.
 
   **Named placeholder syntax (preferred):**

@@ -369,6 +369,38 @@ public class ScanRequestBuilderTests
         req.ConsistentRead.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UsingConsistentReadWithValueSetsRequestValue(bool consistentRead)
+    {
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.UsingConsistentRead(consistentRead);
+        var req = builder.ToScanRequest();
+        req.ConsistentRead.Should().Be(consistentRead);
+    }
+
+    [Fact]
+    public void UsingConsistentReadFalseOverridesOptionsDefault()
+    {
+        var options = new FluentDynamoDbOptions().UseConsistentRead(true);
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>(), options);
+        builder.ToScanRequest().ConsistentRead.Should().BeTrue("the options default should be applied to new builders");
+
+        builder.UsingConsistentRead(false);
+        builder.ToScanRequest().ConsistentRead.Should().BeFalse();
+    }
+
+    [Fact]
+    public void UsingConsistentReadTrueOverridesOptionsDefaultOfFalse()
+    {
+        var options = new FluentDynamoDbOptions().UseConsistentRead(false);
+        var builder = new ScanRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>(), options);
+
+        builder.UsingConsistentRead(true);
+        builder.ToScanRequest().ConsistentRead.Should().BeTrue();
+    }
+
     [Fact]
     public void DefaultConsistentReadSuccess()
     {

@@ -34,6 +34,8 @@ public class GetApiSurface
         // === Builder Options ===
         // With ConsistentRead
         result = await table.BasicPkEntitys.Get("1234").UsingConsistentRead().GetItemAsync();
+        // With explicit ConsistentRead value (overrides options default)
+        result = await table.BasicPkEntitys.Get("1234").UsingConsistentRead(false).GetItemAsync();
         
         // With Projection
         result = await table.BasicPkEntitys.Get("1234").WithProjection("name, age").GetItemAsync();

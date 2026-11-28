@@ -824,7 +824,7 @@ var response = await batch.ExecuteAsync();
 // ❌ Consistent read (2x capacity)
 var user = await table.Get
     .WithKey(UserFields.UserId, UserKeys.Pk("user123"))
-    .WithConsistentRead(true)
+    .UsingConsistentRead(true)
     .GetItemAsync();
 
 // ✅ Eventually consistent read (1x capacity)

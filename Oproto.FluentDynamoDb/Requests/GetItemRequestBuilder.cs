@@ -177,7 +177,19 @@ public class GetItemRequestBuilder<TEntity> : IWithKey<GetItemRequestBuilder<TEn
     /// <returns>The builder instance for method chaining.</returns>
     public GetItemRequestBuilder<TEntity> UsingConsistentRead()
     {
-        _req.ConsistentRead = true;
+        return UsingConsistentRead(true);
+    }
+
+    /// <summary>
+    /// Explicitly sets whether this operation uses strongly consistent reads, overriding any
+    /// default configured through <see cref="FluentDynamoDbOptions.UseConsistentRead(bool)"/>.
+    /// Pass <c>false</c> to use an eventually consistent read when the options-level default is consistent.
+    /// </summary>
+    /// <param name="consistentRead"><c>true</c> for a strongly consistent read; <c>false</c> for an eventually consistent read.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    public GetItemRequestBuilder<TEntity> UsingConsistentRead(bool consistentRead)
+    {
+        _req.ConsistentRead = consistentRead;
         return this;
     }
 

@@ -392,6 +392,38 @@ public class QueryRequestBuilderTests
         req.ConsistentRead.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UsingConsistentReadWithValueSetsRequestValue(bool consistentRead)
+    {
+        var builder = new QueryRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.UsingConsistentRead(consistentRead);
+        var req = builder.ToQueryRequest();
+        req.ConsistentRead.Should().Be(consistentRead);
+    }
+
+    [Fact]
+    public void UsingConsistentReadFalseOverridesOptionsDefault()
+    {
+        var options = new FluentDynamoDbOptions().UseConsistentRead(true);
+        var builder = new QueryRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>(), options);
+        builder.ToQueryRequest().ConsistentRead.Should().BeTrue("the options default should be applied to new builders");
+
+        builder.UsingConsistentRead(false);
+        builder.ToQueryRequest().ConsistentRead.Should().BeFalse();
+    }
+
+    [Fact]
+    public void UsingConsistentReadTrueOverridesOptionsDefaultOfFalse()
+    {
+        var options = new FluentDynamoDbOptions().UseConsistentRead(false);
+        var builder = new QueryRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>(), options);
+
+        builder.UsingConsistentRead(true);
+        builder.ToQueryRequest().ConsistentRead.Should().BeTrue();
+    }
+
     [Fact]
     public void StartAtSuccess()
     {

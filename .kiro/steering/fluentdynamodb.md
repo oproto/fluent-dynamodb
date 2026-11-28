@@ -658,7 +658,7 @@ var users = await query.ToListAsync();
 var hasMore = query.Response?.HasMorePages ?? false;
 var nextPage = await table.Users.Query(x => x.CustomerId == tenantId).StartAt(query.Response?.LastEvaluatedKey!).ToListAsync();
 
-// Options: UsingConsistentRead(), ScanIndexForward(false), WithProjection("name, email")
+// Options: UsingConsistentRead(), UsingConsistentRead(false) (override options default), ScanIndexForward(false), WithProjection("name, email")
 ```
 
 ## Scan Operations
