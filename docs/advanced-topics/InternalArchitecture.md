@@ -350,7 +350,7 @@ var user = await table.Users.Get()
     .WithKey("tenantId", tenantId)
     .WithKey("userId", userId)
     .WithProjection("name", "email", "status")
-    .WithConsistentRead(true)
+    .UsingConsistentRead(true)
     .GetItemAsync();
 ```
 

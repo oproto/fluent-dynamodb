@@ -206,6 +206,38 @@ public class GetItemRequestBuilderTests
         req.ConsistentRead.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UsingConsistentReadWithValueSetsRequestValue(bool consistentRead)
+    {
+        var builder = new GetItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>());
+        builder.UsingConsistentRead(consistentRead);
+        var req = builder.ToGetItemRequest();
+        req.ConsistentRead.Should().Be(consistentRead);
+    }
+
+    [Fact]
+    public void UsingConsistentReadFalseOverridesOptionsDefault()
+    {
+        var options = new FluentDynamoDbOptions().UseConsistentRead(true);
+        var builder = new GetItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>(), options);
+        builder.ToGetItemRequest().ConsistentRead.Should().BeTrue("the options default should be applied to new builders");
+
+        builder.UsingConsistentRead(false);
+        builder.ToGetItemRequest().ConsistentRead.Should().BeFalse();
+    }
+
+    [Fact]
+    public void UsingConsistentReadTrueOverridesOptionsDefaultOfFalse()
+    {
+        var options = new FluentDynamoDbOptions().UseConsistentRead(false);
+        var builder = new GetItemRequestBuilder<TestEntity>(Substitute.For<IAmazonDynamoDB>(), options);
+
+        builder.UsingConsistentRead(true);
+        builder.ToGetItemRequest().ConsistentRead.Should().BeTrue();
+    }
+
     #region GetItemAsync Tests
 
     [Fact]

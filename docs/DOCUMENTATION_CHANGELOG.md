@@ -57,6 +57,74 @@ Entries may be categorized as:
 
 <!-- Add new entries below this line, with most recent at the top -->
 
+## [2026-11-28]
+
+### API Correction: Per-Operation Consistent Read Override
+
+**Category:** API Correction
+
+**Summary:** Documentation showed `.UseConsistentRead(false)` on Query builders as a per-operation override. That method exists only on `FluentDynamoDbOptions`; builders had no way to turn consistent read off. Builders now have `UsingConsistentRead(bool)` ([#231](https://github.com/oproto/fluent-dynamodb/issues/231)), and the docs use it. Also corrected non-existent `.WithConsistentRead(...)` calls to `.UsingConsistentRead(...)`.
+
+---
+
+### File: docs/core-features/Configuration.md
+
+**Before:**
+```csharp
+var users = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .UseConsistentRead(false)  // Explicit override
+    .ToListAsync();
+```
+
+**After:**
+```csharp
+var users = await table.Users.Query()
+    .Where(x => x.TenantId == tenantId)
+    .UsingConsistentRead(false)  // Explicit override
+    .ToListAsync();
+```
+
+**Reason:** `UseConsistentRead(bool)` is an options-level method and does not exist on request builders (CS1061). The builder method is `UsingConsistentRead(bool)`, added in #231. The `FluentDynamoDbOptions` method table in `Configuration.md` was updated to point to the new overload.
+
+---
+
+### File: docs/BREAKING_CHANGES_v0.9.md (removed)
+
+**Change:** File deleted. It was superseded by `docs/BREAKING_CHANGES_v1.0.md`, and its only per-builder consistent read example used the nonexistent `.UseConsistentRead(false)`.
+
+**Reason:** Obsolete migration guide for v0.9. Remove it from derived documentation as well.
+
+---
+
+### File: docs/reference/ApiReference.md
+
+**Before:** Get, Query and Scan builder tables listed only `UsingConsistentRead()`.
+
+**After:** Each table also lists `UsingConsistentRead(bool)`: "Explicitly enable or disable consistent reads (overrides an options-level default)".
+
+**Reason:** Documents the new overload.
+
+---
+
+### File: docs/advanced-topics/InternalArchitecture.md, docs/reference/Troubleshooting.md, docs/reference/LoggingTroubleshooting.md
+
+**Before:**
+```csharp
+.WithConsistentRead(true)
+.WithConsistentRead(false)
+```
+
+**After:**
+```csharp
+.UsingConsistentRead(true)
+.UsingConsistentRead(false)
+```
+
+**Reason:** `WithConsistentRead` does not exist on any builder. The method is `UsingConsistentRead`; the `bool` overload now exists. The surrounding examples in these files use older builder patterns and were not otherwise changed.
+
+---
+
 ## [2026-09-21]
 
 ### New Feature Documentation: Bare `[RelatedEntity]` Inference

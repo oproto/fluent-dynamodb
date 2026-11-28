@@ -68,6 +68,9 @@ public class ScanApiSurface
         results = await table.ScannableEntitys.Scan()
             .UsingConsistentRead()
             .ToListAsync();
+        results = await table.ScannableEntitys.Scan()
+            .UsingConsistentRead(false)
+            .ToListAsync();
         
         // === Projection ===
         results = await table.ScannableEntitys.Scan()
